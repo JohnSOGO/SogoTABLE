@@ -37,6 +37,8 @@ http://127.0.0.1:8787/
 
 For phone testing on the same network, use the computer's LAN IP with port `8787`.
 
+The first server keeps rooms in memory. Restarting the server clears active rooms.
+
 ## Run Tests
 
 ```powershell

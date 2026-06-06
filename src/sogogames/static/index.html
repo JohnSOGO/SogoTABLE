@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SogoGAMES</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section id="intro" class="screen active">
+        <div class="brand">
+          <div class="logo">SG</div>
+          <h1>SogoGAMES</h1>
+          <p>Quick family games for the table. Pick a player, join a room, and play from a phone browser.</p>
+        </div>
+        <button class="primary" data-screen="players">Start Playing</button>
+      </section>
+
+      <section id="players" class="screen">
+        <header class="topbar">
+          <button class="ghost" data-screen="intro">Back</button>
+          <h2>Players</h2>
+        </header>
+        <div id="playerList" class="player-list"></div>
+        <form id="playerForm" class="panel">
+          <label>
+            Display name
+            <input id="playerName" autocomplete="nickname" maxlength="24" placeholder="Sogo" required />
+          </label>
+          <div>
+            <span class="label">Icon</span>
+            <div id="iconChoices" class="choice-row"></div>
+          </div>
+          <div>
+            <span class="label">Color</span>
+            <div id="colorChoices" class="choice-row"></div>
+          </div>
+          <button class="primary" type="submit">Create Player</button>
+        </form>
+        <button class="primary" data-screen="lobby">Continue</button>
+      </section>
+
+      <section id="lobby" class="screen">
+        <header class="topbar">
+          <button class="ghost" data-screen="players">Back</button>
+          <h2>Lobby</h2>
+        </header>
+        <div class="panel">
+          <div class="selected-player" id="selectedPlayer"></div>
+          <button id="createRoom" class="primary">Create Room</button>
+          <div class="join-row">
+            <input id="joinCode" maxlength="4" placeholder="CODE" />
+            <button id="joinRoom">Join</button>
+          </div>
+        </div>
+        <div id="roomPanel" class="panel hidden">
+          <div class="room-code">Room <strong id="roomCode"></strong></div>
+          <div id="roomPlayers" class="room-players"></div>
+          <button id="joinSelected" class="secondary">Add Selected Player</button>
+          <button id="openGame" class="primary">Open Game</button>
+        </div>
+      </section>
+
+      <section id="game" class="screen">
+        <header class="game-header">
+          <button class="ghost" data-screen="lobby">Lobby</button>
+          <div>
+            <h2>Super Tic Tac Toe</h2>
+            <div id="gameMeta" class="meta"></div>
+          </div>
+          <button id="resetGame" class="ghost">Reset</button>
+        </header>
+        <div id="statusLine" class="status-line"></div>
+        <div id="macroBoard" class="macro-board"></div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

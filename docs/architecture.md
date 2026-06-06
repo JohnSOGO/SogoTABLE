@@ -51,6 +51,14 @@ Phase 1 uses in-memory rooms:
 
 Browser local storage keeps player display identity. The room disappears when the server restarts.
 
+## HTTP Endpoints
+
+- `POST /api/room/create`: create an in-memory room and seat the selected player as `X`.
+- `POST /api/room/join`: join an existing room with the selected player as `O` when available.
+- `GET /api/room?code=ABCD`: fetch the current room and game state.
+- `POST /api/room/move`: submit one move for the current player.
+- `POST /api/room/reset`: restart the current room's game.
+
 ## Future Multiplayer
 
 The likely progression is:

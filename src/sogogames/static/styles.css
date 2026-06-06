@@ -1,0 +1,303 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --ink: #172033;
+  --muted: #5d6678;
+  --line: #d9dfeb;
+  --panel: #ffffff;
+  --accent: #1f7a5f;
+  --accent-strong: #145944;
+  --warn: #b7791f;
+  --x: #1e63d6;
+  --o: #c43d5d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 14px;
+  font-weight: 700;
+}
+
+button.primary {
+  width: 100%;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.secondary {
+  width: 100%;
+  background: #e8f3ef;
+  border-color: #b7d8cd;
+  color: var(--accent-strong);
+}
+
+button.ghost {
+  background: transparent;
+}
+
+input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+}
+
+.app {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.screen {
+  display: none;
+  min-height: 100vh;
+}
+
+.screen.active {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.brand {
+  display: grid;
+  gap: 12px;
+  padding-top: 15vh;
+}
+
+.logo {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 42px;
+  line-height: 1;
+}
+
+h2 {
+  font-size: 22px;
+}
+
+p,
+.meta,
+.label {
+  color: var(--muted);
+}
+
+.topbar,
+.game-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.topbar h2 {
+  text-align: center;
+}
+
+.panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.hidden {
+  display: none;
+}
+
+.player-list,
+.room-players {
+  display: grid;
+  gap: 8px;
+}
+
+.player-card {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px 10px;
+}
+
+.player-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(31, 122, 95, 0.16);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.choice {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+}
+
+.choice.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(31, 122, 95, 0.16);
+}
+
+.swatch {
+  border-radius: 50%;
+}
+
+.join-row {
+  display: grid;
+  grid-template-columns: 1fr 88px;
+  gap: 8px;
+}
+
+.room-code {
+  font-size: 20px;
+}
+
+.status-line {
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 800;
+}
+
+.macro-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  aspect-ratio: 1;
+}
+
+.small-board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 4px;
+  border: 2px solid #8a94a8;
+  border-radius: 8px;
+  background: #eef2f8;
+}
+
+.small-board.legal {
+  border-color: var(--accent);
+  background: #e6f3ef;
+}
+
+.small-board.done {
+  opacity: 0.9;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 1px solid #c5ccda;
+  background: #fff;
+  font-size: clamp(14px, 5vw, 28px);
+  font-weight: 900;
+}
+
+.cell.x {
+  color: var(--x);
+}
+
+.cell.o {
+  color: var(--o);
+}
+
+.board-winner {
+  position: absolute;
+  inset: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: clamp(36px, 18vw, 82px);
+  font-weight: 950;
+  pointer-events: none;
+}
+
+.board-winner.x {
+  color: var(--x);
+}
+
+.board-winner.o {
+  color: var(--o);
+}
+
+.board-winner.d {
+  color: var(--muted);
+}
+
+@media (min-width: 600px) {
+  .app {
+    padding-top: 28px;
+  }
+
+  .macro-board {
+    max-width: 640px;
+    width: 100%;
+    align-self: center;
+  }
+}
