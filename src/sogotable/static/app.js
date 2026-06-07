@@ -939,8 +939,7 @@ function closePlayerModalOnBackdrop(event) {
 }
 
 function setExistingPlayersVisible(visible) {
-  document.getElementById("existingPlayersLabel").classList.toggle("hidden", !visible);
-  document.getElementById("playerList").classList.toggle("hidden", !visible);
+  document.getElementById("existingPlayersSection").classList.toggle("hidden", !visible);
 }
 
 async function openInvitePlayerModal() {
