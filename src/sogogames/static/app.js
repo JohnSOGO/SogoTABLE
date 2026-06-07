@@ -240,8 +240,7 @@ async function refreshLobbyPlayers() {
   const game = selectedGame();
   if (!game) return;
   try {
-    const response = await fetch(`/api/lobby?game_id=${encodeURIComponent(game.id)}`);
-    const data = await response.json();
+    const data = await fetchJson(`/api/lobby?game_id=${encodeURIComponent(game.id)}`);
     if (!data.ok) throw new Error(data.error || "Could not load lobby players.");
     lobbyPlayers = data.players;
     renderLobbyPlayers();
@@ -268,8 +267,7 @@ async function refreshGameRooms() {
   const game = selectedGame();
   if (!game) return;
   try {
-    const response = await fetch(`/api/rooms?game_id=${encodeURIComponent(game.id)}`);
-    const data = await response.json();
+    const data = await fetchJson(`/api/rooms?game_id=${encodeURIComponent(game.id)}`);
     if (!data.ok) throw new Error(data.error || "Could not load games.");
     currentGameRooms = data.rooms;
     renderCurrentGames();
@@ -277,6 +275,12 @@ async function refreshGameRooms() {
     renderActiveGameNotice();
   } catch (error) {
     currentGameRooms = [];
+    if (isApiUnavailableError(error)) {
+      renderCurrentGames();
+      renderCreateGameButton();
+      renderActiveGameNotice();
+      return;
+    }
     renderCurrentGames(error.message);
     renderActiveGameNotice(error.message);
   }
@@ -334,9 +338,13 @@ function renderCreateGameButton() {
   const player = deviceSelectedPlayer();
   const game = selectedGame();
   const existing = player ? currentGameRooms.find((room) => room.players.some((seat) => seat.id === player.id)) : null;
-  button.disabled = !player || !gameIsReady(game);
+  button.disabled = !player || !gameIsReady(game) || !playerApiAvailable;
   button.textContent = existing ? "Re-enter Game" : "Create Game";
-  button.title = !player ? "Select or create a player first." : gameIsReady(game) ? "" : gameAvailabilityText(game);
+  button.title = !player
+    ? "Select or create a player first."
+    : !playerApiAvailable
+      ? "Online game server is not connected on this site yet."
+      : gameIsReady(game) ? "" : gameAvailabilityText(game);
 }
 
 async function enterRoomSummary(summary) {
@@ -844,13 +852,23 @@ async function updatePlayerIcon(playerId, icon) {
 async function createRoom() {
   const player = deviceSelectedPlayer();
   if (!player) return alert("Select a player first.");
-  const response = await api("/api/room/create", { game_id: selectedGameId, player });
-  hostInviteStatus = null;
-  activeGameRoom = response.room;
-  setRoom(response.room);
-  renderGames();
-  refreshGameRooms();
-  showScreen("game");
+  try {
+    const response = await api("/api/room/create", { game_id: selectedGameId, player });
+    hostInviteStatus = null;
+    activeGameRoom = response.room;
+    setRoom(response.room);
+    renderGames();
+    refreshGameRooms();
+    showScreen("game");
+  } catch (error) {
+    if (isApiUnavailableError(error)) {
+      playerApiAvailable = false;
+      renderCreateGameButton();
+      alert("Online game server is not connected on this site yet.");
+      return;
+    }
+    alert(error.message);
+  }
 }
 
 async function closeGame() {
