@@ -55,6 +55,7 @@ let activeGameRoom = null;
 let currentGameRooms = [];
 let lobbyPlayers = [];
 let opponentPickerMode = "remote";
+let playerApiAvailable = true;
 let pollTimer = null;
 let roomListTimer = null;
 let inviteTimer = null;
@@ -546,20 +547,29 @@ async function createPlayer(event) {
   try {
     const response = await api("/api/players/create", { player });
     players = response.players;
-    setDeviceSelectedPlayer(response.player.id);
-    input.value = "";
-    selectedIcon = randomIcon();
-    renderChoices();
-    renderPlayers();
-    renderSelectedPlayer();
-    renderCurrentPlayer();
-    renderGames();
-    updateLobbyPresence();
-    renderCreateGameButton();
-    closePlayerModal();
+    finishPlayerSave(response.player.id, input);
   } catch (error) {
-    alert(error.message);
+    if (!isApiUnavailableError(error)) {
+      alert(error.message);
+      return;
+    }
+    players = upsertLocalPlayer(player);
+    finishPlayerSave(player.id, input);
   }
+}
+
+function finishPlayerSave(playerId, input) {
+  setDeviceSelectedPlayer(playerId);
+  input.value = "";
+  selectedIcon = randomIcon();
+  renderChoices();
+  renderPlayers();
+  renderSelectedPlayer();
+  renderCurrentPlayer();
+  renderGames();
+  updateLobbyPresence();
+  renderCreateGameButton();
+  closePlayerModal();
 }
 
 function renderPlayers() {
@@ -626,18 +636,27 @@ async function deletePlayer(playerId) {
   try {
     const response = await api("/api/players/delete", { id: playerId });
     players = response.players;
-    if (selectedPlayerId === playerId) selectedPlayerId = "";
-    if (deviceSelectedPlayerId === playerId) deviceSelectedPlayerId = "";
-    saveSelectedPlayer();
-    renderPlayers();
-    renderSelectedPlayer();
-    renderCurrentPlayer();
-    renderGames();
-    updateLobbyPresence();
-    renderCreateGameButton();
+    finishPlayerDelete(playerId);
   } catch (error) {
-    alert(error.message);
+    if (!isApiUnavailableError(error)) {
+      alert(error.message);
+      return;
+    }
+    players = deleteLocalPlayer(playerId);
+    finishPlayerDelete(playerId);
   }
+}
+
+function finishPlayerDelete(playerId) {
+  if (selectedPlayerId === playerId) selectedPlayerId = "";
+  if (deviceSelectedPlayerId === playerId) deviceSelectedPlayerId = "";
+  saveSelectedPlayer();
+  renderPlayers();
+  renderSelectedPlayer();
+  renderCurrentPlayer();
+  renderGames();
+  updateLobbyPresence();
+  renderCreateGameButton();
 }
 
 function openPlayerModal(mode = "select") {
@@ -806,7 +825,19 @@ async function updatePlayerIcon(playerId, icon) {
     renderCreateGameButton();
     if (currentRoom) renderGame();
   } catch (error) {
-    alert(error.message);
+    if (!isApiUnavailableError(error)) {
+      alert(error.message);
+      return;
+    }
+    players = upsertLocalPlayer(updated);
+    if (deviceSelectedPlayerId === updated.id) setDeviceSelectedPlayer(updated.id);
+    if (selectedPlayerId === updated.id) selectedPlayerId = updated.id;
+    renderPlayers();
+    renderSelectedPlayer();
+    renderCurrentPlayer();
+    updateLobbyPresence();
+    renderCreateGameButton();
+    if (currentRoom) renderGame();
   }
 }
 
@@ -1316,14 +1347,32 @@ function leaveClosedRoom() {
 }
 
 async function api(url, payload) {
-  const response = await fetch(url, {
+  const data = await fetchJson(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const data = await response.json();
   if (!data.ok) throw new Error(data.error || "Request failed.");
   return data;
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+  if (!text) throw new Error("Empty server response.");
+  try {
+    return JSON.parse(text);
+  } catch {
+    const trimmed = text.trim();
+    if (trimmed.startsWith("<")) {
+      throw new Error("Game server is not available on this site.");
+    }
+    throw new Error("Invalid server response.");
+  }
+}
+
+function isApiUnavailableError(error) {
+  return Boolean(error && error.message === "Game server is not available on this site.");
 }
 
 function selectedPlayer() {
@@ -1446,9 +1495,9 @@ function winLineClass(line) {
 async function refreshPlayers() {
   try {
     await migrateLocalPlayers();
-    const response = await fetch("/api/players");
-    const data = await response.json();
+    const data = await fetchJson("/api/players");
     if (!data.ok) throw new Error(data.error || "Could not load players.");
+    playerApiAvailable = true;
     players = data.players;
     if (deviceSelectedPlayerId && !players.some((player) => player.id === deviceSelectedPlayerId)) {
       deviceSelectedPlayerId = "";
@@ -1465,7 +1514,25 @@ async function refreshPlayers() {
     updateLobbyPresence();
     renderCreateGameButton();
   } catch (error) {
-    showRosterError(error.message);
+    if (!isApiUnavailableError(error)) {
+      showRosterError(error.message);
+      return;
+    }
+    playerApiAvailable = false;
+    players = loadLocalPlayers();
+    if (deviceSelectedPlayerId && !players.some((player) => player.id === deviceSelectedPlayerId)) {
+      deviceSelectedPlayerId = "";
+    }
+    if (selectedPlayerId && !players.some((player) => player.id === selectedPlayerId)) {
+      selectedPlayerId = "";
+    }
+    if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
+    saveSelectedPlayer();
+    renderPlayers();
+    renderSelectedPlayer();
+    renderCurrentPlayer();
+    renderGames();
+    renderCreateGameButton();
   }
 }
 
@@ -1489,6 +1556,37 @@ function loadLocalPlayers() {
   } catch {
     return [];
   }
+}
+
+function saveLocalPlayers(nextPlayers) {
+  localStorage.setItem("sogogames.players", JSON.stringify(nextPlayers));
+}
+
+function cleanLocalPlayer(player) {
+  return {
+    id: String(player.id || "").trim().slice(0, 80),
+    name: String(player.name || "").trim().slice(0, 24),
+    icon: String(player.icon || randomIcon()).slice(0, 8),
+    color: normalizePlayerColor(player.color, paletteColors[0]),
+  };
+}
+
+function upsertLocalPlayer(player) {
+  const cleanPlayer = cleanLocalPlayer(player);
+  if (!cleanPlayer.id || !cleanPlayer.name) return players;
+  const nextPlayers = loadLocalPlayers();
+  const existingIndex = nextPlayers.findIndex((item) => item.id === cleanPlayer.id);
+  if (existingIndex >= 0) nextPlayers[existingIndex] = cleanPlayer;
+  else nextPlayers.push(cleanPlayer);
+  nextPlayers.sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+  saveLocalPlayers(nextPlayers);
+  return nextPlayers;
+}
+
+function deleteLocalPlayer(playerId) {
+  const nextPlayers = loadLocalPlayers().filter((player) => player.id !== playerId);
+  saveLocalPlayers(nextPlayers);
+  return nextPlayers;
 }
 
 function loadLocalGameHomePlayers() {

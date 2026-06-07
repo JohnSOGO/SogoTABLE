@@ -39,6 +39,7 @@ The target use case is casual local play: family members can open a phone browse
 - Vanilla browser UI under `src/sogogames/static/`.
 - Local in-memory rooms with 4-character room codes.
 - Persistent shared player roster in `data/players.json`, served by the local Python server.
+- Static Cloudflare Pages does not currently run the Python `/api/` player endpoints. When `/api/players` returns the static HTML shell, the browser UI falls back to localStorage player profiles so public/static users can still create and select players. This fallback is per browser/device and is not the same as the shared local Python roster.
 - Browser local storage keeps the device/home selected player separately from the active hot-seat turn actor. `sogogames.deviceSelectedPlayerId` is the browser's durable selected player; `selectedPlayerId` in runtime may temporarily point at the current turn owner during local hot-seat play.
 - Games menu exists, currently with Super Tic Tac Toe as the only ready game.
 - The player/game selection screen is titled `Player & Game Select`. It starts with the current player summary, separate `Change` and `Create` buttons positioned to the right of the player icon/name when space allows, then direct game buttons.
