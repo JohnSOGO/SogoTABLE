@@ -23,6 +23,7 @@ The app should move downhill toward event-driven updates, but the public play pa
 - [x] Add a minimal app event channel for room-list and invite notifications.
 - [x] Add Worker tests for app-event fanout and snapshot payloads.
 - [x] Keep fallback polling enabled while testing the app event channel on phones.
+- [x] Public multi-device smoke test passed.
 - [ ] Split large frontend controller code after the transport path is stable.
 - [ ] Move more active-room authority into Durable Objects only after the current Worker/D1 path is boring.
 
@@ -40,10 +41,10 @@ Completed:
 - Browser now listens for app snapshots and updates room list, lobby presence, and pending invite prompts from events.
 - Existing room-list, invite, lobby, and room fallback polling remains enabled as recovery while the event channel is proven on phones.
 - Added Worker tests for app-event room, lobby, pending invite, and declined-invite snapshots.
+- User smoke-tested public multi-device play successfully with two iPhones and three browsers.
 
 Still pending:
 
-- Public Cloudflare deploy and phone smoke test.
 - Reduce timed room-list/invite/lobby polling only after public phone smoke testing proves the event channel is reliable.
 
 ## Next Implementation Slice
