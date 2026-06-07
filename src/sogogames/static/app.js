@@ -275,12 +275,33 @@ async function refreshGameRooms() {
     renderCurrentGames();
     renderCreateGameButton();
     renderActiveGameNotice();
+    autoOpenActiveRoomForSelectedPlayer();
   } catch (error) {
     currentGameRooms = [];
     playerApiAvailable = false;
     renderCurrentGames(error.message);
     renderCreateGameButton();
     renderActiveGameNotice(error.message);
+  }
+}
+
+async function autoOpenActiveRoomForSelectedPlayer() {
+  const player = deviceSelectedPlayer();
+  const gameSelectedScreen = document.getElementById("gameSelected");
+  if (!player || !gameSelectedScreen || !gameSelectedScreen.classList.contains("active")) return;
+  const room = currentGameRooms.find((item) => (
+    item.status === "active" &&
+    item.players.some((seat) => seat.id === player.id)
+  ));
+  if (!room || (currentRoom && currentRoom.code === room.code)) return;
+  try {
+    const data = await fetchJson(`/api/room?code=${encodeURIComponent(room.code)}`);
+    if (!data.ok) return;
+    activeGameRoom = data.room;
+    setRoom(data.room);
+    showScreen("game");
+  } catch {
+    // The room list will continue polling; a transient read failure should not strand the screen.
   }
 }
 
