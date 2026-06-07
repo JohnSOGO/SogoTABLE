@@ -302,6 +302,50 @@ button.compact {
   overscroll-behavior: contain;
 }
 
+.game-stats {
+  display: grid;
+  gap: 8px;
+}
+
+.stats-section {
+  display: grid;
+  gap: 4px;
+}
+
+.stats-list {
+  display: grid;
+  gap: 4px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+}
+
+.stats-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-row span {
+  min-width: 42px;
+  text-align: right;
+  color: var(--accent-strong);
+  font-weight: 900;
+}
+
 .notice {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

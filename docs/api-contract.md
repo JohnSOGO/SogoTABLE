@@ -95,7 +95,8 @@ Response:
 ```json
 {
   "ok": true,
-  "players": []
+  "players": [],
+  "stats": {}
 }
 ```
 
@@ -143,7 +144,30 @@ Supported `game_id` values:
 - `super_tic_tac_toe`
 - `super_tactical_tac_toe`
 
-Super Tactical Tac Toe room game state reuses the base nested-board fields and adds `pickups`, `scores`, `captures`, `events`, `last_event`, and `score_goal`. Pickups and scores are authoritative Worker state.
+Super Tactical Tac Toe room game state reuses the base nested-board fields and adds `pickups`, `scores`, `captures`, `events`, and `last_event`. Pickups and scores are authoritative Worker state.
+
+When a tactical game ends, `line_winner` records the mark that completed the three-sector macro line. `winner` records the highest-score winner, which may be a different mark.
+
+## Game Stats
+
+Stats are per game.
+
+### `GET /api/stats?game_id=super_tactical_tac_toe`
+
+Returns top high scores and ELO ratings for the selected game.
+
+```json
+{
+  "ok": true,
+  "game_id": "super_tactical_tac_toe",
+  "stats": {
+    "high_scores": [],
+    "ratings": []
+  }
+}
+```
+
+High scores keep the top five score entries per game. ELO ratings start at `1000` per player per game and update once when a room first completes.
 
 Room statuses:
 
@@ -314,6 +338,8 @@ Invalid moves return `{ "ok": false, "error": "..." }`.
 
 For Super Tactical Tac Toe, valid moves may also update `game.pickups`, `game.scores`, `game.captures`, `game.events`, and `game.last_event`. The browser must render these values, not invent them locally.
 
+For Super Tactical Tac Toe, score alone does not end the game. The game ends when a player captures three sectors in a macro line; then the highest final score determines the winner.
+
 ## Reset
 
 Reset requires all seated players to agree.
@@ -426,6 +452,8 @@ Declined response:
 The hosted Worker stores current playtest state in D1. It uses optimistic locking on the single state row so stale concurrent writes fail instead of silently overwriting newer state.
 
 Active room mutations for `POST /api/room/join`, `POST /api/room/leave`, `POST /api/room/close`, `POST /api/room/move`, and `POST /api/room/reset` are routed through the room's Durable Object before persistence. The public HTTP request/response contract stays the same, but the room object serializes these changes per room and broadcasts the resulting room snapshot.
+
+App event snapshots include selected-game room lists, lobby players, pending invites, and game stats. The browser uses these snapshots to update high-score and ELO displays without waiting for fallback polling.
 
 Read-only `GET` polling endpoints must not write the whole state row back to D1.
 

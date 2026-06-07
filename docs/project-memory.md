@@ -39,6 +39,7 @@ The target use case is casual local play: family members can open a phone browse
 - During phone playtesting after room WebSockets were added, the user reported that roughly 1 in 10 taps did not take. Avoid rebuilding the board DOM for unchanged room snapshots or background refreshes, because a render between touch-down and click can swallow the tap.
 - During public lobby playtesting, the user reported a random lobby refresh/glitch that looked like assets being removed and replaced. Treat fallback lobby and room-list refreshes as visual no-ops when the incoming snapshot is identical; do not clear and rebuild stable lobby DOM just because a timed safety refresh fired.
 - The user wants all two-player lobbies to share the same architecture. Lobby design changes should apply globally to two-player games unless a later game explicitly needs a different flow.
+- The selected-game lobby should show per-game top five high scores above the player list and per-game ELO ratings. ELO ratings start at 1000 and update once when a completed room records stats.
 - After reviewing `AI/wu-wei-event-driven-code-review-plan.md` and `AI/SogoGames_wu_wei_event_driven.zip`, the event-driven direction was adopted with constraints and the zip was rejected as a direct source snapshot. Track the staged implementation in `docs/wu-wei-event-driven-progress.md`.
 
 ## Current Implemented Shape
@@ -88,6 +89,7 @@ The target use case is casual local play: family members can open a phone browse
 
 - Super Tactical Tac Toe is game #2 and uses the same global two-player lobby, room, invite, local-opponent, re-entry, reset, and WebSocket architecture as Super Tic Tac Toe.
 - Tactical pickups and scores are authoritative Worker state. The browser must not decide pickup spawn locations, capture, or score.
+- Tactical score alone does not end the game. The game ends when a player captures three sectors in a macro line, then the player with the highest final score wins. If final scores are tied, the game is a draw.
 - Use `Sector` for the nine main 3x3 sections in tactical-game docs and UI thinking. The whole play area is the board, and the 81 playable squares are cells.
 - Current MVP pickups are Coin for 10 points and Treasure Chest for 25 points. Future tactical emoji effects should be added through pickup config/effect handling rather than rewriting the base nested-board engine.
 

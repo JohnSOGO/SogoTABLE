@@ -450,6 +450,67 @@ test("spawns treasure when a tactical sector is captured", async () => withMockR
   assert.equal(moved.room.game.pickups.some((pickup) => pickup.type === "coin"), true);
 }));
 
+test("tactical game ends on sector line and highest score wins", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "SCOR" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+
+  mutateState(env, (data) => {
+    const room = data.rooms.SCOR;
+    const game = room.game;
+    game.small_winners[0] = "X";
+    game.small_winners[1] = "X";
+    game.boards[2][0] = "X";
+    game.boards[2][1] = "X";
+    game.scores = { X: 20, O: 90 };
+    game.current_player = "X";
+    game.next_board = 2;
+    game.move_count = 20;
+  });
+
+  const moved = await post(env, "/api/room/move", { code: "SCOR", player_id: xSeat.id, board: 2, cell: 2 });
+  const stats = await get(env, "/api/stats?game_id=super_tactical_tac_toe");
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.small_winners[2], "X");
+  assert.equal(moved.room.game.line_winner, "X");
+  assert.equal(moved.room.game.status, "o_won");
+  assert.equal(moved.room.game.winner, "O");
+  assert.equal(moved.room.stats_recorded, true);
+  assert.deepEqual(stats.stats.high_scores.map((entry) => entry.score), [90, 20]);
+  const oRating = stats.stats.ratings.find((entry) => entry.player_id === joined.room.players.find((seat) => seat.mark === "O").id);
+  const xRating = stats.stats.ratings.find((entry) => entry.player_id === xSeat.id);
+  assert.equal(oRating.rating > xRating.rating, true);
+
+  const repeatStats = await get(env, "/api/stats?game_id=super_tactical_tac_toe");
+  assert.equal(repeatStats.stats.high_scores.length, 2);
+}));
+
+test("tactical score goal alone does not end the game", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "GOAL" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+
+  mutateState(env, (data) => {
+    const game = data.rooms.GOAL.game;
+    game.scores = { X: 100, O: 0 };
+    game.current_player = "X";
+    game.next_board = null;
+  });
+
+  const moved = await post(env, "/api/room/move", { code: "GOAL", player_id: xSeat.id, board: 0, cell: 0 });
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.status, "playing");
+  assert.equal(moved.room.game.winner, null);
+}));
+
 test("notifies the app event hub with room, lobby, and invite snapshots", async () => {
   const env = makeEnvWithEvents();
   const host = player("host", "Host");

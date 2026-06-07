@@ -8,9 +8,11 @@ Super Tactical Tac Toe is the second SogoTable game. It uses the same shared two
 - Each sector has 9 cells.
 - Players use the same Ultimate Tic Tac Toe movement rule: the cell index of the current move sends the next player to that sector.
 - If the target sector is closed, won, or full, the next player may play in any open sector.
-- Capturing three sectors in a macro line wins immediately.
-- A player also wins immediately by reaching 100 points.
-- If the board fills first, highest score wins. Ties are broken by captured sectors, treasure captures, then coin captures. If still tied, the game is a draw.
+- The game ends when a player captures three sectors in a macro line.
+- When the macro line is completed, the player with the highest score wins, even if the other player completed the sector line.
+- If the board fills first, highest score wins.
+- If scores are tied at the end, the game is a draw.
+- `line_winner` tracks the mark that completed the sector line; `winner` tracks the highest-score winner.
 
 ## Tactical Pickups
 
@@ -43,9 +45,17 @@ It adds:
 - `captures`
 - `events`
 - `last_event`
-- `score_goal`
 
 Scores and captures are keyed by room mark (`X` or `O`) so they continue to follow the randomly assigned room seats.
+
+## Stats
+
+The Worker records completed-game stats once per room.
+
+- Top five high scores are kept per game.
+- ELO ratings are kept per game, starting at 1000.
+- Super Tactical Tac Toe high scores use final tactical score.
+- A tactical room does not record stats until it reaches a completed state.
 
 ## UI
 
@@ -61,4 +71,7 @@ Worker tests cover:
 - spawning a coin after a valid move
 - capturing a coin and scoring 10 points
 - spawning a treasure chest after a sector capture
+- score alone not ending the game
+- sector-line completion ending the game and highest score choosing the winner
+- high-score and ELO recording
 - preserving the original Super Tic Tac Toe behavior

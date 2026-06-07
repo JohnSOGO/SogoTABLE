@@ -582,6 +582,8 @@ Super Tic Tac Toe and Super Tactical Tac Toe use the same selected-game lobby ar
 - Lobby design changes should apply to both ready two-player games unless a later game explicitly introduces a different room model.
 - Game-specific code should start at the board/rules/rendering layer, not at the lobby layer.
 - Super Tactical Tac Toe adds Worker-owned pickups and scores, but it does not add a custom lobby.
+- The selected-game lobby shows the selected game's top five high scores and ELO ratings above the active player list.
+- In Super Tactical Tac Toe, score alone does not end the game. The game ends on a three-sector macro line, then the highest final score wins.
 
 App-level live updates:
 

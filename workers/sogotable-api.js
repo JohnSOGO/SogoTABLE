@@ -30,7 +30,6 @@ const WIN_LINES = [
 ];
 const GAME_IDS = new Set(["super_tic_tac_toe", "super_tactical_tac_toe"]);
 const TACTICAL_GAME_ID = "super_tactical_tac_toe";
-const TACTICAL_SCORE_GOAL = 100;
 const TACTICAL_PICKUP_CONFIG = {
   coin: {
     emoji: "\uD83E\uDE99",
@@ -45,6 +44,8 @@ const TACTICAL_PICKUP_CONFIG = {
     maxActive: 3,
   },
 };
+const DEFAULT_ELO_RATING = 1000;
+const ELO_K_FACTOR = 32;
 
 const allowedOrigins = new Set([
   "https://sogotable.sogodojo.com",
@@ -214,6 +215,10 @@ export class EventHubDurableObject {
 
 async function routeRequest(method, url, payload, data) {
   if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: data.players };
+    if (method === "GET" && url.pathname === "/api/stats") {
+      const gameId = cleanGameId(url.searchParams.get("game_id") || "super_tic_tac_toe");
+      return { ok: true, game_id: gameId, stats: publicStatsForGame(data, gameId) };
+    }
     if (method === "POST" && url.pathname === "/api/players/create") {
       const player = playerFromPayload(payload);
       upsertPlayer(data, player);
@@ -233,7 +238,7 @@ async function routeRequest(method, url, payload, data) {
       const gameId = cleanGameId(payload.game_id);
       const player = playerFromPayload(payload);
       data.lobbyViewers[player.id] = { game_id: gameId, player, updated_at: Date.now() };
-      return { ok: true, game_id: gameId, players: lobbyViewers(data, gameId) };
+      return { ok: true, game_id: gameId, players: lobbyViewers(data, gameId), stats: publicStatsForGame(data, gameId) };
     }
     if (method === "GET" && url.pathname === "/api/rooms") {
       const playerId = url.searchParams.get("player_id") || "";
@@ -295,6 +300,7 @@ async function routeRequest(method, url, payload, data) {
       if (!mark) throw new Error("Player is not in this room.");
       if (mark !== room.game.current_player) throw new Error(`It is ${room.game.current_player}'s turn.`);
       makeMove(room.game, Number(payload.board), Number(payload.cell));
+      recordCompletedRoomStats(data, room);
       return { ok: true, room: roomToDict(data, room) };
     }
     if (method === "POST" && url.pathname === "/api/room/reset") {
@@ -444,6 +450,7 @@ function eventSnapshotForGame(data, gameId) {
       .map((room) => roomSummary(room)),
     lobby_players: lobbyViewers(data, cleanId),
     pending_invites_by_player: pendingInvitesByPlayer,
+    stats: publicStatsForGame(data, cleanId),
   };
 }
 
@@ -454,6 +461,7 @@ function appSnapshotForSubscription(snapshot, subscription) {
     rooms: snapshot.rooms,
     lobby_players: snapshot.lobby_players,
     pending_invites: subscription.player_id ? (snapshot.pending_invites_by_player[subscription.player_id] || []) : [],
+    stats: snapshot.stats,
   };
 }
 
@@ -477,6 +485,9 @@ async function loadState(env) {
   await ensureSchema(env);
   const row = await env.SOGOTABLE_STATE.prepare("SELECT value, version FROM app_state WHERE key = ?").bind("state").first();
   const data = row ? JSON.parse(row.value) : { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
+  if (!data.stats) data.stats = { high_scores: {}, ratings: {} };
+  if (!data.stats.high_scores) data.stats.high_scores = {};
+  if (!data.stats.ratings) data.stats.ratings = {};
   Object.defineProperties(data, {
     __stateExists: { value: Boolean(row), enumerable: false },
     __version: { value: row ? Number(row.version || 0) : 0, enumerable: false },
@@ -630,6 +641,7 @@ function roomToDict(data, room) {
     game: gameToDict(room.game),
     latest_invite: latestInviteForRoom(data, room),
     reset_request: resetRequestForRoom(room),
+    stats_recorded: Boolean(room.stats_recorded),
   };
 }
 
@@ -703,6 +715,7 @@ function handleResetVote(room, requesterId, approve) {
   if (room.players.length > 1 && room.reset_votes.length < room.players.length) return "pending";
   room.reset_votes = [];
   room.game = newGame(room.game_id);
+  room.stats_recorded = false;
   return null;
 }
 
@@ -729,6 +742,7 @@ function newGame(gameId = "super_tic_tac_toe") {
     next_board: null,
     status: "playing",
     winner: null,
+    line_winner: null,
     move_count: 0,
   };
   if (gameId === TACTICAL_GAME_ID) {
@@ -740,7 +754,6 @@ function newGame(gameId = "super_tic_tac_toe") {
     };
     game.events = [];
     game.last_event = null;
-    game.score_goal = TACTICAL_SCORE_GOAL;
   }
   return game;
 }
@@ -820,9 +833,11 @@ function makeTacticalMove(game, boardIndex, cellIndex) {
 
   spawnRandomPickup(game, "coin");
 
-  const winner = tacticalWinner(game);
-  if (winner) {
-    game.status = winner === "X" ? "x_won" : "o_won";
+  const lineWinner = macroWinnerFor(game.small_winners);
+  if (lineWinner) {
+    const winner = tacticalScoreWinner(game);
+    game.line_winner = lineWinner;
+    game.status = winner ? (winner === "X" ? "x_won" : "o_won") : "draw";
     game.winner = winner;
     game.next_board = null;
     return;
@@ -877,7 +892,6 @@ function ensureTacticalState(game) {
     };
   }
   if (!game.events) game.events = [];
-  if (!game.score_goal) game.score_goal = TACTICAL_SCORE_GOAL;
 }
 
 function pickupAt(game, boardIndex, cellIndex) {
@@ -952,21 +966,16 @@ function tacticalOpenCells(game) {
   return cells;
 }
 
-function tacticalWinner(game) {
-  const macroWinner = macroWinnerFor(game.small_winners);
-  if (macroWinner) return macroWinner;
-  if (Number(game.scores.X || 0) >= game.score_goal) return "X";
-  if (Number(game.scores.O || 0) >= game.score_goal) return "O";
-  return null;
+function tacticalBoardFilledWinner(game) {
+  return tacticalScoreWinner(game);
 }
 
-function tacticalBoardFilledWinner(game) {
-  return compareMarks(game, [
-    (mark) => Number(game.scores[mark] || 0),
-    (mark) => capturedSectorCount(game, mark),
-    (mark) => Number(game.captures[mark] && game.captures[mark].treasureChest || 0),
-    (mark) => Number(game.captures[mark] && game.captures[mark].coin || 0),
-  ]);
+function tacticalScoreWinner(game) {
+  const xScore = Number(game.scores.X || 0);
+  const oScore = Number(game.scores.O || 0);
+  if (xScore > oScore) return "X";
+  if (oScore > xScore) return "O";
+  return null;
 }
 
 function compareMarks(game, scorers) {
@@ -987,6 +996,128 @@ function pushGameEvent(game, event) {
   if (!["movePlaced", "pickupSpawned"].includes(event.type)) game.last_event = event;
   game.events.push({ ...event, turn: game.move_count });
   if (game.events.length > 12) game.events = game.events.slice(-12);
+}
+
+function recordCompletedRoomStats(data, room) {
+  if (!room || room.stats_recorded || roomStatus(room) !== "completed") return;
+  ensureStats(data);
+  const result = roomResultForStats(room);
+  updateHighScores(data, room, result);
+  updateEloRatings(data, room, result);
+  room.stats_recorded = true;
+}
+
+function roomResultForStats(room) {
+  const scoreByMark = scoreByMarkForRoom(room);
+  const winnerMark = room.game.winner || null;
+  const winner = winnerMark ? room.players.find((seat) => seat.mark === winnerMark) || null : null;
+  return {
+    winner_mark: winnerMark,
+    winner_id: winner ? winner.id : null,
+    score_by_mark: scoreByMark,
+  };
+}
+
+function scoreByMarkForRoom(room) {
+  if (isTacticalGame(room.game)) {
+    return {
+      X: Number(room.game.scores && room.game.scores.X || 0),
+      O: Number(room.game.scores && room.game.scores.O || 0),
+    };
+  }
+  return {
+    X: room.game.winner === "X" ? 1 : 0,
+    O: room.game.winner === "O" ? 1 : 0,
+  };
+}
+
+function ensureStats(data) {
+  if (!data.stats) data.stats = { high_scores: {}, ratings: {} };
+  if (!data.stats.high_scores) data.stats.high_scores = {};
+  if (!data.stats.ratings) data.stats.ratings = {};
+}
+
+function updateHighScores(data, room, result) {
+  if (!data.stats.high_scores[room.game_id]) data.stats.high_scores[room.game_id] = [];
+  const entries = data.stats.high_scores[room.game_id];
+  room.players.forEach((seat) => {
+    const score = Number(result.score_by_mark[seat.mark] || 0);
+    if (score <= 0) return;
+    entries.push({
+      player_id: seat.id,
+      player_name: seat.name,
+      player_icon: seat.icon,
+      score,
+      room_code: room.code,
+      mark: seat.mark,
+      recorded_at: new Date().toISOString(),
+    });
+  });
+  data.stats.high_scores[room.game_id] = entries
+    .sort((left, right) => right.score - left.score || String(left.recorded_at).localeCompare(String(right.recorded_at)))
+    .slice(0, 5);
+}
+
+function updateEloRatings(data, room, result) {
+  if (room.players.length !== 2) return;
+  if (!data.stats.ratings[room.game_id]) data.stats.ratings[room.game_id] = {};
+  const ratings = data.stats.ratings[room.game_id];
+  const [left, right] = room.players;
+  const leftRating = ratingEntry(ratings, left);
+  const rightRating = ratingEntry(ratings, right);
+  const leftScore = eloScoreFor(left, result);
+  const rightScore = 1 - leftScore;
+  const leftExpected = expectedEloScore(leftRating.rating, rightRating.rating);
+  const rightExpected = expectedEloScore(rightRating.rating, leftRating.rating);
+  leftRating.rating = Math.round(leftRating.rating + ELO_K_FACTOR * (leftScore - leftExpected));
+  rightRating.rating = Math.round(rightRating.rating + ELO_K_FACTOR * (rightScore - rightExpected));
+  applyEloRecord(leftRating, leftScore);
+  applyEloRecord(rightRating, rightScore);
+}
+
+function ratingEntry(ratings, player) {
+  if (!ratings[player.id]) {
+    ratings[player.id] = {
+      player_id: player.id,
+      player_name: player.name,
+      player_icon: player.icon,
+      rating: DEFAULT_ELO_RATING,
+      games: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+    };
+  }
+  ratings[player.id].player_name = player.name;
+  ratings[player.id].player_icon = player.icon;
+  return ratings[player.id];
+}
+
+function eloScoreFor(player, result) {
+  if (!result.winner_id) return 0.5;
+  return player.id === result.winner_id ? 1 : 0;
+}
+
+function expectedEloScore(rating, opponentRating) {
+  return 1 / (1 + 10 ** ((opponentRating - rating) / 400));
+}
+
+function applyEloRecord(entry, score) {
+  entry.games += 1;
+  if (score === 1) entry.wins += 1;
+  else if (score === 0) entry.losses += 1;
+  else entry.draws += 1;
+}
+
+function publicStatsForGame(data, gameId) {
+  ensureStats(data);
+  const ratings = Object.values(data.stats.ratings[gameId] || {})
+    .sort((left, right) => right.rating - left.rating || String(left.player_name).localeCompare(String(right.player_name)))
+    .slice(0, 10);
+  return {
+    high_scores: data.stats.high_scores[gameId] || [],
+    ratings,
+  };
 }
 
 function ensureRoomSeatColors(room) {

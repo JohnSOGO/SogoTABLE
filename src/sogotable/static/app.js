@@ -76,9 +76,11 @@ let hostInviteStatus = null;
 let activeGameRoom = null;
 let currentGameRooms = [];
 let lobbyPlayers = [];
+let currentGameStats = { high_scores: [], ratings: [] };
 let lastLobbyPlayersKey = "";
 let lastCurrentGameRoomsKey = "";
 let lastActiveGameNoticeKey = "";
+let lastGameStatsKey = "";
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
 let lastLegalBoardsKey = "";
@@ -253,7 +255,9 @@ function renderGameSelected() {
   lastLobbyPlayersKey = "";
   lastCurrentGameRoomsKey = "";
   lastActiveGameNoticeKey = "";
+  lastGameStatsKey = "";
   refreshLobbyPlayers();
+  refreshGameStats();
   renderCurrentGames();
   renderCreateGameButton();
   renderActiveGameNotice();
@@ -297,6 +301,20 @@ async function refreshLobbyPlayers() {
   }
 }
 
+async function refreshGameStats() {
+  const game = selectedGame();
+  if (!game) return;
+  try {
+    const data = await fetchJson(`/api/stats?game_id=${encodeURIComponent(game.id)}`);
+    if (!data.ok) throw new Error(data.error || "Could not load stats.");
+    currentGameStats = data.stats || { high_scores: [], ratings: [] };
+    renderGameStats();
+  } catch {
+    currentGameStats = { high_scores: [], ratings: [] };
+    renderGameStats();
+  }
+}
+
 async function updateLobbyPresence() {
   const player = deviceSelectedPlayer();
   const game = selectedGame();
@@ -305,6 +323,10 @@ async function updateLobbyPresence() {
     const response = await api("/api/lobby/presence", { game_id: game.id, player });
     lobbyPlayers = response.players;
     renderLobbyPlayers();
+    if (response.stats) {
+      currentGameStats = response.stats;
+      renderGameStats();
+    }
   } catch {
     refreshLobbyPlayers();
   }
@@ -490,6 +512,43 @@ function gameRoomsSignature(rooms) {
       .sort((left, right) => String(left.code || "").localeCompare(String(right.code || "")))
       .map((room) => roomSummarySignature(room)),
   });
+}
+
+function renderGameStats() {
+  const host = document.getElementById("gameStats");
+  if (!host) return;
+  const nextKey = JSON.stringify(currentGameStats || {});
+  if (nextKey === lastGameStatsKey) return;
+  lastGameStatsKey = nextKey;
+  host.innerHTML = "";
+  const highScores = (currentGameStats.high_scores || []).slice(0, 5);
+  const ratings = (currentGameStats.ratings || []).slice(0, 5);
+  host.appendChild(statsSection("Top Scores", highScores, (item, index) => (
+    `<strong>${index + 1}. ${escapeHtml(item.player_icon || "")} ${escapeHtml(item.player_name || "Player")}</strong><span>${Number(item.score || 0)}</span>`
+  ), "No scores yet."));
+  host.appendChild(statsSection("ELO Ratings", ratings, (item, index) => (
+    `<strong>${index + 1}. ${escapeHtml(item.player_icon || "")} ${escapeHtml(item.player_name || "Player")}</strong><span>${Number(item.rating || 1000)}</span>`
+  ), "No ratings yet."));
+}
+
+function statsSection(title, items, rowHtml, emptyText) {
+  const section = document.createElement("div");
+  section.className = "stats-section";
+  section.innerHTML = `<span class="label">${escapeHtml(title)}</span>`;
+  const list = document.createElement("div");
+  list.className = "stats-list";
+  if (!items.length) {
+    list.textContent = emptyText;
+  } else {
+    items.forEach((item, index) => {
+      const row = document.createElement("div");
+      row.className = "stats-row";
+      row.innerHTML = rowHtml(item, index);
+      list.appendChild(row);
+    });
+  }
+  section.appendChild(list);
+  return section;
 }
 
 function roomSummarySignature(room) {
@@ -1134,7 +1193,7 @@ function renderGame() {
   setTurnColorVariables(host, currentTurnPlayer ? currentTurnPlayer.color : "#1f7a5f");
   const legalBoardsKey = game.legal_boards.join(",");
   const shouldFlashLegalBoards = legalBoardsKey !== lastLegalBoardsKey;
-  const macroWinLine = winningLineFor(game.small_winners, game.winner);
+  const macroWinLine = winningLineFor(game.small_winners, game.line_winner || game.winner);
   const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
   const canSelectedPlayerMove = Boolean(currentRoom.started && selectedSeat && selectedSeat.mark === game.current_player);
   host.classList.toggle("your-turn", canSelectedPlayerMove && game.status === "playing");
@@ -1407,6 +1466,10 @@ function handleAppEventMessage(event) {
     lobbyPlayers = message.lobby_players;
     renderLobbyPlayers();
   }
+  if (message.stats) {
+    currentGameStats = message.stats;
+    renderGameStats();
+  }
   if (
     Array.isArray(message.pending_invites) &&
     message.pending_invites.length &&
@@ -1610,6 +1673,7 @@ function roomRenderKey(room) {
       next_board: room.game.next_board,
       status: room.game.status,
       winner: room.game.winner,
+      line_winner: room.game.line_winner,
       move_count: room.game.move_count,
       legal_boards: room.game.legal_boards,
       pickups: room.game.pickups,
