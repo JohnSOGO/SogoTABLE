@@ -1,4 +1,4 @@
-const LOBBY_VIEWER_TTL_SECONDS = 10;
+const LOBBY_VIEWER_TTL_SECONDS = 45;
 const ROOM_SEAT_COLORS = [
   "#1f7a5f",
   "#1e63d6",

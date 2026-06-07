@@ -581,6 +581,7 @@ Lobby presence polling:
 - Runs while on `GAME_SELECTED`.
 - Shows only players currently looking at the selected game screen.
 - Does not imply all roster players are present.
+- Use a forgiving presence TTL. Mobile browsers can pause timers and network requests, so a tight 10-second TTL makes players flicker in and out of the lobby even when they are still present. The current target TTL is 45 seconds.
 
 ## Future-AI Guardrails
 

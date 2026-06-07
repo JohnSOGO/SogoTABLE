@@ -101,7 +101,7 @@ class Invite:
 ROOMS: dict[str, Room] = {}
 INVITES: dict[str, Invite] = {}
 LOBBY_VIEWERS: dict[str, dict] = {}
-LOBBY_VIEWER_TTL_SECONDS = 10
+LOBBY_VIEWER_TTL_SECONDS = 45
 
 
 class SogoGamesHandler(SimpleHTTPRequestHandler):
