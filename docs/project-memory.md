@@ -37,6 +37,7 @@ The target use case is casual local play: family members can open a phone browse
 - The `Player & Game Select` current-player row should look consistent across small and large iPhones: avatar/name and `Change`/`Create` stay on one line, buttons remain compact, and long names truncate instead of pushing buttons below.
 - Player rows should not have Pick/Selected buttons. Tapping a player row selects it, green border indicates selection, and the modal closes immediately.
 - Opening player creation from the main menu should show only the create-player form, not the existing player list.
+- Opening player selection from the main menu should show only the existing players section, not the create-player form. Pressing `Edit` should narrow the modal to the edited player row plus the edit form.
 - Main menu game buttons should only show game names. Game descriptions belong on the selected game's game-selected screen or game room, not on the main menu.
 - Incoming AI handoff/prompt files may be placed in `AI/`. That directory is ignored and should be treated as input context, not product source.
 - The user does not want distracting effects. In local hot-seat Super Tic Tac Toe, turn and active-board feedback should use the current player's selected color, with only a brief one-shot flash and no continuous green pulse.

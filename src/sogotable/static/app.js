@@ -71,6 +71,7 @@ let selectedGameId = localStorage.getItem("sogotable.selectedGameId") || games[0
 let selectedIcon = randomIcon();
 let selectedColor = paletteColors[0];
 let editingPlayerId = "";
+let playerModalMode = "select";
 let currentRoom = null;
 let currentInvite = null;
 let hostInviteStatus = null;
@@ -726,19 +727,23 @@ function setPlayerFormMode(mode) {
 function renderPlayers() {
   const host = document.getElementById("playerList");
   host.innerHTML = "";
-  if (!players.length) {
+  const visiblePlayers = playerModalMode === "edit" && editingPlayerId
+    ? players.filter((player) => player.id === editingPlayerId)
+    : players;
+  if (!visiblePlayers.length) {
     const empty = document.createElement("p");
     empty.textContent = "Create a player to start.";
     host.appendChild(empty);
     return;
   }
-  players.forEach((player) => {
+  visiblePlayers.forEach((player) => {
+    const editing = playerModalMode === "edit" && player.id === editingPlayerId;
     const card = document.createElement("div");
-    card.className = `player-card ${player.id === deviceSelectedPlayerId ? "selected" : ""}`;
+    card.className = `player-card ${player.id === deviceSelectedPlayerId ? "selected" : ""} ${editing ? "editing" : ""}`;
     card.innerHTML = `
       ${avatarHtml(player)}
       <strong>${escapeHtml(player.name)}</strong>
-      <div class="player-actions">
+      <div class="player-actions ${editing ? "hidden" : ""}">
         <button type="button" class="secondary edit-player">Edit</button>
         <button type="button" class="delete-player">Delete</button>
       </div>
@@ -759,12 +764,16 @@ function renderPlayers() {
 function editPlayer(playerId) {
   const player = players.find((item) => item.id === playerId);
   if (!player) return;
+  playerModalMode = "edit";
   editingPlayerId = player.id;
   document.getElementById("playerName").value = player.name;
   selectedIcon = player.icon || randomIcon();
   selectedColor = normalizePlayerColor(player.color, paletteColors[0]);
+  setExistingPlayersVisible(true);
+  setPlayerFormVisible(true);
   setPlayerFormMode("edit");
   renderChoices();
+  renderPlayers();
   const form = document.getElementById("playerForm");
   form.scrollIntoView({ block: "nearest" });
   form.focus();
@@ -918,19 +927,26 @@ function finishPlayerDelete(playerId) {
 }
 
 function openPlayerModal(mode = "select") {
+  playerModalMode = mode;
   setExistingPlayersVisible(mode !== "create");
+  setPlayerFormVisible(mode !== "select");
   document.getElementById("playerModal").classList.remove("hidden");
   if (mode === "create") {
     resetPlayerForm();
     const form = document.getElementById("playerForm");
     form.scrollIntoView({ block: "nearest" });
     form.focus();
+  } else {
+    resetPlayerForm();
+    renderPlayers();
   }
 }
 
 function closePlayerModal() {
   resetPlayerForm();
+  playerModalMode = "select";
   setExistingPlayersVisible(true);
+  setPlayerFormVisible(true);
   document.getElementById("playerModal").classList.add("hidden");
 }
 
@@ -940,6 +956,10 @@ function closePlayerModalOnBackdrop(event) {
 
 function setExistingPlayersVisible(visible) {
   document.getElementById("existingPlayersSection").classList.toggle("hidden", !visible);
+}
+
+function setPlayerFormVisible(visible) {
+  document.getElementById("playerForm").classList.toggle("hidden", !visible);
 }
 
 async function openInvitePlayerModal() {

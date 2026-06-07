@@ -668,6 +668,10 @@ button.compact {
   white-space: nowrap;
 }
 
+.player-actions.hidden {
+  display: none;
+}
+
 .player-actions button {
   min-height: 34px;
   padding: 0 8px;
