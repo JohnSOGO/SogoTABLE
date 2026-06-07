@@ -8,4 +8,7 @@ build/
 *.egg-info/
 data/
 runtime/
+AI/
 *.log
+.tmp-chrome/
+.tmp-chrome-*/

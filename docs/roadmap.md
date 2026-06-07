@@ -13,15 +13,16 @@
 ## 3. Mobile UI Mock / Playable Local Game
 
 - Render nested boards clearly on phone screens.
-- Show turn, valid boards, small-board winners, macro winner, restart, and lobby navigation.
+- Show turn, valid boards, small-board winners, macro winner, restart, and game navigation.
 
-## 4. Lobby And Player Selection
+## 4. Room Flow And Player Selection
 
 - Select or create local players.
 - Pick icon/avatar and color.
-- Create room.
-- Join room by room code.
-- Show player list and start game.
+- Choose a game.
+- Create a live room as the selected host.
+- Invite a second player or join by room code.
+- Automatically activate the room when enough players are present.
 
 ## 5. Room-Code Multiplayer
 

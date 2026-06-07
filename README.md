@@ -9,8 +9,9 @@ The product target is simple: family members sitting together at a restaurant ca
 - Repo scaffold: complete.
 - Super Tic Tac Toe rules engine: complete.
 - Mobile-first local web UI: complete first pass.
-- Lobby and room codes: local/in-memory first pass.
-- Real multi-phone persistence: future milestone.
+- Room creation, invites, and room codes: local/in-memory first pass.
+- Shared persistent player roster: complete first pass.
+- Active room persistence/history: future milestone.
 
 ## Stack
 
@@ -61,6 +62,9 @@ python -m pip install pytest
 
 ## Useful Docs
 
+- [Project Memory](docs/project-memory.md)
+- [State Machine](docs/state-machine.md)
+- [AREC Command](docs/AREC.md)
 - [Purpose](docs/purpose.md)
 - [Architecture](docs/architecture.md)
 - [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)

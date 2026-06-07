@@ -19,9 +19,9 @@ The target situation is a group sitting together at a restaurant with phones in 
 1. Open SogoGAMES.
 2. Tap `Start Playing`.
 3. Pick or create a player.
-4. Create or join a room.
-5. Play Super Tic Tac Toe.
-6. Restart or return to lobby.
+4. Tap a game.
+5. The game screen opens, creating or re-entering the live room.
+6. Invite a friend if needed, then play.
 
 ## Player Identity
 
@@ -30,6 +30,7 @@ The first milestone uses lightweight player identity:
 - display name
 - icon/avatar
 - color preference
-- local browser storage
+- shared local-server roster storage
+- per-browser selected player memory
 
 This is intentionally not a secure account system. It is enough for family table play and can grow later.

@@ -14,65 +14,155 @@
           <h1>SogoGAMES</h1>
           <p>Quick family games for the table. Pick a player, join a room, and play from a phone browser.</p>
         </div>
-        <button class="primary" data-screen="players">Start Playing</button>
+        <button class="primary" data-screen="games">Start Playing</button>
       </section>
 
-      <section id="players" class="screen">
+      <section id="games" class="screen">
         <header class="topbar">
           <button class="ghost" data-screen="intro">Back</button>
-          <h2>Players</h2>
-        </header>
-        <div id="playerList" class="player-list"></div>
-        <form id="playerForm" class="panel">
-          <label>
-            Display name
-            <input id="playerName" autocomplete="nickname" maxlength="24" placeholder="Sogo" required />
-          </label>
-          <div>
-            <span class="label">Icon</span>
-            <div id="iconChoices" class="choice-row"></div>
-          </div>
-          <div>
-            <span class="label">Color</span>
-            <div id="colorChoices" class="choice-row"></div>
-          </div>
-          <button class="primary" type="submit">Create Player</button>
-        </form>
-        <button class="primary" data-screen="lobby">Continue</button>
-      </section>
-
-      <section id="lobby" class="screen">
-        <header class="topbar">
-          <button class="ghost" data-screen="players">Back</button>
-          <h2>Lobby</h2>
+          <h2>Player & Game Select</h2>
         </header>
         <div class="panel">
-          <div class="selected-player" id="selectedPlayer"></div>
-          <button id="createRoom" class="primary">Create Room</button>
-          <div class="join-row">
-            <input id="joinCode" maxlength="4" placeholder="CODE" />
-            <button id="joinRoom">Join</button>
+          <span class="label">Playing as</span>
+          <div class="player-select-row">
+            <div id="currentPlayer" class="current-player"></div>
+            <div class="player-menu-actions">
+              <button id="openSelectPlayerModal" class="secondary" type="button">Change</button>
+              <button id="openCreatePlayerModal" class="secondary" type="button">Create</button>
+            </div>
           </div>
         </div>
-        <div id="roomPanel" class="panel hidden">
-          <div class="room-code">Room <strong id="roomCode"></strong></div>
-          <div id="roomPlayers" class="room-players"></div>
-          <button id="joinSelected" class="secondary">Add Selected Player</button>
-          <button id="openGame" class="primary">Open Game</button>
+        <div>
+          <h2>Games</h2>
+          <div id="gamesList" class="games-list"></div>
         </div>
       </section>
+
+      <section id="gameSelected" class="screen">
+        <header class="topbar">
+          <button class="ghost" data-screen="games">Back</button>
+          <h2 id="selectedGameTitle">Super Tic Tac Toe</h2>
+        </header>
+        <p id="selectedGameDescription" class="game-description"></p>
+        <div id="selectedGameLobbyPanel" class="panel">
+          <h2>Lobby</h2>
+          <span class="label">Players</span>
+          <div id="lobbyPlayers" class="lobby-players"></div>
+        </div>
+        <div class="panel">
+          <div class="section-heading">
+            <h2>Current Games</h2>
+            <button id="refreshGameList" class="ghost compact" type="button">Refresh</button>
+          </div>
+          <span class="label">Open</span>
+          <div id="openGamesList" class="room-list"></div>
+          <span class="label">In Progress</span>
+          <div id="closedGamesList" class="room-list"></div>
+        </div>
+        <div class="panel">
+          <h2>Create Game</h2>
+          <p class="meta">Create a new game space and invite the second player from inside it.</p>
+          <button id="createGame" class="primary" type="button">Create Game</button>
+        </div>
+      </section>
+
+      <div id="playerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="playerModalTitle">
+        <div class="modal-panel">
+          <header class="modal-header">
+            <h2 id="playerModalTitle">Players</h2>
+            <button id="closePlayerModal" class="ghost" type="button">Close</button>
+          </header>
+          <span class="label">Existing Players</span>
+          <div id="playerList" class="player-list"></div>
+          <form id="playerForm" class="panel" tabindex="-1">
+            <h2>Create New Player</h2>
+            <div class="player-create-row">
+              <label>
+                Display name
+                <input id="playerName" autocomplete="nickname" maxlength="24" placeholder="Sogo" required />
+              </label>
+              <label>
+                Icon
+                <input id="playerIconText" class="emoji-input" maxlength="8" aria-label="Player emoji icon" />
+              </label>
+              <div>
+                <span class="label">Color</span>
+                <div class="color-picker-shell">
+                  <input id="playerColorText" class="color-value" maxlength="7" aria-label="Player color hex value" />
+                  <input id="playerColorNative" class="native-color" type="color" aria-label="Open color picker" />
+                </div>
+                <div id="colorChoices" class="color-palette"></div>
+              </div>
+            </div>
+            <button class="primary" type="submit">Create Player</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="invitePlayerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="invitePlayerTitle">
+        <div class="modal-panel">
+          <header class="modal-header">
+            <h2 id="invitePlayerTitle">Opponent</h2>
+            <button id="closeInvitePlayerModal" class="ghost" type="button">Close</button>
+          </header>
+          <div id="invitePlayerList" class="player-list"></div>
+        </div>
+      </div>
+
+      <div id="invitePrompt" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="invitePromptTitle">
+        <div class="modal-panel">
+          <h2 id="invitePromptTitle">Invite Received</h2>
+          <p id="invitePromptText"></p>
+          <div class="invite-actions">
+            <button id="acceptInvite" class="primary" type="button">Yes</button>
+            <button id="declineInvite" class="secondary" type="button">No</button>
+          </div>
+        </div>
+      </div>
 
       <section id="game" class="screen">
         <header class="game-header">
-          <button class="ghost" data-screen="lobby">Lobby</button>
+          <button id="closeGame" class="ghost" type="button">Close</button>
           <div>
-            <h2>Super Tic Tac Toe</h2>
+            <h2 id="roomTitle">Super Tic Tac Toe</h2>
             <div id="gameMeta" class="meta"></div>
           </div>
           <button id="resetGame" class="ghost">Reset</button>
         </header>
-        <div id="statusLine" class="status-line"></div>
+        <div id="gamePlayersPanel" class="panel">
+          <h2>Players</h2>
+          <div class="room-slots">
+            <div>
+              <span class="label">Host</span>
+              <div id="roomHostSlot" class="room-slot"></div>
+            </div>
+            <div>
+              <span class="label">Opponent</span>
+              <div id="roomOpponentSlot" class="room-slot"></div>
+            </div>
+          </div>
+        </div>
+        <div id="gamePlayerSwitch" class="player-switch"></div>
+        <div id="turnStatus" class="turn-status"></div>
         <div id="macroBoard" class="macro-board"></div>
+        <div id="winOverlay" class="win-overlay hidden" aria-live="polite">
+          <div id="confetti" class="confetti"></div>
+          <div class="win-card">
+            <span id="winMark" class="win-icon"></span>
+            <h3 id="winMessage"></h3>
+            <button id="closeWinOverlay" class="primary" type="button">Back to Board</button>
+          </div>
+        </div>
+        <div id="confirmPrompt" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmPromptTitle">
+          <div class="modal-panel confirm-panel">
+            <h2 id="confirmPromptTitle">Are you sure?</h2>
+            <p id="confirmPromptText"></p>
+            <div class="invite-actions">
+              <button id="confirmYes" class="primary" type="button">Yes</button>
+              <button id="confirmNo" class="secondary" type="button">No</button>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
     <script src="/app.js"></script>

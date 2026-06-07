@@ -1,24 +1,103 @@
 const icons = ["🙂", "😎", "🤖", "🦊", "🐲", "⭐", "🌮", "🎲"];
 const colors = ["#1f7a5f", "#1e63d6", "#c43d5d", "#8a4bd1", "#b7791f", "#0f766e"];
+const randomIcons = ["🙂", "😎", "🤖", "🦊", "🐲", "⭐", "🌮", "🎲", "🎯", "🚀", "🌈", "🍕", "🎸", "🧠", "🔥", "🍀"];
+const paletteColors = [
+  "#1f7a5f",
+  "#1e63d6",
+  "#c43d5d",
+  "#8a4bd1",
+  "#b7791f",
+  "#0f766e",
+  "#dc2626",
+  "#2563eb",
+  "#7c3aed",
+  "#db2777",
+  "#ca8a04",
+  "#16a34a",
+  "#0891b2",
+  "#4f46e5",
+  "#be123c",
+  "#334155",
+];
+const games = [
+  {
+    id: "super_tic_tac_toe",
+    name: "Super Tic Tac Toe",
+    summary: "A nested tic tac toe duel where every move sends the next player to a target board.",
+    players: "2 players",
+    status: "Ready",
+  },
+];
+const winLines = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
+  [0, 4, 8],
+  [2, 4, 6],
+];
 
-let players = loadPlayers();
+let players = [];
 let selectedPlayerId = localStorage.getItem("sogogames.selectedPlayerId") || "";
-let selectedIcon = icons[0];
-let selectedColor = colors[0];
+let deviceSelectedPlayerId = localStorage.getItem("sogogames.deviceSelectedPlayerId") || selectedPlayerId;
+let deviceSelectionHash = localStorage.getItem("sogogames.deviceSelectionHash") || randomTenDigitHash();
+if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
+let selectedGameId = localStorage.getItem("sogogames.selectedGameId") || games[0].id;
+let selectedIcon = randomIcon();
+let selectedColor = paletteColors[0];
 let currentRoom = null;
+let currentInvite = null;
+let activeGameRoom = null;
+let currentGameRooms = [];
+let lobbyPlayers = [];
+let opponentPickerMode = "remote";
 let pollTimer = null;
+let roomListTimer = null;
+let inviteTimer = null;
+let lobbyPresenceTimer = null;
+let lastLegalBoardsKey = "";
+let lastCelebratedWinKey = "";
+let winOverlayTimer = null;
+let localGameHomePlayers = loadLocalGameHomePlayers();
+let pendingConfirmAction = null;
+localStorage.setItem("sogogames.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
   bindNavigation();
+  renderGames();
   renderChoices();
-  renderPlayers();
+  refreshPlayers();
+  renderSelectedGame();
   renderSelectedPlayer();
+  renderCurrentPlayer();
   document.getElementById("playerForm").addEventListener("submit", createPlayer);
-  document.getElementById("createRoom").addEventListener("click", createRoom);
-  document.getElementById("joinRoom").addEventListener("click", joinRoom);
-  document.getElementById("joinSelected").addEventListener("click", joinSelectedPlayer);
-  document.getElementById("openGame").addEventListener("click", () => showScreen("game"));
+  document.getElementById("openSelectPlayerModal").addEventListener("click", () => openPlayerModal("select"));
+  document.getElementById("openCreatePlayerModal").addEventListener("click", () => openPlayerModal("create"));
+  document.getElementById("closePlayerModal").addEventListener("click", closePlayerModal);
+  document.getElementById("playerModal").addEventListener("click", closePlayerModalOnBackdrop);
+  document.getElementById("playerIconText").addEventListener("input", updateSelectedIcon);
+  document.getElementById("playerIconText").addEventListener("focus", clearEmojiField);
+  document.getElementById("playerIconText").addEventListener("blur", resetBlankEmojiField);
+  document.getElementById("playerColorText").addEventListener("input", updateSelectedColorFromText);
+  document.getElementById("playerColorText").addEventListener("blur", normalizeSelectedColorText);
+  document.getElementById("playerColorNative").addEventListener("input", updateSelectedColorFromNative);
+  document.getElementById("closeInvitePlayerModal").addEventListener("click", closeInvitePlayerModal);
+  document.getElementById("invitePlayerModal").addEventListener("click", closeInvitePlayerModalOnBackdrop);
+  document.getElementById("createGame").addEventListener("click", createRoom);
+  document.getElementById("refreshGameList").addEventListener("click", refreshGameRooms);
+  document.getElementById("acceptInvite").addEventListener("click", () => respondToInvite(true));
+  document.getElementById("declineInvite").addEventListener("click", () => respondToInvite(false));
+  document.getElementById("closeGame").addEventListener("click", closeGame);
   document.getElementById("resetGame").addEventListener("click", resetGame);
+  document.getElementById("confirmYes").addEventListener("click", () => resolveConfirmPrompt(true));
+  document.getElementById("confirmNo").addEventListener("click", () => resolveConfirmPrompt(false));
+  document.getElementById("confirmPrompt").addEventListener("click", closeConfirmPromptOnBackdrop);
+  const closeWinOverlay = document.getElementById("closeWinOverlay");
+  if (closeWinOverlay) closeWinOverlay.addEventListener("click", hideWinOverlay);
+  startRoomListPolling();
+  startInvitePolling();
 });
 
 function bindNavigation() {
@@ -28,30 +107,220 @@ function bindNavigation() {
 }
 
 function showScreen(name) {
+  if (name === "game" && !currentRoom) return;
+  if (name === "gameSelected" && !selectedGame()) return;
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.toggle("active", screen.id === name);
   });
   if (name === "game") startPolling();
+  if (name === "gameSelected") {
+    renderGameSelected();
+    refreshGameRooms();
+    updateLobbyPresence();
+    startLobbyPresencePolling();
+  } else {
+    stopLobbyPresencePolling();
+  }
+}
+
+function renderGames() {
+  const host = document.getElementById("gamesList");
+  host.innerHTML = "";
+  const hasPlayer = Boolean(deviceSelectedPlayer());
+  games.forEach((game) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `game-card ${game.id === selectedGameId ? "selected" : ""}`;
+    button.dataset.gameId = game.id;
+    button.textContent = game.name;
+    button.disabled = !hasPlayer;
+    if (!hasPlayer) {
+      button.title = "Select or create a player first.";
+      button.setAttribute("aria-label", `${game.name}. Select or create a player first.`);
+    }
+    button.addEventListener("click", () => {
+      selectedGameId = game.id;
+      currentRoom = null;
+      activeGameRoom = null;
+      saveSelectedGame();
+      renderGames();
+      renderSelectedGame();
+      showScreen("gameSelected");
+    });
+    host.appendChild(button);
+  });
+}
+
+function renderSelectedGame() {
+  const host = document.getElementById("selectedGame");
+  if (!host) return;
+  const game = selectedGame();
+  host.innerHTML = game ? `<span>Game</span><strong>${escapeHtml(game.name)}</strong>` : "";
+}
+
+function renderGameSelected() {
+  const game = selectedGame();
+  document.getElementById("selectedGameTitle").textContent = game ? game.name : "Game";
+  document.getElementById("selectedGameDescription").textContent = game ? game.summary : "";
+  refreshLobbyPlayers();
+  renderCurrentGames();
+  renderCreateGameButton();
+}
+
+function renderLobbyPlayers() {
+  const host = document.getElementById("lobbyPlayers");
+  if (!host) return;
+  host.innerHTML = "";
+  if (!lobbyPlayers.length) {
+    host.textContent = "No players are looking at this game right now.";
+    return;
+  }
+  const orderedPlayers = [...lobbyPlayers].sort((left, right) => {
+    if (left.id === deviceSelectedPlayerId) return -1;
+    if (right.id === deviceSelectedPlayerId) return 1;
+    return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+  });
+  orderedPlayers.forEach((player) => {
+    const row = document.createElement("div");
+    row.className = `roster-player ${player.id === deviceSelectedPlayerId ? "selected" : ""}`;
+    row.innerHTML = `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>`;
+    host.appendChild(row);
+  });
+}
+
+async function refreshLobbyPlayers() {
+  const game = selectedGame();
+  if (!game) return;
+  try {
+    const response = await fetch(`/api/lobby?game_id=${encodeURIComponent(game.id)}`);
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error || "Could not load lobby players.");
+    lobbyPlayers = data.players;
+    renderLobbyPlayers();
+  } catch {
+    lobbyPlayers = [];
+    renderLobbyPlayers();
+  }
+}
+
+async function updateLobbyPresence() {
+  const player = deviceSelectedPlayer();
+  const game = selectedGame();
+  if (!player || !game || !document.getElementById("gameSelected").classList.contains("active")) return;
+  try {
+    const response = await api("/api/lobby/presence", { game_id: game.id, player });
+    lobbyPlayers = response.players;
+    renderLobbyPlayers();
+  } catch {
+    refreshLobbyPlayers();
+  }
+}
+
+async function refreshGameRooms() {
+  const game = selectedGame();
+  if (!game) return;
+  try {
+    const response = await fetch(`/api/rooms?game_id=${encodeURIComponent(game.id)}`);
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error || "Could not load games.");
+    currentGameRooms = data.rooms;
+    renderCurrentGames();
+    renderCreateGameButton();
+  } catch (error) {
+    currentGameRooms = [];
+    renderCurrentGames(error.message);
+  }
+}
+
+function renderCurrentGames(errorMessage = "") {
+  const openHost = document.getElementById("openGamesList");
+  const closedHost = document.getElementById("closedGamesList");
+  if (!openHost || !closedHost) return;
+  openHost.innerHTML = "";
+  closedHost.innerHTML = "";
+  if (errorMessage) {
+    openHost.textContent = errorMessage;
+    closedHost.textContent = "Could not refresh games.";
+    return;
+  }
+  const openRooms = currentGameRooms.filter((room) => room.status === "waiting_for_player");
+  const closedRooms = currentGameRooms.filter((room) => room.status === "active");
+  renderRoomSummaryList(openHost, openRooms, "No open games.");
+  renderRoomSummaryList(closedHost, closedRooms, "No games in progress.");
+}
+
+function renderRoomSummaryList(host, rooms, emptyText) {
+  if (!rooms.length) {
+    host.textContent = emptyText;
+    return;
+  }
+  rooms.forEach((room) => {
+    const card = document.createElement("div");
+    card.className = "room-summary-card";
+    const hostPlayer = room.players.find((player) => player.id === room.host_id);
+    const selectedSeat = room.players.find((player) => player.id === deviceSelectedPlayerId);
+    const isOpen = room.status === "waiting_for_player";
+    const canJoin = Boolean(deviceSelectedPlayer() && isOpen && !selectedSeat && room.open_seats > 0);
+    const canReenter = Boolean(selectedSeat);
+    const actionText = canReenter ? "Re-enter Game" : canJoin ? "Join Game" : room.status === "active" ? "In Progress" : "Join Game";
+    card.innerHTML = `
+      <div class="room-summary-main">
+        <strong>${escapeHtml(hostPlayer ? `${hostPlayer.name}'s Game` : "Game")}</strong>
+        <span>Code ${escapeHtml(room.code)}</span>
+      </div>
+      <div class="room-summary-players">${room.players.map((player) => avatarHtml(player)).join("")}</div>
+      <button type="button" class="${canReenter || canJoin ? "secondary" : "ghost"}">${escapeHtml(actionText)}</button>
+    `;
+    const button = card.querySelector("button");
+    button.disabled = !(canReenter || canJoin);
+    button.addEventListener("click", () => enterRoomSummary(room));
+    host.appendChild(card);
+  });
+}
+
+function renderCreateGameButton() {
+  const button = document.getElementById("createGame");
+  if (!button) return;
+  const player = deviceSelectedPlayer();
+  const existing = player ? currentGameRooms.find((room) => room.players.some((seat) => seat.id === player.id)) : null;
+  button.disabled = !player;
+  button.textContent = existing ? "Re-enter Game" : "Create Game";
+  button.title = player ? "" : "Select or create a player first.";
+}
+
+async function enterRoomSummary(summary) {
+  const player = selectedPlayer();
+  if (!player) return alert("Select a player first.");
+  const selectedSeat = summary.players.find((seat) => seat.id === player.id);
+  if (selectedSeat) {
+    const response = await fetch(`/api/room?code=${encodeURIComponent(summary.code)}`);
+    const data = await response.json();
+    if (!data.ok) return alert(data.error || "Game not found.");
+    setRoom(data.room);
+    showScreen("game");
+    return;
+  }
+  if (summary.status !== "waiting_for_player") return;
+  try {
+    const response = await api("/api/room/join", { code: summary.code, player });
+    setRoom(response.room);
+    refreshGameRooms();
+    showScreen("game");
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function renderChoices() {
-  const iconHost = document.getElementById("iconChoices");
-  iconHost.innerHTML = "";
-  icons.forEach((icon) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `choice ${icon === selectedIcon ? "selected" : ""}`;
-    button.textContent = icon;
-    button.addEventListener("click", () => {
-      selectedIcon = icon;
-      renderChoices();
-    });
-    iconHost.appendChild(button);
-  });
-
+  const iconInput = document.getElementById("playerIconText");
+  if (iconInput && iconInput.value !== selectedIcon) iconInput.value = selectedIcon;
+  const colorText = document.getElementById("playerColorText");
+  if (colorText && colorText.value !== selectedColor) colorText.value = selectedColor;
+  const colorNative = document.getElementById("playerColorNative");
+  if (colorNative && colorNative.value !== selectedColor) colorNative.value = selectedColor;
   const colorHost = document.getElementById("colorChoices");
   colorHost.innerHTML = "";
-  colors.forEach((color) => {
+  paletteColors.forEach((color) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `choice swatch ${color === selectedColor ? "selected" : ""}`;
@@ -65,7 +334,114 @@ function renderChoices() {
   });
 }
 
-function createPlayer(event) {
+function updateSelectedColorFromText(event) {
+  const value = event.target.value.trim();
+  if (isHexColor(value)) {
+    selectedColor = value;
+    renderChoices();
+  }
+}
+
+function normalizeSelectedColorText(event) {
+  if (!isHexColor(event.target.value.trim())) {
+    event.target.value = selectedColor;
+  }
+}
+
+function updateSelectedColorFromNative(event) {
+  selectedColor = event.target.value;
+  renderChoices();
+}
+
+function isHexColor(value) {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
+function setTurnColorVariables(element, color) {
+  if (!element) return;
+  const safeColor = isHexColor(color || "") ? color : "#1f7a5f";
+  const turnSoft = mixColorWithWhite(safeColor, 0.14);
+  const turnSoftStrong = mixColorWithWhite(safeColor, 0.26);
+  element.style.setProperty("--turn-color", safeColor);
+  element.style.setProperty("--turn-text", getContrastAwareTextColor(turnSoft));
+  element.style.setProperty("--turn-soft", turnSoft);
+  element.style.setProperty("--turn-soft-strong", turnSoftStrong);
+  element.style.setProperty("--turn-glow", colorWithAlpha(safeColor, 0.35));
+}
+
+function getContrastAwareTextColor(hexColor) {
+  const safeColor = isHexColor(hexColor || "") ? hexColor : "#1f7a5f";
+  const [red, green, blue] = hexToRgb(safeColor);
+  const bgLum = relativeLuminance(red, green, blue);
+  const blackContrast = contrastRatio(bgLum, relativeLuminance(17, 17, 17));
+  const whiteContrast = contrastRatio(bgLum, relativeLuminance(255, 255, 255));
+  return blackContrast >= whiteContrast ? "#111111" : "#ffffff";
+}
+
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  return [
+    parseInt(clean.slice(0, 2), 16),
+    parseInt(clean.slice(2, 4), 16),
+    parseInt(clean.slice(4, 6), 16),
+  ];
+}
+
+function relativeLuminance(red, green, blue) {
+  const [r, g, b] = [red, green, blue].map((value) => {
+    const channel = value / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return r * 0.2126 + g * 0.7152 + b * 0.0722;
+}
+
+function contrastRatio(left, right) {
+  const lighter = Math.max(left, right);
+  const darker = Math.min(left, right);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function colorWithAlpha(hex, alpha) {
+  const [red, green, blue] = hexToRgb(hex);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function mixColorWithWhite(hex, amount) {
+  const [red, green, blue] = hexToRgb(hex);
+  const mix = (channel) => Math.round(channel * amount + 255 * (1 - amount));
+  return rgbToHex(mix(red), mix(green), mix(blue));
+}
+
+function rgbToHex(red, green, blue) {
+  return `#${[red, green, blue].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function updateSelectedIcon(event) {
+  const value = event.target.value.trim();
+  selectedIcon = value;
+}
+
+function clearEmojiField(event) {
+  event.target.value = "";
+  if (event.target.id === "playerIconText") selectedIcon = "";
+}
+
+function resetBlankEmojiField(event) {
+  if (event.target.value.trim()) return;
+  const icon = randomIcon();
+  event.target.value = icon;
+  if (event.target.id === "playerIconText") selectedIcon = icon;
+}
+
+function randomIcon() {
+  return randomIcons[Math.floor(Math.random() * randomIcons.length)];
+}
+
+function randomTenDigitHash() {
+  return String(Math.floor(1000000000 + Math.random() * 9000000000));
+}
+
+async function createPlayer(event) {
   event.preventDefault();
   const input = document.getElementById("playerName");
   const name = input.value.trim();
@@ -73,15 +449,26 @@ function createPlayer(event) {
   const player = {
     id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
     name,
-    icon: selectedIcon,
+    icon: selectedIcon || randomIcon(),
     color: selectedColor,
   };
-  players.push(player);
-  selectedPlayerId = player.id;
-  savePlayers();
-  input.value = "";
-  renderPlayers();
-  renderSelectedPlayer();
+  try {
+    const response = await api("/api/players/create", { player });
+    players = response.players;
+    setDeviceSelectedPlayer(response.player.id);
+    input.value = "";
+    selectedIcon = randomIcon();
+    renderChoices();
+    renderPlayers();
+    renderSelectedPlayer();
+    renderCurrentPlayer();
+    renderGames();
+    updateLobbyPresence();
+    renderCreateGameButton();
+    closePlayerModal();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function renderPlayers() {
@@ -94,15 +481,13 @@ function renderPlayers() {
     return;
   }
   players.forEach((player) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `player-card ${player.id === selectedPlayerId ? "selected" : ""}`;
-    card.innerHTML = `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><span>${player.id === selectedPlayerId ? "Selected" : "Pick"}</span>`;
-    card.addEventListener("click", () => {
-      selectedPlayerId = player.id;
-      savePlayers();
-      renderPlayers();
-      renderSelectedPlayer();
+    const card = document.createElement("div");
+    card.className = `player-card ${player.id === deviceSelectedPlayerId ? "selected" : ""}`;
+    card.innerHTML = `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><button type="button" class="delete-player">Delete</button>`;
+    card.addEventListener("click", () => selectPlayer(player.id, { closeModal: true }));
+    card.querySelector(".delete-player").addEventListener("click", (event) => {
+      event.stopPropagation();
+      deletePlayer(player.id);
     });
     host.appendChild(card);
   });
@@ -110,34 +495,243 @@ function renderPlayers() {
 
 function renderSelectedPlayer() {
   const host = document.getElementById("selectedPlayer");
-  const player = selectedPlayer();
-  host.innerHTML = player ? `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>` : "Create or select a player first.";
+  const player = deviceSelectedPlayer();
+  if (host) host.innerHTML = player ? `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>` : "Create or select a player first.";
+  renderRoomHostSummary();
+}
+
+function renderCurrentPlayer() {
+  const host = document.getElementById("currentPlayer");
+  const player = deviceSelectedPlayer();
+  host.innerHTML = player ? `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>` : "No player selected";
+}
+
+function renderRoomHostSummary() {
+  const host = document.getElementById("roomHostSummary");
+  if (!host) return;
+  const player = deviceSelectedPlayer();
+  if (!player) {
+    host.innerHTML = `<span class="label">Host</span><strong>No player selected</strong>`;
+    return;
+  }
+  host.innerHTML = `<span class="label">Host</span>${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>`;
+}
+
+function selectPlayer(playerId, options = {}) {
+  setDeviceSelectedPlayer(playerId);
+  renderPlayers();
+  renderSelectedPlayer();
+  renderCurrentPlayer();
+  renderGames();
+  updateLobbyPresence();
+  renderCreateGameButton();
+  if (options.closeModal) closePlayerModal();
+}
+
+async function deletePlayer(playerId) {
+  const player = players.find((item) => item.id === playerId);
+  if (!player) return;
+  if (!confirm(`Delete ${player.name} from the shared player roster?`)) return;
+  try {
+    const response = await api("/api/players/delete", { id: playerId });
+    players = response.players;
+    if (selectedPlayerId === playerId) selectedPlayerId = "";
+    if (deviceSelectedPlayerId === playerId) deviceSelectedPlayerId = "";
+    saveSelectedPlayer();
+    renderPlayers();
+    renderSelectedPlayer();
+    renderCurrentPlayer();
+    renderGames();
+    updateLobbyPresence();
+    renderCreateGameButton();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function openPlayerModal(mode = "select") {
+  document.getElementById("playerModal").classList.remove("hidden");
+  if (mode === "create") {
+    const form = document.getElementById("playerForm");
+    form.scrollIntoView({ block: "nearest" });
+    form.focus();
+  }
+}
+
+function closePlayerModal() {
+  document.getElementById("playerModal").classList.add("hidden");
+}
+
+function closePlayerModalOnBackdrop(event) {
+  if (event.target.id === "playerModal") closePlayerModal();
+}
+
+function openInvitePlayerModal() {
+  opponentPickerMode = "remote";
+  document.getElementById("invitePlayerTitle").textContent = "Invite Remote Opponent";
+  renderInvitePlayerList();
+  document.getElementById("invitePlayerModal").classList.remove("hidden");
+}
+
+function openLocalOpponentModal() {
+  opponentPickerMode = "local";
+  document.getElementById("invitePlayerTitle").textContent = "Select Local Opponent";
+  renderInvitePlayerList();
+  document.getElementById("invitePlayerModal").classList.remove("hidden");
+}
+
+function closeInvitePlayerModal() {
+  document.getElementById("invitePlayerModal").classList.add("hidden");
+}
+
+function closeInvitePlayerModalOnBackdrop(event) {
+  if (event.target.id === "invitePlayerModal") closeInvitePlayerModal();
+}
+
+function renderInvitePlayerList() {
+  const host = document.getElementById("invitePlayerList");
+  host.innerHTML = "";
+  if (!currentRoom) return;
+  const seated = new Set(currentRoom.players.map((player) => player.id));
+  const available = players.filter((player) => !seated.has(player.id));
+  if (!available.length) {
+    host.textContent = "No available players.";
+    return;
+  }
+  available.forEach((player) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "roster-player";
+    button.innerHTML = `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>`;
+    button.addEventListener("click", () => {
+      if (opponentPickerMode === "local") joinLocalOpponent(player);
+      else invitePlayer(player);
+    });
+    host.appendChild(button);
+  });
+}
+
+async function joinLocalOpponent(player) {
+  if (!currentRoom) return;
+  const homePlayerId = deviceSelectedPlayerId || selectedPlayerId;
+  rememberLocalGameHomePlayer(currentRoom.code, homePlayerId);
+  try {
+    const response = await api("/api/room/join", { code: currentRoom.code, player, local: true });
+    setRoom(response.room);
+    closeInvitePlayerModal();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function invitePlayer(player) {
+  if (!currentRoom) return;
+  try {
+    await api("/api/invite/create", { code: currentRoom.code, host_id: currentRoom.host_id, player });
+    closeInvitePlayerModal();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function pollInvites() {
+  const player = deviceSelectedPlayer();
+  if (!player || !document.getElementById("invitePrompt").classList.contains("hidden")) return;
+  try {
+    const response = await fetch(`/api/invites?player_id=${encodeURIComponent(player.id)}`);
+    const data = await response.json();
+    if (data.ok && data.invites.length) showInvitePrompt(data.invites[0]);
+  } catch {
+    // Invite polling is best-effort; room actions still work without it.
+  }
+}
+
+function showInvitePrompt(invite) {
+  currentInvite = invite;
+  document.getElementById("invitePromptText").textContent = `${invite.host_name} invited you to play ${gameName(invite.game_id)}.`;
+  document.getElementById("invitePrompt").classList.remove("hidden");
+}
+
+async function respondToInvite(accept) {
+  const player = deviceSelectedPlayer();
+  if (!currentInvite || !player) return;
+  try {
+    const response = await api("/api/invite/respond", { invite_id: currentInvite.id, accept, player });
+    document.getElementById("invitePrompt").classList.add("hidden");
+    currentInvite = null;
+    if (response.accepted && response.room) {
+      selectedGameId = response.room.game_id;
+      saveSelectedGame();
+      activeGameRoom = response.room;
+      setRoom(response.room);
+      renderGames();
+      renderGameSelected();
+      showScreen("game");
+    }
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function updatePlayerIcon(playerId, icon) {
+  const player = players.find((item) => item.id === playerId);
+  if (!player) return;
+  const updated = { ...player, icon: icon.trim() || randomIcon() };
+  try {
+    const response = await api("/api/players/create", { player: updated });
+    players = response.players;
+    if (deviceSelectedPlayerId === response.player.id) setDeviceSelectedPlayer(response.player.id);
+    if (selectedPlayerId === response.player.id) selectedPlayerId = response.player.id;
+    renderPlayers();
+    renderSelectedPlayer();
+    renderCurrentPlayer();
+    updateLobbyPresence();
+    renderCreateGameButton();
+    if (currentRoom) renderGame();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 async function createRoom() {
-  const player = selectedPlayer();
+  const player = deviceSelectedPlayer();
   if (!player) return alert("Select a player first.");
-  const response = await api("/api/room/create", { player });
+  const response = await api("/api/room/create", { game_id: selectedGameId, player });
+  activeGameRoom = response.room;
   setRoom(response.room);
+  renderGames();
+  refreshGameRooms();
+  showScreen("game");
 }
 
-async function joinRoom() {
-  const player = selectedPlayer();
-  if (!player) return alert("Select a player first.");
-  const code = document.getElementById("joinCode").value.trim().toUpperCase();
-  const response = await api("/api/room/join", { code, player });
-  setRoom(response.room);
-}
-
-async function joinSelectedPlayer() {
-  const player = selectedPlayer();
-  if (!player || !currentRoom) return;
-  const response = await api("/api/room/join", { code: currentRoom.code, player });
-  setRoom(response.room);
+async function closeGame() {
+  const confirmed = await confirmAction("Are you sure?", "Close this game and return both players to player and game selection?");
+  if (!confirmed) return;
+  const roomToClose = currentRoom;
+  restoreLocalGameHomePlayer(roomToClose);
+  if (roomToClose) {
+    try {
+      await api("/api/room/close", { code: roomToClose.code, requester_id: selectedPlayerId || deviceSelectedPlayerId });
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
+  }
+  forgetLocalGameHomePlayer(roomToClose);
+  currentRoom = null;
+  activeGameRoom = null;
+  hideWinOverlay();
+  stopPolling();
+  refreshGameRooms();
+  showScreen("games");
 }
 
 async function resetGame() {
   if (!currentRoom) return;
+  const confirmed = await confirmAction("Are you sure?", "Reset this game board?");
+  if (!confirmed) return;
+  hideWinOverlay();
+  lastCelebratedWinKey = "";
   const response = await api("/api/room/reset", { code: currentRoom.code });
   setRoom(response.room);
 }
@@ -154,28 +748,76 @@ async function makeMove(board, cell) {
     });
     setRoom(response.room);
   } catch (error) {
-    showStatus(error.message);
+    showTurnStatus(null, error.message);
   }
+}
+
+function confirmAction(title, message) {
+  const prompt = document.getElementById("confirmPrompt");
+  document.getElementById("confirmPromptTitle").textContent = title;
+  document.getElementById("confirmPromptText").textContent = message;
+  prompt.classList.remove("hidden");
+  return new Promise((resolve) => {
+    pendingConfirmAction = resolve;
+  });
+}
+
+function resolveConfirmPrompt(confirmed) {
+  document.getElementById("confirmPrompt").classList.add("hidden");
+  if (!pendingConfirmAction) return;
+  const resolve = pendingConfirmAction;
+  pendingConfirmAction = null;
+  resolve(confirmed);
+}
+
+function closeConfirmPromptOnBackdrop(event) {
+  if (event.target.id === "confirmPrompt") resolveConfirmPrompt(false);
 }
 
 function setRoom(room) {
   currentRoom = room;
-  document.getElementById("roomPanel").classList.remove("hidden");
-  document.getElementById("roomCode").textContent = room.code;
-  renderRoomPlayers();
+  syncSelectedPlayerForLocalRoom();
+  document.getElementById("roomTitle").textContent = gameName(room.game_id);
+  renderRoomSlots();
   renderGame();
 }
 
-function renderRoomPlayers() {
+function renderRoomSlots() {
   if (!currentRoom) return;
-  const host = document.getElementById("roomPlayers");
-  host.innerHTML = "";
-  currentRoom.players.forEach((player) => {
-    const row = document.createElement("div");
-    row.className = "player-card";
-    row.innerHTML = `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><span>${player.mark}</span>`;
-    host.appendChild(row);
-  });
+  const hostSlot = document.getElementById("roomHostSlot");
+  const opponentSlot = document.getElementById("roomOpponentSlot");
+  const hostPlayer = currentRoom.players.find((player) => player.id === currentRoom.host_id);
+  const opponent = currentRoom.players.find((player) => player.id !== currentRoom.host_id);
+  hostSlot.innerHTML = hostPlayer ? roomPlayerHtml(hostPlayer) : "Host missing.";
+  if (opponent) {
+    opponentSlot.innerHTML = roomPlayerHtml(opponent);
+    return;
+  }
+  if (currentRoom.host_id === deviceSelectedPlayerId) {
+    opponentSlot.innerHTML = `
+      <button id="selectLocalOpponent" class="secondary" type="button">Select Local Opponent</button>
+      <button id="inviteRemoteOpponent" class="secondary" type="button">Invite Remote Opponent</button>
+    `;
+    document.getElementById("selectLocalOpponent").addEventListener("click", openLocalOpponentModal);
+    document.getElementById("inviteRemoteOpponent").addEventListener("click", openInvitePlayerModal);
+    return;
+  }
+  opponentSlot.textContent = "Waiting for host to invite a player.";
+}
+
+function roomPlayerHtml(player) {
+  return `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><span>${escapeHtml(player.mark || "Waiting")}</span>`;
+}
+
+async function leaveRoom(playerId) {
+  if (!currentRoom) return;
+  try {
+    const response = await api("/api/room/leave", { code: currentRoom.code, player_id: playerId, requester_id: selectedPlayerId });
+    setRoom(response.room);
+    refreshRooms();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function renderGame() {
@@ -183,28 +825,50 @@ function renderGame() {
   const game = currentRoom.game;
   const meta = document.getElementById("gameMeta");
   meta.textContent = `Room ${currentRoom.code}`;
-  if (game.status === "playing") {
+  document.getElementById("gamePlayersPanel").classList.toggle("hidden", currentRoom.started);
+  setGameBoardVisible(true);
+  renderGamePlayerSwitch();
+  if (!currentRoom.started) {
+    showTurnStatus(null, "Waiting for opponent.");
+    lastLegalBoardsKey = "";
+  } else if (game.status === "playing") {
     const current = currentRoom.players.find((player) => player.mark === game.current_player);
-    showStatus(`${game.current_player} turn${current ? `: ${current.name}` : ""}`);
+    showTurnStatus(current);
   } else if (game.status === "draw") {
-    showStatus("Draw game.");
+    showTurnStatus(null, "Draw game.");
   } else {
-    showStatus(`${game.winner} wins.`);
+    const winner = currentRoom.players.find((player) => player.mark === game.winner);
+    showTurnStatus(winner, `${winner ? winner.name : game.winner} won.`);
+    scheduleWinOverlay(winner, game.winner);
   }
 
   const host = document.getElementById("macroBoard");
   host.innerHTML = "";
+  const currentTurnPlayer = currentRoom.players.find((player) => player.mark === game.current_player);
+  setTurnColorVariables(host, currentTurnPlayer ? currentTurnPlayer.color : "#1f7a5f");
+  const legalBoardsKey = game.legal_boards.join(",");
+  const shouldFlashLegalBoards = legalBoardsKey !== lastLegalBoardsKey;
+  const macroWinLine = winningLineFor(game.small_winners, game.winner);
+  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
+  const canSelectedPlayerMove = Boolean(currentRoom.started && selectedSeat && selectedSeat.mark === game.current_player);
+  host.classList.toggle("your-turn", canSelectedPlayerMove && game.status === "playing");
+  host.classList.toggle("waiting", game.status === "playing" && !canSelectedPlayerMove);
   game.boards.forEach((board, boardIndex) => {
     const small = document.createElement("div");
-    const legal = game.legal_boards.includes(boardIndex);
+    const legal = currentRoom.started && game.legal_boards.includes(boardIndex);
     const result = game.small_winners[boardIndex];
-    small.className = `small-board ${legal ? "legal" : ""} ${result ? "done" : ""}`;
+    const smallWinLine = winningLineFor(board, result);
+    const macroWinner = macroWinLine.includes(boardIndex);
+    small.className = `small-board ${legal ? "legal" : ""} ${legal && shouldFlashLegalBoards ? "flash" : ""} ${result ? "done" : ""} ${macroWinner ? "macro-win-cell" : ""}`;
+    applyBoardResultColor(small, result);
     board.forEach((value, cellIndex) => {
       const cell = document.createElement("button");
       cell.type = "button";
-      cell.className = `cell ${value ? value.toLowerCase() : ""}`;
+      const smallWinner = smallWinLine.includes(cellIndex);
+      cell.className = `cell ${value ? value.toLowerCase() : ""} ${smallWinner ? "small-win-cell" : ""}`;
       cell.textContent = value || "";
-      cell.disabled = Boolean(value || result || !legal || game.status !== "playing");
+      applyMarkColor(cell, value);
+      cell.disabled = Boolean(value || result || !legal || game.status !== "playing" || !canSelectedPlayerMove);
       cell.addEventListener("click", () => makeMove(boardIndex, cellIndex));
       small.appendChild(cell);
     });
@@ -212,14 +876,144 @@ function renderGame() {
       const winner = document.createElement("div");
       winner.className = `board-winner ${result.toLowerCase()}`;
       winner.textContent = result;
+      applyMarkColor(winner, result, 0.34);
       small.appendChild(winner);
     }
     host.appendChild(small);
   });
+  if (macroWinLine.length) {
+    const line = document.createElement("div");
+    line.className = `macro-win-line ${winLineClass(macroWinLine)}`;
+    host.appendChild(line);
+  }
+  lastLegalBoardsKey = legalBoardsKey;
 }
 
-function showStatus(text) {
-  document.getElementById("statusLine").textContent = text;
+function setGameBoardVisible(visible) {
+  document.getElementById("gamePlayerSwitch").classList.toggle("hidden", !visible);
+  document.getElementById("turnStatus").classList.toggle("hidden", !visible);
+  document.getElementById("macroBoard").classList.toggle("hidden", !visible);
+}
+
+function applyMarkColor(element, mark, tintAmount = 0.18) {
+  const player = playerForMark(mark);
+  if (!element || !player) return;
+  const playerColor = safePlayerColor(player);
+  const background = mixColorWithWhite(playerColor, tintAmount);
+  element.style.background = background;
+  element.style.borderColor = mixColorWithWhite(playerColor, 0.55);
+  element.style.color = getContrastAwareTextColor(background);
+}
+
+function applyBoardResultColor(element, result) {
+  const player = playerForMark(result);
+  if (!element || !player) return;
+  const playerColor = safePlayerColor(player);
+  const background = mixColorWithWhite(playerColor, 0.22);
+  element.style.background = background;
+  element.style.borderColor = mixColorWithWhite(playerColor, 0.68);
+  element.style.boxShadow = `0 0 0 3px ${colorWithAlpha(playerColor, 0.22)}`;
+}
+
+function playerForMark(mark) {
+  if (!currentRoom || !mark || mark === "D") return null;
+  return currentRoom.players.find((player) => player.mark === mark) || null;
+}
+
+function safePlayerColor(player) {
+  return isHexColor(player && player.color ? player.color : "") ? player.color : "#1f7a5f";
+}
+
+function renderGamePlayerSwitch() {
+  const host = document.getElementById("gamePlayerSwitch");
+  host.innerHTML = "";
+  if (!currentRoom || !currentRoom.started) return;
+
+  currentRoom.players.forEach((roomPlayer) => {
+    const isCurrentTurn = roomPlayer.mark === currentRoom.game.current_player && currentRoom.game.status === "playing";
+    const label = document.createElement("div");
+    label.className = `player-switch-button ${isCurrentTurn ? "current-turn" : ""}`;
+    label.setAttribute("aria-current", isCurrentTurn ? "true" : "false");
+    if (isCurrentTurn) applyPlayerLabelTurnColor(label, roomPlayer);
+    label.innerHTML = `${avatarHtml(roomPlayer)}<span><strong>${escapeHtml(roomPlayer.mark)}</strong> ${escapeHtml(roomPlayer.name)}</span>`;
+    host.appendChild(label);
+  });
+}
+
+function applyPlayerLabelTurnColor(element, player) {
+  if (!element || !player) return;
+  const playerColor = safePlayerColor(player);
+  const background = mixColorWithWhite(playerColor, 0.16);
+  element.style.background = background;
+  element.style.borderColor = mixColorWithWhite(playerColor, 0.64);
+  element.style.color = getContrastAwareTextColor(background);
+  element.style.boxShadow = `0 0 0 2px ${colorWithAlpha(playerColor, 0.18)}`;
+}
+
+function showTurnStatus(currentPlayer, overrideText = "") {
+  const host = document.getElementById("turnStatus");
+  if (!host) return;
+  host.classList.remove("your-turn", "waiting");
+  setTurnColorVariables(host, currentPlayer ? currentPlayer.color : "#1f7a5f");
+  if (overrideText) {
+    host.textContent = overrideText;
+    return;
+  }
+  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
+  if (!selectedSeat) {
+    host.textContent = "Select your player.";
+    host.classList.add("waiting");
+    return;
+  }
+  if (selectedSeat.mark === currentRoom.game.current_player) {
+    setTurnColorVariables(host, selectedSeat.color);
+    host.textContent = `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`;
+    host.classList.add("your-turn");
+    return;
+  }
+  host.textContent = `Waiting for ${currentPlayer ? currentPlayer.name : currentRoom.game.current_player}.`;
+  host.classList.add("waiting");
+}
+
+function scheduleWinOverlay(player, mark) {
+  const winKey = `${currentRoom.code}:${currentRoom.game.move_count}:${mark}`;
+  if (lastCelebratedWinKey === winKey) return;
+  lastCelebratedWinKey = winKey;
+  if (winOverlayTimer) clearTimeout(winOverlayTimer);
+  winOverlayTimer = setTimeout(() => showWinOverlay(player, mark), 1000);
+}
+
+function showWinOverlay(player, mark) {
+  const overlay = document.getElementById("winOverlay");
+  const message = document.getElementById("winMessage");
+  const winMark = document.getElementById("winMark");
+  winMark.textContent = player ? player.icon : mark || "";
+  winMark.style.background = player ? player.color : "";
+  winMark.style.color = player ? getContrastAwareTextColor(player.color) : "";
+  message.textContent = `${player ? player.name : mark} won!`;
+  renderConfetti();
+  overlay.classList.remove("hidden");
+}
+
+function hideWinOverlay() {
+  if (winOverlayTimer) clearTimeout(winOverlayTimer);
+  winOverlayTimer = null;
+  document.getElementById("winOverlay").classList.add("hidden");
+}
+
+function renderConfetti() {
+  const host = document.getElementById("confetti");
+  host.innerHTML = "";
+  const colors = ["#1f7a5f", "#1e63d6", "#c43d5d", "#facc15", "#8a4bd1"];
+  for (let index = 0; index < 56; index += 1) {
+    const piece = document.createElement("span");
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.background = colors[index % colors.length];
+    piece.style.animationDelay = `${Math.random() * 0.45}s`;
+    piece.style.animationDuration = `${1.6 + Math.random() * 0.8}s`;
+    piece.style.transform = `rotate(${Math.random() * 180}deg)`;
+    host.appendChild(piece);
+  }
 }
 
 function startPolling() {
@@ -228,15 +1022,81 @@ function startPolling() {
   refreshRoom();
 }
 
+function stopPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+function startRoomListPolling() {
+  if (roomListTimer) clearInterval(roomListTimer);
+  roomListTimer = setInterval(refreshRooms, 2500);
+  refreshRooms();
+}
+
+function startInvitePolling() {
+  if (inviteTimer) clearInterval(inviteTimer);
+  inviteTimer = setInterval(pollInvites, 1500);
+  pollInvites();
+}
+
+async function refreshRooms() {
+  try {
+    await refreshCurrentRoomSummary();
+  } catch {
+    if (currentRoom) showTurnStatus(null, "Room refresh failed.");
+  }
+}
+
+function startLobbyPresencePolling() {
+  if (lobbyPresenceTimer) clearInterval(lobbyPresenceTimer);
+  lobbyPresenceTimer = setInterval(() => {
+    updateLobbyPresence();
+    refreshGameRooms();
+  }, 3000);
+}
+
+function stopLobbyPresencePolling() {
+  if (lobbyPresenceTimer) clearInterval(lobbyPresenceTimer);
+  lobbyPresenceTimer = null;
+}
+
+async function refreshCurrentRoomSummary() {
+  if (!currentRoom) return;
+  const wasStarted = currentRoom.started;
+  const response = await fetch(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
+  const data = await response.json();
+  if (data.ok) {
+    setRoom(data.room);
+    if (!wasStarted && data.room.started && document.getElementById("game").classList.contains("active")) {
+      showScreen("game");
+    }
+  } else {
+    leaveClosedRoom();
+  }
+}
+
 async function refreshRoom() {
   if (!currentRoom) return;
   try {
     const response = await fetch(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
     const data = await response.json();
     if (data.ok) setRoom(data.room);
+    else leaveClosedRoom();
   } catch {
-    showStatus("Room refresh failed.");
+    showTurnStatus(null, "Room refresh failed.");
   }
+}
+
+function leaveClosedRoom() {
+  restoreLocalGameHomePlayer(currentRoom);
+  forgetLocalGameHomePlayer(currentRoom);
+  currentRoom = null;
+  activeGameRoom = null;
+  hideWinOverlay();
+  stopPolling();
+  renderGames();
+  refreshGameRooms();
+  showScreen("games");
 }
 
 async function api(url, payload) {
@@ -254,7 +1114,149 @@ function selectedPlayer() {
   return players.find((player) => player.id === selectedPlayerId) || null;
 }
 
-function loadPlayers() {
+function deviceSelectedPlayer() {
+  return players.find((player) => player.id === deviceSelectedPlayerId) || null;
+}
+
+function setDeviceSelectedPlayer(playerId) {
+  deviceSelectedPlayerId = playerId;
+  selectedPlayerId = playerId;
+  saveSelectedPlayer();
+}
+
+function syncSelectedPlayerForLocalRoom() {
+  if (!isLocalModeRoom(currentRoom)) return;
+  const currentTurnPlayer = currentRoom.players.find((player) => player.mark === currentRoom.game.current_player);
+  const homePlayerId = localGameHomePlayerId(currentRoom);
+  const targetPlayerId = currentRoom.started && currentRoom.game.status === "playing" && currentTurnPlayer
+    ? currentTurnPlayer.id
+    : homePlayerId;
+  if (!targetPlayerId || selectedPlayerId === targetPlayerId) return;
+  selectedPlayerId = targetPlayerId;
+  renderPlayers();
+  renderSelectedPlayer();
+  renderCurrentPlayer();
+  renderGames();
+  updateLobbyPresence();
+  renderCreateGameButton();
+}
+
+function isLocalModeRoom(room) {
+  return Boolean(room && (room.local_mode || localGameHomePlayers[room.code]));
+}
+
+function localGameHomePlayerId(room) {
+  if (!room) return "";
+  const remembered = localGameHomePlayers[room.code];
+  if (typeof remembered === "string") return remembered;
+  if (remembered && remembered.device_hash === deviceSelectionHash) return remembered.player_id || "";
+  return deviceSelectedPlayerId || room.host_id || "";
+}
+
+function rememberLocalGameHomePlayer(roomCode, playerId) {
+  if (!roomCode || !playerId) return;
+  localGameHomePlayers[roomCode] = {
+    player_id: playerId,
+    device_hash: deviceSelectionHash,
+  };
+  saveLocalGameHomePlayers();
+}
+
+function restoreLocalGameHomePlayer(room) {
+  const homePlayerId = localGameHomePlayerId(room);
+  if (!homePlayerId) return;
+  const changed = selectedPlayerId !== homePlayerId || deviceSelectedPlayerId !== homePlayerId;
+  selectedPlayerId = homePlayerId;
+  if (deviceSelectedPlayerId !== homePlayerId) {
+    deviceSelectedPlayerId = homePlayerId;
+    saveSelectedPlayer();
+  }
+  if (!changed) return;
+  renderPlayers();
+  renderSelectedPlayer();
+  renderCurrentPlayer();
+  renderGames();
+  updateLobbyPresence();
+  renderCreateGameButton();
+}
+
+function forgetLocalGameHomePlayer(room) {
+  if (!room || !localGameHomePlayers[room.code]) return;
+  delete localGameHomePlayers[room.code];
+  saveLocalGameHomePlayers();
+}
+
+function selectedGame() {
+  return games.find((game) => game.id === selectedGameId) || games[0];
+}
+
+function gameName(gameId) {
+  const game = games.find((item) => item.id === gameId);
+  return game ? game.name : "Game";
+}
+
+function winningLineFor(values, winner) {
+  if (!winner || winner === "D") return [];
+  const line = winLines.find(([a, b, c]) => values[a] === winner && values[b] === winner && values[c] === winner);
+  return line || [];
+}
+
+function winLineClass(line) {
+  const key = line.join("-");
+  const classes = {
+    "0-1-2": "row-0",
+    "3-4-5": "row-1",
+    "6-7-8": "row-2",
+    "0-3-6": "col-0",
+    "1-4-7": "col-1",
+    "2-5-8": "col-2",
+    "0-4-8": "diag-down",
+    "2-4-6": "diag-up",
+  };
+  return classes[key] || "";
+}
+
+async function refreshPlayers() {
+  try {
+    await migrateLocalPlayers();
+    const response = await fetch("/api/players");
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error || "Could not load players.");
+    players = data.players;
+    if (deviceSelectedPlayerId && !players.some((player) => player.id === deviceSelectedPlayerId)) {
+      deviceSelectedPlayerId = "";
+    }
+    if (selectedPlayerId && !players.some((player) => player.id === selectedPlayerId)) {
+      selectedPlayerId = "";
+    }
+    if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
+    saveSelectedPlayer();
+    renderPlayers();
+    renderSelectedPlayer();
+    renderCurrentPlayer();
+    renderGames();
+    updateLobbyPresence();
+    renderCreateGameButton();
+  } catch (error) {
+    showRosterError(error.message);
+  }
+}
+
+async function migrateLocalPlayers() {
+  if (localStorage.getItem("sogogames.playersMigrated") === "1") return;
+  const localPlayers = loadLocalPlayers();
+  if (!localPlayers.length) {
+    localStorage.setItem("sogogames.playersMigrated", "1");
+    return;
+  }
+  for (const player of localPlayers) {
+    if (!player.id || !player.name) continue;
+    await api("/api/players/create", { player });
+  }
+  localStorage.setItem("sogogames.playersMigrated", "1");
+}
+
+function loadLocalPlayers() {
   try {
     return JSON.parse(localStorage.getItem("sogogames.players") || "[]");
   } catch {
@@ -262,13 +1264,37 @@ function loadPlayers() {
   }
 }
 
-function savePlayers() {
-  localStorage.setItem("sogogames.players", JSON.stringify(players));
-  localStorage.setItem("sogogames.selectedPlayerId", selectedPlayerId);
+function loadLocalGameHomePlayers() {
+  try {
+    return JSON.parse(localStorage.getItem("sogogames.localGameHomePlayers") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalGameHomePlayers() {
+  localStorage.setItem("sogogames.localGameHomePlayers", JSON.stringify(localGameHomePlayers));
+}
+
+function saveSelectedPlayer() {
+  localStorage.setItem("sogogames.deviceSelectedPlayerId", deviceSelectedPlayerId);
+  localStorage.setItem("sogogames.selectedPlayerId", deviceSelectedPlayerId);
+  localStorage.setItem("sogogames.deviceSelectionHash", deviceSelectionHash);
+}
+
+function showRosterError(message) {
+  const host = document.getElementById("playerList");
+  host.innerHTML = `<p>${escapeHtml(message)}</p>`;
+}
+
+function saveSelectedGame() {
+  localStorage.setItem("sogogames.selectedGameId", selectedGameId);
 }
 
 function avatarHtml(player) {
-  return `<span class="avatar" style="background:${escapeHtml(player.color)}">${escapeHtml(player.icon)}</span>`;
+  const background = isHexColor(player.color || "") ? player.color : "#1f7a5f";
+  const foreground = getContrastAwareTextColor(background);
+  return `<span class="avatar" style="background:${escapeHtml(background)};color:${foreground}">${escapeHtml(player.icon)}</span>`;
 }
 
 function escapeHtml(value) {
