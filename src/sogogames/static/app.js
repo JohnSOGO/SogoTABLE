@@ -1372,7 +1372,10 @@ async function fetchJson(url, options = {}) {
 }
 
 function isApiUnavailableError(error) {
-  return Boolean(error && error.message === "Game server is not available on this site.");
+  return Boolean(error && (
+    error.message === "Game server is not available on this site." ||
+    error.message === "Empty server response."
+  ));
 }
 
 function selectedPlayer() {
