@@ -97,30 +97,40 @@ input {
 }
 
 #intro {
-  min-height: calc(100vh - 32px);
-  padding: 16px;
+  --intro-control-width: min(100%, 420px);
+  min-height: calc(100dvh - 32px);
+  padding: clamp(12px, 4vw, 18px);
   border-radius: 18px;
   background: linear-gradient(160deg, #d71920 0%, #8f1116 45%, #080808 100%);
   color: #fff;
   justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
-#intro h1,
 #intro p {
   color: #fff;
 }
 
 #intro .primary {
+  width: var(--intro-control-width);
   background: #fff;
   border-color: #fff;
   color: var(--accent-strong);
+  align-self: center;
 }
 
 .brand {
+  width: var(--intro-control-width);
   display: grid;
   gap: 12px;
   justify-items: center;
   text-align: center;
+}
+
+.brand p {
+  max-width: var(--intro-control-width);
+  line-height: 1.35;
 }
 
 .revision-summary {
@@ -137,7 +147,7 @@ input {
 }
 
 .intro-art {
-  width: min(100%, 420px);
+  width: min(90%, 378px);
   aspect-ratio: 1;
   object-fit: contain;
   border: 4px solid #111;
@@ -1002,6 +1012,20 @@ button.compact {
 }
 
 @media (max-width: 430px) {
+  .app {
+    padding: 10px;
+  }
+
+  #intro {
+    min-height: calc(100dvh - 20px);
+    border-radius: 14px;
+  }
+
+  .intro-art {
+    border-width: 3px;
+    border-radius: 22px;
+  }
+
   .player-select-row {
     grid-template-columns: 1fr;
   }

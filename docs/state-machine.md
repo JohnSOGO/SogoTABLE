@@ -89,14 +89,15 @@ DOM screen id:
 Purpose:
 
 - Lightweight opening screen.
-- Introduces SogoGAMES.
+- Opens the app with the SogoTABLE image mark and a direct path into player/game selection.
 - Sends user into player/game selection.
 
 Required display:
 
-- Brand/logo signal.
+- Centered image logo/splash art, about 90% as wide as the `Start Playing` button.
 - Short product text.
 - `Start Playing` button.
+- Small revision label.
 
 Allowed transitions:
 
@@ -104,6 +105,7 @@ Allowed transitions:
 
 Do not:
 
+- Show a visible `SogoGAMES` heading on the splash.
 - Add setup forms here.
 - Add room controls here.
 - Add game descriptions here beyond light intro copy.
