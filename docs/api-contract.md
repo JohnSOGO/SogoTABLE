@@ -169,6 +169,29 @@ Returns top high scores and ELO ratings for the selected game.
 
 High scores keep the top five score entries per game. ELO ratings start at `1000` per player per game and update once when a room first completes.
 
+### `GET /api/player/stats?player_id=player-id`
+
+Returns selected-player stats for every ready game. Used by the `Player & Game Select` screen after a player is selected.
+
+```json
+{
+  "ok": true,
+  "player_id": "player-id",
+  "stats": [
+    {
+      "game_id": "super_tic_tac_toe",
+      "game_name": "Super Tic Tac Toe",
+      "games_played": 0,
+      "games_won": 0,
+      "personal_high_score": 0,
+      "elo": 1000
+    }
+  ]
+}
+```
+
+Games played and games won are counted once per completed room when room stats are first recorded. Personal high score is kept per player per game, not only from the public top-five leaderboard.
+
 Room statuses:
 
 - `waiting_for_player`

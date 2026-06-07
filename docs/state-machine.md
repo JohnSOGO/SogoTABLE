@@ -134,6 +134,7 @@ Required display:
 - Player icon and player name in the current player row.
 - `Change` button to open player selection.
 - `Create` button to open player creation.
+- Once a player is selected, compact per-game player stats: game name, games played, games won, personal high score, and ELO.
 - `Games` section.
 - One full-width button per game.
 - Game buttons display only the game name.

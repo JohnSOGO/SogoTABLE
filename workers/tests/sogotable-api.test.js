@@ -515,8 +515,11 @@ test("player profile edits refresh stats display names and icons", async () => w
     player: { ...xSeat, name: "Renamed Player", icon: "ZZ", color: "#16a34a" },
   });
   const stats = await get(env, "/api/stats?game_id=super_tactical_tac_toe");
+  const playerStats = await get(env, `/api/player/stats?player_id=${encodeURIComponent(xSeat.id)}`);
   const highScore = stats.stats.high_scores.find((entry) => entry.player_id === xSeat.id);
   const rating = stats.stats.ratings.find((entry) => entry.player_id === xSeat.id);
+  const tacticalStats = playerStats.stats.find((entry) => entry.game_id === "super_tactical_tac_toe");
+  const classicStats = playerStats.stats.find((entry) => entry.game_id === "super_tic_tac_toe");
 
   assert.equal(edited.ok, true);
   assert.equal(edited.player.id, xSeat.id);
@@ -524,6 +527,14 @@ test("player profile edits refresh stats display names and icons", async () => w
   assert.equal(highScore.player_icon, "ZZ");
   assert.equal(rating.player_name, "Renamed Player");
   assert.equal(rating.player_icon, "ZZ");
+  assert.equal(tacticalStats.games_played, 1);
+  assert.equal(tacticalStats.games_won, 1);
+  assert.equal(tacticalStats.personal_high_score, 50);
+  assert.equal(tacticalStats.elo > 1000, true);
+  assert.equal(classicStats.games_played, 0);
+  assert.equal(classicStats.games_won, 0);
+  assert.equal(classicStats.personal_high_score, 0);
+  assert.equal(classicStats.elo, 1000);
 }));
 
 test("tactical score goal alone does not end the game", async () => withMockRandom([0], async () => {

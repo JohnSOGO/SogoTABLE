@@ -28,7 +28,11 @@ const WIN_LINES = [
   [0, 4, 8],
   [2, 4, 6],
 ];
-const GAME_IDS = new Set(["super_tic_tac_toe", "super_tactical_tac_toe"]);
+const GAME_DEFINITIONS = [
+  { id: "super_tic_tac_toe", name: "Super Tic Tac Toe" },
+  { id: "super_tactical_tac_toe", name: "Super Tactical Tac Toe" },
+];
+const GAME_IDS = new Set(GAME_DEFINITIONS.map((game) => game.id));
 const TACTICAL_GAME_ID = "super_tactical_tac_toe";
 const TACTICAL_PICKUP_CONFIG = {
   coin: {
@@ -215,10 +219,15 @@ export class EventHubDurableObject {
 
 async function routeRequest(method, url, payload, data) {
   if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: data.players };
-    if (method === "GET" && url.pathname === "/api/stats") {
-      const gameId = cleanGameId(url.searchParams.get("game_id") || "super_tic_tac_toe");
-      return { ok: true, game_id: gameId, stats: publicStatsForGame(data, gameId) };
-    }
+  if (method === "GET" && url.pathname === "/api/player/stats") {
+    const playerId = String(url.searchParams.get("player_id") || "").trim();
+    if (!playerId) throw new Error("Player id is required.");
+    return { ok: true, player_id: playerId, stats: publicPlayerStats(data, playerId) };
+  }
+  if (method === "GET" && url.pathname === "/api/stats") {
+    const gameId = cleanGameId(url.searchParams.get("game_id") || "super_tic_tac_toe");
+    return { ok: true, game_id: gameId, stats: publicStatsForGame(data, gameId) };
+  }
     if (method === "POST" && url.pathname === "/api/players/create") {
       const player = playerFromPayload(payload);
       upsertPlayer(data, player);
@@ -486,9 +495,10 @@ async function loadState(env) {
   await ensureSchema(env);
   const row = await env.SOGOTABLE_STATE.prepare("SELECT value, version FROM app_state WHERE key = ?").bind("state").first();
   const data = row ? JSON.parse(row.value) : { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
-  if (!data.stats) data.stats = { high_scores: {}, ratings: {} };
+  if (!data.stats) data.stats = { high_scores: {}, ratings: {}, personal: {} };
   if (!data.stats.high_scores) data.stats.high_scores = {};
   if (!data.stats.ratings) data.stats.ratings = {};
+  if (!data.stats.personal) data.stats.personal = {};
   Object.defineProperties(data, {
     __stateExists: { value: Boolean(row), enumerable: false },
     __version: { value: row ? Number(row.version || 0) : 0, enumerable: false },
@@ -614,6 +624,12 @@ function refreshPlayerStats(data, player) {
   });
   Object.values(data.stats.ratings).forEach((ratings) => {
     const entry = ratings[player.id];
+    if (!entry) return;
+    entry.player_name = player.name;
+    entry.player_icon = player.icon;
+  });
+  Object.values(data.stats.personal).forEach((entries) => {
+    const entry = entries[player.id];
     if (!entry) return;
     entry.player_name = player.name;
     entry.player_icon = player.icon;
@@ -1022,6 +1038,7 @@ function recordCompletedRoomStats(data, room) {
   ensureStats(data);
   const result = roomResultForStats(room);
   updateHighScores(data, room, result);
+  updatePersonalStats(data, room, result);
   updateEloRatings(data, room, result);
   room.stats_recorded = true;
 }
@@ -1051,9 +1068,10 @@ function scoreByMarkForRoom(room) {
 }
 
 function ensureStats(data) {
-  if (!data.stats) data.stats = { high_scores: {}, ratings: {} };
+  if (!data.stats) data.stats = { high_scores: {}, ratings: {}, personal: {} };
   if (!data.stats.high_scores) data.stats.high_scores = {};
   if (!data.stats.ratings) data.stats.ratings = {};
+  if (!data.stats.personal) data.stats.personal = {};
 }
 
 function updateHighScores(data, room, result) {
@@ -1092,6 +1110,29 @@ function updateEloRatings(data, room, result) {
   rightRating.rating = Math.round(rightRating.rating + ELO_K_FACTOR * (rightScore - rightExpected));
   applyEloRecord(leftRating, leftScore);
   applyEloRecord(rightRating, rightScore);
+}
+
+function updatePersonalStats(data, room, result) {
+  if (!data.stats.personal[room.game_id]) data.stats.personal[room.game_id] = {};
+  const personal = data.stats.personal[room.game_id];
+  room.players.forEach((seat) => {
+    if (!personal[seat.id]) {
+      personal[seat.id] = {
+        player_id: seat.id,
+        player_name: seat.name,
+        player_icon: seat.icon,
+        games_played: 0,
+        games_won: 0,
+        personal_high_score: 0,
+      };
+    }
+    const entry = personal[seat.id];
+    entry.player_name = seat.name;
+    entry.player_icon = seat.icon;
+    entry.games_played += 1;
+    if (result.winner_id && result.winner_id === seat.id) entry.games_won += 1;
+    entry.personal_high_score = Math.max(entry.personal_high_score || 0, Number(result.score_by_mark[seat.mark] || 0));
+  });
 }
 
 function ratingEntry(ratings, player) {
@@ -1137,6 +1178,25 @@ function publicStatsForGame(data, gameId) {
     high_scores: data.stats.high_scores[gameId] || [],
     ratings,
   };
+}
+
+function publicPlayerStats(data, playerId) {
+  ensureStats(data);
+  return GAME_DEFINITIONS.map((game) => {
+    const personal = data.stats.personal[game.id] && data.stats.personal[game.id][playerId] || {};
+    const rating = data.stats.ratings[game.id] && data.stats.ratings[game.id][playerId] || {};
+    const topScore = (data.stats.high_scores[game.id] || [])
+      .filter((entry) => entry.player_id === playerId)
+      .reduce((best, entry) => Math.max(best, Number(entry.score || 0)), 0);
+    return {
+      game_id: game.id,
+      game_name: game.name,
+      games_played: Number(personal.games_played ?? rating.games ?? 0),
+      games_won: Number(personal.games_won ?? rating.wins ?? 0),
+      personal_high_score: Number(personal.personal_high_score ?? topScore ?? 0),
+      elo: Number(rating.rating || DEFAULT_ELO_RATING),
+    };
+  });
 }
 
 function ensureRoomSeatColors(room) {

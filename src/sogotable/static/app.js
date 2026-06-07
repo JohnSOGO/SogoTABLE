@@ -78,10 +78,13 @@ let activeGameRoom = null;
 let currentGameRooms = [];
 let lobbyPlayers = [];
 let currentGameStats = { high_scores: [], ratings: [] };
+let selectedPlayerStats = [];
 let lastLobbyPlayersKey = "";
 let lastCurrentGameRoomsKey = "";
 let lastActiveGameNoticeKey = "";
 let lastGameStatsKey = "";
+let lastSelectedPlayerStatsKey = "";
+let selectedPlayerStatsRequestId = 0;
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
 let lastLegalBoardsKey = "";
@@ -689,6 +692,7 @@ function finishPlayerSave(playerId, input, wasEditing = false) {
   renderSelectedPlayer();
   renderCurrentPlayer();
   renderGames();
+  refreshSelectedPlayerStats();
   updateLobbyPresence();
   renderCreateGameButton();
   closePlayerModal();
@@ -767,7 +771,60 @@ function renderSelectedPlayer() {
   const host = document.getElementById("selectedPlayer");
   const player = deviceSelectedPlayer();
   if (host) host.innerHTML = player ? `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>` : "Create or select a player first.";
+  renderSelectedPlayerStats();
   renderRoomHostSummary();
+}
+
+async function refreshSelectedPlayerStats() {
+  const playerId = deviceSelectedPlayerId;
+  const requestId = selectedPlayerStatsRequestId + 1;
+  selectedPlayerStatsRequestId = requestId;
+  if (!playerId) {
+    selectedPlayerStats = [];
+    renderSelectedPlayerStats();
+    return;
+  }
+  try {
+    const data = await fetchJson(`/api/player/stats?player_id=${encodeURIComponent(playerId)}`);
+    if (requestId !== selectedPlayerStatsRequestId) return;
+    if (!data.ok) throw new Error(data.error || "Could not load player stats.");
+    selectedPlayerStats = data.stats || [];
+    renderSelectedPlayerStats();
+  } catch {
+    if (requestId !== selectedPlayerStatsRequestId) return;
+    selectedPlayerStats = [];
+    renderSelectedPlayerStats("Stats unavailable.");
+  }
+}
+
+function renderSelectedPlayerStats(message = "") {
+  const host = document.getElementById("selectedPlayerStats");
+  if (!host) return;
+  const player = deviceSelectedPlayer();
+  if (!player) {
+    host.classList.add("hidden");
+    host.innerHTML = "";
+    lastSelectedPlayerStatsKey = "hidden";
+    return;
+  }
+  const nextKey = JSON.stringify({ playerId: player.id, message, stats: selectedPlayerStats });
+  if (nextKey === lastSelectedPlayerStatsKey) return;
+  lastSelectedPlayerStatsKey = nextKey;
+  host.classList.remove("hidden");
+  if (message) {
+    host.innerHTML = `<span class="label">Player Stats</span><p>${escapeHtml(message)}</p>`;
+    return;
+  }
+  const rows = (selectedPlayerStats || []).map((item) => `
+    <div class="player-stat-row">
+      <strong>${escapeHtml(item.game_name || "Game")}</strong>
+      <span title="Games played">Played ${Number(item.games_played || 0)}</span>
+      <span title="Games won">Won ${Number(item.games_won || 0)}</span>
+      <span title="Personal high score">High ${Number(item.personal_high_score || 0)}</span>
+      <span title="ELO rating">ELO ${Number(item.elo || 1000)}</span>
+    </div>
+  `).join("");
+  host.innerHTML = `<span class="label">Player Stats</span><div class="player-stat-list">${rows || "No stats yet."}</div>`;
 }
 
 function renderCurrentPlayer() {
@@ -793,6 +850,7 @@ function selectPlayer(playerId, options = {}) {
   renderSelectedPlayer();
   renderCurrentPlayer();
   renderGames();
+  refreshSelectedPlayerStats();
   updateLobbyPresence();
   renderCreateGameButton();
   if (options.closeModal) closePlayerModal();
@@ -819,6 +877,7 @@ function finishPlayerDelete(playerId) {
   renderSelectedPlayer();
   renderCurrentPlayer();
   renderGames();
+  refreshSelectedPlayerStats();
   updateLobbyPresence();
   renderCreateGameButton();
 }
@@ -1603,6 +1662,7 @@ function syncSelectedPlayerForLocalRoom() {
   renderSelectedPlayer();
   renderCurrentPlayer();
   renderGames();
+  refreshSelectedPlayerStats();
   updateLobbyPresence();
   renderCreateGameButton();
 }
@@ -1756,11 +1816,13 @@ async function refreshPlayers() {
     renderSelectedPlayer();
     renderCurrentPlayer();
     renderGames();
+    refreshSelectedPlayerStats();
     updateLobbyPresence();
     renderCreateGameButton();
   } catch (error) {
     playerApiAvailable = false;
     players = [];
+    selectedPlayerStats = [];
     renderPlayers();
     renderSelectedPlayer();
     renderCurrentPlayer();
