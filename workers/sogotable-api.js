@@ -223,6 +223,7 @@ async function routeRequest(method, url, payload, data) {
       const player = playerFromPayload(payload);
       upsertPlayer(data, player);
       refreshActiveRoomPlayer(data, player);
+      refreshPlayerStats(data, player);
       return { ok: true, player, players: data.players };
     }
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
@@ -598,6 +599,24 @@ function refreshActiveRoomPlayer(data, player) {
       if (seat.id === player.id) Object.assign(seat, player);
     });
     ensureRoomSeatColors(room);
+  });
+}
+
+function refreshPlayerStats(data, player) {
+  ensureStats(data);
+  Object.values(data.stats.high_scores).forEach((entries) => {
+    entries.forEach((entry) => {
+      if (entry.player_id === player.id) {
+        entry.player_name = player.name;
+        entry.player_icon = player.icon;
+      }
+    });
+  });
+  Object.values(data.stats.ratings).forEach((ratings) => {
+    const entry = ratings[player.id];
+    if (!entry) return;
+    entry.player_name = player.name;
+    entry.player_icon = player.icon;
   });
 }
 

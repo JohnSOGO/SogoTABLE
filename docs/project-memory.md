@@ -24,6 +24,7 @@ The target use case is casual local play: family members can open a phone browse
 - The user likes clear, polished mobile UI details: centered marks, obvious valid moves, visual win lines, player-name win declarations, and celebratory feedback.
 - The user wants shared player rosters across PC/iPhone, not per-device player lists.
 - The user wants players to be deletable and their emoji icons editable.
+- The user wants players anchored by stable opaque IDs so their profile fields can be edited without changing identity. The shared roster edit flow should support name, icon, and color edits, and those edits should flow into active room seats and stats display names/icons.
 - The user wants player creation at the top of the main menu, not buried inside a game-specific flow.
 - The user does not want visible example emoji buttons. Player emoji should default randomly, clear when the emoji field receives focus, and fall back to a random emoji if left blank.
 - The user wants display name, icon, and color on one compact row, with color chosen from a larger color palette.

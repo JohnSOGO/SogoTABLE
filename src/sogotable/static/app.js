@@ -70,6 +70,7 @@ if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelect
 let selectedGameId = localStorage.getItem("sogotable.selectedGameId") || games[0].id;
 let selectedIcon = randomIcon();
 let selectedColor = paletteColors[0];
+let editingPlayerId = "";
 let currentRoom = null;
 let currentInvite = null;
 let hostInviteStatus = null;
@@ -666,8 +667,9 @@ async function createPlayer(event) {
   const input = document.getElementById("playerName");
   const name = input.value.trim();
   if (!name) return;
+  const wasEditing = Boolean(editingPlayerId);
   const player = {
-    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+    id: editingPlayerId || newOpaquePlayerId(),
     name,
     icon: selectedIcon || randomIcon(),
     color: normalizePlayerColor(selectedColor, paletteColors[0]),
@@ -675,17 +677,14 @@ async function createPlayer(event) {
   try {
     const response = await api("/api/players/create", { player });
     players = response.players;
-    finishPlayerSave(response.player.id, input);
+    finishPlayerSave(response.player.id, input, wasEditing);
   } catch (error) {
     alert(error.message);
   }
 }
 
-function finishPlayerSave(playerId, input) {
-  setDeviceSelectedPlayer(playerId);
-  input.value = "";
-  selectedIcon = randomIcon();
-  renderChoices();
+function finishPlayerSave(playerId, input, wasEditing = false) {
+  if (!wasEditing || playerId === deviceSelectedPlayerId) setDeviceSelectedPlayer(playerId);
   renderPlayers();
   renderSelectedPlayer();
   renderCurrentPlayer();
@@ -693,6 +692,28 @@ function finishPlayerSave(playerId, input) {
   updateLobbyPresence();
   renderCreateGameButton();
   closePlayerModal();
+}
+
+function newOpaquePlayerId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return `player-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function resetPlayerForm(input = document.getElementById("playerName")) {
+  editingPlayerId = "";
+  if (input) input.value = "";
+  selectedIcon = randomIcon();
+  selectedColor = paletteColors[0];
+  setPlayerFormMode("create");
+  renderChoices();
+}
+
+function setPlayerFormMode(mode) {
+  const editing = mode === "edit";
+  const title = document.getElementById("playerFormTitle");
+  const submit = document.getElementById("playerFormSubmit");
+  if (title) title.textContent = editing ? "Edit Player" : "Create New Player";
+  if (submit) submit.textContent = editing ? "Save Changes" : "Create Player";
 }
 
 function renderPlayers() {
@@ -707,14 +728,39 @@ function renderPlayers() {
   players.forEach((player) => {
     const card = document.createElement("div");
     card.className = `player-card ${player.id === deviceSelectedPlayerId ? "selected" : ""}`;
-    card.innerHTML = `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><button type="button" class="delete-player">Delete</button>`;
+    card.innerHTML = `
+      ${avatarHtml(player)}
+      <strong>${escapeHtml(player.name)}</strong>
+      <div class="player-actions">
+        <button type="button" class="secondary edit-player">Edit</button>
+        <button type="button" class="delete-player">Delete</button>
+      </div>
+    `;
     card.addEventListener("click", () => selectPlayer(player.id, { closeModal: true }));
+    card.querySelector(".edit-player").addEventListener("click", (event) => {
+      event.stopPropagation();
+      editPlayer(player.id);
+    });
     card.querySelector(".delete-player").addEventListener("click", (event) => {
       event.stopPropagation();
       deletePlayer(player.id);
     });
     host.appendChild(card);
   });
+}
+
+function editPlayer(playerId) {
+  const player = players.find((item) => item.id === playerId);
+  if (!player) return;
+  editingPlayerId = player.id;
+  document.getElementById("playerName").value = player.name;
+  selectedIcon = player.icon || randomIcon();
+  selectedColor = normalizePlayerColor(player.color, paletteColors[0]);
+  setPlayerFormMode("edit");
+  renderChoices();
+  const form = document.getElementById("playerForm");
+  form.scrollIntoView({ block: "nearest" });
+  form.focus();
 }
 
 function renderSelectedPlayer() {
@@ -780,6 +826,7 @@ function finishPlayerDelete(playerId) {
 function openPlayerModal(mode = "select") {
   document.getElementById("playerModal").classList.remove("hidden");
   if (mode === "create") {
+    resetPlayerForm();
     const form = document.getElementById("playerForm");
     form.scrollIntoView({ block: "nearest" });
     form.focus();
@@ -787,6 +834,7 @@ function openPlayerModal(mode = "select") {
 }
 
 function closePlayerModal() {
+  resetPlayerForm();
   document.getElementById("playerModal").classList.add("hidden");
 }
 
@@ -920,27 +968,6 @@ async function respondToInvite(accept) {
       renderGameSelected();
       showScreen("game");
     }
-  } catch (error) {
-    alert(error.message);
-  }
-}
-
-async function updatePlayerIcon(playerId, icon) {
-  const player = players.find((item) => item.id === playerId);
-  if (!player) return;
-  const updated = { ...player, icon: icon.trim() || randomIcon() };
-  updated.color = normalizePlayerColor(updated.color, selectedColor, paletteColors[0]);
-  try {
-    const response = await api("/api/players/create", { player: updated });
-    players = response.players;
-    if (deviceSelectedPlayerId === response.player.id) setDeviceSelectedPlayer(response.player.id);
-    if (selectedPlayerId === response.player.id) selectedPlayerId = response.player.id;
-    renderPlayers();
-    renderSelectedPlayer();
-    renderCurrentPlayer();
-    updateLobbyPresence();
-    renderCreateGameButton();
-    if (currentRoom) renderGame();
   } catch (error) {
     alert(error.message);
   }

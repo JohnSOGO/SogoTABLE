@@ -489,6 +489,43 @@ test("tactical game ends on sector line and highest score wins", async () => wit
   assert.equal(repeatStats.stats.high_scores.length, 2);
 }));
 
+test("player profile edits refresh stats display names and icons", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host", "#d946ef");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "EDIT" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+
+  mutateState(env, (data) => {
+    const room = data.rooms.EDIT;
+    const game = room.game;
+    game.small_winners[0] = "X";
+    game.small_winners[1] = "X";
+    game.boards[2][0] = "X";
+    game.boards[2][1] = "X";
+    game.scores = { X: 50, O: 10 };
+    game.current_player = "X";
+    game.next_board = 2;
+    game.move_count = 20;
+  });
+
+  await post(env, "/api/room/move", { code: "EDIT", player_id: xSeat.id, board: 2, cell: 2 });
+  const edited = await post(env, "/api/players/create", {
+    player: { ...xSeat, name: "Renamed Player", icon: "ZZ", color: "#16a34a" },
+  });
+  const stats = await get(env, "/api/stats?game_id=super_tactical_tac_toe");
+  const highScore = stats.stats.high_scores.find((entry) => entry.player_id === xSeat.id);
+  const rating = stats.stats.ratings.find((entry) => entry.player_id === xSeat.id);
+
+  assert.equal(edited.ok, true);
+  assert.equal(edited.player.id, xSeat.id);
+  assert.equal(highScore.player_name, "Renamed Player");
+  assert.equal(highScore.player_icon, "ZZ");
+  assert.equal(rating.player_name, "Renamed Player");
+  assert.equal(rating.player_icon, "ZZ");
+}));
+
 test("tactical score goal alone does not end the game", async () => withMockRandom([0], async () => {
   const env = makeEnv();
   const host = player("host", "Host");

@@ -170,7 +170,7 @@ Purpose:
 
 - Select an existing player.
 - Create a new player.
-- Delete players from the shared roster.
+- Edit or delete players from the shared roster.
 
 Required display:
 
@@ -182,12 +182,16 @@ Required display:
 - Icon input.
 - Color picker controls.
 - Create Player button.
+- Each existing player row has `Edit` and `Delete` controls.
 
 Selection behavior:
 
 - Tapping a player selects that player immediately.
 - The modal closes after selecting an existing player.
 - Creating a player selects the new player and closes the modal.
+- Player identity is anchored by a stable opaque `id`. Editing a player must preserve the id while updating mutable profile fields: name, icon, and color.
+- Tapping `Edit` populates the create form with that player's profile, changes the form heading to `Edit Player`, and changes the submit button to `Save Changes`.
+- Saving an edit updates the shared roster profile and any active-room/stat display snapshots that refer to that player id.
 
 Color behavior:
 
