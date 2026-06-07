@@ -77,6 +77,7 @@ let roomListTimer = null;
 let inviteTimer = null;
 let lobbyPresenceTimer = null;
 let lastLegalBoardsKey = "";
+let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
 let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
@@ -908,6 +909,9 @@ function closeConfirmPromptOnBackdrop(event) {
 
 function setRoom(room) {
   currentRoom = room;
+  const roomKey = roomRenderKey(room);
+  if (roomKey === lastRenderedRoomKey) return;
+  lastRenderedRoomKey = roomKey;
   syncHostInviteStatusFromRoom(room);
   syncSelectedPlayerForLocalRoom();
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
@@ -1399,6 +1403,7 @@ function leaveClosedRoom() {
   hostInviteStatus = null;
   currentRoom = null;
   activeGameRoom = null;
+  lastRenderedRoomKey = "";
   hideWinOverlay();
   stopPolling();
   renderGames();
@@ -1506,6 +1511,39 @@ function winningLineFor(values, winner) {
   if (!winner || winner === "D") return [];
   const line = winLines.find(([a, b, c]) => values[a] === winner && values[b] === winner && values[c] === winner);
   return line || [];
+}
+
+function roomRenderKey(room) {
+  if (!room) return "";
+  return JSON.stringify({
+    code: room.code,
+    started: room.started,
+    status: room.status,
+    local_mode: room.local_mode,
+    players: room.players.map((player) => ({
+      id: player.id,
+      name: player.name,
+      icon: player.icon,
+      color: player.color,
+      mark: player.mark,
+    })),
+    game: {
+      boards: room.game.boards,
+      small_winners: room.game.small_winners,
+      current_player: room.game.current_player,
+      next_board: room.game.next_board,
+      status: room.game.status,
+      winner: room.game.winner,
+      move_count: room.game.move_count,
+      legal_boards: room.game.legal_boards,
+    },
+    latest_invite: room.latest_invite ? {
+      id: room.latest_invite.id,
+      status: room.latest_invite.status,
+      target_name: room.latest_invite.target_name,
+    } : null,
+    reset_request: room.reset_request,
+  });
 }
 
 function winLineClass(line) {

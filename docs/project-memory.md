@@ -36,6 +36,7 @@ The target use case is casual local play: family members can open a phone browse
 - Incoming AI handoff/prompt files may be placed in `AI/`. That directory is ignored and should be treated as input context, not product source.
 - The user does not want distracting effects. In local hot-seat Super Tic Tac Toe, turn and active-board feedback should use the current player's selected color, with only a brief one-shot flash and no continuous green pulse.
 - The opening splash should emphasize the SogoTable image mark, not a visible `SogoTable` heading. Keep it narrow-window friendly; the image should be centered and about 90% as wide as the `Start Playing` button.
+- During phone playtesting after room WebSockets were added, the user reported that roughly 1 in 10 taps did not take. Avoid rebuilding the board DOM for unchanged room snapshots or background refreshes, because a render between touch-down and click can swallow the tap.
 
 ## Current Implemented Shape
 

@@ -792,6 +792,7 @@ button.compact {
   font-weight: 900;
   line-height: 1;
   padding: 0;
+  touch-action: manipulation;
 }
 
 .cell.x {
