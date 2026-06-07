@@ -234,7 +234,8 @@ Open game card requirements:
 - If selected player is not seated and the room is open, action is `Join Game`.
 - If room is active and selected player is not seated, action is disabled.
 - Treat the rendered card as a stale snapshot. On tap, fetch the room by code from the shared API before joining or re-entering so phone and PC clients use current room state.
-- Before creating, joining, or re-entering a hosted room, sync the browser's device/home selected player to the shared roster. A public browser may still have an older localStorage fallback player that is valid locally but not yet visible to the hosted D1 brain.
+- Before creating, joining, or re-entering a hosted room, require the browser's device/home selected player to exist in the shared API roster. Do not use local-only fallback players and do not silently migrate old localStorage fallback players into the hosted roster.
+- If the shared API is unavailable or returns non-JSON/static HTML, show an explicit error and disable multiplayer actions. Do not render empty rosters or empty game lists as if they were valid server state.
 - Polling endpoints such as room lists, room reads, player lists, lobby reads, and invite reads are read-only. Hosted storage must not save the whole state row after `GET` requests, or stale polling snapshots can overwrite newer room/player changes.
 
 Create/Re-enter behavior:
