@@ -296,7 +296,7 @@ Exit behavior:
 
 - `Exit` opens a Yes/No confirmation.
 - Yes lets the selected player leave without requiring agreement from the other player.
-- The current in-memory implementation closes the game room so polling players return to `PLAYER_GAME_SELECTION`.
+- The current in-memory implementation closes the game room so polling players return to `GAME_SELECTED` for the current game type.
 - No keeps the player in the game.
 
 Reset behavior:
@@ -441,7 +441,7 @@ Exit behavior:
 - Ask Yes/No before closing.
 - Confirmation copy must make it clear the local player is leaving.
 - The exiting player does not need the other player to agree.
-- The current in-memory implementation closes the game room so polling players return to `PLAYER_GAME_SELECTION`.
+- The current in-memory implementation closes the game room so polling players return to `GAME_SELECTED` for the current game type.
 
 Reset behavior:
 
@@ -574,7 +574,7 @@ Current polling is intentionally simple.
 Room polling:
 
 - Keeps room/game state current.
-- If a room disappears, return the player to `PLAYER_GAME_SELECTION`.
+- If a room disappears, return the player to `GAME_SELECTED` for the current game type.
 
 Invite polling:
 

@@ -874,7 +874,7 @@ async function createRoom() {
 }
 
 async function closeGame() {
-  const confirmed = await confirmAction("Exit game?", "Exit this game and return to player and game selection?");
+  const confirmed = await confirmAction("Exit game?", "Exit this game and return to the game lobby?");
   if (!confirmed) return;
   const roomToClose = currentRoom;
   restoreLocalGameHomePlayer(roomToClose);
@@ -894,7 +894,7 @@ async function closeGame() {
   hideWinOverlay();
   stopPolling();
   refreshGameRooms();
-  showScreen("games");
+  showScreen("gameSelected");
 }
 
 async function resetGame() {
@@ -1360,7 +1360,7 @@ function leaveClosedRoom() {
   stopPolling();
   renderGames();
   refreshGameRooms();
-  showScreen("games");
+  showScreen("gameSelected");
 }
 
 async function api(url, payload) {
@@ -1518,12 +1518,6 @@ async function refreshPlayers() {
     if (!data.ok) throw new Error(data.error || "Could not load players.");
     playerApiAvailable = true;
     players = data.players;
-    if (deviceSelectedPlayerId && !players.some((player) => player.id === deviceSelectedPlayerId)) {
-      deviceSelectedPlayerId = "";
-    }
-    if (selectedPlayerId && !players.some((player) => player.id === selectedPlayerId)) {
-      selectedPlayerId = "";
-    }
     if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
     saveSelectedPlayer();
     renderPlayers();
@@ -1535,9 +1529,6 @@ async function refreshPlayers() {
   } catch (error) {
     playerApiAvailable = false;
     players = [];
-    selectedPlayerId = "";
-    deviceSelectedPlayerId = "";
-    saveSelectedPlayer();
     renderPlayers();
     renderSelectedPlayer();
     renderCurrentPlayer();
