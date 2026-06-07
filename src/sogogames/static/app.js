@@ -848,7 +848,7 @@ function setRoom(room) {
 }
 
 function syncHostInviteStatusFromRoom(room) {
-  if (!room || room.started || room.host_id !== deviceSelectedPlayerId) return;
+  if (!room || room.started) return;
   hostInviteStatus = room.latest_invite || hostInviteStatus;
 }
 
@@ -875,15 +875,14 @@ function renderRoomSlots() {
     renderRoomInviteStatus();
     return;
   }
-  hostInviteStatus = null;
   renderRoomInviteStatus();
-  opponentSlot.textContent = "Waiting for host to invite a player.";
+  opponentSlot.textContent = hostInviteStatus ? inviteStatusText(hostInviteStatus) : "Waiting for host to invite a player.";
 }
 
 function renderRoomInviteStatus() {
   const host = document.getElementById("roomInviteStatus");
   if (!host) return;
-  const visible = Boolean(currentRoom && !currentRoom.started && currentRoom.host_id === deviceSelectedPlayerId && hostInviteStatus);
+  const visible = Boolean(currentRoom && !currentRoom.started && hostInviteStatus);
   host.classList.toggle("hidden", !visible);
   if (!visible) {
     host.textContent = "";

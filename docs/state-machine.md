@@ -331,6 +331,7 @@ Remote invite behavior:
 - Host sends an invite to a target player.
 - Host receives visible lifecycle feedback while waiting.
 - The waiting room payload carries the latest invite status so normal room polling can update the host after a decline.
+- Invite lifecycle feedback must not depend on a fragile local selected-player check; if the waiting room has a latest invite, render that state.
 - Target player sees `INVITE_PROMPT` in their browser if they are selected on that device.
 - Remote invite targets are limited to players currently present in the selected game's lobby.
 - Remote invite targets must exclude players already seated in any unfinished game for that game type.
