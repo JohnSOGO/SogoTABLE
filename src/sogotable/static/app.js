@@ -381,8 +381,8 @@ function renderRoomSummaryList(host, rooms, emptyText) {
         <strong>${escapeHtml(hostPlayer ? `${hostPlayer.name}'s Game` : "Game")}</strong>
         <span>Code ${escapeHtml(room.code)}</span>
       </div>
-      <div class="room-summary-players">${room.players.map((player) => avatarHtml(player)).join("")}</div>
       <button type="button" class="${canReenter || canJoin ? "secondary" : "ghost"}">${escapeHtml(actionText)}</button>
+      <div class="room-summary-players">${room.players.map((player) => avatarHtml(player)).join("")}</div>
     `;
     const button = card.querySelector("button");
     button.disabled = !(canReenter || canJoin);

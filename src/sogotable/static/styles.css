@@ -334,7 +334,7 @@ button.compact {
 
 .room-summary-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto) auto;
   gap: 8px;
   align-items: center;
   padding: 10px;
@@ -365,6 +365,7 @@ button.compact {
   display: flex;
   gap: 4px;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .room-summary-players .avatar {
@@ -374,8 +375,11 @@ button.compact {
 }
 
 .room-summary-card button {
-  grid-column: 1 / -1;
-  width: 100%;
+  width: auto;
+  min-width: 86px;
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .game-card {
@@ -1054,11 +1058,26 @@ button.compact {
   }
 
   .room-summary-card {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(74px, auto) auto;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .room-summary-card button {
+    min-width: 74px;
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 12px;
   }
 
   .room-summary-players {
-    justify-content: flex-start;
+    justify-content: flex-end;
+  }
+
+  .room-summary-players .avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
   }
 
   .notice {
