@@ -35,6 +35,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 const STATE_KEY = "super_tic_tac_toe";
+let memoryState = null;
 
 export default {
   async fetch(request, env) {
@@ -202,11 +203,14 @@ async function routeRequest(method, url, payload, data) {
 }
 
 async function loadState(env) {
+  if (memoryState) return structuredClone(memoryState);
   const stored = await env.SOGOTABLE_STATE.get(STATE_KEY, "json");
-  return stored || { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
+  memoryState = stored || { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
+  return structuredClone(memoryState);
 }
 
 async function saveState(env, data) {
+  memoryState = structuredClone(data);
   await env.SOGOTABLE_STATE.put(STATE_KEY, JSON.stringify(data));
 }
 
