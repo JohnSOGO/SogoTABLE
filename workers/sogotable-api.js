@@ -44,7 +44,7 @@ export default {
       const data = await loadState(env);
       const payload = request.method === "POST" ? await readJson(request) : {};
       const response = await routeRequest(request.method, url, payload, data);
-      await saveState(env, data);
+      if (request.method !== "GET") await saveState(env, data);
       return json(response);
     } catch (error) {
       return json({ ok: false, error: error.message || "Request failed." }, 400);

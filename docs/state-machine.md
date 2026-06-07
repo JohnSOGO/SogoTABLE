@@ -235,6 +235,7 @@ Open game card requirements:
 - If room is active and selected player is not seated, action is disabled.
 - Treat the rendered card as a stale snapshot. On tap, fetch the room by code from the shared API before joining or re-entering so phone and PC clients use current room state.
 - Before creating, joining, or re-entering a hosted room, sync the browser's device/home selected player to the shared roster. A public browser may still have an older localStorage fallback player that is valid locally but not yet visible to the hosted D1 brain.
+- Polling endpoints such as room lists, room reads, player lists, lobby reads, and invite reads are read-only. Hosted storage must not save the whole state row after `GET` requests, or stale polling snapshots can overwrite newer room/player changes.
 
 Create/Re-enter behavior:
 
