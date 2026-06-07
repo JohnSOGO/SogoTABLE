@@ -562,14 +562,15 @@ button.compact {
 
 .player-card {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 42px minmax(0, 1fr) max-content;
+  gap: 8px;
   align-items: center;
   min-height: 54px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
   padding: 6px 10px;
+  overflow: hidden;
 }
 
 .player-card > strong {
@@ -580,15 +581,17 @@ button.compact {
 
 .player-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-wrap: nowrap;
+  gap: 4px;
   justify-content: flex-end;
   align-items: center;
+  white-space: nowrap;
 }
 
 .player-actions button {
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 0.88rem;
 }
 
 .delete-player {

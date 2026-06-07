@@ -22,6 +22,7 @@ The target use case is casual local play: family members can open a phone browse
 - The user wants SogoTable to use a Wu Wei / downhill-flow programming method adapted from Ozymandias2: shape the app so correct play naturally flows through the right boundaries instead of relying on scattered special cases. The durable SogoTable version lives in `docs/wu-wei-method.md`.
 - The user prefers small playable improvements over large speculative architecture.
 - The user likes clear, polished mobile UI details: centered marks, obvious valid moves, visual win lines, player-name win declarations, and celebratory feedback.
+- The user wants clean, compact UI and prefers keeping related controls on one line when it makes sense. For player rows, keep the emoji/avatar, name, `Edit`, and `Delete` in one row, truncating long names rather than wrapping action buttons.
 - The user wants shared player rosters across PC/iPhone, not per-device player lists.
 - The user wants players to be deletable and their emoji icons editable.
 - The user wants players anchored by stable opaque IDs so their profile fields can be edited without changing identity. The shared roster edit flow should support name, icon, and color edits, and those edits should flow into active room seats and stats display names/icons.
