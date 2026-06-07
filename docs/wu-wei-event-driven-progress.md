@@ -48,6 +48,7 @@ Completed:
 - Reduced non-room fallback polling after smoke success: current-room summary fallback is 15 seconds, selected-game lobby fallback is 15 seconds, invite fallback is 30 seconds, and active-room socket recovery remains 15 seconds.
 - Split realtime socket and fallback timer wiring into `src/sogotable/static/realtime.js`. `app.js` still owns screen state and snapshot meaning.
 - Routed active room `join`, `leave`/`close`, `move`, and `reset` mutations through `RoomDurableObject` before D1 persistence. The room object now serializes these high-contention mutations and broadcasts the resulting room snapshot.
+- Added stable snapshot guards for selected-game lobby players, current room lists, and the active-game notice so timed fallback refreshes do not clear and rebuild unchanged DOM. This keeps fallback safety while removing the visible lobby blink reported during phone testing.
 
 Still pending:
 

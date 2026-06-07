@@ -37,6 +37,7 @@ The target use case is casual local play: family members can open a phone browse
 - The user does not want distracting effects. In local hot-seat Super Tic Tac Toe, turn and active-board feedback should use the current player's selected color, with only a brief one-shot flash and no continuous green pulse.
 - The opening splash should emphasize the SogoTable image mark, not a visible `SogoTable` heading. Keep it narrow-window friendly; the image should be centered and about 90% as wide as the `Start Playing` button.
 - During phone playtesting after room WebSockets were added, the user reported that roughly 1 in 10 taps did not take. Avoid rebuilding the board DOM for unchanged room snapshots or background refreshes, because a render between touch-down and click can swallow the tap.
+- During public lobby playtesting, the user reported a random lobby refresh/glitch that looked like assets being removed and replaced. Treat fallback lobby and room-list refreshes as visual no-ops when the incoming snapshot is identical; do not clear and rebuild stable lobby DOM just because a timed safety refresh fired.
 - After reviewing `AI/wu-wei-event-driven-code-review-plan.md` and `AI/SogoGames_wu_wei_event_driven.zip`, the event-driven direction was adopted with constraints and the zip was rejected as a direct source snapshot. Track the staged implementation in `docs/wu-wei-event-driven-progress.md`.
 
 ## Current Implemented Shape

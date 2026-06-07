@@ -68,6 +68,9 @@ let hostInviteStatus = null;
 let activeGameRoom = null;
 let currentGameRooms = [];
 let lobbyPlayers = [];
+let lastLobbyPlayersKey = "";
+let lastCurrentGameRoomsKey = "";
+let lastActiveGameNoticeKey = "";
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
 let lastLegalBoardsKey = "";
@@ -239,6 +242,9 @@ function renderGameSelected() {
   const game = selectedGame();
   document.getElementById("selectedGameTitle").textContent = game ? game.name : "Game";
   document.getElementById("selectedGameDescription").textContent = game ? game.summary : "";
+  lastLobbyPlayersKey = "";
+  lastCurrentGameRoomsKey = "";
+  lastActiveGameNoticeKey = "";
   refreshLobbyPlayers();
   renderCurrentGames();
   renderCreateGameButton();
@@ -248,6 +254,9 @@ function renderGameSelected() {
 function renderLobbyPlayers() {
   const host = document.getElementById("lobbyPlayers");
   if (!host) return;
+  const nextKey = lobbyPlayersSignature(lobbyPlayers);
+  if (nextKey === lastLobbyPlayersKey) return;
+  lastLobbyPlayersKey = nextKey;
   host.innerHTML = "";
   if (!lobbyPlayers.length) {
     host.textContent = "No players are looking at this game right now.";
@@ -337,6 +346,9 @@ function renderCurrentGames(errorMessage = "") {
   const openHost = document.getElementById("openGamesList");
   const closedHost = document.getElementById("closedGamesList");
   if (!openHost || !closedHost) return;
+  const nextKey = errorMessage ? `error:${errorMessage}` : gameRoomsSignature(currentGameRooms);
+  if (nextKey === lastCurrentGameRoomsKey) return;
+  lastCurrentGameRoomsKey = nextKey;
   openHost.innerHTML = "";
   closedHost.innerHTML = "";
   if (errorMessage) {
@@ -432,6 +444,11 @@ function renderActiveGameNotice(errorMessage = "") {
   if (!host) return;
   const player = deviceSelectedPlayer();
   const existing = player ? currentGameRooms.find((room) => room.players.some((seat) => seat.id === player.id)) : null;
+  const nextKey = errorMessage
+    ? `error:${errorMessage}`
+    : existing ? JSON.stringify({ selectedPlayerId: deviceSelectedPlayerId, room: roomSummarySignature(existing) }) : "hidden";
+  if (nextKey === lastActiveGameNoticeKey) return;
+  lastActiveGameNoticeKey = nextKey;
   if (errorMessage || !existing) {
     host.classList.add("hidden");
     host.innerHTML = "";
@@ -447,6 +464,44 @@ function renderActiveGameNotice(errorMessage = "") {
     <button type="button" class="secondary compact">Re-enter Game</button>
   `;
   host.querySelector("button").addEventListener("click", () => enterRoomSummary(existing));
+}
+
+function lobbyPlayersSignature(items) {
+  const orderedPlayers = [...items].sort((left, right) => {
+    if (left.id === deviceSelectedPlayerId) return -1;
+    if (right.id === deviceSelectedPlayerId) return 1;
+    return String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" });
+  });
+  return JSON.stringify(orderedPlayers.map((player) => playerSignature(player)));
+}
+
+function gameRoomsSignature(rooms) {
+  return JSON.stringify({
+    selectedPlayerId: deviceSelectedPlayerId,
+    rooms: [...rooms]
+      .sort((left, right) => String(left.code || "").localeCompare(String(right.code || "")))
+      .map((room) => roomSummarySignature(room)),
+  });
+}
+
+function roomSummarySignature(room) {
+  return {
+    code: room.code,
+    status: room.status,
+    host_id: room.host_id,
+    open_seats: room.open_seats,
+    players: (room.players || []).map((player) => playerSignature(player)),
+  };
+}
+
+function playerSignature(player) {
+  return {
+    id: player.id,
+    name: player.name,
+    icon: player.icon,
+    color: player.color,
+    mark: player.mark,
+  };
 }
 
 function renderChoices() {
