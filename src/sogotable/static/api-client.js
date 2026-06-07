@@ -26,6 +26,14 @@ export function roomSocketUrl(code) {
   return url.toString();
 }
 
+export function appEventsSocketUrl({ gameId, playerId } = {}) {
+  const url = new URL(`${HOSTED_API_ORIGIN}/api/events/socket`);
+  if (gameId) url.searchParams.set("game_id", gameId);
+  if (playerId) url.searchParams.set("player_id", playerId);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+
 function apiUrl(url) {
   if (typeof url === "string" && url.startsWith("/api/")) return `${HOSTED_API_ORIGIN}${url}`;
   return url;

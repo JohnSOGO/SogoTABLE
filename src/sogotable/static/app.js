@@ -1,4 +1,4 @@
-import { api, fetchJson, roomSocketUrl } from "./api-client.js";
+import { api, appEventsSocketUrl, fetchJson, roomSocketUrl } from "./api-client.js";
 import {
   colorWithAlpha,
   getContrastAwareTextColor,
@@ -73,6 +73,9 @@ let roomSocket = null;
 let roomSocketFallbackTimer = null;
 let roomReconnectTimer = null;
 let roomSocketReconnectAttempts = 0;
+let appEventsSocket = null;
+let appEventsReconnectTimer = null;
+let appEventsReconnectAttempts = 0;
 let roomListTimer = null;
 let inviteTimer = null;
 let lobbyPresenceTimer = null;
@@ -121,6 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("confirmPrompt").addEventListener("click", closeConfirmPromptOnBackdrop);
   const closeWinOverlay = document.getElementById("closeWinOverlay");
   if (closeWinOverlay) closeWinOverlay.addEventListener("click", hideWinOverlay);
+  connectAppEvents();
   startRoomListPolling();
   startInvitePolling();
 });
@@ -178,6 +182,7 @@ function showScreen(name) {
     renderGameSelected();
     refreshGameRooms();
     updateLobbyPresence();
+    sendAppEventSubscription();
     startLobbyPresencePolling();
   } else {
     stopLobbyPresencePolling();
@@ -1344,6 +1349,93 @@ function startRoomListPolling() {
   refreshRooms();
 }
 
+function connectAppEvents() {
+  if (!("WebSocket" in window)) return;
+  if (appEventsSocket && appEventsSocket.readyState <= WebSocket.OPEN) return;
+  stopAppEvents(false);
+  try {
+    appEventsSocket = new WebSocket(appEventsSocketUrl({
+      gameId: selectedGame().id,
+      playerId: deviceSelectedPlayerId,
+    }));
+  } catch {
+    scheduleAppEventsReconnect();
+    return;
+  }
+  appEventsSocket.addEventListener("open", () => {
+    appEventsReconnectAttempts = 0;
+    sendAppEventSubscription();
+  });
+  appEventsSocket.addEventListener("message", handleAppEventMessage);
+  appEventsSocket.addEventListener("close", () => {
+    appEventsSocket = null;
+    scheduleAppEventsReconnect();
+  });
+  appEventsSocket.addEventListener("error", () => {
+    if (appEventsSocket) appEventsSocket.close();
+  });
+}
+
+function stopAppEvents(clearReconnect = true) {
+  if (appEventsSocket) {
+    const socket = appEventsSocket;
+    appEventsSocket = null;
+    socket.close();
+  }
+  if (clearReconnect && appEventsReconnectTimer) {
+    clearTimeout(appEventsReconnectTimer);
+    appEventsReconnectTimer = null;
+  }
+}
+
+function scheduleAppEventsReconnect() {
+  if (appEventsReconnectTimer) return;
+  const delay = Math.min(30000, 2000 * 2 ** appEventsReconnectAttempts);
+  appEventsReconnectAttempts += 1;
+  appEventsReconnectTimer = setTimeout(() => {
+    appEventsReconnectTimer = null;
+    connectAppEvents();
+  }, delay);
+}
+
+function sendAppEventSubscription() {
+  if (!appEventsSocket || appEventsSocket.readyState !== WebSocket.OPEN) return;
+  const game = selectedGame();
+  appEventsSocket.send(JSON.stringify({
+    type: "subscribe",
+    game_id: game ? game.id : selectedGameId,
+    player_id: deviceSelectedPlayerId,
+  }));
+}
+
+function handleAppEventMessage(event) {
+  let message;
+  try {
+    message = JSON.parse(event.data);
+  } catch {
+    return;
+  }
+  if (message.type !== "app_snapshot" || message.game_id !== selectedGame().id) return;
+  if (Array.isArray(message.rooms)) {
+    currentGameRooms = message.rooms;
+    renderCurrentGames();
+    renderCreateGameButton();
+    renderActiveGameNotice();
+    autoOpenActiveRoomForSelectedPlayer();
+  }
+  if (Array.isArray(message.lobby_players)) {
+    lobbyPlayers = message.lobby_players;
+    renderLobbyPlayers();
+  }
+  if (
+    Array.isArray(message.pending_invites) &&
+    message.pending_invites.length &&
+    document.getElementById("invitePrompt").classList.contains("hidden")
+  ) {
+    showInvitePrompt(message.pending_invites[0]);
+  }
+}
+
 function startInvitePolling() {
   if (inviteTimer) clearInterval(inviteTimer);
   inviteTimer = setInterval(pollInvites, 10000);
@@ -1444,6 +1536,7 @@ function setDeviceSelectedPlayer(playerId) {
   deviceSelectedPlayerId = playerId;
   selectedPlayerId = playerId;
   saveSelectedPlayer();
+  sendAppEventSubscription();
 }
 
 function syncSelectedPlayerForLocalRoom() {

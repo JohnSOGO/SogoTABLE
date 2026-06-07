@@ -68,6 +68,14 @@ function makeEnvWithRooms() {
   return { SOGOTABLE_STATE: new InMemoryD1(), ROOM_OBJECT: new MockRoomNamespace() };
 }
 
+function makeEnvWithEvents() {
+  return {
+    SOGOTABLE_STATE: new InMemoryD1(),
+    ROOM_OBJECT: new MockRoomNamespace(),
+    EVENT_HUB: new MockEventHubNamespace(),
+  };
+}
+
 class MockRoomNamespace {
   constructor() {
     this.objects = new Map();
@@ -106,6 +114,33 @@ class MockRoomObject {
 
   async closeRoom(code) {
     this.closed.push(code);
+  }
+}
+
+class MockEventHubNamespace {
+  constructor() {
+    this.objects = new Map();
+  }
+
+  getByName(name) {
+    if (!this.objects.has(name)) this.objects.set(name, new MockEventHubObject(name));
+    return this.objects.get(name);
+  }
+}
+
+class MockEventHubObject {
+  constructor(name) {
+    this.name = name;
+    this.snapshots = [];
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/__app_snapshot") {
+      this.snapshots.push(await request.json());
+      return Response.json({ ok: true });
+    }
+    return Response.json({ ok: false, error: "Unhandled mock event request." }, { status: 404 });
   }
 }
 
@@ -324,4 +359,31 @@ test("notifies the room durable object after meaningful room changes", async () 
 
   await post(env, "/api/room/leave", { code: "PUSH", player_id: host.id, requester_id: host.id });
   assert.deepEqual(roomObject.closed, ["PUSH"]);
+});
+
+test("notifies the app event hub with room, lobby, and invite snapshots", async () => {
+  const env = makeEnvWithEvents();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+
+  await post(env, "/api/players/create", { player: host });
+  let eventHub = env.EVENT_HUB.getByName("super_tic_tac_toe");
+  assert.equal(eventHub.snapshots.at(-1).type, "app_snapshot");
+  assert.deepEqual(eventHub.snapshots.at(-1).rooms, []);
+
+  const presence = await post(env, "/api/lobby/presence", { game_id: "super_tic_tac_toe", player: host });
+  assert.equal(presence.ok, true);
+  assert.deepEqual(eventHub.snapshots.at(-1).lobby_players.map((item) => item.id), ["host"]);
+
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "EVNT" });
+  assert.equal(created.ok, true);
+  assert.deepEqual(eventHub.snapshots.at(-1).rooms.map((room) => room.code), ["EVNT"]);
+
+  const invite = await post(env, "/api/invite/create", { code: "EVNT", host_id: host.id, player: guest });
+  assert.equal(invite.ok, true);
+  assert.equal(eventHub.snapshots.at(-1).pending_invites_by_player.guest[0].id, "EVNT:guest");
+
+  const declined = await post(env, "/api/invite/respond", { invite_id: invite.invite.id, accept: false, player: guest });
+  assert.equal(declined.ok, true);
+  assert.equal(eventHub.snapshots.at(-1).pending_invites_by_player.guest, undefined);
 });

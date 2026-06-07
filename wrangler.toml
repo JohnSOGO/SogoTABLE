@@ -16,6 +16,14 @@ database_id = "bbb1cdec-0410-476f-b058-f216263b61d8"
 name = "ROOM_OBJECT"
 class_name = "RoomDurableObject"
 
+[[durable_objects.bindings]]
+name = "EVENT_HUB"
+class_name = "EventHubDurableObject"
+
 [[migrations]]
 tag = "v1_room_durable_object"
 new_sqlite_classes = [ "RoomDurableObject" ]
+
+[[migrations]]
+tag = "v2_event_hub"
+new_sqlite_classes = [ "EventHubDurableObject" ]

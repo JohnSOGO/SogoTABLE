@@ -20,9 +20,9 @@ The app should move downhill toward event-driven updates, but the public play pa
 - [x] Review the incoming plan and zip as AI input, not committed source.
 - [x] Reject wholesale zip application.
 - [x] Patch the immediate missed-tap risk before broad transport changes.
-- [ ] Add a minimal app event channel for room-list and invite notifications.
-- [ ] Add Worker tests for app-event fanout and snapshot payloads.
-- [ ] Keep fallback polling enabled while testing the app event channel on phones.
+- [x] Add a minimal app event channel for room-list and invite notifications.
+- [x] Add Worker tests for app-event fanout and snapshot payloads.
+- [x] Keep fallback polling enabled while testing the app event channel on phones.
 - [ ] Split large frontend controller code after the transport path is stable.
 - [ ] Move more active-room authority into Durable Objects only after the current Worker/D1 path is boring.
 
@@ -35,22 +35,24 @@ Completed:
 - Added a browser-side in-flight move guard so one tap cannot submit multiple moves while the hosted brain is responding.
 - Added touch-first move handling through `pointerdown` for non-mouse input. This reduces the chance that a room refresh or WebSocket snapshot replaces the tapped button before the browser's delayed `click` event fires.
 - Kept the server as the authority. The browser does not optimistically mutate the board.
+- Added `EventHubDurableObject` with `/api/events/socket` for app-level snapshots.
+- Added `EVENT_HUB` with fresh Wrangler migration tag `v2_event_hub`.
+- Browser now listens for app snapshots and updates room list, lobby presence, and pending invite prompts from events.
+- Existing room-list, invite, lobby, and room fallback polling remains enabled as recovery while the event channel is proven on phones.
+- Added Worker tests for app-event room, lobby, pending invite, and declined-invite snapshots.
 
 Still pending:
 
-- EventHub implementation.
-- EventHub tests.
 - Public Cloudflare deploy and phone smoke test.
+- Reduce timed room-list/invite/lobby polling only after public phone smoke testing proves the event channel is reliable.
 
 ## Next Implementation Slice
 
-Build the EventHub narrowly:
+Public-smoke the EventHub narrowly:
 
-- One `EVENT_HUB` Durable Object binding.
-- One fresh migration tag, for example `v2_event_hub`.
-- One app WebSocket endpoint: `/api/events/socket`.
-- Subscribe by `game_id` and selected `player_id`.
-- Broadcast room-list/invite/lobby snapshots after relevant writes.
-- Keep existing polling intervals as fallback until the public app proves stable on phones.
+- Confirm two devices see room-list changes without waiting for the next poll.
+- Confirm invited player gets the invite prompt from event delivery.
+- Confirm declined invites clear pending invite snapshots.
+- Keep existing polling intervals as fallback until these checks pass repeatedly.
 
 Do not expand this into roster presence, auth, or full room authority in the same slice.

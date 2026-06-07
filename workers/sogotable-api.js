@@ -47,6 +47,7 @@ export default {
     const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/")) return json({ ok: false, error: "Unknown endpoint." }, 404, corsHeaders);
     if (request.method === "GET" && url.pathname === "/api/room/socket") return roomSocket(request, env, url);
+    if (request.method === "GET" && url.pathname === "/api/events/socket") return appEventsSocket(request, env, url);
     try {
       const data = await loadState(env);
       const payload = request.method === "POST" ? await readJson(request) : {};
@@ -54,6 +55,7 @@ export default {
       if (request.method !== "GET") {
         await saveState(env, data);
         await notifyRoomObject(env, response);
+        await notifyEventHub(env, data, response);
       }
       return json(response, 200, corsHeaders);
     } catch (error) {
@@ -105,6 +107,56 @@ export class RoomDurableObject {
 
   broadcast(message) {
     for (const session of [...this.sessions]) safeSend(session, message);
+  }
+}
+
+export class EventHubDurableObject {
+  constructor(state) {
+    this.state = state;
+    this.sessions = new Map();
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/__app_snapshot") {
+      const snapshot = await request.json();
+      this.broadcastSnapshot(snapshot);
+      return json({ ok: true });
+    }
+    const upgrade = request.headers.get("Upgrade") || "";
+    if (upgrade.toLowerCase() !== "websocket") return json({ ok: false, error: "Expected WebSocket upgrade." }, 426);
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    server.accept();
+    this.sessions.set(server, {
+      game_id: safeGameIdForEvents(url.searchParams.get("game_id") || "super_tic_tac_toe"),
+      player_id: String(url.searchParams.get("player_id") || "").trim(),
+    });
+    server.addEventListener("message", (event) => this.handleSessionMessage(server, event.data));
+    server.addEventListener("close", () => this.sessions.delete(server));
+    server.addEventListener("error", () => this.sessions.delete(server));
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  handleSessionMessage(session, data) {
+    let message;
+    try {
+      message = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (message.type !== "subscribe") return;
+    this.sessions.set(session, {
+      game_id: safeGameIdForEvents(message.game_id || "super_tic_tac_toe"),
+      player_id: String(message.player_id || "").trim(),
+    });
+  }
+
+  broadcastSnapshot(snapshot) {
+    for (const [session, subscription] of [...this.sessions]) {
+      if (subscription.game_id !== snapshot.game_id) continue;
+      safeSend(session, appSnapshotForSubscription(snapshot, subscription));
+    }
   }
 }
 
@@ -263,6 +315,12 @@ function roomSocket(request, env, url) {
   return env.ROOM_OBJECT.getByName(code).fetch(request);
 }
 
+function appEventsSocket(request, env, url) {
+  if (!env.EVENT_HUB) return json({ ok: false, error: "App event updates are not configured." }, 503);
+  const gameId = safeGameIdForEvents(url.searchParams.get("game_id") || "super_tic_tac_toe");
+  return env.EVENT_HUB.getByName(gameId).fetch(request);
+}
+
 async function notifyRoomObject(env, response) {
   if (!env.ROOM_OBJECT || !response || response.ok === false) return;
   if (response.room && response.room.code) {
@@ -280,6 +338,55 @@ async function notifyRoomObject(env, response) {
       body: JSON.stringify({ code: response.room_code }),
     }));
   }
+}
+
+async function notifyEventHub(env, data, response) {
+  if (!env.EVENT_HUB || !response || response.ok === false) return;
+  const gameId = response.room && response.room.game_id
+    ? response.room.game_id
+    : response.invite && response.invite.game_id
+      ? response.invite.game_id
+      : "super_tic_tac_toe";
+  const snapshot = eventSnapshotForGame(data, gameId);
+  await env.EVENT_HUB.getByName(gameId).fetch(new Request("https://event.hub/__app_snapshot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(snapshot),
+  }));
+}
+
+function eventSnapshotForGame(data, gameId) {
+  const cleanId = safeGameIdForEvents(gameId);
+  const pendingInvitesByPlayer = {};
+  Object.values(data.invites).forEach((invite) => {
+    if (invite.game_id !== cleanId || invite.status !== "pending") return;
+    if (!pendingInvitesByPlayer[invite.target_id]) pendingInvitesByPlayer[invite.target_id] = [];
+    pendingInvitesByPlayer[invite.target_id].push(invite);
+  });
+  return {
+    type: "app_snapshot",
+    game_id: cleanId,
+    rooms: Object.values(data.rooms)
+      .filter((room) => ["waiting_for_player", "active"].includes(roomStatus(room)))
+      .filter((room) => room.game_id === cleanId)
+      .map((room) => roomSummary(room)),
+    lobby_players: lobbyViewers(data, cleanId),
+    pending_invites_by_player: pendingInvitesByPlayer,
+  };
+}
+
+function appSnapshotForSubscription(snapshot, subscription) {
+  return {
+    type: "app_snapshot",
+    game_id: snapshot.game_id,
+    rooms: snapshot.rooms,
+    lobby_players: snapshot.lobby_players,
+    pending_invites: subscription.player_id ? (snapshot.pending_invites_by_player[subscription.player_id] || []) : [],
+  };
+}
+
+function safeGameIdForEvents(gameId) {
+  return String(gameId || "super_tic_tac_toe").trim() || "super_tic_tac_toe";
 }
 
 function safeSend(session, message) {
