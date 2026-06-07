@@ -7,6 +7,7 @@ SogoGAMES starts as a dependency-light Python web app with a vanilla browser fro
 - Python standard library `http.server` for local development.
 - Python game engine modules under `src/sogogames/`.
 - Vanilla JavaScript for the browser UI.
+- Progressive Web App manifest and service worker for an installable mobile shell.
 - `pytest` for game-rule tests.
 
 The stack is intentionally small. The first milestone needs a reliable playable loop, not a framework commitment.
@@ -67,7 +68,7 @@ The room is the live game instance, and the game screen is the room. After playe
 
 Room creation seats the host and immediately opens the actual game screen in `waiting_for_player` status. The tic-tac-toe board is visible but disabled while waiting for the second player. When a second player joins by code or accepts an invite, the room activates, X/O marks are assigned randomly across the two seated players, and the board becomes playable automatically.
 
-Rooms have a `host_id`, `game_id`, seated players, game state, optional `local_mode`, and a computed status: `waiting_for_player`, `active`, or `completed`. A player can have only one active in-memory room per game, whether they are host or opponent; creating again returns the existing unfinished room. The game screen shows Host and Opponent slots while waiting, then hides that Players section once the game starts. If the opponent is missing, the host can either select a local opponent from the roster for one-device play or invite a remote opponent, whose browser receives an in-memory invite popup through polling. Local-mode games auto-toggle the runtime actor to the current turn owner and restore the original device/home selected player when the game ends or closes. Closing the game deletes the in-memory room so it is no longer listed or re-enterable.
+Rooms have a `host_id`, `game_id`, seated players, game state, optional `local_mode`, reset votes, and a computed status: `waiting_for_player`, `active`, or `completed`. A player can have only one active in-memory room per game, whether they are host or opponent; creating again returns the existing unfinished room. The game screen shows Host and Opponent slots while waiting, then hides that Players section once the game starts. If the opponent is missing, the host can either select a local opponent from the roster for one-device play or invite a remote opponent, whose browser receives an in-memory invite popup through polling. Local-mode games auto-toggle the runtime actor to the current turn owner and restore the original device/home selected player when the game ends or exits. Exiting asks only the local player for confirmation; in the current in-memory implementation, exit closes the room so it is no longer listed or re-enterable. Reset and Play Again require agreement from both seated players before the board is cleared.
 
 The room disappears when the server restarts.
 
@@ -85,13 +86,22 @@ The browser main menu shows the current player, `Select Player` and `Create Play
 - `POST /api/room/create`: create or reopen the selected host player's active in-memory room.
 - `POST /api/room/join`: join an existing room; when the second player joins, activate the room and randomly assign X/O.
 - `POST /api/room/close`: delete an in-memory room/game so it cannot be re-entered.
-- `POST /api/room/leave`: remove a seated player from an active room.
+- `POST /api/room/leave`: let a seated player exit; currently closes the in-memory room.
 - `GET /api/room?code=ABCD`: fetch the current room and game state.
 - `POST /api/room/move`: submit one move for the current player.
-- `POST /api/room/reset`: restart the current room's game.
+- `POST /api/room/reset`: request or approve a reset; the board restarts only after all seated players agree.
 - `POST /api/invite/create`: host-only create invite for a target player.
 - `POST /api/invite/respond`: accept or decline a pending invite.
 - `POST /api/lobby/presence`: update short-lived selected-game lobby presence for the browser's selected player.
+
+## Progressive Web App
+
+The browser frontend includes a conservative PWA shell:
+
+- `manifest.webmanifest` declares the SogoTABLE app name, red theme color, and install icons.
+- `service-worker.js` precaches and refreshes static shell assets.
+- API calls under `/api/` are intentionally excluded from service-worker handling so rooms, invites, moves, and player state stay live.
+- The current PWA promise is installability and better reload behavior, not offline gameplay.
 
 ## Future Multiplayer
 

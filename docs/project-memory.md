@@ -81,4 +81,5 @@ The target use case is casual local play: family members can open a phone browse
 - Run `python -m pytest` after rules/server changes.
 - Run `node --check src\sogogames\static\app.js` after browser JavaScript changes.
 - Check static assets through the running local server when UI files change.
+- PWA support is intentionally conservative: cache static shell assets and icons, but never cache `/api/` requests. The PWA improves phone install/reload feel; it does not promise offline multiplayer or replace the hosted Worker/state layer.
 - If browser automation tools are unavailable, headless Chrome can be driven through the DevTools protocol if Chrome is installed.

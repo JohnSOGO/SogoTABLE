@@ -68,6 +68,7 @@ let handledResetRequestKey = "";
 localStorage.setItem("sogogames.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
+  registerServiceWorker();
   bindNavigation();
   renderGames();
   renderChoices();
@@ -102,6 +103,15 @@ document.addEventListener("DOMContentLoaded", () => {
   startRoomListPolling();
   startInvitePolling();
 });
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch((error) => {
+      console.warn("SogoTABLE service worker unavailable.", error);
+    });
+  });
+}
 
 function bindNavigation() {
   document.querySelectorAll("[data-screen]").forEach((button) => {

@@ -11,6 +11,7 @@ The product target is simple: family members sitting together at a restaurant ca
 - Mobile-first local web UI: complete first pass.
 - Room creation, invites, and room codes: local/in-memory first pass.
 - Shared persistent player roster: complete first pass.
+- Progressive Web App shell: complete first pass.
 - Active room persistence/history: future milestone.
 
 ## Stack
@@ -18,6 +19,7 @@ The product target is simple: family members sitting together at a restaurant ca
 - Python standard library HTTP server.
 - Python rules engine under `src/sogogames/`.
 - Vanilla HTML/CSS/JavaScript under `src/sogogames/static/`.
+- PWA manifest and service worker for installable phone-browser shell.
 - `pytest` for rules-engine tests.
 
 This avoids framework weight while keeping a clear path to add Flask/FastAPI, SQLite, WebSockets, or hosted deployment later if the app earns that complexity.
@@ -39,6 +41,8 @@ http://127.0.0.1:8787/
 For phone testing on the same network, use the computer's LAN IP with port `8787`.
 
 The first server keeps rooms in memory. Restarting the server clears active rooms.
+
+The app can be installed from supported phone browsers as a Progressive Web App. The service worker caches static shell assets only; API calls for players, rooms, invites, and moves are not cached.
 
 ## Run Tests
 
