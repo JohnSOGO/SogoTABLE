@@ -69,6 +69,17 @@ export class RoomDurableObject {
   }
 
   async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/__room_snapshot") {
+      const room = await request.json();
+      await this.storeRoomSnapshot(room);
+      return json({ ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/__room_close") {
+      const { code } = await request.json();
+      await this.storeRoomClosed(code);
+      return json({ ok: true });
+    }
     const upgrade = request.headers.get("Upgrade") || "";
     if (upgrade.toLowerCase() !== "websocket") return json({ ok: false, error: "Expected WebSocket upgrade." }, 426);
     const pair = new WebSocketPair();
@@ -82,12 +93,12 @@ export class RoomDurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  async setRoomSnapshot(room) {
+  async storeRoomSnapshot(room) {
     await this.state.storage.put("room", room);
     this.broadcast({ type: "room_snapshot", room });
   }
 
-  async closeRoom(code) {
+  async storeRoomClosed(code) {
     await this.state.storage.delete("room");
     this.broadcast({ type: "room_closed", code });
   }
@@ -255,11 +266,19 @@ function roomSocket(request, env, url) {
 async function notifyRoomObject(env, response) {
   if (!env.ROOM_OBJECT || !response || response.ok === false) return;
   if (response.room && response.room.code) {
-    await env.ROOM_OBJECT.getByName(response.room.code).setRoomSnapshot(response.room);
+    await env.ROOM_OBJECT.getByName(response.room.code).fetch(new Request("https://room.object/__room_snapshot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(response.room),
+    }));
     return;
   }
   if (response.closed && response.room_code) {
-    await env.ROOM_OBJECT.getByName(response.room_code).closeRoom(response.room_code);
+    await env.ROOM_OBJECT.getByName(response.room_code).fetch(new Request("https://room.object/__room_close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: response.room_code }),
+    }));
   }
 }
 

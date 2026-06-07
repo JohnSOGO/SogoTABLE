@@ -86,6 +86,20 @@ class MockRoomObject {
     this.closed = [];
   }
 
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/__room_snapshot") {
+      this.snapshots.push(await request.json());
+      return Response.json({ ok: true });
+    }
+    if (request.method === "POST" && url.pathname === "/__room_close") {
+      const { code } = await request.json();
+      this.closed.push(code);
+      return Response.json({ ok: true });
+    }
+    return Response.json({ ok: false, error: "Unhandled mock room request." }, { status: 404 });
+  }
+
   async setRoomSnapshot(room) {
     this.snapshots.push(room);
   }
