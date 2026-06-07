@@ -26,6 +26,7 @@ const games = [
     summary: "A nested tic tac toe duel where every move sends the next player to a target board.",
     players: "2 players",
     status: "Ready",
+    availability: "ready",
   },
 ];
 const winLines = [
@@ -49,6 +50,7 @@ let selectedIcon = randomIcon();
 let selectedColor = paletteColors[0];
 let currentRoom = null;
 let currentInvite = null;
+let hostInviteStatus = null;
 let activeGameRoom = null;
 let currentGameRooms = [];
 let lobbyPlayers = [];
@@ -128,17 +130,22 @@ function renderGames() {
   host.innerHTML = "";
   const hasPlayer = Boolean(deviceSelectedPlayer());
   games.forEach((game) => {
+    const ready = gameIsReady(game);
     const button = document.createElement("button");
     button.type = "button";
     button.className = `game-card ${game.id === selectedGameId ? "selected" : ""}`;
     button.dataset.gameId = game.id;
     button.textContent = game.name;
-    button.disabled = !hasPlayer;
+    button.disabled = !hasPlayer || !ready;
     if (!hasPlayer) {
       button.title = "Select or create a player first.";
       button.setAttribute("aria-label", `${game.name}. Select or create a player first.`);
+    } else if (!ready) {
+      button.title = gameAvailabilityText(game);
+      button.setAttribute("aria-label", `${game.name}. ${gameAvailabilityText(game)}`);
     }
     button.addEventListener("click", () => {
+      if (!ready) return;
       selectedGameId = game.id;
       currentRoom = null;
       activeGameRoom = null;
@@ -165,6 +172,7 @@ function renderGameSelected() {
   refreshLobbyPlayers();
   renderCurrentGames();
   renderCreateGameButton();
+  renderActiveGameNotice();
 }
 
 function renderLobbyPlayers() {
@@ -226,9 +234,11 @@ async function refreshGameRooms() {
     currentGameRooms = data.rooms;
     renderCurrentGames();
     renderCreateGameButton();
+    renderActiveGameNotice();
   } catch (error) {
     currentGameRooms = [];
     renderCurrentGames(error.message);
+    renderActiveGameNotice(error.message);
   }
 }
 
@@ -282,14 +292,15 @@ function renderCreateGameButton() {
   const button = document.getElementById("createGame");
   if (!button) return;
   const player = deviceSelectedPlayer();
+  const game = selectedGame();
   const existing = player ? currentGameRooms.find((room) => room.players.some((seat) => seat.id === player.id)) : null;
-  button.disabled = !player;
+  button.disabled = !player || !gameIsReady(game);
   button.textContent = existing ? "Re-enter Game" : "Create Game";
-  button.title = player ? "" : "Select or create a player first.";
+  button.title = !player ? "Select or create a player first." : gameIsReady(game) ? "" : gameAvailabilityText(game);
 }
 
 async function enterRoomSummary(summary) {
-  const player = selectedPlayer();
+  const player = deviceSelectedPlayer();
   if (!player) return alert("Select a player first.");
   const selectedSeat = summary.players.find((seat) => seat.id === player.id);
   if (selectedSeat) {
@@ -309,6 +320,28 @@ async function enterRoomSummary(summary) {
   } catch (error) {
     alert(error.message);
   }
+}
+
+function renderActiveGameNotice(errorMessage = "") {
+  const host = document.getElementById("activeGameNotice");
+  if (!host) return;
+  const player = deviceSelectedPlayer();
+  const existing = player ? currentGameRooms.find((room) => room.players.some((seat) => seat.id === player.id)) : null;
+  if (errorMessage || !existing) {
+    host.classList.add("hidden");
+    host.innerHTML = "";
+    return;
+  }
+  const statusText = existing.status === "waiting_for_player" ? "waiting for an opponent" : "in progress";
+  host.classList.remove("hidden");
+  host.innerHTML = `
+    <div>
+      <strong>You have a game ${escapeHtml(statusText)}.</strong>
+      <span>Re-enter it instead of creating another one.</span>
+    </div>
+    <button type="button" class="secondary compact">Re-enter Game</button>
+  `;
+  host.querySelector("button").addEventListener("click", () => enterRoomSummary(existing));
 }
 
 function renderChoices() {
@@ -617,6 +650,7 @@ async function joinLocalOpponent(player) {
   rememberLocalGameHomePlayer(currentRoom.code, homePlayerId);
   try {
     const response = await api("/api/room/join", { code: currentRoom.code, player, local: true });
+    hostInviteStatus = null;
     setRoom(response.room);
     closeInvitePlayerModal();
   } catch (error) {
@@ -627,7 +661,9 @@ async function joinLocalOpponent(player) {
 async function invitePlayer(player) {
   if (!currentRoom) return;
   try {
-    await api("/api/invite/create", { code: currentRoom.code, host_id: currentRoom.host_id, player });
+    const response = await api("/api/invite/create", { code: currentRoom.code, host_id: currentRoom.host_id, player });
+    hostInviteStatus = response.invite;
+    renderRoomInviteStatus();
     closeInvitePlayerModal();
   } catch (error) {
     alert(error.message);
@@ -662,6 +698,7 @@ async function respondToInvite(accept) {
     if (response.accepted && response.room) {
       selectedGameId = response.room.game_id;
       saveSelectedGame();
+      hostInviteStatus = null;
       activeGameRoom = response.room;
       setRoom(response.room);
       renderGames();
@@ -697,6 +734,7 @@ async function createRoom() {
   const player = deviceSelectedPlayer();
   if (!player) return alert("Select a player first.");
   const response = await api("/api/room/create", { game_id: selectedGameId, player });
+  hostInviteStatus = null;
   activeGameRoom = response.room;
   setRoom(response.room);
   renderGames();
@@ -705,7 +743,7 @@ async function createRoom() {
 }
 
 async function closeGame() {
-  const confirmed = await confirmAction("Are you sure?", "Close this game and return both players to player and game selection?");
+  const confirmed = await confirmAction("Are you sure?", "Close this game for both players and return everyone to player and game selection?");
   if (!confirmed) return;
   const roomToClose = currentRoom;
   restoreLocalGameHomePlayer(roomToClose);
@@ -718,6 +756,7 @@ async function closeGame() {
     }
   }
   forgetLocalGameHomePlayer(roomToClose);
+  hostInviteStatus = null;
   currentRoom = null;
   activeGameRoom = null;
   hideWinOverlay();
@@ -728,11 +767,15 @@ async function closeGame() {
 
 async function resetGame() {
   if (!currentRoom) return;
-  const confirmed = await confirmAction("Are you sure?", "Reset this game board?");
+  const completed = isCompletedRoom(currentRoom);
+  const message = completed
+    ? "Start a new game with these same players? This clears the completed board for both players."
+    : "Reset this game board for both players?";
+  const confirmed = await confirmAction("Are you sure?", message);
   if (!confirmed) return;
   hideWinOverlay();
   lastCelebratedWinKey = "";
-  const response = await api("/api/room/reset", { code: currentRoom.code });
+  const response = await api("/api/room/reset", { code: currentRoom.code, requester_id: selectedPlayerId || deviceSelectedPlayerId });
   setRoom(response.room);
 }
 
@@ -791,6 +834,8 @@ function renderRoomSlots() {
   hostSlot.innerHTML = hostPlayer ? roomPlayerHtml(hostPlayer) : "Host missing.";
   if (opponent) {
     opponentSlot.innerHTML = roomPlayerHtml(opponent);
+    hostInviteStatus = null;
+    renderRoomInviteStatus();
     return;
   }
   if (currentRoom.host_id === deviceSelectedPlayerId) {
@@ -800,9 +845,32 @@ function renderRoomSlots() {
     `;
     document.getElementById("selectLocalOpponent").addEventListener("click", openLocalOpponentModal);
     document.getElementById("inviteRemoteOpponent").addEventListener("click", openInvitePlayerModal);
+    renderRoomInviteStatus();
     return;
   }
+  hostInviteStatus = null;
+  renderRoomInviteStatus();
   opponentSlot.textContent = "Waiting for host to invite a player.";
+}
+
+function renderRoomInviteStatus() {
+  const host = document.getElementById("roomInviteStatus");
+  if (!host) return;
+  const visible = Boolean(currentRoom && !currentRoom.started && currentRoom.host_id === deviceSelectedPlayerId && hostInviteStatus);
+  host.classList.toggle("hidden", !visible);
+  if (!visible) {
+    host.textContent = "";
+    return;
+  }
+  host.textContent = inviteStatusText(hostInviteStatus);
+}
+
+function inviteStatusText(invite) {
+  const targetName = invite.target_name || "player";
+  if (invite.status === "accepted") return `${targetName} accepted. Starting game.`;
+  if (invite.status === "declined") return `${targetName} declined the invite.`;
+  if (invite.status === "expired") return `Invite to ${targetName} expired.`;
+  return `Invite sent to ${targetName}. Waiting for response.`;
 }
 
 function roomPlayerHtml(player) {
@@ -824,7 +892,9 @@ function renderGame() {
   if (!currentRoom) return;
   const game = currentRoom.game;
   const meta = document.getElementById("gameMeta");
+  const resetButton = document.getElementById("resetGame");
   meta.textContent = `Room ${currentRoom.code}`;
+  if (resetButton) resetButton.textContent = isCompletedRoom(currentRoom) ? "Play Again" : "Reset";
   document.getElementById("gamePlayersPanel").classList.toggle("hidden", currentRoom.started);
   setGameBoardVisible(true);
   renderGamePlayerSwitch();
@@ -887,6 +957,10 @@ function renderGame() {
     host.appendChild(line);
   }
   lastLegalBoardsKey = legalBoardsKey;
+}
+
+function isCompletedRoom(room) {
+  return Boolean(room && (room.status === "completed" || ["x_won", "o_won", "draw"].includes(room.game.status)));
 }
 
 function setGameBoardVisible(visible) {
@@ -1067,6 +1141,7 @@ async function refreshCurrentRoomSummary() {
   const data = await response.json();
   if (data.ok) {
     setRoom(data.room);
+    refreshHostInviteStatus();
     if (!wasStarted && data.room.started && document.getElementById("game").classList.contains("active")) {
       showScreen("game");
     }
@@ -1080,16 +1155,40 @@ async function refreshRoom() {
   try {
     const response = await fetch(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
     const data = await response.json();
-    if (data.ok) setRoom(data.room);
-    else leaveClosedRoom();
+    if (data.ok) {
+      setRoom(data.room);
+      await refreshHostInviteStatus();
+    } else leaveClosedRoom();
   } catch {
     showTurnStatus(null, "Room refresh failed.");
+  }
+}
+
+async function refreshHostInviteStatus() {
+  if (!currentRoom || currentRoom.started || currentRoom.host_id !== deviceSelectedPlayerId) {
+    if (hostInviteStatus) {
+      hostInviteStatus = null;
+      renderRoomInviteStatus();
+    }
+    return;
+  }
+  try {
+    const url = `/api/invites?host_id=${encodeURIComponent(currentRoom.host_id)}&room_code=${encodeURIComponent(currentRoom.code)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!data.ok || !data.invites.length) return;
+    const preferred = data.invites.find((invite) => invite.status === "pending") || data.invites[data.invites.length - 1];
+    hostInviteStatus = preferred;
+    renderRoomInviteStatus();
+  } catch {
+    // Host invite status is helpful feedback, not required to play.
   }
 }
 
 function leaveClosedRoom() {
   restoreLocalGameHomePlayer(currentRoom);
   forgetLocalGameHomePlayer(currentRoom);
+  hostInviteStatus = null;
   currentRoom = null;
   activeGameRoom = null;
   hideWinOverlay();
@@ -1187,12 +1286,23 @@ function forgetLocalGameHomePlayer(room) {
 }
 
 function selectedGame() {
-  return games.find((game) => game.id === selectedGameId) || games[0];
+  return games.find((game) => game.id === selectedGameId) || games.find(gameIsReady) || games[0];
 }
 
 function gameName(gameId) {
   const game = games.find((item) => item.id === gameId);
   return game ? game.name : "Game";
+}
+
+function gameIsReady(game) {
+  return Boolean(game && game.availability === "ready");
+}
+
+function gameAvailabilityText(game) {
+  if (!game) return "Game unavailable.";
+  if (game.availability === "ready") return "Ready";
+  if (game.availability === "coming_soon") return "Coming soon.";
+  return "Game unavailable.";
 }
 
 function winningLineFor(values, winner) {

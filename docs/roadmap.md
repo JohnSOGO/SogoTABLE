@@ -38,6 +38,8 @@
 
 ## 7. More Games
 
+Add new games through game definitions with explicit availability metadata. Do not show a game as ready until it has a playable room/game-screen implementation.
+
 Candidate games:
 
 - Connect Four

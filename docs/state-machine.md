@@ -141,8 +141,10 @@ Current game list:
 Game button behavior:
 
 - Disabled if no device/home selected player exists.
+- Disabled if the game definition is not currently available.
 - Enabled when a device/home selected player exists.
 - Tapping a game button sets `selectedGameId` and opens `GAME_SELECTED`.
+- Game availability is data-driven on the game definition so future games can be added as `ready`, `coming_soon`, or unavailable without changing the screen flow.
 
 Do not:
 
@@ -214,6 +216,7 @@ Required display:
 - `Lobby` panel showing players currently viewing this game screen.
 - Local selected player first, then other lobby-present players sorted by name.
 - `Current Games` panel.
+- If the selected player has an unfinished room for this game, show a visible recovery notice with `Re-enter Game`.
 - `Open` list for rooms in `waiting_for_player`.
 - `In Progress` list for rooms in `active`.
 - `Refresh` button.
@@ -235,6 +238,8 @@ Create/Re-enter behavior:
 - If not, button text should be `Create Game`.
 - Creating a game creates a room and immediately opens `GAME_SCREEN`.
 - Re-entering opens the existing room's `GAME_SCREEN`.
+- Re-entry must use the browser's device/home selected player, not a temporary hot-seat actor.
+- Completed rooms are not unfinished rooms; they should not block `Create Game`.
 
 Do not:
 
@@ -272,6 +277,11 @@ Required display:
 - If the current device/home selected player is the host, opponent slot shows:
   - `Select Local Opponent`
   - `Invite Remote Opponent`
+- If a remote invite has been sent by the host, show invite lifecycle feedback near the opponent slot:
+  - invite sent / waiting for response
+  - accepted / starting game
+  - declined
+  - expired
 - If the current device/home selected player is not the host, opponent slot explains waiting state.
 - Turn/status row says waiting for opponent.
 - Super Tic Tac Toe board visible and disabled.
@@ -285,7 +295,7 @@ Close behavior:
 Reset behavior:
 
 - `Reset` opens a Yes/No confirmation.
-- Yes resets the game board.
+- Yes resets the game board for both players.
 - No leaves the board unchanged.
 
 Do not:
@@ -319,6 +329,7 @@ Local opponent behavior:
 Remote invite behavior:
 
 - Host sends an invite to a target player.
+- Host receives visible lifecycle feedback while waiting.
 - Target player sees `INVITE_PROMPT` in their browser if they are selected on that device.
 
 Do not:
@@ -413,11 +424,13 @@ Move behavior:
 Close behavior:
 
 - Ask Yes/No before closing.
+- Confirmation copy must make it clear this affects both players.
 - Yes deletes the room and returns all polling players to `PLAYER_GAME_SELECTION`.
 
 Reset behavior:
 
 - Ask Yes/No before reset.
+- Confirmation copy must make it clear this affects both players.
 - Yes resets board state.
 
 Do not:
@@ -450,6 +463,7 @@ Required display:
 - One second after winner detection, show celebration overlay.
 - Celebration overlay shows winning player's icon, not just X/O.
 - `Back to Board` closes the overlay and returns to the completed board.
+- Header action should read `Play Again` instead of `Reset`.
 
 Local hot-seat completion:
 
@@ -459,6 +473,7 @@ Room lifecycle:
 
 - Completed rooms are not listed as open or in-progress games.
 - Close still requires Yes/No and then deletes the room.
+- `Play Again` requires Yes/No confirmation and starts a fresh board with the same seated players.
 
 ## Modal State: WIN_OVERLAY
 

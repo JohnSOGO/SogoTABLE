@@ -259,6 +259,35 @@ button.compact {
   overscroll-behavior: contain;
 }
 
+.notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #f0d17a;
+  border-radius: 8px;
+  background: #fff7d6;
+  color: #4b3710;
+  font-weight: 700;
+}
+
+.notice.hidden {
+  display: none;
+}
+
+.notice div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notice span {
+  color: #6b551c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .room-summary-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -960,5 +989,13 @@ button.compact {
 
   .room-summary-players {
     justify-content: flex-start;
+  }
+
+  .notice {
+    grid-template-columns: 1fr;
+  }
+
+  .notice button {
+    width: 100%;
   }
 }

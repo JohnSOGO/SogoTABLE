@@ -1,14 +1,16 @@
 import pytest
 
-from src.sogogames.server import LOBBY_VIEWERS, ROOMS, Room, _activate_room_if_ready, _active_room_for_host, _active_room_for_player, _add_player_to_room, _close_room, _colors_are_too_similar, _lobby_viewers, _refresh_active_room_player, _room_status
+from src.sogogames.server import INVITES, LOBBY_VIEWERS, ROOMS, Invite, Room, _activate_room_if_ready, _active_room_for_host, _active_room_for_player, _add_player_to_room, _close_room, _colors_are_too_similar, _lobby_viewers, _refresh_active_room_player, _room_status
 
 
 @pytest.fixture(autouse=True)
 def clear_rooms():
     ROOMS.clear()
+    INVITES.clear()
     LOBBY_VIEWERS.clear()
     yield
     ROOMS.clear()
+    INVITES.clear()
     LOBBY_VIEWERS.clear()
 
 
@@ -136,6 +138,31 @@ def test_active_room_for_host_ignores_completed_room():
     ROOMS[room.code] = room
 
     assert _active_room_for_host("one", "super_tic_tac_toe") is None
+
+
+def test_active_room_for_player_ignores_completed_room():
+    room = Room(code="TEST", host_id="one", game_id="super_tic_tac_toe")
+    _add_player_to_room(room, player("one"), None)
+    _add_player_to_room(room, player("two"), None)
+    _activate_room_if_ready(room)
+    room.game.status = "draw"
+    ROOMS[room.code] = room
+
+    assert _active_room_for_player("two", "super_tic_tac_toe") is None
+
+
+def test_invite_serializes_target_name_for_host_status_feedback():
+    invite = Invite(
+        id="TEST:two",
+        room_code="TEST",
+        game_id="super_tic_tac_toe",
+        host_id="one",
+        host_name="One",
+        target_id="two",
+        target_name="Two",
+    )
+
+    assert invite.to_dict()["target_name"] == "Two"
 
 
 def test_close_room_deletes_room_and_prevents_reentry():

@@ -86,6 +86,7 @@ class Invite:
     host_id: str
     host_name: str
     target_id: str
+    target_name: str
     status: str = "pending"
 
     def to_dict(self) -> dict:
@@ -140,7 +141,16 @@ class SogoGamesHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/invites":
             query = parse_qs(parsed.query)
             player_id = query.get("player_id", [""])[0]
-            invites = [invite.to_dict() for invite in INVITES.values() if invite.target_id == player_id and invite.status == "pending"]
+            host_id = query.get("host_id", [""])[0]
+            room_code = query.get("room_code", [""])[0].upper()
+            if host_id:
+                invites = [
+                    invite.to_dict()
+                    for invite in INVITES.values()
+                    if invite.host_id == host_id and (not room_code or invite.room_code == room_code)
+                ]
+            else:
+                invites = [invite.to_dict() for invite in INVITES.values() if invite.target_id == player_id and invite.status == "pending"]
             self._json({"ok": True, "invites": invites})
             return
         if parsed.path == "/api/lobby":
@@ -294,6 +304,9 @@ class SogoGamesHandler(SimpleHTTPRequestHandler):
         room = ROOMS.get(str(payload.get("code", "")).strip().upper())
         if not room:
             raise ValueError("Room not found.")
+        requester_id = str(payload.get("requester_id", "")).strip()
+        if requester_id and not any(player.id == requester_id for player in room.players):
+            raise ValueError("Only a seated player can reset the game.")
         room.game = SuperTicTacToeState.new()
         self._json({"ok": True, "room": room.to_dict()})
 
@@ -319,6 +332,7 @@ class SogoGamesHandler(SimpleHTTPRequestHandler):
             host_id=room.host_id,
             host_name=host.name if host else "Host",
             target_id=target["id"],
+            target_name=target["name"],
         )
         self._json({"ok": True, "invite": INVITES[invite_id].to_dict()})
 
