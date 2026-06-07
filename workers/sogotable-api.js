@@ -202,12 +202,25 @@ async function routeRequest(method, url, payload, data) {
 }
 
 async function loadState(env) {
-  if (!memoryState) memoryState = { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
+  if (memoryState) return structuredClone(memoryState);
+  await ensureSchema(env);
+  const row = await env.SOGOTABLE_STATE.prepare("SELECT value FROM app_state WHERE key = ?").bind("state").first();
+  memoryState = row ? JSON.parse(row.value) : { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
   return structuredClone(memoryState);
 }
 
 async function saveState(env, data) {
   memoryState = structuredClone(data);
+  await ensureSchema(env);
+  await env.SOGOTABLE_STATE.prepare(
+    "INSERT INTO app_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  ).bind("state", JSON.stringify(data)).run();
+}
+
+async function ensureSchema(env) {
+  await env.SOGOTABLE_STATE.prepare(
+    "CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+  ).run();
 }
 
 async function readJson(request) {

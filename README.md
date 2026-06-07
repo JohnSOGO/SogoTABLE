@@ -20,7 +20,7 @@ The product target is simple: family members sitting together at a restaurant ca
 - Python rules engine under `src/sogogames/`.
 - Vanilla HTML/CSS/JavaScript under `src/sogogames/static/`.
 - PWA manifest and service worker for installable phone-browser shell.
-- Cloudflare Worker brain for hosted public multiplayer API.
+- Cloudflare Worker + D1 brain for hosted public multiplayer API.
 - `pytest` for rules-engine tests.
 
 This avoids framework weight while keeping a clear path to add Flask/FastAPI, SQLite, WebSockets, or hosted deployment later if the app earns that complexity.
@@ -55,7 +55,7 @@ The public site needs a shared API brain for players, lobby presence, rooms, inv
 npm run deploy:brain
 ```
 
-The Worker is configured in `wrangler.toml` and currently keeps shared game state in Worker isolate memory to avoid KV write limits during playtesting. This is intentionally a temporary hosted brain; Durable Objects are the stronger future fit for persistence and strict turn consistency.
+The Worker is configured in `wrangler.toml` and stores shared game state in a small D1 database. Durable Objects are still the strongest future fit for strict turn consistency, but D1 avoids KV write limits and avoids per-edge memory splits during public playtesting.
 
 ## Run Tests
 
