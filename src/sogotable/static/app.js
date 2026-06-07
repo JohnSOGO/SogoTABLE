@@ -816,15 +816,29 @@ function renderSelectedPlayerStats(message = "") {
     return;
   }
   const rows = (selectedPlayerStats || []).map((item) => `
-    <div class="player-stat-row">
-      <strong>${escapeHtml(item.game_name || "Game")}</strong>
-      <span title="Games played">Played ${Number(item.games_played || 0)}</span>
-      <span title="Games won">Won ${Number(item.games_won || 0)}</span>
-      <span title="Personal high score">High ${Number(item.personal_high_score || 0)}</span>
-      <span title="ELO rating">ELO ${Number(item.elo || 1000)}</span>
-    </div>
+    <tr>
+      <th scope="row">${escapeHtml(item.game_name || "Game")}</th>
+      <td>${Number(item.games_played || 0)}</td>
+      <td>${Number(item.games_won || 0)}</td>
+      <td>${Number(item.personal_high_score || 0)}</td>
+      <td>${Number(item.elo || 1000)}</td>
+    </tr>
   `).join("");
-  host.innerHTML = `<span class="label">Player Stats</span><div class="player-stat-list">${rows || "No stats yet."}</div>`;
+  host.innerHTML = `
+    <span class="label">Player Stats</span>
+    <table class="player-stat-table">
+      <thead>
+        <tr>
+          <th scope="col">Game</th>
+          <th scope="col">Played</th>
+          <th scope="col">Won</th>
+          <th scope="col">High</th>
+          <th scope="col">ELO</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
 }
 
 function renderCurrentPlayer() {

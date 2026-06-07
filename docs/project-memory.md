@@ -42,7 +42,7 @@ The target use case is casual local play: family members can open a phone browse
 - During public lobby playtesting, the user reported a random lobby refresh/glitch that looked like assets being removed and replaced. Treat fallback lobby and room-list refreshes as visual no-ops when the incoming snapshot is identical; do not clear and rebuild stable lobby DOM just because a timed safety refresh fired.
 - The user wants all two-player lobbies to share the same architecture. Lobby design changes should apply globally to two-player games unless a later game explicitly needs a different flow.
 - The selected-game lobby should show per-game top five high scores above the player list and per-game ELO ratings. ELO ratings start at 1000 and update once when a completed room records stats.
-- Once a player is selected on `Player & Game Select`, show that player's per-game stats: game name, games played, games won, personal high score, and ELO. Keep this compact and scan-friendly.
+- Once a player is selected on `Player & Game Select`, show that player's per-game stats as a compact table: header row first, then game name, games played, games won, personal high score, and ELO as clean values. Avoid repeated labels in every row.
 - After reviewing `AI/wu-wei-event-driven-code-review-plan.md` and `AI/SogoGames_wu_wei_event_driven.zip`, the event-driven direction was adopted with constraints and the zip was rejected as a direct source snapshot. Track the staged implementation in `docs/wu-wei-event-driven-progress.md`.
 
 ## Current Implemented Shape

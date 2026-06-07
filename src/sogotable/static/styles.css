@@ -313,33 +313,49 @@ button.compact {
   margin-top: 10px;
 }
 
-.player-stat-list {
-  display: grid;
-  gap: 4px;
-}
-
-.player-stat-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(4, max-content);
-  gap: 6px;
-  align-items: center;
-  padding: 6px 8px;
+.player-stat-table {
+  width: 100%;
+  border-collapse: collapse;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
+  overflow: hidden;
   font-size: 12px;
   font-weight: 800;
 }
 
-.player-stat-row strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.player-stat-table th,
+.player-stat-table td {
+  padding: 6px 5px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
   white-space: nowrap;
 }
 
-.player-stat-row span {
-  color: var(--accent-strong);
+.player-stat-table th:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+  max-width: 120px;
+}
+
+.player-stat-table thead th {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.player-stat-table tbody th {
+  color: var(--text);
+}
+
+.player-stat-table td {
+  color: var(--accent-strong);
+}
+
+.player-stat-table tbody tr:last-child th,
+.player-stat-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .stats-section {
