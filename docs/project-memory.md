@@ -34,6 +34,7 @@ The target use case is casual local play: family members can open a phone browse
 - User-selected player colors can be bright or high-luminance, such as Yolo's yellow. Anywhere a player color is used as a background, use contrast-aware foreground text/icon coloring rather than hardcoding exceptions for yellow. For tinted/soft surfaces, calculate contrast against the actual rendered tint, not the raw source player color.
 - Player colors are gameplay signals. When a guest joins with a color too similar to the host's in-room color, automatically assign the guest a non-conflicting room-seat color from the existing palette. Do not mutate the guest's persistent roster color for this.
 - The main menu should stay focused: current player and direct game selection. Player selection and player creation should be separate top-level actions, while editing/deletion stays inside the player modal.
+- The `Player & Game Select` current-player row should look consistent across small and large iPhones: avatar/name and `Change`/`Create` stay on one line, buttons remain compact, and long names truncate instead of pushing buttons below.
 - Player rows should not have Pick/Selected buttons. Tapping a player row selects it, green border indicates selection, and the modal closes immediately.
 - Opening player creation from the main menu should show only the create-player form, not the existing player list.
 - Main menu game buttons should only show game names. Game descriptions belong on the selected game's game-selected screen or game room, not on the main menu.

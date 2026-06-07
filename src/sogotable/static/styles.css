@@ -533,11 +533,18 @@ button.compact {
 
 .current-player {
   display: grid;
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 42px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
+  min-width: 0;
   min-height: 48px;
   font-weight: 800;
+}
+
+.current-player strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .current-player:not(:has(.avatar)) {
@@ -548,21 +555,22 @@ button.compact {
 
 .player-select-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 8px;
   align-items: center;
 }
 
 .player-menu-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  min-width: 170px;
+  grid-template-columns: repeat(2, 66px);
+  gap: 6px;
 }
 
 .player-menu-actions button {
-  width: auto;
-  padding: 0 12px;
+  width: 66px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 13px;
 }
 
 .game-badge {
@@ -1177,14 +1185,6 @@ button.danger {
   .intro-art {
     border-width: 3px;
     border-radius: 22px;
-  }
-
-  .player-select-row {
-    grid-template-columns: 1fr;
-  }
-
-  .player-menu-actions {
-    min-width: 0;
   }
 
   .player-create-row {
