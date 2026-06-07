@@ -29,25 +29,31 @@ const WIN_LINES = [
   [2, 4, 6],
 ];
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+const allowedOrigins = new Set([
+  "https://sogotable.sogodojo.com",
+  "https://sogotable.pages.dev",
+]);
+
+const baseCorsHeaders = {
   "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
 export default {
   async fetch(request, env) {
+    const corsHeaders = corsHeadersFor(request);
+    if (!corsHeaders) return json({ ok: false, error: "Origin is not allowed." }, 403, {});
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
     const url = new URL(request.url);
-    if (!url.pathname.startsWith("/api/")) return json({ ok: false, error: "Unknown endpoint." }, 404);
+    if (!url.pathname.startsWith("/api/")) return json({ ok: false, error: "Unknown endpoint." }, 404, corsHeaders);
     try {
       const data = await loadState(env);
       const payload = request.method === "POST" ? await readJson(request) : {};
       const response = await routeRequest(request.method, url, payload, data);
       if (request.method !== "GET") await saveState(env, data);
-      return json(response);
+      return json(response, 200, corsHeaders);
     } catch (error) {
-      return json({ ok: false, error: error.message || "Request failed." }, 400);
+      return json({ ok: false, error: error.message || "Request failed." }, 400, corsHeaders);
     }
   },
 };
@@ -202,21 +208,42 @@ async function routeRequest(method, url, payload, data) {
 
 async function loadState(env) {
   await ensureSchema(env);
-  const row = await env.SOGOTABLE_STATE.prepare("SELECT value FROM app_state WHERE key = ?").bind("state").first();
-  return row ? JSON.parse(row.value) : { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
+  const row = await env.SOGOTABLE_STATE.prepare("SELECT value, version FROM app_state WHERE key = ?").bind("state").first();
+  const data = row ? JSON.parse(row.value) : { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
+  Object.defineProperties(data, {
+    __stateExists: { value: Boolean(row), enumerable: false },
+    __version: { value: row ? Number(row.version || 0) : 0, enumerable: false },
+  });
+  return data;
 }
 
 async function saveState(env, data) {
   await ensureSchema(env);
-  await env.SOGOTABLE_STATE.prepare(
-    "INSERT INTO app_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-  ).bind("state", JSON.stringify(data)).run();
+  const value = JSON.stringify(data);
+  if (!data.__stateExists) {
+    const inserted = await env.SOGOTABLE_STATE.prepare(
+      "INSERT INTO app_state (key, value, version) VALUES (?, ?, 0) ON CONFLICT(key) DO NOTHING"
+    ).bind("state", value).run();
+    if (writeChanged(inserted)) return;
+    throw new Error("State changed while saving. Please retry.");
+  }
+  const updated = await env.SOGOTABLE_STATE.prepare(
+    "UPDATE app_state SET value = ?, version = version + 1 WHERE key = ? AND version = ?"
+  ).bind(value, "state", data.__version).run();
+  if (!writeChanged(updated)) throw new Error("State changed while saving. Please retry.");
 }
 
 async function ensureSchema(env) {
   await env.SOGOTABLE_STATE.prepare(
-    "CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+    "CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0)"
   ).run();
+  try {
+    await env.SOGOTABLE_STATE.prepare(
+      "ALTER TABLE app_state ADD COLUMN version INTEGER NOT NULL DEFAULT 0"
+    ).run();
+  } catch {
+    // Existing databases already have this column after the first migration.
+  }
 }
 
 async function readJson(request) {
@@ -224,11 +251,25 @@ async function readJson(request) {
   return text ? JSON.parse(text) : {};
 }
 
-function json(payload, status = 200) {
+function json(payload, status = 200, headers = baseCorsHeaders) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
   });
+}
+
+function corsHeadersFor(request) {
+  const origin = request.headers.get("Origin");
+  if (!origin) return { ...baseCorsHeaders, "Access-Control-Allow-Origin": "*" };
+  if (allowedOrigins.has(origin) || /^https:\/\/[a-z0-9-]+\.sogotable\.pages\.dev$/.test(origin)) {
+    return { ...baseCorsHeaders, "Access-Control-Allow-Origin": origin, Vary: "Origin" };
+  }
+  return null;
+}
+
+function writeChanged(result) {
+  const changes = result && result.meta && typeof result.meta.changes === "number" ? result.meta.changes : 1;
+  return changes > 0;
 }
 
 function cleanGameId(gameId) {

@@ -12,7 +12,7 @@ Naming note: `docs/name-decision.md` records an incoming AI naming decision prop
 
 The target use case is casual local play: family members can open a phone browser, choose players, join a room, and play without installs, paid services, heavyweight accounts, or vendor lock-in.
 
-`AI/SogoGames_Code_Review.md` has been read and partially acted on. First cleanup pass completed: fixed the `src/sogotable/static/revision.json` `.gitignore` path, removed generated cache directories locally, and added Node built-in Worker API tests under `workers/tests/` for hosted brain behavior.
+`AI/SogoGames_Code_Review.md` has been read and partially acted on. Cleanup completed so far: fixed the `src/sogotable/static/revision.json` `.gitignore` path, removed generated cache directories locally, added Node built-in Worker API tests under `workers/tests/` for hosted brain behavior, documented the API contract in `docs/api-contract.md`, restricted Worker CORS, and added optimistic locking to the hosted D1 state row so stale concurrent writes fail instead of silently overwriting newer state.
 
 ## User Preferences
 

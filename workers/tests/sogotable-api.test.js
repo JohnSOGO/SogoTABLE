@@ -7,6 +7,7 @@ class InMemoryD1 {
   constructor() {
     this.rows = new Map();
     this.writeCount = 0;
+    this.forceNextUpdateConflict = false;
   }
 
   prepare(sql) {
@@ -27,19 +28,33 @@ class Statement {
   }
 
   async first() {
-    if (this.sql.startsWith("SELECT value FROM app_state")) {
-      const value = this.db.rows.get(this.params[0]);
-      return value === undefined ? null : { value };
+    if (this.sql.startsWith("SELECT value, version FROM app_state")) {
+      const row = this.db.rows.get(this.params[0]);
+      return row === undefined ? null : { value: row.value, version: row.version };
     }
     throw new Error(`Unhandled first() query: ${this.sql}`);
   }
 
   async run() {
     if (this.sql.startsWith("CREATE TABLE")) return { success: true };
+    if (this.sql.startsWith("ALTER TABLE")) return { success: true };
     if (this.sql.startsWith("INSERT INTO app_state")) {
+      if (this.db.rows.has(this.params[0])) return { success: true, meta: { changes: 0 } };
       this.db.writeCount += 1;
-      this.db.rows.set(this.params[0], this.params[1]);
-      return { success: true };
+      this.db.rows.set(this.params[0], { value: this.params[1], version: 0 });
+      return { success: true, meta: { changes: 1 } };
+    }
+    if (this.sql.startsWith("UPDATE app_state")) {
+      const [value, key, version] = this.params;
+      const row = this.db.rows.get(key);
+      if (this.db.forceNextUpdateConflict) {
+        this.db.forceNextUpdateConflict = false;
+        return { success: true, meta: { changes: 0 } };
+      }
+      if (!row || row.version !== version) return { success: true, meta: { changes: 0 } };
+      this.db.writeCount += 1;
+      this.db.rows.set(key, { value, version: row.version + 1 });
+      return { success: true, meta: { changes: 1 } };
     }
     throw new Error(`Unhandled run() query: ${this.sql}`);
   }
@@ -53,18 +68,21 @@ function player(id, name = id, color = "#1f7a5f") {
   return { id, name, icon: name.slice(0, 1), color };
 }
 
-async function request(env, method, path, body) {
+async function request(env, method, path, body, headers = {}) {
   const init = { method };
   if (body !== undefined) {
-    init.headers = { "Content-Type": "application/json" };
+    init.headers = { "Content-Type": "application/json", ...headers };
     init.body = JSON.stringify(body);
+  } else {
+    init.headers = headers;
   }
   const response = await worker.fetch(new Request(`https://sogotable.test${path}`, init), env);
-  return response.json();
+  const json = await response.json();
+  return { response, json };
 }
 
-const get = (env, path) => request(env, "GET", path);
-const post = (env, path, body) => request(env, "POST", path, body);
+const get = async (env, path, headers) => (await request(env, "GET", path, undefined, headers)).json;
+const post = async (env, path, body, headers) => (await request(env, "POST", path, body, headers)).json;
 
 async function createActiveRoom(env) {
   const host = player("host", "Host");
@@ -100,6 +118,45 @@ test("GET requests do not rewrite D1 state", async () => {
   await get(env, "/api/rooms?game_id=super_tic_tac_toe");
 
   assert.equal(env.SOGOTABLE_STATE.writeCount, writesAfterPost);
+});
+
+test("rejects writes when the state version changed while saving", async () => {
+  const env = makeEnv();
+  await post(env, "/api/players/create", { player: player("p1", "Player One") });
+  env.SOGOTABLE_STATE.forceNextUpdateConflict = true;
+
+  const result = await post(env, "/api/players/create", { player: player("p2", "Player Two") });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "State changed while saving. Please retry.");
+
+  const listed = await get(env, "/api/players");
+  assert.deepEqual(listed.players.map((item) => item.id), ["p1"]);
+});
+
+test("allows known browser origins and blocks unknown browser origins", async () => {
+  const env = makeEnv();
+  const allowed = await request(
+    env,
+    "POST",
+    "/api/players/create",
+    { player: player("p1", "Player One") },
+    { Origin: "https://sogotable.sogodojo.com" },
+  );
+  const blocked = await request(
+    env,
+    "POST",
+    "/api/players/create",
+    { player: player("p2", "Player Two") },
+    { Origin: "https://example.com" },
+  );
+
+  assert.equal(allowed.response.status, 200);
+  assert.equal(allowed.response.headers.get("Access-Control-Allow-Origin"), "https://sogotable.sogodojo.com");
+  assert.equal(allowed.json.ok, true);
+  assert.equal(blocked.response.status, 403);
+  assert.equal(blocked.response.headers.get("Access-Control-Allow-Origin"), null);
+  assert.equal(blocked.json.ok, false);
 });
 
 test("creates a room, joins a second player, and rejects a third player", async () => {

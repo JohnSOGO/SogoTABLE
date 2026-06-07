@@ -89,6 +89,7 @@ python -m pip install pytest
 - [State Machine](docs/state-machine.md)
 - [Name Decision](docs/name-decision.md)
 - [AREC Command](docs/AREC.md)
+- [API Contract](docs/api-contract.md)
 - [Purpose](docs/purpose.md)
 - [Architecture](docs/architecture.md)
 - [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)
