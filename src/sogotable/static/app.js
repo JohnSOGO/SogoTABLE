@@ -79,6 +79,7 @@ let lobbyPresenceTimer = null;
 let lastLegalBoardsKey = "";
 let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
+let pendingMove = null;
 let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let pendingConfirmAction = null;
@@ -872,6 +873,14 @@ async function resetGame() {
 async function makeMove(board, cell) {
   const player = selectedPlayer();
   if (!player || !currentRoom) return;
+  const moveKey = moveIntentKey(currentRoom, player.id, board, cell);
+  if (pendingMove) return;
+  pendingMove = {
+    key: moveKey,
+    roomCode: currentRoom.code,
+    moveCount: currentRoom.game.move_count,
+  };
+  renderGame();
   try {
     const response = await api("/api/room/move", {
       code: currentRoom.code,
@@ -879,8 +888,11 @@ async function makeMove(board, cell) {
       board,
       cell,
     });
+    pendingMove = null;
     setRoom(response.room);
   } catch (error) {
+    pendingMove = null;
+    renderGame();
     showTurnStatus(null, error.message);
   }
 }
@@ -909,6 +921,7 @@ function closeConfirmPromptOnBackdrop(event) {
 
 function setRoom(room) {
   currentRoom = room;
+  clearResolvedPendingMove(room);
   const roomKey = roomRenderKey(room);
   if (roomKey === lastRenderedRoomKey) return;
   lastRenderedRoomKey = roomKey;
@@ -1067,8 +1080,16 @@ function renderGame() {
       cell.className = `cell ${value ? value.toLowerCase() : ""} ${smallWinner ? "small-win-cell" : ""}`;
       cell.textContent = value || "";
       applyMarkColor(cell, value);
-      cell.disabled = Boolean(value || result || !legal || game.status !== "playing" || !canSelectedPlayerMove);
+      const moveKey = moveIntentKey(currentRoom, selectedPlayerId, boardIndex, cellIndex);
+      const isPendingMove = Boolean(pendingMove && pendingMove.key === moveKey);
+      cell.disabled = Boolean(value || result || !legal || game.status !== "playing" || !canSelectedPlayerMove || pendingMove);
+      cell.classList.toggle("pending", isPendingMove);
       cell.addEventListener("click", () => makeMove(boardIndex, cellIndex));
+      cell.addEventListener("pointerdown", (event) => {
+        if (event.pointerType === "mouse") return;
+        event.preventDefault();
+        makeMove(boardIndex, cellIndex);
+      });
       small.appendChild(cell);
     });
     if (result) {
@@ -1170,7 +1191,7 @@ function showTurnStatus(currentPlayer, overrideText = "") {
   }
   if (selectedSeat.mark === currentRoom.game.current_player) {
     setTurnColorVariables(host, selectedSeat.color);
-    host.textContent = `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`;
+    host.textContent = pendingMove ? "Placing move..." : `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`;
     host.classList.add("your-turn");
     return;
   }
@@ -1544,6 +1565,19 @@ function roomRenderKey(room) {
     } : null,
     reset_request: room.reset_request,
   });
+}
+
+function moveIntentKey(room, playerId, board, cell) {
+  if (!room) return "";
+  return `${room.code}:${room.game.move_count}:${playerId}:${board}:${cell}`;
+}
+
+function clearResolvedPendingMove(room) {
+  if (!pendingMove || !room || room.code !== pendingMove.roomCode) {
+    pendingMove = null;
+    return;
+  }
+  if (room.game.move_count > pendingMove.moveCount || room.game.status !== "playing") pendingMove = null;
 }
 
 function winLineClass(line) {

@@ -1,0 +1,56 @@
+# Wu Wei Event-Driven Progress
+
+This file tracks the reviewed event-driven plan from `AI/wu-wei-event-driven-code-review-plan.md` and `AI/SogoGames_wu_wei_event_driven.zip`.
+
+Decision: adopt the direction, but do not apply the zip as a snapshot.
+
+## Code Decision
+
+The app should move downhill toward event-driven updates, but the public play path must stay conservative:
+
+- Keep the per-room WebSocket as the normal active-room update path.
+- Keep HTTP refresh as recovery when a socket disconnects or a phone browser sleeps.
+- Do not remove invite, lobby, or room-list polling until the replacement event channel has Worker tests and phone smoke coverage.
+- Do not use the zip's full repo snapshot as source. Extract small, reviewed changes only.
+- Add any new Durable Object class with a fresh Wrangler migration tag.
+
+## Checklist
+
+- [x] Read required project context: `AGENTS.md`, `README.md`, `docs/project-memory.md`, `docs/state-machine.md`, `docs/AREC.md`, and `docs/wu-wei-method.md`.
+- [x] Review the incoming plan and zip as AI input, not committed source.
+- [x] Reject wholesale zip application.
+- [x] Patch the immediate missed-tap risk before broad transport changes.
+- [ ] Add a minimal app event channel for room-list and invite notifications.
+- [ ] Add Worker tests for app-event fanout and snapshot payloads.
+- [ ] Keep fallback polling enabled while testing the app event channel on phones.
+- [ ] Split large frontend controller code after the transport path is stable.
+- [ ] Move more active-room authority into Durable Objects only after the current Worker/D1 path is boring.
+
+## Progress Log
+
+### 2026-06-07
+
+Completed:
+
+- Added a browser-side in-flight move guard so one tap cannot submit multiple moves while the hosted brain is responding.
+- Added touch-first move handling through `pointerdown` for non-mouse input. This reduces the chance that a room refresh or WebSocket snapshot replaces the tapped button before the browser's delayed `click` event fires.
+- Kept the server as the authority. The browser does not optimistically mutate the board.
+
+Still pending:
+
+- EventHub implementation.
+- EventHub tests.
+- Public Cloudflare deploy and phone smoke test.
+
+## Next Implementation Slice
+
+Build the EventHub narrowly:
+
+- One `EVENT_HUB` Durable Object binding.
+- One fresh migration tag, for example `v2_event_hub`.
+- One app WebSocket endpoint: `/api/events/socket`.
+- Subscribe by `game_id` and selected `player_id`.
+- Broadcast room-list/invite/lobby snapshots after relevant writes.
+- Keep existing polling intervals as fallback until the public app proves stable on phones.
+
+Do not expand this into roster presence, auth, or full room authority in the same slice.

@@ -808,6 +808,11 @@ button.compact {
   box-shadow: inset 0 0 0 2px rgba(245, 158, 11, 0.36);
 }
 
+.cell.pending {
+  opacity: 0.72;
+  box-shadow: inset 0 0 0 2px var(--turn-color, var(--accent));
+}
+
 .macro-win-line {
   position: absolute;
   z-index: 5;

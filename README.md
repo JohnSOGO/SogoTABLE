@@ -83,5 +83,6 @@ npm run test:worker
 - [Purpose](docs/purpose.md)
 - [Architecture](docs/architecture.md)
 - [Wu Wei Method](docs/wu-wei-method.md)
+- [Wu Wei Event-Driven Progress](docs/wu-wei-event-driven-progress.md)
 - [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)
 - [Roadmap](docs/roadmap.md)
