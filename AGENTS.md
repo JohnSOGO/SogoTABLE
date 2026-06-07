@@ -11,10 +11,10 @@ Build a mobile-first, browser-based family game platform for simple turn-based g
 - At session start, read `AGENTS.md`, `README.md`, `docs/project-memory.md`, `docs/state-machine.md`, and `docs/AREC.md` before making project changes.
 - If the user writes `AREC`, follow the command structure and behavior rules in `docs/AREC.md`.
 - Keep scope small and playable.
-- Prefer clear local browser workflows over cloud-first architecture.
+- Prefer the public Cloudflare play path over maintaining a separate local backend.
 - Do not build production authentication until a later explicit milestone.
 - Do not require paid services, app installs, or vendor lock-in.
-- Separate game rules from UI and transport code.
+- Separate game rules from UI and transport code where practical.
 - Keep rules engines testable without a browser.
 - Use mobile-first layout decisions.
 - Make copious documentation as the project evolves. Future Codex sessions should be able to get up to speed after reading `AGENTS.md`, `README.md`, and the docs in `docs/`.
@@ -26,9 +26,9 @@ Build a mobile-first, browser-based family game platform for simple turn-based g
 
 ## Architecture Preferences
 
-- Start with a simple local web app.
-- Use room codes and in-memory state before persistence.
-- Introduce SQLite only when saved players/history are needed.
+- Cloudflare Pages serves the static app.
+- Cloudflare Worker + D1 is the active shared multiplayer brain.
+- Do not reintroduce a Python gameplay backend unless the user explicitly asks for it.
 - Introduce WebSockets only when polling is no longer good enough.
 - Add games through clear modules instead of mixing all rules into the UI.
 
@@ -54,16 +54,16 @@ Super Tic Tac Toe is the first proof-of-concept. It should prove:
 
 - SogoTable is a game platform, not a single-game app. Super Tic Tac Toe is the first game in a future games menu.
 - One-phone hot-seat play matters: a single phone should be able to host both players and swap turns smoothly.
-- Multi-phone same-network play matters: use the LAN URL and room codes.
+- Multi-phone public play matters: use the Cloudflare URL and room codes.
 - Win feedback matters: show the winning macro line, highlight winning cells, declare the winning player by name, and show a delayed celebration overlay with the player's icon.
-- Test rooms are useful for approval. Local development may stage rooms such as `AAAA` one move away from a win so the user can verify behavior quickly.
+- Test rooms are useful for approval. Hosted development may stage rooms such as `AAAA` one move away from a win so the user can verify behavior quickly.
 
 ## Git
 
 Use small logical commits:
 
 1. scaffold and docs
-2. rules engine and tests
+2. hosted rules engine and Worker tests
 3. playable UI
 4. room/player flow improvements
 

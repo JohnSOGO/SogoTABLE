@@ -20,14 +20,6 @@ export async function fetchJson(url, options = {}) {
 }
 
 function apiUrl(url) {
-  if (typeof url === "string" && url.startsWith("/api/") && !isLocalHost()) return `${HOSTED_API_ORIGIN}${url}`;
+  if (typeof url === "string" && url.startsWith("/api/")) return `${HOSTED_API_ORIGIN}${url}`;
   return url;
-}
-
-function isLocalHost() {
-  const host = location.hostname;
-  return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(host) ||
-    /^192\.168\./.test(host) ||
-    /^10\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
 }

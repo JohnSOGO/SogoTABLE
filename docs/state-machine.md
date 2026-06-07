@@ -43,11 +43,11 @@ The room has:
 - optional `local_mode`
 - the current game engine state
 
-The room disappears on server restart because Phase 1 rooms are in memory.
+Rooms are stored in hosted D1-backed shared state during public playtesting. Completed or exited rooms should stop appearing in open/in-progress game lists.
 
 ### Player
 
-A roster profile stored by the local Python server in `data/players.json`.
+A roster profile stored by the hosted Cloudflare Worker brain in D1-backed shared state.
 
 Player profiles have:
 
@@ -296,7 +296,7 @@ Exit behavior:
 
 - `Exit` opens a Yes/No confirmation.
 - Yes lets the selected player leave without requiring agreement from the other player.
-- The current in-memory implementation closes the game room so polling players return to `GAME_SELECTED` for the current game type.
+- The current hosted implementation closes the game room so polling players return to `GAME_SELECTED` for the current game type.
 - No keeps the player in the game.
 
 Reset behavior:
@@ -441,7 +441,7 @@ Exit behavior:
 - Ask Yes/No before closing.
 - Confirmation copy must make it clear the local player is leaving.
 - The exiting player does not need the other player to agree.
-- The current in-memory implementation closes the game room so polling players return to `GAME_SELECTED` for the current game type.
+- The current hosted implementation closes the game room so polling players return to `GAME_SELECTED` for the current game type.
 
 Reset behavior:
 
@@ -550,7 +550,7 @@ Player colors are part of gameplay readability.
 Persistent roster color:
 
 - User preference.
-- Stored in `data/players.json`.
+- Stored in hosted shared state.
 - Shown in player picker and identity displays.
 
 Room-seat color:

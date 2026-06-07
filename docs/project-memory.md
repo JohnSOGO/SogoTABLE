@@ -38,14 +38,12 @@ The target use case is casual local play: family members can open a phone browse
 
 ## Current Implemented Shape
 
-- Python standard-library HTTP server at `src/sogotable/server.py`.
-- Pure Python Super Tic Tac Toe rules engine at `src/sogotable/super_tic_tac_toe.py`.
-- Vanilla browser UI under `src/sogotable/static/`.
-- Local in-memory rooms with 4-character room codes.
-- Persistent shared player roster in `data/players.json`, served by the local Python server.
-- Static Cloudflare Pages does not run the Python `/api/` endpoints. Public UI requests must target the hosted Cloudflare Worker brain at `https://sogotable.sogodojo.com/api/*`. If the Worker is unavailable, the UI must fail visibly and disable multiplayer actions rather than creating local-only player or room state.
-- Localhost and private LAN addresses such as `192.168.x.x:8787` intentionally use the local Python `/api` server. Public domains intentionally use the hosted Worker API. This is explicit routing, not fallback probing.
-- The hosted brain is a Cloudflare Worker configured by `wrangler.toml` and implemented in `workers/sogotable-api.js`. It mirrors the local Python API shape for players, lobby presence, rooms, invites, reset voting, and Super Tic Tac Toe moves so public browsers can see each other and play together. It currently stores shared state as one JSON row in D1 database `sogotable-state` (`bbb1cdec-0410-476f-b058-f216263b61d8`). KV was rejected because lobby/player activity hit the free daily write limit; isolate memory was rejected because phone and PC could land on different edge instances. Durable Objects remain a strong future architecture for stricter turn consistency, but D1 is the current public-playtesting backend.
+- The Python gameplay server and Python rules engine have been removed. The project is Cloudflare-only for actual play.
+- Vanilla browser UI lives under `src/sogotable/static/`.
+- Cloudflare Pages serves the static app.
+- All `/api/*` browser calls target the hosted Worker brain at `https://sogotable.sogodojo.com/api/*`, including local static previews. Do not reintroduce localhost/private-LAN API routing unless the user explicitly asks for a local backend again.
+- If the Worker is unavailable, the UI must fail visibly and disable multiplayer actions rather than creating local-only player or room state.
+- The hosted brain is a Cloudflare Worker configured by `wrangler.toml` and implemented in `workers/sogotable-api.js`. It owns players, lobby presence, rooms, invites, reset voting, and Super Tic Tac Toe moves so public browsers can see each other and play together. It currently stores shared state as one JSON row in D1 database `sogotable-state` (`bbb1cdec-0410-476f-b058-f216263b61d8`) with optimistic version locking. KV was rejected because lobby/player activity hit the free daily write limit; isolate memory was rejected because phone and PC could land on different edge instances. Durable Objects remain a strong future architecture for stricter turn consistency, but D1 is the current public-playtesting backend.
 - Browser local storage keeps the device/home selected player separately from the active hot-seat turn actor. `sogotable.deviceSelectedPlayerId` is the browser's durable selected player; `selectedPlayerId` in runtime may temporarily point at the current turn owner during local hot-seat play.
 - Do not clear the durable device/home selected player merely because a roster fetch fails or a single refreshed roster does not contain that id. Clear it only when the user explicitly deletes that player or chooses another one; otherwise users feel forced to recreate persistent names.
 - Public builds briefly had a localStorage player fallback before the hosted D1 brain was stable. That fallback is intentionally removed because it creates false positives and separate PC/iPhone player universes. Player creation, deletion, room creation, and joins must use the shared API only.
@@ -63,10 +61,10 @@ The target use case is casual local play: family members can open a phone browse
 - Multi-device play keeps each browser's selected player fixed. Do not auto-switch the selected player on room refresh; the game screen should show `It's Your Turn PLAYER_NAME; Place an X/O` or `Waiting for PLAYER_NAME.` and only enable moves for the selected player's turn.
 - Waiting turn state should use a soft yellow box, not grey.
 - Manual X/O selection is removed. Creating a room seats the host and waits for an opponent; once a second player joins or accepts an invite, X/O is assigned randomly and play begins automatically.
-- Each player may have only one active in-memory room per game. If the host creates again before the room is complete, the server returns the existing room.
+- Each player may have only one active hosted room per game. If the host creates again before the room is complete, the Worker returns the existing room.
 - There is no separate room-entry screen for a specific room. The selected-game screen is for choosing or creating a game instance; the game screen is still the room and the room is the game.
 - The selected-game lobby shows the local selected player first, then other lobby-present players in sorted order. The game screen is the waiting/play surface. It shows Host and Opponent slots while waiting for the game to start, then hides that Players section once the game is active because turn ownership is shown separately. An empty opponent slot shows `Select Local Opponent` and `Invite Remote Opponent` for the host. Creating a game must open the actual tic-tac-toe game screen; while waiting for the second player, show the board disabled rather than hiding it. If the selected player already has an unfinished room for the game, show a recovery notice and `Re-enter Game`; use the browser's device/home selected player for re-entry, not a temporary hot-seat actor.
-- The game screen has an `Exit` button that asks the local player for Yes/No confirmation and lets that player leave without needing agreement from the other player. In the current in-memory implementation, exiting closes the room so polling players return to player/game selection. `Reset` is different: it asks for confirmation, then waits for both seated players to agree before clearing the board. After a completed game the same control is labeled `Play Again` and also requires both seated players to agree before starting a fresh board.
+- The game screen has an `Exit` button that asks the local player for Yes/No confirmation and lets that player leave without needing agreement from the other player. In the current hosted implementation, exiting closes the room so polling players return to the selected-game screen. `Reset` is different: it asks for confirmation, then waits for both seated players to agree before clearing the board. After a completed game the same control is labeled `Play Again` and also requires both seated players to agree before starting a fresh board.
 - `Exit` should return the player to the selected game's lobby/list screen, not all the way back to `Player & Game Select`.
 - Invited players receive an invite popup with `Yes` and `No`. Accepting joins the room and opens it; declining dismisses the invite. Hosts should see invite lifecycle feedback while waiting: sent, accepted, declined, or expired. Remote invite targets must come from players currently present in the selected game's lobby and must exclude anyone already seated in an unfinished game. If none are eligible, show `No players in lobby.`
 - There is no manual Start Game button. When the room has the required players, it becomes active and both devices auto-open the board once polling observes the active state.
@@ -87,17 +85,17 @@ The target use case is casual local play: family members can open a phone browse
 
 ## Test And Approval Workflows
 
-- Use the LAN URL for phone testing. On the last observed network, the computer was reachable at `http://192.168.0.72:8787/`, but future agents should re-check `ipconfig` because this may change.
-- Local test rooms are useful. The server supports requested 4-character room codes when creating rooms through the API.
-- Room `AAAA` has been used as a staged approval room one move away from an `O` win. If the server restarts, in-memory rooms are cleared and must be staged again.
+- Use the public Cloudflare URL for phone testing: `https://sogotable.sogodojo.com/`.
+- Hosted test rooms are useful. The Worker supports requested 4-character room codes when creating rooms through the API.
+- Room `AAAA` has been used as a staged approval room one move away from an `O` win. If hosted state is reset or the room is closed, it must be staged again.
 - For the staged O-win approval position, the final move is bottom-left macro board, bottom-right cell: board `6`, cell `8`.
 
 ## Verification Habits
 
-- Run `python -m pytest` after rules/server changes.
-- Run `node --check src\sogotable\static\app.js` after browser JavaScript changes.
-- Check static assets through the running local server when UI files change.
+- Run `npm run test:worker` after hosted brain changes.
+- Run `node --check` for changed browser JavaScript files after browser changes.
+- Check static assets through Cloudflare Pages after publishing, or through a generic static preview server for local UI inspection.
 - PWA support is intentionally conservative: cache static shell assets and icons, but never cache `/api/` requests. The PWA improves phone install/reload feel; it does not promise offline multiplayer or replace the hosted Worker/state layer.
 - When public phone/PWA behavior changes, bump the service worker `CACHE_NAME`. Old iPhone installs can keep stale `app.js` even after reinstall if the service worker cache name stays the same. During fast public playtesting, core shell files (`/`, `/index.html`, `/app.js`, `/styles.css`, `/manifest.webmanifest`, `/revision.json`) should be network-only/no-store rather than cached.
-- The intro screen shows a Git-backed revision summary. Local Python serves `/api/status`; static Cloudflare Pages serves `/revision.json`, generated at build time by `scripts/write-static-revision.mjs`. Use Git as the source of truth: human-facing version, short commit hash, branch, and dirty/clean state. Keep the summary short and readable on phones.
+- The intro screen shows a Git-backed revision summary. Cloudflare Pages serves `/revision.json`, generated at build time by `scripts/write-static-revision.mjs`. Use Git as the source of truth: human-facing version, short commit hash, branch, and dirty/clean state. Keep the summary short and readable on phones.
 - If browser automation tools are unavailable, headless Chrome can be driven through the DevTools protocol if Chrome is installed.

@@ -3,14 +3,14 @@
 ## 1. Repo Scaffold
 
 - Create standalone SogoTable repository.
-- Add docs, source layout, tests layout, and local run instructions.
+- Add docs, static source layout, Worker source layout, tests layout, and deploy instructions.
 
 ## 2. Super Tic Tac Toe Rules Engine
 
-- Implement a pure Python rules engine.
-- Add focused tests for move validation and win/draw behavior.
+- Implement Super Tic Tac Toe rules in the hosted Worker brain.
+- Add focused Worker API tests for move validation, win/draw behavior, and turn enforcement.
 
-## 3. Mobile UI Mock / Playable Local Game
+## 3. Mobile UI / Playable Hosted Game
 
 - Render nested boards clearly on phone screens.
 - Show turn, valid boards, small-board winners, macro winner, restart, and game navigation.
@@ -26,13 +26,14 @@
 
 ## 5. Room-Code Multiplayer
 
-- Support multiple phones on the same network.
-- Keep shared state on the local server.
-- Add polling or server-sent updates.
+- Support multiple phones from the public Cloudflare site.
+- Keep shared state in the Worker/D1 brain.
+- Continue polling until server-sent updates or WebSockets are clearly worth the complexity.
 
 ## 6. Account Persistence
 
-- Save players and room history.
+- Keep persistent player profiles in the hosted brain.
+- Save room history.
 - Add simple family stats.
 - Keep auth optional and isolated.
 

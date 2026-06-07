@@ -1,16 +1,25 @@
 # Architecture
 
-SogoTable starts as a dependency-light Python web app with a vanilla browser frontend.
+SogoTable is now a Cloudflare-hosted browser game platform.
+
+The active runtime path is:
+
+```text
+Browser UI -> Cloudflare Worker API -> D1 state row -> Worker game rules -> JSON state -> Browser UI
+```
+
+There is no Python code required in the current architecture.
 
 ## Chosen Stack
 
-- Python standard library `http.server` for local development.
-- Python game engine modules under `src/sogotable/`.
-- Vanilla JavaScript for the browser UI.
-- Progressive Web App manifest and service worker for an installable mobile shell.
-- `pytest` for game-rule tests.
+- Cloudflare Pages for static HTML/CSS/JavaScript/PWA assets.
+- Vanilla browser JavaScript under `src/sogotable/static/`.
+- Cloudflare Worker API in `workers/sogotable-api.js`.
+- Cloudflare D1 database `sogotable-state` for shared state.
+- Node built-in test runner for Worker API contract tests.
+- PWA manifest and service worker for an installable mobile shell.
 
-The stack is intentionally small. The first milestone needs a reliable playable loop, not a framework commitment.
+The stack is intentionally small. The app should stay easy to reason about while proving the family-table game experience.
 
 ## Folder Layout
 
@@ -19,97 +28,113 @@ SogoTable/
   README.md
   AGENTS.md
   docs/
+  scripts/
+    write-static-revision.mjs
   src/
     sogotable/
-      super_tic_tac_toe.py
-      server.py
       static/
-  tests/
+  workers/
+    sogotable-api.js
+    tests/
 ```
 
-## Data Flow
+## Runtime Ownership
+
+The Worker is the single multiplayer authority.
+
+It owns:
+
+- persistent player roster
+- selected-game lobby presence
+- room creation and re-entry
+- room joins and exits
+- invites and invite responses
+- reset voting
+- Super Tic Tac Toe move validation
+- room status and final game result
+
+The browser owns:
+
+- screen rendering
+- local device/home selected player id
+- local hot-seat actor switching inside one browser
+- PWA shell behavior
+- polling and user-facing error display
+
+The static frontend must not create local fallback players or local fallback rooms when the Worker is unavailable. A failed API call should be visible and actionable, not silently split phones and PCs into different realities.
+
+## State Storage
+
+The current public-playtesting backend stores shared app state as one JSON row in D1. The Worker uses a version column and optimistic locking so stale concurrent writes fail instead of silently overwriting newer state.
+
+This is good enough for family playtesting. Durable Objects remain the preferred future architecture for stricter per-room turn consistency:
 
 ```text
-Browser UI -> Game Menu -> HTTP JSON API -> Room Store -> Game Engine -> JSON State -> Browser UI
+One room -> one Durable Object authority
+D1 -> roster/history/statistics
 ```
 
-The rules engine owns legal moves and win/draw state. The UI renders state and sends player actions. The server translates HTTP requests into engine operations.
+## Game Logic
 
-## Game Engine Separation
+Super Tic Tac Toe rules currently live in the Worker because the Worker is the production brain. Keep rule code separated from DOM rendering and browser event handling as much as possible.
 
-The Super Tic Tac Toe engine has no HTML, CSS, browser storage, sockets, or HTTP concerns. It accepts moves and returns state.
+When adding future games, add game definitions and game-specific logic through clear modules or clearly named Worker sections. Do not bury a second game inside UI rendering code.
 
-This keeps the hardest logic testable and allows future transports to reuse the same rules.
+## Browser UI
 
-## Room And Session Approach
+The browser UI is under `src/sogotable/static/`.
 
-Phase 1 uses in-memory rooms:
+Current helper split:
 
-- room code
-- selected game
-- player list
-- current game state
+- `app.js`: state machine, rendering, polling, event flow.
+- `api-client.js`: hosted API routing and JSON handling.
+- `color-utils.js`: contrast-aware and tint color helpers.
+- `html-utils.js`: escaping and avatar HTML.
 
-The server owns the shared player roster in `data/players.json`. Browser local storage keeps the selected game, a durable device/home selected player id, and a 10-digit device selection hash. Runtime `selectedPlayerId` may temporarily point at the active turn owner during one-phone local hot-seat play, but that temporary actor must not overwrite the durable device/home selected player. This makes the player list consistent between the PC and phones on the same local server while preserving each browser's own selected player.
-
-Deleting a player removes them from future roster selection but does not eject that player from an active in-memory room. Editing a player's icon updates the persistent roster and any matching active room seat.
-
-The main menu stays focused on current player and direct game selection. Player selection and player creation are separate top-level buttons that open the player modal at the relevant area. Player rows select immediately on tap and use green outline styling instead of `Pick` or `Selected` buttons. Game buttons on the main menu show only game names and open the selected-game screen for that game type.
-
-The player editor keeps display name, emoji icon, and color together. Emoji icons default randomly, clear on focus for easy keyboard entry, and fall back to a random icon if left blank. The color picker follows the Mantine ColorPicker concept with a hex field, native color input, and swatches, implemented in vanilla HTML/CSS/JS to preserve the project's dependency-light stack.
-
-In a room, the browser's selected player is the device's active identity. Room polling must not auto-switch that identity. The Super Tic Tac Toe board only enables moves when that selected player owns the current turn, while the turn row explains either `It's Your Turn PLAYER_NAME; Place an X/O` or `Waiting for PLAYER_NAME.`.
-
-The screen-level state machine and display requirements live in `docs/state-machine.md`. Treat that file as the source of truth before changing navigation, game-screen layout, modal behavior, or room status rendering.
-
-Room seats may use gameplay-safe display colors that differ from the persistent roster color. When a guest joins with a color too similar to the host's room-seat color, the server assigns the guest a non-conflicting palette color for that room only. Persistent player profile colors are not silently changed by this safety override.
-
-The room is the live game instance, and the game screen is the room. After player selection, the game list opens a selected-game screen for that game type. That screen shows the game description, short-lived local presence for players currently viewing that game's lobby, open games, in-progress games, and a Create Game/Re-enter Game action. Creating or joining a game enters the game screen immediately.
-
-Room creation seats the host and immediately opens the actual game screen in `waiting_for_player` status. The tic-tac-toe board is visible but disabled while waiting for the second player. When a second player joins by code or accepts an invite, the room activates, X/O marks are assigned randomly across the two seated players, and the board becomes playable automatically.
-
-Rooms have a `host_id`, `game_id`, seated players, game state, optional `local_mode`, reset votes, and a computed status: `waiting_for_player`, `active`, or `completed`. A player can have only one active in-memory room per game, whether they are host or opponent; creating again returns the existing unfinished room. The game screen shows Host and Opponent slots while waiting, then hides that Players section once the game starts. If the opponent is missing, the host can either select a local opponent from the roster for one-device play or invite a remote opponent, whose browser receives an in-memory invite popup through polling. Local-mode games auto-toggle the runtime actor to the current turn owner and restore the original device/home selected player when the game ends or exits. Exiting asks only the local player for confirmation; in the current in-memory implementation, exit closes the room so it is no longer listed or re-enterable. Reset and Play Again require agreement from both seated players before the board is cleared.
-
-The room disappears when the server restarts.
-
-The browser main menu shows the current player, `Select Player` and `Create Player` buttons, and then the game picker. Each game button displays only the game name. Super Tic Tac Toe is currently the only enabled game, but rooms carry a `game_id` so future games can be added through separate game modules instead of reshaping the room flow.
+Future cleanup should continue extracting stable helpers first. Do not split the state machine until the screen/controller boundary is obvious.
 
 ## HTTP Endpoints
 
-- `GET /api/players`: list the shared persistent player roster.
-- `GET /api/rooms`: list open and active rooms, optionally filtered by `game_id`; with `player_id` and `game_id`, return that player's active room for the game.
-- `GET /api/invites?player_id=...`: list pending invites for a player.
-- `GET /api/lobby?game_id=...`: list short-lived players currently viewing the selected game screen.
-- `POST /api/players/create`: create or update a player in the shared roster.
-- `POST /api/players/delete`: remove a player from future roster selection.
-- `DELETE /api/players?id=...`: alternate player delete endpoint.
-- `POST /api/room/create`: create or reopen the selected host player's active in-memory room.
-- `POST /api/room/join`: join an existing room; when the second player joins, activate the room and randomly assign X/O.
-- `POST /api/room/close`: delete an in-memory room/game so it cannot be re-entered.
-- `POST /api/room/leave`: let a seated player exit; currently closes the in-memory room.
-- `GET /api/room?code=ABCD`: fetch the current room and game state.
-- `POST /api/room/move`: submit one move for the current player.
-- `POST /api/room/reset`: request or approve a reset; the board restarts only after all seated players agree.
-- `POST /api/invite/create`: host-only create invite for a target player.
-- `POST /api/invite/respond`: accept or decline a pending invite.
-- `POST /api/lobby/presence`: update short-lived selected-game lobby presence for the browser's selected player.
+The authoritative endpoint list and request/response payloads live in `docs/api-contract.md`.
+
+High-level endpoint groups:
+
+- `GET/POST/DELETE /api/players`
+- `GET /api/lobby`
+- `POST /api/lobby/presence`
+- `GET /api/rooms`
+- `GET /api/room`
+- `POST /api/room/create`
+- `POST /api/room/join`
+- `POST /api/room/leave`
+- `POST /api/room/move`
+- `POST /api/room/reset`
+- `GET /api/invites`
+- `POST /api/invite/create`
+- `POST /api/invite/respond`
 
 ## Progressive Web App
 
 The browser frontend includes a conservative PWA shell:
 
 - `manifest.webmanifest` declares the SogoTable app name, red theme color, and install icons.
-- `service-worker.js` precaches and refreshes static shell assets.
-- API calls under `/api/` are intentionally excluded from service-worker handling so rooms, invites, moves, and player state stay live.
-- The current PWA promise is installability and better reload behavior, not offline gameplay.
+- `service-worker.js` precaches shell assets and refreshes core shell files.
+- API calls under `/api/` are intentionally excluded from service-worker handling.
+- The PWA promise is installability and better reload behavior, not offline multiplayer.
 
-The intro screen also shows a small Git-backed revision label. The server exposes `/api/status` with the human-facing version, Git short hash, branch, dirty flag, and a formatted summary string. Git is the source of truth for revision identity, not a manual counter.
+When public phone behavior changes, bump the service worker `CACHE_NAME` so installed devices receive the new shell.
+
+## Revision Strategy
+
+Cloudflare Pages serves `/revision.json`, generated by `scripts/write-static-revision.mjs` during build. The intro screen displays the short revision summary so the user can confirm whether the public site is actually updated.
+
+Git is the source of truth for revision identity.
 
 ## Future Multiplayer
 
-The likely progression is:
+Likely progression:
 
-1. HTTP polling with room codes.
-2. SQLite persistence for players, rooms, and game history.
-3. WebSocket/SSE updates if polling feels slow.
-4. Optional hosted deployment only after local use proves the shape.
+1. Keep HTTP polling while family playtesting remains smooth.
+2. Move per-room authority to Durable Objects when simultaneous turns or stale writes become a real issue.
+3. Add room history/statistics in D1.
+4. Add WebSocket/SSE updates only if polling feels slow or visually noisy.

@@ -1,6 +1,6 @@
 # SogoTable API Contract
 
-This document records the current `/api/*` contract shared by the local Python server and hosted Cloudflare Worker brain.
+This document records the current `/api/*` contract for the hosted Cloudflare Worker brain.
 
 All responses are JSON.
 
