@@ -34,38 +34,27 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
+const STATE_KEY = "super_tic_tac_toe";
 
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
     const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/")) return json({ ok: false, error: "Unknown endpoint." }, 404);
-    const gameId = gameIdForRequest(url, request);
-    const stub = env.SOGOTABLE_STATE.getByName(gameId);
-    return stub.fetch(request);
-  },
-};
-
-export class SogoTableGameState {
-  constructor(state) {
-    this.state = state;
-  }
-
-  async fetch(request) {
-    const url = new URL(request.url);
     try {
-      const data = await this.loadState();
+      const data = await loadState(env);
       const payload = request.method === "POST" ? await readJson(request) : {};
-      const response = await this.route(request.method, url, payload, data);
-      await this.saveState(data);
+      const response = await routeRequest(request.method, url, payload, data);
+      await saveState(env, data);
       return json(response);
     } catch (error) {
       return json({ ok: false, error: error.message || "Request failed." }, 400);
     }
-  }
+  },
+};
 
-  async route(method, url, payload, data) {
-    if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: data.players };
+async function routeRequest(method, url, payload, data) {
+  if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: data.players };
     if (method === "POST" && url.pathname === "/api/players/create") {
       const player = playerFromPayload(payload);
       upsertPlayer(data, player);
@@ -209,16 +198,16 @@ export class SogoTableGameState {
       invite.status = "accepted";
       return { ok: true, accepted: true, room: roomToDict(data, room) };
     }
-    throw new Error("Unknown endpoint.");
-  }
+  throw new Error("Unknown endpoint.");
+}
 
-  async loadState() {
-    return await this.state.storage.get("state") || { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
-  }
+async function loadState(env) {
+  const stored = await env.SOGOTABLE_STATE.get(STATE_KEY, "json");
+  return stored || { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
+}
 
-  async saveState(data) {
-    await this.state.storage.put("state", data);
-  }
+async function saveState(env, data) {
+  await env.SOGOTABLE_STATE.put(STATE_KEY, JSON.stringify(data));
 }
 
 async function readJson(request) {
@@ -231,11 +220,6 @@ function json(payload, status = 200) {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", ...corsHeaders },
   });
-}
-
-function gameIdForRequest(url) {
-  const direct = url.searchParams.get("game_id");
-  return cleanGameId(direct || "super_tic_tac_toe");
 }
 
 function cleanGameId(gameId) {
