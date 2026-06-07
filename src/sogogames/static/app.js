@@ -19,6 +19,7 @@ const paletteColors = [
   "#be123c",
   "#334155",
 ];
+const HOSTED_API_ORIGIN = "https://api.sogotable.sogodojo.com";
 const games = [
   {
     id: "super_tic_tac_toe",
@@ -352,8 +353,7 @@ async function enterRoomSummary(summary) {
   if (!player) return alert("Select a player first.");
   const selectedSeat = summary.players.find((seat) => seat.id === player.id);
   if (selectedSeat) {
-    const response = await fetch(`/api/room?code=${encodeURIComponent(summary.code)}`);
-    const data = await response.json();
+    const data = await fetchJson(`/api/room?code=${encodeURIComponent(summary.code)}`);
     if (!data.ok) return alert(data.error || "Game not found.");
     setRoom(data.room);
     showScreen("game");
@@ -780,8 +780,7 @@ async function pollInvites() {
   const player = deviceSelectedPlayer();
   if (!player || !document.getElementById("invitePrompt").classList.contains("hidden")) return;
   try {
-    const response = await fetch(`/api/invites?player_id=${encodeURIComponent(player.id)}`);
-    const data = await response.json();
+    const data = await fetchJson(`/api/invites?player_id=${encodeURIComponent(player.id)}`);
     if (data.ok && data.invites.length) showInvitePrompt(data.invites[0]);
   } catch {
     // Invite polling is best-effort; room actions still work without it.
@@ -1304,8 +1303,7 @@ function stopLobbyPresencePolling() {
 async function refreshCurrentRoomSummary() {
   if (!currentRoom) return;
   const wasStarted = currentRoom.started;
-  const response = await fetch(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
-  const data = await response.json();
+  const data = await fetchJson(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
   if (data.ok) {
     setRoom(data.room);
     refreshHostInviteStatus();
@@ -1320,8 +1318,7 @@ async function refreshCurrentRoomSummary() {
 async function refreshRoom() {
   if (!currentRoom) return;
   try {
-    const response = await fetch(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
-    const data = await response.json();
+    const data = await fetchJson(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
     if (data.ok) {
       setRoom(data.room);
       await refreshHostInviteStatus();
@@ -1341,8 +1338,7 @@ async function refreshHostInviteStatus() {
   }
   try {
     const url = `/api/invites?host_id=${encodeURIComponent(currentRoom.host_id)}&room_code=${encodeURIComponent(currentRoom.code)}`;
-    const response = await fetch(url);
-    const data = await response.json();
+    const data = await fetchJson(url);
     if (!data.ok || !data.invites.length) return;
     hostInviteStatus = data.invites[data.invites.length - 1];
     renderRoomInviteStatus();
@@ -1375,25 +1371,42 @@ async function api(url, payload) {
 }
 
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
-  const text = await response.text();
-  if (!text) throw new Error("Empty server response.");
-  try {
-    return JSON.parse(text);
-  } catch {
-    const trimmed = text.trim();
-    if (trimmed.startsWith("<")) {
-      throw new Error("Game server is not available on this site.");
+  let lastError = null;
+  for (const candidate of apiFetchCandidates(url)) {
+    try {
+      const response = await fetch(candidate, options);
+      const text = await response.text();
+      if (!text) throw new Error("Empty server response.");
+      return JSON.parse(text);
+    } catch (error) {
+      lastError = error;
+      const message = error && error.message ? error.message : "";
+      if (!isStaticApiResponse(message)) throw error;
     }
-    throw new Error("Invalid server response.");
   }
+  throw lastError || new Error("Invalid server response.");
+}
+
+function apiFetchCandidates(url) {
+  const candidates = [url];
+  if (typeof url === "string" && url.startsWith("/api/") && !isLocalHost() && location.origin !== HOSTED_API_ORIGIN) {
+    candidates.push(`${HOSTED_API_ORIGIN}${url}`);
+  }
+  return candidates;
+}
+
+function isLocalHost() {
+  return ["localhost", "127.0.0.1", "0.0.0.0"].includes(location.hostname);
+}
+
+function isStaticApiResponse(message) {
+  return message === "Game server is not available on this site." ||
+    message === "Empty server response." ||
+    message.includes("Unexpected token '<'");
 }
 
 function isApiUnavailableError(error) {
-  return Boolean(error && (
-    error.message === "Game server is not available on this site." ||
-    error.message === "Empty server response."
-  ));
+  return Boolean(error && isStaticApiResponse(error.message || ""));
 }
 
 function selectedPlayer() {

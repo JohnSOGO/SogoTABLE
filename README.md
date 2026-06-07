@@ -20,6 +20,7 @@ The product target is simple: family members sitting together at a restaurant ca
 - Python rules engine under `src/sogogames/`.
 - Vanilla HTML/CSS/JavaScript under `src/sogogames/static/`.
 - PWA manifest and service worker for installable phone-browser shell.
+- Cloudflare Worker + Durable Object brain for hosted public multiplayer API.
 - `pytest` for rules-engine tests.
 
 This avoids framework weight while keeping a clear path to add Flask/FastAPI, SQLite, WebSockets, or hosted deployment later if the app earns that complexity.
@@ -45,6 +46,16 @@ The first server keeps rooms in memory. Restarting the server clears active room
 The app can be installed from supported phone browsers as a Progressive Web App. The service worker caches static shell assets only; API calls for players, rooms, invites, and moves are not cached.
 
 The intro screen shows a small revision label built from Git: human-facing app version, short commit hash, branch, and dirty/clean status. Local Python serves this through `/api/status`; static Cloudflare Pages uses `/revision.json`, generated during the Pages build. Git remains the canonical source of revision truth.
+
+## Deploy Hosted Brain
+
+The public site needs a shared API brain for players, lobby presence, rooms, invites, and moves. Deploy it with:
+
+```powershell
+npm run deploy:brain
+```
+
+The Worker is configured in `wrangler.toml` and uses a Durable Object to preserve shared game state across public browsers.
 
 ## Run Tests
 
