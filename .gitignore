@@ -10,6 +10,6 @@ data/
 runtime/
 AI/
 *.log
-src/sogogames/static/revision.json
+src/sogotable/static/revision.json
 .tmp-chrome/
 .tmp-chrome-*/

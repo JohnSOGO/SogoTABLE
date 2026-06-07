@@ -63,6 +63,12 @@ The Worker is configured in `wrangler.toml` and stores shared game state in a sm
 python -m pytest
 ```
 
+Worker API tests for the hosted brain:
+
+```powershell
+npm run test:worker
+```
+
 If `pytest` is not installed:
 
 ```powershell

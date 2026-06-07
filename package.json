@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy:brain": "wrangler deploy --config wrangler.toml"
+    "deploy:brain": "wrangler deploy --config wrangler.toml",
+    "test:worker": "node --test workers/tests/*.test.js"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
