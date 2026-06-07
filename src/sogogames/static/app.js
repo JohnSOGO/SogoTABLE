@@ -387,9 +387,11 @@ function renderChoices() {
   const iconInput = document.getElementById("playerIconText");
   if (iconInput && iconInput.value !== selectedIcon) iconInput.value = selectedIcon;
   const colorText = document.getElementById("playerColorText");
-  if (colorText && colorText.value !== selectedColor) colorText.value = selectedColor;
+  const safeColor = normalizePlayerColor(selectedColor, paletteColors[0]);
+  selectedColor = safeColor;
+  if (colorText && colorText.value !== safeColor) colorText.value = safeColor;
   const colorNative = document.getElementById("playerColorNative");
-  if (colorNative && colorNative.value !== selectedColor) colorNative.value = selectedColor;
+  if (colorNative && colorNative.value !== safeColor) colorNative.value = safeColor;
   const colorHost = document.getElementById("colorChoices");
   colorHost.innerHTML = "";
   paletteColors.forEach((color) => {
@@ -408,20 +410,37 @@ function renderChoices() {
 
 function updateSelectedColorFromText(event) {
   const value = event.target.value.trim();
-  if (isHexColor(value)) {
-    selectedColor = value;
-    renderChoices();
+  const normalized = normalizePlayerColor(value, selectedColor, paletteColors[0]);
+  if (selectedColor !== normalized) {
+    selectedColor = normalized;
   }
+  event.target.value = normalized;
+  const colorNative = document.getElementById("playerColorNative");
+  if (colorNative) colorNative.value = normalized;
+  renderChoices();
 }
 
 function normalizeSelectedColorText(event) {
-  if (!isHexColor(event.target.value.trim())) {
-    event.target.value = selectedColor;
-  }
+  const normalized = normalizePlayerColor(event.target.value, selectedColor, paletteColors[0]);
+  selectedColor = normalized;
+  event.target.value = normalized;
+  const colorNative = document.getElementById("playerColorNative");
+  if (colorNative) colorNative.value = normalized;
+}
+
+function normalizePlayerColor(value, fallback = paletteColors[0], base = paletteColors[0]) {
+  const candidate = (value || "").trim();
+  if (isHexColor(candidate)) return candidate.toLowerCase();
+  if (isHexColor(base)) return base.toLowerCase();
+  if (isHexColor(fallback)) return fallback.toLowerCase();
+  return "#1f7a5f";
 }
 
 function updateSelectedColorFromNative(event) {
-  selectedColor = event.target.value;
+  const normalized = normalizePlayerColor(event.target.value, selectedColor, paletteColors[0]);
+  selectedColor = normalized;
+  const colorText = document.getElementById("playerColorText");
+  if (colorText) colorText.value = normalized;
   renderChoices();
 }
 
@@ -522,7 +541,7 @@ async function createPlayer(event) {
     id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
     name,
     icon: selectedIcon || randomIcon(),
-    color: selectedColor,
+    color: normalizePlayerColor(selectedColor, paletteColors[0]),
   };
   try {
     const response = await api("/api/players/create", { player });
@@ -774,6 +793,7 @@ async function updatePlayerIcon(playerId, icon) {
   const player = players.find((item) => item.id === playerId);
   if (!player) return;
   const updated = { ...player, icon: icon.trim() || randomIcon() };
+  updated.color = normalizePlayerColor(updated.color, selectedColor, paletteColors[0]);
   try {
     const response = await api("/api/players/create", { player: updated });
     players = response.players;

@@ -587,7 +587,7 @@ def _clean_player(player: dict) -> dict:
         "id": player_id[:80],
         "name": name[:24],
         "icon": str(player.get("icon", "🙂"))[:4],
-        "color": str(player.get("color", "#2f80ed"))[:24],
+        "color": _safe_hex_color(player.get("color", "#2f80ed"))[:24],
     }
 
 
