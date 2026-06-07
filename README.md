@@ -81,6 +81,7 @@ python -m pip install pytest
 
 - [Project Memory](docs/project-memory.md)
 - [State Machine](docs/state-machine.md)
+- [Name Decision](docs/name-decision.md)
 - [AREC Command](docs/AREC.md)
 - [Purpose](docs/purpose.md)
 - [Architecture](docs/architecture.md)

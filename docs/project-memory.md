@@ -6,6 +6,8 @@ This file is durable context for future Codex sessions. Read it with `AGENTS.md`
 
 SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, but the app should grow through a games menu and clear game modules rather than becoming a single-game app.
 
+Naming note: `docs/name-decision.md` records an incoming AI naming decision proposing **MojoTable** as the stronger long-term product name and `table` as the primary user-facing metaphor. The current implemented app name is still **SogoTable** until the user explicitly approves a full product rename.
+
 `docs/state-machine.md` is the current source of truth for screen states, modal states, transitions, and display requirements. Future agents should update it whenever navigation, room flow, or game-screen state behavior changes.
 
 The target use case is casual local play: family members can open a phone browser, choose players, join a room, and play without installs, paid services, heavyweight accounts, or vendor lock-in.
