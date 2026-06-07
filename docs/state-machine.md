@@ -132,9 +132,10 @@ Required display:
 - Current selected player section at the top.
 - If no player is selected, display `No player selected`.
 - Player icon and player name in the current player row.
+- `Edit` button to edit the currently selected player, disabled if no player is selected.
 - `Change` button to open player selection.
 - `Create` button to open player creation.
-- The current player row should keep avatar/name plus `Change` and `Create` on one line across phone sizes; long names truncate before the buttons wrap below.
+- The current player row should keep avatar/name plus `Edit`, `Change`, and `Create` on one line across phone sizes; long names truncate before the buttons wrap below.
 - Once a player is selected, compact per-game player stats in table form: header row first, then game name, games played, games won, personal high score, and ELO as clean values.
 - `Games` section.
 - One full-width button per game.

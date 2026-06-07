@@ -126,6 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderCurrentPlayer();
   document.getElementById("playerForm").addEventListener("submit", createPlayer);
   document.getElementById("clearPlayerStats").addEventListener("click", clearEditingPlayerStats);
+  document.getElementById("openEditPlayerModal").addEventListener("click", openSelectedPlayerEditor);
   document.getElementById("openSelectPlayerModal").addEventListener("click", () => openPlayerModal("select"));
   document.getElementById("openCreatePlayerModal").addEventListener("click", () => openPlayerModal("create"));
   document.getElementById("closePlayerModal").addEventListener("click", closePlayerModal);
@@ -779,6 +780,13 @@ function editPlayer(playerId) {
   form.focus();
 }
 
+function openSelectedPlayerEditor() {
+  const player = deviceSelectedPlayer();
+  if (!player) return;
+  openPlayerModal("select");
+  editPlayer(player.id);
+}
+
 async function clearEditingPlayerStats() {
   const player = players.find((item) => item.id === editingPlayerId);
   if (!player) return;
@@ -875,6 +883,7 @@ function renderCurrentPlayer() {
   const host = document.getElementById("currentPlayer");
   const player = deviceSelectedPlayer();
   host.innerHTML = player ? `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>` : "No player selected";
+  document.getElementById("openEditPlayerModal").disabled = !player;
 }
 
 function renderRoomHostSummary() {

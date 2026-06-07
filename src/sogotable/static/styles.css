@@ -562,15 +562,15 @@ button.compact {
 
 .player-menu-actions {
   display: grid;
-  grid-template-columns: repeat(2, 66px);
-  gap: 6px;
+  grid-template-columns: repeat(3, 54px);
+  gap: 4px;
 }
 
 .player-menu-actions button {
-  width: 66px;
+  width: 54px;
   min-height: 36px;
   padding: 0;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .game-badge {
