@@ -349,19 +349,32 @@ function renderCreateGameButton() {
 }
 
 async function enterRoomSummary(summary) {
-  const player = deviceSelectedPlayer();
+  const player = await ensureDeviceSelectedPlayerSynced();
   if (!player) return alert("Select a player first.");
-  const selectedSeat = summary.players.find((seat) => seat.id === player.id);
-  if (selectedSeat) {
+  let freshSummary = summary;
+  try {
     const data = await fetchJson(`/api/room?code=${encodeURIComponent(summary.code)}`);
     if (!data.ok) return alert(data.error || "Game not found.");
-    setRoom(data.room);
+    freshSummary = data.room;
+  } catch (error) {
+    if (!isApiUnavailableError(error)) {
+      alert(error.message);
+      return;
+    }
+  }
+  const selectedSeat = freshSummary.players.find((seat) => seat.id === player.id);
+  if (selectedSeat) {
+    setRoom(freshSummary);
     showScreen("game");
     return;
   }
-  if (summary.status !== "waiting_for_player") return;
+  if (freshSummary.status !== "waiting_for_player" || freshSummary.open_seats <= 0) {
+    alert("That game is no longer open.");
+    refreshGameRooms();
+    return;
+  }
   try {
-    const response = await api("/api/room/join", { code: summary.code, player });
+    const response = await api("/api/room/join", { code: freshSummary.code, player });
     setRoom(response.room);
     refreshGameRooms();
     showScreen("game");
@@ -555,6 +568,7 @@ async function createPlayer(event) {
   try {
     const response = await api("/api/players/create", { player });
     players = response.players;
+    rememberLocalPlayer(response.player);
     finishPlayerSave(response.player.id, input);
   } catch (error) {
     if (!isApiUnavailableError(error)) {
@@ -823,6 +837,7 @@ async function updatePlayerIcon(playerId, icon) {
   try {
     const response = await api("/api/players/create", { player: updated });
     players = response.players;
+    rememberLocalPlayer(response.player);
     if (deviceSelectedPlayerId === response.player.id) setDeviceSelectedPlayer(response.player.id);
     if (selectedPlayerId === response.player.id) selectedPlayerId = response.player.id;
     renderPlayers();
@@ -849,7 +864,7 @@ async function updatePlayerIcon(playerId, icon) {
 }
 
 async function createRoom() {
-  const player = deviceSelectedPlayer();
+  const player = await ensureDeviceSelectedPlayerSynced();
   if (!player) return alert("Select a player first.");
   try {
     const response = await api("/api/room/create", { game_id: selectedGameId, player });
@@ -1410,11 +1425,39 @@ function isApiUnavailableError(error) {
 }
 
 function selectedPlayer() {
-  return players.find((player) => player.id === selectedPlayerId) || null;
+  return findKnownPlayer(selectedPlayerId);
 }
 
 function deviceSelectedPlayer() {
-  return players.find((player) => player.id === deviceSelectedPlayerId) || null;
+  return findKnownPlayer(deviceSelectedPlayerId);
+}
+
+function findKnownPlayer(playerId) {
+  if (!playerId) return null;
+  return players.find((player) => player.id === playerId) ||
+    loadLocalPlayers().find((player) => player.id === playerId) ||
+    null;
+}
+
+async function ensureDeviceSelectedPlayerSynced() {
+  const player = deviceSelectedPlayer();
+  if (!player || !playerApiAvailable) return player;
+  try {
+    const response = await api("/api/players/create", { player: cleanLocalPlayer(player) });
+    players = response.players;
+    rememberLocalPlayer(response.player);
+    renderPlayers();
+    renderSelectedPlayer();
+    renderCurrentPlayer();
+    renderGames();
+    renderCreateGameButton();
+    return response.player;
+  } catch (error) {
+    if (!isApiUnavailableError(error)) throw error;
+    playerApiAvailable = false;
+    renderCreateGameButton();
+    return player;
+  }
 }
 
 function setDeviceSelectedPlayer(playerId) {
@@ -1592,6 +1635,7 @@ async function syncLocalPlayersToSharedRoster(remotePlayers) {
   for (const player of missingPlayers) {
     const response = await api("/api/players/create", { player: cleanLocalPlayer(player) });
     syncedPlayers = response.players;
+    rememberLocalPlayer(response.player);
   }
   if (missingPlayers.length) localStorage.setItem("sogogames.playersMigrated", "1");
   return syncedPlayers;
@@ -1607,6 +1651,11 @@ function loadLocalPlayers() {
 
 function saveLocalPlayers(nextPlayers) {
   localStorage.setItem("sogogames.players", JSON.stringify(nextPlayers));
+}
+
+function rememberLocalPlayer(player) {
+  if (!player || !player.id || !player.name) return;
+  upsertLocalPlayer(player);
 }
 
 function cleanLocalPlayer(player) {

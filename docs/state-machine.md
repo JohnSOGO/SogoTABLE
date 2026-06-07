@@ -233,6 +233,8 @@ Open game card requirements:
 - If selected player is seated, action is `Re-enter Game`.
 - If selected player is not seated and the room is open, action is `Join Game`.
 - If room is active and selected player is not seated, action is disabled.
+- Treat the rendered card as a stale snapshot. On tap, fetch the room by code from the shared API before joining or re-entering so phone and PC clients use current room state.
+- Before creating, joining, or re-entering a hosted room, sync the browser's device/home selected player to the shared roster. A public browser may still have an older localStorage fallback player that is valid locally but not yet visible to the hosted D1 brain.
 
 Create/Re-enter behavior:
 
