@@ -24,6 +24,7 @@ The app should move downhill toward event-driven updates, but the public play pa
 - [x] Add Worker tests for app-event fanout and snapshot payloads.
 - [x] Keep fallback polling enabled while testing the app event channel on phones.
 - [x] Public multi-device smoke test passed.
+- [x] Reduce timed room-list/invite/lobby polling after public phone smoke testing proved the event channel.
 - [ ] Split large frontend controller code after the transport path is stable.
 - [ ] Move more active-room authority into Durable Objects only after the current Worker/D1 path is boring.
 
@@ -42,10 +43,11 @@ Completed:
 - Existing room-list, invite, lobby, and room fallback polling remains enabled as recovery while the event channel is proven on phones.
 - Added Worker tests for app-event room, lobby, pending invite, and declined-invite snapshots.
 - User smoke-tested public multi-device play successfully with two iPhones and three browsers.
+- Reduced non-room fallback polling after smoke success: current-room summary fallback is 15 seconds, selected-game lobby fallback is 15 seconds, invite fallback is 30 seconds, and active-room socket recovery remains 15 seconds.
 
 Still pending:
 
-- Reduce timed room-list/invite/lobby polling only after public phone smoke testing proves the event channel is reliable.
+- Watch public phone play for missed app-level updates now that EventHub is primary and timed reads are slower fallback.
 
 ## Next Implementation Slice
 

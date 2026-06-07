@@ -50,6 +50,10 @@ const winLines = [
   [0, 4, 8],
   [2, 4, 6],
 ];
+const ROOM_SUMMARY_FALLBACK_INTERVAL_MS = 15000;
+const INVITE_FALLBACK_INTERVAL_MS = 30000;
+const LOBBY_FALLBACK_INTERVAL_MS = 15000;
+const ROOM_SOCKET_FALLBACK_INTERVAL_MS = 15000;
 
 migrateStorageNamespace();
 
@@ -1319,7 +1323,7 @@ function scheduleRoomReconnect() {
 
 function startRoomFallbackPolling() {
   if (roomSocketFallbackTimer) return;
-  roomSocketFallbackTimer = setInterval(refreshRoom, 15000);
+  roomSocketFallbackTimer = setInterval(refreshRoom, ROOM_SOCKET_FALLBACK_INTERVAL_MS);
 }
 
 function stopRoomFallbackPolling() {
@@ -1345,7 +1349,7 @@ function handleRoomSocketMessage(event) {
 
 function startRoomListPolling() {
   if (roomListTimer) clearInterval(roomListTimer);
-  roomListTimer = setInterval(refreshRooms, 2500);
+  roomListTimer = setInterval(refreshRooms, ROOM_SUMMARY_FALLBACK_INTERVAL_MS);
   refreshRooms();
 }
 
@@ -1438,7 +1442,7 @@ function handleAppEventMessage(event) {
 
 function startInvitePolling() {
   if (inviteTimer) clearInterval(inviteTimer);
-  inviteTimer = setInterval(pollInvites, 10000);
+  inviteTimer = setInterval(pollInvites, INVITE_FALLBACK_INTERVAL_MS);
   pollInvites();
 }
 
@@ -1455,7 +1459,7 @@ function startLobbyPresencePolling() {
   lobbyPresenceTimer = setInterval(() => {
     updateLobbyPresence();
     refreshGameRooms();
-  }, 3000);
+  }, LOBBY_FALLBACK_INTERVAL_MS);
 }
 
 function stopLobbyPresencePolling() {

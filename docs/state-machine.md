@@ -569,7 +569,12 @@ Contrast rules:
 
 ## Polling And Presence
 
-Current live updates are intentionally simple.
+Current live updates are event-first with conservative timed fallback.
+
+App-level live updates:
+
+- Room lists, selected-game lobby presence, and pending invite prompts should arrive through `/api/events/socket` app snapshots during normal connected play.
+- Timed reads still exist as fallback and recovery, not as the primary update path.
 
 Room live updates:
 
@@ -580,12 +585,12 @@ Room live updates:
 
 Invite polling:
 
-- Checks for pending invites for the browser's device/home selected player.
-- This remains slower fallback-style polling until player/session push exists.
+- Checks for pending invites for the browser's device/home selected player every 30 seconds as fallback.
+- EventHub app snapshots should deliver normal pending invite prompts first.
 
 Lobby presence polling:
 
-- Runs while on `GAME_SELECTED`.
+- Runs while on `GAME_SELECTED` every 15 seconds as fallback.
 - Shows only players currently looking at the selected game screen.
 - Does not imply all roster players are present.
 - Use a forgiving presence TTL. Mobile browsers can pause timers and network requests, so a tight 10-second TTL makes players flicker in and out of the lobby even when they are still present. The current target TTL is 45 seconds.
