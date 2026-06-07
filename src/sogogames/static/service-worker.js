@@ -1,4 +1,4 @@
-const CACHE_NAME = "sogotable-static-v1";
+const CACHE_NAME = "sogotable-static-v2";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -32,6 +32,10 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  if (url.pathname === "/" || url.pathname === "/index.html" || url.pathname === "/revision.json") {
+    event.respondWith(fetch(request).catch(() => caches.match(request)));
+    return;
+  }
 
   event.respondWith(
     fetch(request)

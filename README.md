@@ -44,7 +44,7 @@ The first server keeps rooms in memory. Restarting the server clears active room
 
 The app can be installed from supported phone browsers as a Progressive Web App. The service worker caches static shell assets only; API calls for players, rooms, invites, and moves are not cached.
 
-The intro screen shows a small revision label built from Git: human-facing app version, short commit hash, branch, and dirty/clean status. Git remains the canonical source of revision truth.
+The intro screen shows a small revision label built from Git: human-facing app version, short commit hash, branch, and dirty/clean status. Local Python serves this through `/api/status`; static Cloudflare Pages uses `/revision.json`, generated during the Pages build. Git remains the canonical source of revision truth.
 
 ## Run Tests
 

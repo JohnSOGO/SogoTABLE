@@ -109,13 +109,27 @@ async function refreshRevisionSummary() {
   const host = document.getElementById("revisionSummary");
   if (!host) return;
   try {
-    const response = await fetch("/api/status");
-    const data = await response.json();
-    if (!data.ok || !data.status) throw new Error("status unavailable");
+    const data = await fetchRevisionStatus();
     host.textContent = data.status.summary;
   } catch {
     host.textContent = "revision unavailable";
   }
+}
+
+async function fetchRevisionStatus() {
+  const endpoints = ["/api/status", "/revision.json"];
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, { cache: "no-store" });
+      const contentType = response.headers.get("content-type") || "";
+      if (!response.ok || !contentType.includes("application/json")) continue;
+      const data = await response.json();
+      if (data.ok && data.status && data.status.summary) return data;
+    } catch {
+      // Try the next revision source. Static Pages does not provide /api/status.
+    }
+  }
+  throw new Error("revision unavailable");
 }
 
 function registerServiceWorker() {
