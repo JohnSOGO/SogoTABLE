@@ -4,8 +4,7 @@ compatibility_date = "2026-06-07"
 account_id = "d8daaab7a2e7af2cce387d9b9df3c8d3"
 
 routes = [
-  { pattern = "sogotable.sogodojo.com/api/*", zone_name = "sogodojo.com" },
-  { pattern = "api.sogotable.sogodojo.com", custom_domain = true }
+  { pattern = "sogotable.sogodojo.com/api/*", zone_name = "sogodojo.com" }
 ]
 
 [[durable_objects.bindings]]

@@ -39,7 +39,7 @@ The target use case is casual local play: family members can open a phone browse
 - Vanilla browser UI under `src/sogogames/static/`.
 - Local in-memory rooms with 4-character room codes.
 - Persistent shared player roster in `data/players.json`, served by the local Python server.
-- Static Cloudflare Pages does not run the Python `/api/` endpoints. The public UI should use the hosted Cloudflare Worker brain at `https://api.sogotable.sogodojo.com` when same-origin `/api/` returns the static HTML shell. If the Worker is unavailable, player creation can still fall back to localStorage, but that fallback is per browser/device and is not shared.
+- Static Cloudflare Pages does not run the Python `/api/` endpoints. The public UI should use the hosted Cloudflare Worker brain at `https://sogotable.sogodojo.com/api/*` when same-origin `/api/` returns the static HTML shell. If the Worker is unavailable, player creation can still fall back to localStorage, but that fallback is per browser/device and is not shared.
 - The hosted brain is a Cloudflare Worker plus Durable Object configured by `wrangler.toml` and implemented in `workers/sogotable-api.js`. It mirrors the local Python API shape for players, lobby presence, rooms, invites, reset voting, and Super Tic Tac Toe moves so public browsers can see each other and play together.
 - Browser local storage keeps the device/home selected player separately from the active hot-seat turn actor. `sogogames.deviceSelectedPlayerId` is the browser's durable selected player; `selectedPlayerId` in runtime may temporarily point at the current turn owner during local hot-seat play.
 - Games menu exists, currently with Super Tic Tac Toe as the only ready game.

@@ -19,7 +19,7 @@ const paletteColors = [
   "#be123c",
   "#334155",
 ];
-const HOSTED_API_ORIGIN = "https://api.sogotable.sogodojo.com";
+const HOSTED_API_ORIGIN = "https://sogotable.sogodojo.com";
 const games = [
   {
     id: "super_tic_tac_toe",
