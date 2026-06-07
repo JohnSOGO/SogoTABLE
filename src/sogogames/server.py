@@ -69,6 +69,7 @@ class Room:
             "status": _room_status(self),
             "players": [player.__dict__ for player in self.players],
             "game": self.game.to_dict(),
+            "latest_invite": _latest_invite_for_room(self),
         }
 
     def player_mark(self, player_id: str) -> str | None:
@@ -408,6 +409,13 @@ def _room_summary(room: Room) -> dict:
 
 def _close_room(code: str) -> None:
     ROOMS.pop(str(code).strip().upper(), None)
+
+
+def _latest_invite_for_room(room: Room) -> dict | None:
+    room_invites = [invite for invite in INVITES.values() if invite.room_code == room.code]
+    if not room_invites:
+        return None
+    return room_invites[-1].to_dict()
 
 
 def _lobby_viewers(game_id: str) -> list[dict]:

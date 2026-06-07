@@ -840,10 +840,16 @@ function closeConfirmPromptOnBackdrop(event) {
 
 function setRoom(room) {
   currentRoom = room;
+  syncHostInviteStatusFromRoom(room);
   syncSelectedPlayerForLocalRoom();
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
   renderGame();
+}
+
+function syncHostInviteStatusFromRoom(room) {
+  if (!room || room.started || room.host_id !== deviceSelectedPlayerId) return;
+  hostInviteStatus = room.latest_invite || hostInviteStatus;
 }
 
 function renderRoomSlots() {
@@ -1198,8 +1204,7 @@ async function refreshHostInviteStatus() {
     const response = await fetch(url);
     const data = await response.json();
     if (!data.ok || !data.invites.length) return;
-    const preferred = data.invites.find((invite) => invite.status === "pending") || data.invites[data.invites.length - 1];
-    hostInviteStatus = preferred;
+    hostInviteStatus = data.invites[data.invites.length - 1];
     renderRoomInviteStatus();
   } catch {
     // Host invite status is helpful feedback, not required to play.

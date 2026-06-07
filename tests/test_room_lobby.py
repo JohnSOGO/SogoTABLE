@@ -165,6 +165,24 @@ def test_invite_serializes_target_name_for_host_status_feedback():
     assert invite.to_dict()["target_name"] == "Two"
 
 
+def test_room_serializes_latest_declined_invite_for_host_feedback():
+    room = Room(code="TEST", host_id="one", game_id="super_tic_tac_toe")
+    _add_player_to_room(room, player("one"), None)
+    INVITES["TEST:two"] = Invite(
+        id="TEST:two",
+        room_code="TEST",
+        game_id="super_tic_tac_toe",
+        host_id="one",
+        host_name="One",
+        target_id="two",
+        target_name="Two",
+        status="declined",
+    )
+
+    assert room.to_dict()["latest_invite"]["status"] == "declined"
+    assert room.to_dict()["latest_invite"]["target_name"] == "Two"
+
+
 def test_close_room_deletes_room_and_prevents_reentry():
     room = Room(code="TEST", host_id="one", game_id="super_tic_tac_toe")
     _add_player_to_room(room, player("one"), None)
