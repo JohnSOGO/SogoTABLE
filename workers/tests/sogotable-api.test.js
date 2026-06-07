@@ -65,37 +65,57 @@ function makeEnv() {
 }
 
 function makeEnvWithRooms() {
-  return { SOGOTABLE_STATE: new InMemoryD1(), ROOM_OBJECT: new MockRoomNamespace() };
+  const env = { SOGOTABLE_STATE: new InMemoryD1() };
+  env.ROOM_OBJECT = new MockRoomNamespace(env);
+  return env;
 }
 
 function makeEnvWithEvents() {
-  return {
+  const env = {
     SOGOTABLE_STATE: new InMemoryD1(),
-    ROOM_OBJECT: new MockRoomNamespace(),
     EVENT_HUB: new MockEventHubNamespace(),
   };
+  env.ROOM_OBJECT = new MockRoomNamespace(env);
+  return env;
 }
 
 class MockRoomNamespace {
-  constructor() {
+  constructor(env) {
+    this.env = env;
     this.objects = new Map();
   }
 
   getByName(name) {
-    if (!this.objects.has(name)) this.objects.set(name, new MockRoomObject(name));
+    if (!this.objects.has(name)) this.objects.set(name, new MockRoomObject(name, this.env));
     return this.objects.get(name);
   }
 }
 
 class MockRoomObject {
-  constructor(name) {
+  constructor(name, env) {
     this.name = name;
+    this.env = env;
     this.snapshots = [];
     this.closed = [];
+    this.actions = [];
   }
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/__room_action") {
+      const { pathname, payload } = await request.json();
+      this.actions.push(pathname);
+      const delegatedEnv = { ...this.env, ROOM_OBJECT: null };
+      const response = await worker.fetch(new Request(`https://sogotable.test${pathname}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }), delegatedEnv);
+      const body = await response.clone().json();
+      if (body.room) this.snapshots.push(body.room);
+      if (body.closed && body.room_code) this.closed.push(body.room_code);
+      return response;
+    }
     if (request.method === "POST" && url.pathname === "/__room_snapshot") {
       this.snapshots.push(await request.json());
       return Response.json({ ok: true });
@@ -352,6 +372,7 @@ test("notifies the room durable object after meaningful room changes", async () 
   const joined = await post(env, "/api/room/join", { code: "PUSH", player: guest });
   assert.equal(joined.ok, true);
   assert.equal(roomObject.snapshots.at(-1).status, "active");
+  assert.deepEqual(roomObject.actions, ["/api/room/join"]);
 
   const xSeat = joined.room.players.find((seat) => seat.mark === "X");
   await post(env, "/api/room/move", { code: "PUSH", player_id: xSeat.id, board: 0, cell: 0 });
@@ -359,6 +380,7 @@ test("notifies the room durable object after meaningful room changes", async () 
 
   await post(env, "/api/room/leave", { code: "PUSH", player_id: host.id, requester_id: host.id });
   assert.deepEqual(roomObject.closed, ["PUSH"]);
+  assert.deepEqual(roomObject.actions, ["/api/room/join", "/api/room/move", "/api/room/leave"]);
 });
 
 test("notifies the app event hub with room, lobby, and invite snapshots", async () => {

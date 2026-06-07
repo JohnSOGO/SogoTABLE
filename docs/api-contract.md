@@ -414,6 +414,8 @@ Declined response:
 
 The hosted Worker stores current playtest state in D1. It uses optimistic locking on the single state row so stale concurrent writes fail instead of silently overwriting newer state.
 
+Active room mutations for `POST /api/room/join`, `POST /api/room/leave`, `POST /api/room/close`, `POST /api/room/move`, and `POST /api/room/reset` are routed through the room's Durable Object before persistence. The public HTTP request/response contract stays the same, but the room object serializes these changes per room and broadcasts the resulting room snapshot.
+
 Read-only `GET` polling endpoints must not write the whole state row back to D1.
 
 Worker tests live under `workers/tests/` and run with:

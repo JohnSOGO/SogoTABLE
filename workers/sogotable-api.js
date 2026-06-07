@@ -49,6 +49,11 @@ export default {
     if (request.method === "GET" && url.pathname === "/api/room/socket") return roomSocket(request, env, url);
     if (request.method === "GET" && url.pathname === "/api/events/socket") return appEventsSocket(request, env, url);
     try {
+      if (request.method === "POST" && roomAuthorityPath(url.pathname) && env.ROOM_OBJECT) {
+        const payload = await readJson(request);
+        const response = await roomAuthorityRequest(env, url.pathname, payload);
+        return json(response, response.ok === false ? 400 : 200, corsHeaders);
+      }
       const data = await loadState(env);
       const payload = request.method === "POST" ? await readJson(request) : {};
       const response = await routeRequest(request.method, url, payload, data);
@@ -65,13 +70,18 @@ export default {
 };
 
 export class RoomDurableObject {
-  constructor(state) {
+  constructor(state, env) {
     this.state = state;
+    this.env = env;
     this.sessions = new Set();
   }
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/__room_action") {
+      const { pathname, payload } = await request.json();
+      return this.handleRoomAction(pathname, payload || {});
+    }
     if (request.method === "POST" && url.pathname === "/__room_snapshot") {
       const room = await request.json();
       await this.storeRoomSnapshot(room);
@@ -103,6 +113,31 @@ export class RoomDurableObject {
   async storeRoomClosed(code) {
     await this.state.storage.delete("room");
     this.broadcast({ type: "room_closed", code });
+  }
+
+  async handleRoomAction(pathname, payload) {
+    try {
+      const response = await withStateRetry(async () => {
+        const data = await loadState(this.env);
+        const result = await routeRequest("POST", new URL(`https://room.object${pathname}`), payload, data);
+        await saveState(this.env, data);
+        await this.publishRoomResult(result);
+        await notifyEventHub(this.env, data, result);
+        return result;
+      });
+      return json(response);
+    } catch (error) {
+      return json({ ok: false, error: error.message || "Room action failed." }, 400);
+    }
+  }
+
+  async publishRoomResult(response) {
+    if (!response || response.ok === false) return;
+    if (response.room && response.room.code) {
+      await this.storeRoomSnapshot(response.room);
+      return;
+    }
+    if (response.closed && response.room_code) await this.storeRoomClosed(response.room_code);
   }
 
   broadcast(message) {
@@ -315,6 +350,26 @@ function roomSocket(request, env, url) {
   return env.ROOM_OBJECT.getByName(code).fetch(request);
 }
 
+function roomAuthorityPath(pathname) {
+  return [
+    "/api/room/join",
+    "/api/room/leave",
+    "/api/room/close",
+    "/api/room/move",
+    "/api/room/reset",
+  ].includes(pathname);
+}
+
+async function roomAuthorityRequest(env, pathname, payload) {
+  const code = cleanRoomCode(payload.code || "");
+  const response = await env.ROOM_OBJECT.getByName(code).fetch(new Request("https://room.object/__room_action", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pathname, payload }),
+  }));
+  return response.json();
+}
+
 function appEventsSocket(request, env, url) {
   if (!env.EVENT_HUB) return json({ ok: false, error: "App event updates are not configured." }, 503);
   const gameId = safeGameIdForEvents(url.searchParams.get("game_id") || "super_tic_tac_toe");
@@ -426,6 +481,19 @@ async function saveState(env, data) {
     "UPDATE app_state SET value = ?, version = version + 1 WHERE key = ? AND version = ?"
   ).bind(value, "state", data.__version).run();
   if (!writeChanged(updated)) throw new Error("State changed while saving. Please retry.");
+}
+
+async function withStateRetry(action) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await action();
+    } catch (error) {
+      lastError = error;
+      if (!String(error.message || "").includes("State changed while saving")) throw error;
+    }
+  }
+  throw lastError;
 }
 
 async function ensureSchema(env) {

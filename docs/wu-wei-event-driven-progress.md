@@ -26,7 +26,9 @@ The app should move downhill toward event-driven updates, but the public play pa
 - [x] Public multi-device smoke test passed.
 - [x] Reduce timed room-list/invite/lobby polling after public phone smoke testing proved the event channel.
 - [x] Split large frontend controller code after the transport path is stable.
-- [ ] Move more active-room authority into Durable Objects only after the current Worker/D1 path is boring.
+- [x] Move active room join/leave/move/reset authority into Durable Objects.
+- [ ] Smoke-test Durable Object room authority on public multi-device play.
+- [ ] Move remaining room-adjacent invite/create authority only after the current room-authority path is boring.
 
 ## Progress Log
 
@@ -45,10 +47,12 @@ Completed:
 - User smoke-tested public multi-device play successfully with two iPhones and three browsers.
 - Reduced non-room fallback polling after smoke success: current-room summary fallback is 15 seconds, selected-game lobby fallback is 15 seconds, invite fallback is 30 seconds, and active-room socket recovery remains 15 seconds.
 - Split realtime socket and fallback timer wiring into `src/sogotable/static/realtime.js`. `app.js` still owns screen state and snapshot meaning.
+- Routed active room `join`, `leave`/`close`, `move`, and `reset` mutations through `RoomDurableObject` before D1 persistence. The room object now serializes these high-contention mutations and broadcasts the resulting room snapshot.
 
 Still pending:
 
 - Watch public phone play for missed app-level updates now that EventHub is primary and timed reads are slower fallback.
+- Smoke-test public play after the room-authority shift, especially quick back-to-back moves, reset voting, local opponent joins, remote joins, and exits.
 
 ## Next Implementation Slice
 

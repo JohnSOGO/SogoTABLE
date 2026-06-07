@@ -5,8 +5,8 @@ SogoTable is now a Cloudflare-hosted browser game platform.
 The active runtime path is:
 
 ```text
-Browser UI -> Cloudflare Worker API -> D1 state row -> Worker game rules -> room snapshot
-room snapshot -> Room Durable Object -> WebSocket clients -> Browser UI
+Browser UI -> Cloudflare Worker API -> Room Durable Object -> D1 state row -> room snapshot
+room snapshot -> WebSocket clients + EventHub snapshots -> Browser UI
 ```
 
 There is no Python code required in the current architecture.
@@ -17,7 +17,7 @@ There is no Python code required in the current architecture.
 - Vanilla browser JavaScript under `src/sogotable/static/`.
 - Cloudflare Worker API in `workers/sogotable-api.js`.
 - Cloudflare D1 database `sogotable-state` for shared state.
-- One `RoomDurableObject` per active room for live WebSocket fanout.
+- One `RoomDurableObject` per active room for serialized room mutations and live WebSocket fanout.
 - Node built-in test runner for Worker API contract tests.
 - PWA manifest and service worker for an installable mobile shell.
 
@@ -49,10 +49,10 @@ It owns:
 - persistent player roster
 - selected-game lobby presence
 - room creation and re-entry
-- room joins and exits
+- room joins and exits through the room Durable Object
 - invites and invite responses
-- reset voting
-- Super Tic Tac Toe move validation
+- reset voting through the room Durable Object
+- Super Tic Tac Toe move validation through the room Durable Object
 - room status and final game result
 - live room snapshot broadcast to connected room clients
 
@@ -70,12 +70,12 @@ The static frontend must not create local fallback players or local fallback roo
 
 The current public-playtesting backend stores shared app state as one JSON row in D1. The Worker uses a version column and optimistic locking so stale concurrent writes fail instead of silently overwriting newer state.
 
-Room-changing HTTP actions also notify the room's Durable Object. The Durable Object keeps the latest room snapshot and broadcasts meaningful changes to connected WebSocket clients. This removes aggressive room polling during normal connected play while preserving HTTP as the recovery/backfill path.
+Active room-changing HTTP actions now enter the room's Durable Object first for `join`, `leave`/`close`, `move`, and `reset`. The Durable Object serializes those mutations for that room, persists the resulting state through D1, stores the latest room snapshot, and broadcasts meaningful changes to connected WebSocket clients. This removes aggressive room polling during normal connected play while preserving HTTP as the recovery/backfill path.
 
-This is good enough for family playtesting. The next Durable Object step is to move per-room validation and persistence fully inside the room object:
+This is good enough for family playtesting. The next Durable Object step is to reduce the remaining Worker-owned room-adjacent paths, especially invite lifecycle and room creation, once the current room-authority path has been smoke-tested:
 
 ```text
-One room -> one Durable Object authority for validation and live state
+One room -> one Durable Object authority for validation, invite lifecycle, and live state
 D1 -> roster/history/statistics/backfill indexes
 ```
 
@@ -142,5 +142,6 @@ Likely progression:
 
 1. Use room WebSockets for normal active-room updates.
 2. Keep HTTP refresh/backfill for reconnect and stale snapshots.
-3. Move per-room validation and persistence fully inside Durable Objects when simultaneous turns or stale writes become a real issue.
-4. Add room history/statistics in D1.
+3. Route active room `join`, `leave`, `move`, and `reset` through the room Durable Object.
+4. Move remaining room-adjacent lifecycle, especially invites and creation, into the room object if the current path remains stable.
+5. Add room history/statistics in D1.
