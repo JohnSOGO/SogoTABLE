@@ -69,6 +69,7 @@ localStorage.setItem("sogogames.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
   registerServiceWorker();
+  refreshRevisionSummary();
   bindNavigation();
   renderGames();
   renderChoices();
@@ -103,6 +104,19 @@ document.addEventListener("DOMContentLoaded", () => {
   startRoomListPolling();
   startInvitePolling();
 });
+
+async function refreshRevisionSummary() {
+  const host = document.getElementById("revisionSummary");
+  if (!host) return;
+  try {
+    const response = await fetch("/api/status");
+    const data = await response.json();
+    if (!data.ok || !data.status) throw new Error("status unavailable");
+    host.textContent = data.status.summary;
+  } catch {
+    host.textContent = "revision unavailable";
+  }
+}
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;

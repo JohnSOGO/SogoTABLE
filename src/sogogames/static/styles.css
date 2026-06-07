@@ -123,6 +123,19 @@ input {
   text-align: center;
 }
 
+.revision-summary {
+  justify-self: center;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(5, 5, 5, 0.38);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
 .intro-art {
   width: min(100%, 420px);
   aspect-ratio: 1;

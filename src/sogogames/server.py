@@ -12,10 +12,12 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from src.sogogames.super_tic_tac_toe import InvalidMove, SuperTicTacToeState
+from src.sogogames.revision import get_revision_summary
 
 HOST = "0.0.0.0"
 PORT = 8787
 STATIC_DIR = Path(__file__).with_name("static")
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 PLAYERS_FILE = DATA_DIR / "players.json"
 PLAYER_LOCK = threading.RLock()
@@ -140,6 +142,21 @@ class SogoGamesHandler(SimpleHTTPRequestHandler):
                 self._json({"ok": False, "error": "Room not found."}, HTTPStatus.NOT_FOUND)
                 return
             self._json({"ok": True, "room": room.to_dict()})
+            return
+        if parsed.path == "/api/status":
+            revision = get_revision_summary(REPO_ROOT)
+            self._json(
+                {
+                    "ok": True,
+                    "status": {
+                        "version": revision.version,
+                        "revision": revision.revision,
+                        "branch": revision.branch,
+                        "dirty": revision.dirty,
+                        "summary": revision.format(),
+                    },
+                }
+            )
             return
         if parsed.path == "/api/invites":
             query = parse_qs(parsed.query)

@@ -103,6 +103,8 @@ The browser frontend includes a conservative PWA shell:
 - API calls under `/api/` are intentionally excluded from service-worker handling so rooms, invites, moves, and player state stay live.
 - The current PWA promise is installability and better reload behavior, not offline gameplay.
 
+The intro screen also shows a small Git-backed revision label. The server exposes `/api/status` with the human-facing version, Git short hash, branch, dirty flag, and a formatted summary string. Git is the source of truth for revision identity, not a manual counter.
+
 ## Future Multiplayer
 
 The likely progression is:
