@@ -1,6 +1,6 @@
 import pytest
 
-from src.sogogames.server import INVITES, LOBBY_VIEWERS, ROOMS, Invite, Room, _activate_room_if_ready, _active_room_for_host, _active_room_for_player, _add_player_to_room, _close_room, _colors_are_too_similar, _handle_reset_vote, _lobby_viewers, _refresh_active_room_player, _room_status
+from src.sogotable.server import INVITES, LOBBY_VIEWERS, ROOMS, Invite, Room, _activate_room_if_ready, _active_room_for_host, _active_room_for_player, _add_player_to_room, _close_room, _colors_are_too_similar, _handle_reset_vote, _lobby_viewers, _refresh_active_room_player, _room_status
 
 
 @pytest.fixture(autouse=True)

@@ -11,8 +11,8 @@ import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from src.sogogames.super_tic_tac_toe import InvalidMove, SuperTicTacToeState
-from src.sogogames.revision import get_revision_summary
+from src.sogotable.super_tic_tac_toe import InvalidMove, SuperTicTacToeState
+from src.sogotable.revision import get_revision_summary
 
 HOST = "0.0.0.0"
 PORT = 8787
@@ -104,8 +104,8 @@ LOBBY_VIEWERS: dict[str, dict] = {}
 LOBBY_VIEWER_TTL_SECONDS = 45
 
 
-class SogoGamesHandler(SimpleHTTPRequestHandler):
-    server_version = "SogoGames/0.1"
+class SogoTableHandler(SimpleHTTPRequestHandler):
+    server_version = "SogoTable/0.1"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
@@ -687,8 +687,8 @@ def _activate_room_if_ready(room: Room) -> None:
 
 
 def main() -> None:
-    server = ThreadingHTTPServer((HOST, PORT), SogoGamesHandler)
-    print(f"SogoGAMES running at http://127.0.0.1:{PORT}/")
+    server = ThreadingHTTPServer((HOST, PORT), SogoTableHandler)
+    print(f"SogoTable running at http://127.0.0.1:{PORT}/")
     print("Use your LAN IP with port 8787 for phone testing on the same network.")
     server.serve_forever()
 

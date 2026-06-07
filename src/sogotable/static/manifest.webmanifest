@@ -1,7 +1,7 @@
 {
-  "name": "SogoTABLE",
-  "short_name": "SogoTABLE",
-  "description": "Mobile-first family table games from SogoGAMES.",
+  "name": "SogoTable",
+  "short_name": "SogoTable",
+  "description": "Mobile-first family table games from SogoTable.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

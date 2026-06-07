@@ -1,11 +1,11 @@
 # Architecture
 
-SogoGAMES starts as a dependency-light Python web app with a vanilla browser frontend.
+SogoTable starts as a dependency-light Python web app with a vanilla browser frontend.
 
 ## Chosen Stack
 
 - Python standard library `http.server` for local development.
-- Python game engine modules under `src/sogogames/`.
+- Python game engine modules under `src/sogotable/`.
 - Vanilla JavaScript for the browser UI.
 - Progressive Web App manifest and service worker for an installable mobile shell.
 - `pytest` for game-rule tests.
@@ -15,12 +15,12 @@ The stack is intentionally small. The first milestone needs a reliable playable 
 ## Folder Layout
 
 ```text
-SogoGames/
+SogoTable/
   README.md
   AGENTS.md
   docs/
   src/
-    sogogames/
+    sogotable/
       super_tic_tac_toe.py
       server.py
       static/
@@ -98,7 +98,7 @@ The browser main menu shows the current player, `Select Player` and `Create Play
 
 The browser frontend includes a conservative PWA shell:
 
-- `manifest.webmanifest` declares the SogoTABLE app name, red theme color, and install icons.
+- `manifest.webmanifest` declares the SogoTable app name, red theme color, and install icons.
 - `service-worker.js` precaches and refreshes static shell assets.
 - API calls under `/api/` are intentionally excluded from service-worker handling so rooms, invites, moves, and player state stay live.
 - The current PWA promise is installability and better reload behavior, not offline gameplay.

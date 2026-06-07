@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const staticDir = join(root, "src", "sogogames", "static");
+const staticDir = join(root, "src", "sogotable", "static");
 const version = "0.1.0";
 
 function git(...args) {
@@ -22,7 +22,7 @@ const branch =
   process.env.GITHUB_REF_NAME ||
   "unknown";
 const dirty = Boolean(git("status", "--porcelain"));
-const summary = `SogoTABLE ${version} rev ${revision} branch ${branch} ${dirty ? "dirty" : "clean"}`;
+const summary = `SogoTable ${version} rev ${revision} branch ${branch} ${dirty ? "dirty" : "clean"}`;
 
 mkdirSync(staticDir, { recursive: true });
 writeFileSync(

@@ -2,7 +2,7 @@
 
 ## 1. Repo Scaffold
 
-- Create standalone SogoGAMES repository.
+- Create standalone SogoTable repository.
 - Add docs, source layout, tests layout, and local run instructions.
 
 ## 2. Super Tic Tac Toe Rules Engine

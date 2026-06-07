@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.sogogames.revision import APP_VERSION, get_revision_summary
+from src.sogotable.revision import APP_VERSION, get_revision_summary
 
 
 def test_revision_summary_uses_git_identity():
@@ -9,4 +9,4 @@ def test_revision_summary_uses_git_identity():
     assert summary.version == APP_VERSION
     assert summary.revision
     assert summary.branch
-    assert summary.format().startswith("SogoTABLE ")
+    assert summary.format().startswith("SogoTable ")

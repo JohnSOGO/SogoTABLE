@@ -1,4 +1,4 @@
-from src.sogogames import server
+from src.sogotable import server
 
 
 def test_player_roster_persists_to_json(tmp_path, monkeypatch):

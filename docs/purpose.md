@@ -1,6 +1,6 @@
 # Purpose
 
-SogoGAMES exists to make short family wait times easier and more fun.
+SogoTable exists to make short family wait times easier and more fun.
 
 The target situation is a group sitting together at a restaurant with phones in hand. The app should be quick to open, easy to understand, and safe for casual play without setup friction.
 
@@ -16,7 +16,7 @@ The target situation is a group sitting together at a restaurant with phones in 
 
 ## First User Flow
 
-1. Open SogoGAMES.
+1. Open SogoTable.
 2. Tap `Start Playing`.
 3. Pick or create a player.
 4. Tap a game.

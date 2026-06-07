@@ -1,6 +1,6 @@
-# SogoGAMES
+# SogoTable
 
-SogoGAMES is a small local-first family game platform for casual turn-based games on phones. The first proof-of-concept game is Super Tic Tac Toe, also known as Ultimate Tic Tac Toe.
+SogoTable is a small local-first family game platform for casual turn-based games on phones. The first proof-of-concept game is Super Tic Tac Toe, also known as Ultimate Tic Tac Toe.
 
 The product target is simple: family members sitting together at a restaurant can open a browser, pick a player, join a room, and play without installing an app or creating a heavyweight account.
 
@@ -17,8 +17,8 @@ The product target is simple: family members sitting together at a restaurant ca
 ## Stack
 
 - Python standard library HTTP server.
-- Python rules engine under `src/sogogames/`.
-- Vanilla HTML/CSS/JavaScript under `src/sogogames/static/`.
+- Python rules engine under `src/sogotable/`.
+- Vanilla HTML/CSS/JavaScript under `src/sogotable/static/`.
 - PWA manifest and service worker for installable phone-browser shell.
 - Cloudflare Worker + D1 brain for hosted public multiplayer API.
 - `pytest` for rules-engine tests.
@@ -30,7 +30,7 @@ This avoids framework weight while keeping a clear path to add Flask/FastAPI, SQ
 From this repo:
 
 ```powershell
-python -m src.sogogames.server
+python -m src.sogotable.server
 ```
 
 Then open:

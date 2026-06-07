@@ -1,6 +1,6 @@
-# SogoGAMES State Machine
+# SogoTable State Machine
 
-This document is the durable state-machine source of truth for the current SogoGAMES browser UI.
+This document is the durable state-machine source of truth for the current SogoTable browser UI.
 
 Future AI agents should read this before changing navigation, room flow, lobby behavior, player identity, or Super Tic Tac Toe display behavior. The project has moved beyond the older design idea where a room-entry screen or separate game lobby was the primary interaction model. The current product model is:
 
@@ -62,8 +62,8 @@ Persistent player color is a preference. A room seat may use a gameplay-safe dis
 
 Each browser stores its own durable selected player:
 
-- `sogogames.deviceSelectedPlayerId`
-- `sogogames.deviceSelectionHash`
+- `sogotable.deviceSelectedPlayerId`
+- `sogotable.deviceSelectionHash`
 
 During local hot-seat play, runtime `selectedPlayerId` may temporarily point to the current-turn player. That temporary actor must not overwrite the durable device/home selected player.
 
@@ -89,7 +89,7 @@ DOM screen id:
 Purpose:
 
 - Lightweight opening screen.
-- Opens the app with the SogoTABLE image mark and a direct path into player/game selection.
+- Opens the app with the SogoTable image mark and a direct path into player/game selection.
 - Sends user into player/game selection.
 
 Required display:
@@ -105,7 +105,7 @@ Allowed transitions:
 
 Do not:
 
-- Show a visible `SogoGAMES` heading on the splash.
+- Show a visible `SogoTable` heading on the splash.
 - Add setup forms here.
 - Add room controls here.
 - Add game descriptions here beyond light intro copy.

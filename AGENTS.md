@@ -1,6 +1,6 @@
 # AI Instructions
 
-SogoGAMES is a separate project from Ozymandias2. Ozymandias2 may be used as a reference for organization, documentation habits, local runtime pragmatism, and small-system design, but future agents must not mutate or depend on Ozymandias2 while working here.
+SogoTable is a separate project from Ozymandias2. Ozymandias2 may be used as a reference for organization, documentation habits, local runtime pragmatism, and small-system design, but future agents must not mutate or depend on Ozymandias2 while working here.
 
 ## Project Goal
 
@@ -52,7 +52,7 @@ Super Tic Tac Toe is the first proof-of-concept. It should prove:
 
 ## Current Product Memory
 
-- SogoGAMES is a game platform, not a single-game app. Super Tic Tac Toe is the first game in a future games menu.
+- SogoTable is a game platform, not a single-game app. Super Tic Tac Toe is the first game in a future games menu.
 - One-phone hot-seat play matters: a single phone should be able to host both players and swap turns smoothly.
 - Multi-phone same-network play matters: use the LAN URL and room codes.
 - Win feedback matters: show the winning macro line, highlight winning cells, declare the winning player by name, and show a delayed celebration overlay with the player's icon.

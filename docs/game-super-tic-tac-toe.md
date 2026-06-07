@@ -1,6 +1,6 @@
 # Super Tic Tac Toe
 
-Super Tic Tac Toe, also called Ultimate Tic Tac Toe, is the first SogoGAMES proof-of-concept.
+Super Tic Tac Toe, also called Ultimate Tic Tac Toe, is the first SogoTable proof-of-concept.
 
 ## Rules
 

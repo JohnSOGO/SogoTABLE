@@ -17,7 +17,7 @@ class RevisionSummary:
 
     def format(self) -> str:
         status = "dirty" if self.dirty else "clean"
-        return f"SogoTABLE {self.version} rev {self.revision} branch {self.branch} {status}"
+        return f"SogoTable {self.version} rev {self.revision} branch {self.branch} {status}"
 
 
 def get_revision_summary(repo_root: Path) -> RevisionSummary:

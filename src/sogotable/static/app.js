@@ -20,6 +20,7 @@ const paletteColors = [
   "#334155",
 ];
 const HOSTED_API_ORIGIN = "https://sogotable.sogodojo.com";
+const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
 const games = [
   {
     id: "super_tic_tac_toe",
@@ -41,12 +42,14 @@ const winLines = [
   [2, 4, 6],
 ];
 
+migrateStorageNamespace();
+
 let players = [];
-let selectedPlayerId = localStorage.getItem("sogogames.selectedPlayerId") || "";
-let deviceSelectedPlayerId = localStorage.getItem("sogogames.deviceSelectedPlayerId") || selectedPlayerId;
-let deviceSelectionHash = localStorage.getItem("sogogames.deviceSelectionHash") || randomTenDigitHash();
+let selectedPlayerId = localStorage.getItem("sogotable.selectedPlayerId") || "";
+let deviceSelectedPlayerId = localStorage.getItem("sogotable.deviceSelectedPlayerId") || selectedPlayerId;
+let deviceSelectionHash = localStorage.getItem("sogotable.deviceSelectionHash") || randomTenDigitHash();
 if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
-let selectedGameId = localStorage.getItem("sogogames.selectedGameId") || games[0].id;
+let selectedGameId = localStorage.getItem("sogotable.selectedGameId") || games[0].id;
 let selectedIcon = randomIcon();
 let selectedColor = paletteColors[0];
 let currentRoom = null;
@@ -67,7 +70,7 @@ let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let pendingConfirmAction = null;
 let handledResetRequestKey = "";
-localStorage.setItem("sogogames.deviceSelectionHash", deviceSelectionHash);
+localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
   purgeDeprecatedLocalRoster();
@@ -139,7 +142,7 @@ function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/service-worker.js").catch((error) => {
-      console.warn("SogoTABLE service worker unavailable.", error);
+      console.warn("SogoTable service worker unavailable.", error);
     });
   });
 }
@@ -1540,25 +1543,44 @@ async function refreshPlayers() {
 
 function loadLocalGameHomePlayers() {
   try {
-    return JSON.parse(localStorage.getItem("sogogames.localGameHomePlayers") || "{}");
+    return JSON.parse(localStorage.getItem("sogotable.localGameHomePlayers") || "{}");
   } catch {
     return {};
   }
 }
 
 function saveLocalGameHomePlayers() {
-  localStorage.setItem("sogogames.localGameHomePlayers", JSON.stringify(localGameHomePlayers));
+  localStorage.setItem("sogotable.localGameHomePlayers", JSON.stringify(localGameHomePlayers));
 }
 
 function saveSelectedPlayer() {
-  localStorage.setItem("sogogames.deviceSelectedPlayerId", deviceSelectedPlayerId);
-  localStorage.setItem("sogogames.selectedPlayerId", deviceSelectedPlayerId);
-  localStorage.setItem("sogogames.deviceSelectionHash", deviceSelectionHash);
+  localStorage.setItem("sogotable.deviceSelectedPlayerId", deviceSelectedPlayerId);
+  localStorage.setItem("sogotable.selectedPlayerId", deviceSelectedPlayerId);
+  localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
 }
 
 function purgeDeprecatedLocalRoster() {
-  localStorage.removeItem("sogogames.players");
-  localStorage.removeItem("sogogames.playersMigrated");
+  localStorage.removeItem("sogotable.players");
+  localStorage.removeItem("sogotable.playersMigrated");
+  localStorage.removeItem(`${LEGACY_STORAGE_PREFIX}.players`);
+  localStorage.removeItem(`${LEGACY_STORAGE_PREFIX}.playersMigrated`);
+}
+
+function migrateStorageNamespace() {
+  const keys = [
+    "selectedPlayerId",
+    "deviceSelectedPlayerId",
+    "deviceSelectionHash",
+    "selectedGameId",
+    "localGameHomePlayers",
+  ];
+  keys.forEach((key) => {
+    const oldKey = `${LEGACY_STORAGE_PREFIX}.${key}`;
+    const newKey = `sogotable.${key}`;
+    if (localStorage.getItem(newKey) === null && localStorage.getItem(oldKey) !== null) {
+      localStorage.setItem(newKey, localStorage.getItem(oldKey));
+    }
+  });
 }
 
 function showRosterError(message) {
@@ -1567,7 +1589,7 @@ function showRosterError(message) {
 }
 
 function saveSelectedGame() {
-  localStorage.setItem("sogogames.selectedGameId", selectedGameId);
+  localStorage.setItem("sogotable.selectedGameId", selectedGameId);
 }
 
 function avatarHtml(player) {

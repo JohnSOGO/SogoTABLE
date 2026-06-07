@@ -1,5 +1,5 @@
 [project]
-name = "sogogames"
+name = "sogotable"
 version = "0.1.0"
 description = "Local-first family turn-based game platform."
 requires-python = ">=3.11"

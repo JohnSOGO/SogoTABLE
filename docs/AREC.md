@@ -63,7 +63,7 @@ The conclusion should include the next concrete action:
 When using AREC, the agent should be intense and skeptical.
 
 The point is not to be polite.
-The point is to prevent strategy drift, architecture sprawl, and AI hallucination from infecting Ozy or SogoGAMES.
+The point is to prevent strategy drift, architecture sprawl, and AI hallucination from infecting Ozy or SogoTable.
 
 The agent should especially watch for:
 - new ideology being smuggled in

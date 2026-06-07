@@ -4,7 +4,7 @@ This file is durable context for future Codex sessions. Read it with `AGENTS.md`
 
 ## Product Direction
 
-SogoGAMES is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, but the app should grow through a games menu and clear game modules rather than becoming a single-game app.
+SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, but the app should grow through a games menu and clear game modules rather than becoming a single-game app.
 
 `docs/state-machine.md` is the current source of truth for screen states, modal states, transitions, and display requirements. Future agents should update it whenever navigation, room flow, or game-screen state behavior changes.
 
@@ -30,22 +30,22 @@ The target use case is casual local play: family members can open a phone browse
 - Main menu game buttons should only show game names. Game descriptions belong on the selected game's game-selected screen or game room, not on the main menu.
 - Incoming AI handoff/prompt files may be placed in `AI/`. That directory is ignored and should be treated as input context, not product source.
 - The user does not want distracting effects. In local hot-seat Super Tic Tac Toe, turn and active-board feedback should use the current player's selected color, with only a brief one-shot flash and no continuous green pulse.
-- The opening splash should emphasize the SogoTABLE image mark, not a visible `SogoGAMES` heading. Keep it narrow-window friendly; the image should be centered and about 90% as wide as the `Start Playing` button.
+- The opening splash should emphasize the SogoTable image mark, not a visible `SogoTable` heading. Keep it narrow-window friendly; the image should be centered and about 90% as wide as the `Start Playing` button.
 
 ## Current Implemented Shape
 
-- Python standard-library HTTP server at `src/sogogames/server.py`.
-- Pure Python Super Tic Tac Toe rules engine at `src/sogogames/super_tic_tac_toe.py`.
-- Vanilla browser UI under `src/sogogames/static/`.
+- Python standard-library HTTP server at `src/sogotable/server.py`.
+- Pure Python Super Tic Tac Toe rules engine at `src/sogotable/super_tic_tac_toe.py`.
+- Vanilla browser UI under `src/sogotable/static/`.
 - Local in-memory rooms with 4-character room codes.
 - Persistent shared player roster in `data/players.json`, served by the local Python server.
 - Static Cloudflare Pages does not run the Python `/api/` endpoints. Public UI requests must target the hosted Cloudflare Worker brain at `https://sogotable.sogodojo.com/api/*`. If the Worker is unavailable, the UI must fail visibly and disable multiplayer actions rather than creating local-only player or room state.
 - Localhost and private LAN addresses such as `192.168.x.x:8787` intentionally use the local Python `/api` server. Public domains intentionally use the hosted Worker API. This is explicit routing, not fallback probing.
 - The hosted brain is a Cloudflare Worker configured by `wrangler.toml` and implemented in `workers/sogotable-api.js`. It mirrors the local Python API shape for players, lobby presence, rooms, invites, reset voting, and Super Tic Tac Toe moves so public browsers can see each other and play together. It currently stores shared state as one JSON row in D1 database `sogotable-state` (`bbb1cdec-0410-476f-b058-f216263b61d8`). KV was rejected because lobby/player activity hit the free daily write limit; isolate memory was rejected because phone and PC could land on different edge instances. Durable Objects remain a strong future architecture for stricter turn consistency, but D1 is the current public-playtesting backend.
-- Browser local storage keeps the device/home selected player separately from the active hot-seat turn actor. `sogogames.deviceSelectedPlayerId` is the browser's durable selected player; `selectedPlayerId` in runtime may temporarily point at the current turn owner during local hot-seat play.
+- Browser local storage keeps the device/home selected player separately from the active hot-seat turn actor. `sogotable.deviceSelectedPlayerId` is the browser's durable selected player; `selectedPlayerId` in runtime may temporarily point at the current turn owner during local hot-seat play.
 - Do not clear the durable device/home selected player merely because a roster fetch fails or a single refreshed roster does not contain that id. Clear it only when the user explicitly deletes that player or chooses another one; otherwise users feel forced to recreate persistent names.
 - Public builds briefly had a localStorage player fallback before the hosted D1 brain was stable. That fallback is intentionally removed because it creates false positives and separate PC/iPhone player universes. Player creation, deletion, room creation, and joins must use the shared API only.
-- Browser startup should purge the deprecated `sogogames.players` and `sogogames.playersMigrated` keys so old local-only roster data cannot be mistaken for live shared state.
+- Browser startup should purge the deprecated `sogotable.players` and `sogotable.playersMigrated` keys so old local-only roster data cannot be mistaken for live shared state.
 - Public room create/join actions must use the browser's device/home selected player from the shared API roster. Do not synthesize or migrate local fallback players into the hosted roster.
 - Open/current game cards are hints, not authority. When a user taps `Join Game` or `Re-enter Game`, fetch the room fresh from the shared brain before deciding whether the selected player is already seated, can join, or should see that the game is no longer open.
 - Hosted API read-only polling must not write the whole D1 state row back to the database. Saving after `GET` requests can resurrect stale room/player snapshots when several browsers and phones are polling at once.
@@ -91,7 +91,7 @@ The target use case is casual local play: family members can open a phone browse
 ## Verification Habits
 
 - Run `python -m pytest` after rules/server changes.
-- Run `node --check src\sogogames\static\app.js` after browser JavaScript changes.
+- Run `node --check src\sogotable\static\app.js` after browser JavaScript changes.
 - Check static assets through the running local server when UI files change.
 - PWA support is intentionally conservative: cache static shell assets and icons, but never cache `/api/` requests. The PWA improves phone install/reload feel; it does not promise offline multiplayer or replace the hosted Worker/state layer.
 - When public phone/PWA behavior changes, bump the service worker `CACHE_NAME`. Old iPhone installs can keep stale `app.js` even after reinstall if the service worker cache name stays the same. During fast public playtesting, core shell files (`/`, `/index.html`, `/app.js`, `/styles.css`, `/manifest.webmanifest`, `/revision.json`) should be network-only/no-store rather than cached.

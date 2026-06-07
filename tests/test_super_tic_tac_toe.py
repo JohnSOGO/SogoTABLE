@@ -1,6 +1,6 @@
 import pytest
 
-from src.sogogames.super_tic_tac_toe import InvalidMove, SuperTicTacToeState, new_game
+from src.sogotable.super_tic_tac_toe import InvalidMove, SuperTicTacToeState, new_game
 
 
 def test_initial_empty_game():
