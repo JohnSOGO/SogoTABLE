@@ -46,17 +46,56 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
     const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/")) return json({ ok: false, error: "Unknown endpoint." }, 404, corsHeaders);
+    if (request.method === "GET" && url.pathname === "/api/room/socket") return roomSocket(request, env, url);
     try {
       const data = await loadState(env);
       const payload = request.method === "POST" ? await readJson(request) : {};
       const response = await routeRequest(request.method, url, payload, data);
-      if (request.method !== "GET") await saveState(env, data);
+      if (request.method !== "GET") {
+        await saveState(env, data);
+        await notifyRoomObject(env, response);
+      }
       return json(response, 200, corsHeaders);
     } catch (error) {
       return json({ ok: false, error: error.message || "Request failed." }, 400, corsHeaders);
     }
   },
 };
+
+export class RoomDurableObject {
+  constructor(state) {
+    this.state = state;
+    this.sessions = new Set();
+  }
+
+  async fetch(request) {
+    const upgrade = request.headers.get("Upgrade") || "";
+    if (upgrade.toLowerCase() !== "websocket") return json({ ok: false, error: "Expected WebSocket upgrade." }, 426);
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    server.accept();
+    this.sessions.add(server);
+    server.addEventListener("close", () => this.sessions.delete(server));
+    server.addEventListener("error", () => this.sessions.delete(server));
+    const snapshot = await this.state.storage.get("room");
+    if (snapshot) safeSend(server, { type: "room_snapshot", room: snapshot });
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async setRoomSnapshot(room) {
+    await this.state.storage.put("room", room);
+    this.broadcast({ type: "room_snapshot", room });
+  }
+
+  async closeRoom(code) {
+    await this.state.storage.delete("room");
+    this.broadcast({ type: "room_closed", code });
+  }
+
+  broadcast(message) {
+    for (const session of [...this.sessions]) safeSend(session, message);
+  }
+}
 
 async function routeRequest(method, url, payload, data) {
   if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: data.players };
@@ -132,7 +171,7 @@ async function routeRequest(method, url, payload, data) {
       const code = cleanRoomCode(payload.code || "");
       const room = data.rooms[code];
       if (room) delete data.rooms[code];
-      return { ok: true, closed: true };
+      return { ok: true, closed: true, room_code: code };
     }
     if (method === "POST" && url.pathname === "/api/room/move") {
       const room = roomFromPayload(data, payload);
@@ -182,7 +221,7 @@ async function routeRequest(method, url, payload, data) {
         status: "pending",
       };
       data.invites[invite.id] = invite;
-      return { ok: true, invite };
+      return { ok: true, invite, room: roomToDict(data, room) };
     }
     if (method === "POST" && url.pathname === "/api/invite/respond") {
       const invite = data.invites[String(payload.invite_id || "").trim()];
@@ -191,7 +230,8 @@ async function routeRequest(method, url, payload, data) {
       if (player.id !== invite.target_id) throw new Error("Invite belongs to a different player.");
       if (!payload.accept) {
         invite.status = "declined";
-        return { ok: true, accepted: false };
+        const room = data.rooms[invite.room_code];
+        return { ok: true, accepted: false, room: room ? roomToDict(data, room) : null };
       }
       const room = data.rooms[invite.room_code];
       if (!room) {
@@ -204,6 +244,35 @@ async function routeRequest(method, url, payload, data) {
       return { ok: true, accepted: true, room: roomToDict(data, room) };
     }
   throw new Error("Unknown endpoint.");
+}
+
+function roomSocket(request, env, url) {
+  if (!env.ROOM_OBJECT) return json({ ok: false, error: "Room live updates are not configured." }, 503);
+  const code = cleanRoomCode(url.searchParams.get("code") || "");
+  return env.ROOM_OBJECT.getByName(code).fetch(request);
+}
+
+async function notifyRoomObject(env, response) {
+  if (!env.ROOM_OBJECT || !response || response.ok === false) return;
+  if (response.room && response.room.code) {
+    await env.ROOM_OBJECT.getByName(response.room.code).setRoomSnapshot(response.room);
+    return;
+  }
+  if (response.closed && response.room_code) {
+    await env.ROOM_OBJECT.getByName(response.room_code).closeRoom(response.room_code);
+  }
+}
+
+function safeSend(session, message) {
+  try {
+    session.send(JSON.stringify(message));
+  } catch {
+    try {
+      session.close(1011, "Unable to send room update.");
+    } catch {
+      // The connection is already gone.
+    }
+  }
 }
 
 async function loadState(env) {
@@ -261,7 +330,11 @@ function json(payload, status = 200, headers = baseCorsHeaders) {
 function corsHeadersFor(request) {
   const origin = request.headers.get("Origin");
   if (!origin) return { ...baseCorsHeaders, "Access-Control-Allow-Origin": "*" };
-  if (allowedOrigins.has(origin) || /^https:\/\/[a-z0-9-]+\.sogotable\.pages\.dev$/.test(origin)) {
+  if (
+    allowedOrigins.has(origin) ||
+    /^https:\/\/[a-z0-9-]+\.sogotable\.pages\.dev$/.test(origin) ||
+    /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
+  ) {
     return { ...baseCorsHeaders, "Access-Control-Allow-Origin": origin, Vary: "Origin" };
   }
   return null;

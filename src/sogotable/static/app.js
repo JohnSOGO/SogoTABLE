@@ -1,4 +1,4 @@
-import { api, fetchJson } from "./api-client.js";
+import { api, fetchJson, roomSocketUrl } from "./api-client.js";
 import {
   colorWithAlpha,
   getContrastAwareTextColor,
@@ -69,7 +69,10 @@ let currentGameRooms = [];
 let lobbyPlayers = [];
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
-let pollTimer = null;
+let roomSocket = null;
+let roomSocketFallbackTimer = null;
+let roomReconnectTimer = null;
+let roomSocketReconnectAttempts = 0;
 let roomListTimer = null;
 let inviteTimer = null;
 let lobbyPresenceTimer = null;
@@ -1213,14 +1216,101 @@ function renderConfetti() {
 }
 
 function startPolling() {
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(refreshRoom, 1500);
-  refreshRoom();
+  startRoomLiveUpdates();
 }
 
 function stopPolling() {
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = null;
+  stopRoomLiveUpdates();
+}
+
+function startRoomLiveUpdates() {
+  if (!currentRoom) return;
+  connectRoomSocket();
+  refreshRoom();
+}
+
+function stopRoomLiveUpdates() {
+  stopRoomSocket();
+  stopRoomFallbackPolling();
+}
+
+function connectRoomSocket() {
+  if (!currentRoom || !("WebSocket" in window)) {
+    startRoomFallbackPolling();
+    return;
+  }
+  if (roomSocket && roomSocket.readyState <= WebSocket.OPEN) return;
+  stopRoomSocket(false);
+  try {
+    roomSocket = new WebSocket(roomSocketUrl(currentRoom.code));
+  } catch {
+    scheduleRoomReconnect();
+    return;
+  }
+  roomSocket.addEventListener("open", () => {
+    roomSocketReconnectAttempts = 0;
+    stopRoomFallbackPolling();
+  });
+  roomSocket.addEventListener("message", handleRoomSocketMessage);
+  roomSocket.addEventListener("close", () => {
+    roomSocket = null;
+    if (currentRoom) {
+      showTurnStatus(null, "Reconnecting to room...");
+      startRoomFallbackPolling();
+      scheduleRoomReconnect();
+    }
+  });
+  roomSocket.addEventListener("error", () => {
+    if (roomSocket) roomSocket.close();
+  });
+}
+
+function stopRoomSocket(clearReconnect = true) {
+  if (roomSocket) {
+    const socket = roomSocket;
+    roomSocket = null;
+    socket.close();
+  }
+  if (clearReconnect && roomReconnectTimer) {
+    clearTimeout(roomReconnectTimer);
+    roomReconnectTimer = null;
+  }
+}
+
+function scheduleRoomReconnect() {
+  if (roomReconnectTimer || !currentRoom) return;
+  const delay = Math.min(30000, 2000 * 2 ** roomSocketReconnectAttempts);
+  roomSocketReconnectAttempts += 1;
+  roomReconnectTimer = setTimeout(() => {
+    roomReconnectTimer = null;
+    connectRoomSocket();
+  }, delay);
+}
+
+function startRoomFallbackPolling() {
+  if (roomSocketFallbackTimer) return;
+  roomSocketFallbackTimer = setInterval(refreshRoom, 15000);
+}
+
+function stopRoomFallbackPolling() {
+  if (roomSocketFallbackTimer) clearInterval(roomSocketFallbackTimer);
+  roomSocketFallbackTimer = null;
+}
+
+function handleRoomSocketMessage(event) {
+  let message;
+  try {
+    message = JSON.parse(event.data);
+  } catch {
+    return;
+  }
+  if (message.type === "room_snapshot" && message.room) {
+    setRoom(message.room);
+    return;
+  }
+  if (message.type === "room_closed") {
+    leaveClosedRoom();
+  }
 }
 
 function startRoomListPolling() {
@@ -1231,7 +1321,7 @@ function startRoomListPolling() {
 
 function startInvitePolling() {
   if (inviteTimer) clearInterval(inviteTimer);
-  inviteTimer = setInterval(pollInvites, 1500);
+  inviteTimer = setInterval(pollInvites, 10000);
   pollInvites();
 }
 

@@ -569,16 +569,19 @@ Contrast rules:
 
 ## Polling And Presence
 
-Current polling is intentionally simple.
+Current live updates are intentionally simple.
 
-Room polling:
+Room live updates:
 
-- Keeps room/game state current.
+- Normal active-room updates should arrive through the room WebSocket.
+- Move, join, leave, invite lifecycle, reset, and completed-state changes should render from received room snapshots.
 - If a room disappears, return the player to `GAME_SELECTED` for the current game type.
+- If the WebSocket disconnects, show a reconnecting state and use conservative HTTP refresh as fallback/recovery, not constant 1500ms polling.
 
 Invite polling:
 
 - Checks for pending invites for the browser's device/home selected player.
+- This remains slower fallback-style polling until player/session push exists.
 
 Lobby presence polling:
 

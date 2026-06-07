@@ -8,7 +8,7 @@ Build a mobile-first, browser-based family game platform for simple turn-based g
 
 ## Working Rules
 
-- At session start, read `AGENTS.md`, `README.md`, `docs/project-memory.md`, `docs/state-machine.md`, and `docs/AREC.md` before making project changes.
+- At session start, read `AGENTS.md`, `README.md`, `docs/project-memory.md`, `docs/state-machine.md`, `docs/AREC.md`, and `docs/wu-wei-method.md` before making project changes.
 - If the user writes `AREC`, follow the command structure and behavior rules in `docs/AREC.md`.
 - Keep scope small and playable.
 - Prefer the public Cloudflare play path over maintaining a separate local backend.
@@ -29,7 +29,7 @@ Build a mobile-first, browser-based family game platform for simple turn-based g
 - Cloudflare Pages serves the static app.
 - Cloudflare Worker + D1 is the active shared multiplayer brain.
 - Do not reintroduce a Python gameplay backend unless the user explicitly asks for it.
-- Introduce WebSockets only when polling is no longer good enough.
+- Use the room WebSocket path for active-room updates; keep other realtime mechanisms conservative until they are clearly worth the complexity.
 - Add games through clear modules instead of mixing all rules into the UI.
 
 ## First Game

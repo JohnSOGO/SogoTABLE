@@ -11,3 +11,11 @@ routes = [
 binding = "SOGOTABLE_STATE"
 database_name = "sogotable-state"
 database_id = "bbb1cdec-0410-476f-b058-f216263b61d8"
+
+[[durable_objects.bindings]]
+name = "ROOM_OBJECT"
+class_name = "RoomDurableObject"
+
+[[migrations]]
+tag = "v1_room_durable_object"
+new_sqlite_classes = [ "RoomDurableObject" ]

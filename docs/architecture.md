@@ -5,7 +5,8 @@ SogoTable is now a Cloudflare-hosted browser game platform.
 The active runtime path is:
 
 ```text
-Browser UI -> Cloudflare Worker API -> D1 state row -> Worker game rules -> JSON state -> Browser UI
+Browser UI -> Cloudflare Worker API -> D1 state row -> Worker game rules -> room snapshot
+room snapshot -> Room Durable Object -> WebSocket clients -> Browser UI
 ```
 
 There is no Python code required in the current architecture.
@@ -16,6 +17,7 @@ There is no Python code required in the current architecture.
 - Vanilla browser JavaScript under `src/sogotable/static/`.
 - Cloudflare Worker API in `workers/sogotable-api.js`.
 - Cloudflare D1 database `sogotable-state` for shared state.
+- One `RoomDurableObject` per active room for live WebSocket fanout.
 - Node built-in test runner for Worker API contract tests.
 - PWA manifest and service worker for an installable mobile shell.
 
@@ -40,7 +42,7 @@ SogoTable/
 
 ## Runtime Ownership
 
-The Worker is the single multiplayer authority.
+The Worker plus the room Durable Object path is the single multiplayer authority.
 
 It owns:
 
@@ -52,6 +54,7 @@ It owns:
 - reset voting
 - Super Tic Tac Toe move validation
 - room status and final game result
+- live room snapshot broadcast to connected room clients
 
 The browser owns:
 
@@ -67,11 +70,13 @@ The static frontend must not create local fallback players or local fallback roo
 
 The current public-playtesting backend stores shared app state as one JSON row in D1. The Worker uses a version column and optimistic locking so stale concurrent writes fail instead of silently overwriting newer state.
 
-This is good enough for family playtesting. Durable Objects remain the preferred future architecture for stricter per-room turn consistency:
+Room-changing HTTP actions also notify the room's Durable Object. The Durable Object keeps the latest room snapshot and broadcasts meaningful changes to connected WebSocket clients. This removes aggressive room polling during normal connected play while preserving HTTP as the recovery/backfill path.
+
+This is good enough for family playtesting. The next Durable Object step is to move per-room validation and persistence fully inside the room object:
 
 ```text
-One room -> one Durable Object authority
-D1 -> roster/history/statistics
+One room -> one Durable Object authority for validation and live state
+D1 -> roster/history/statistics/backfill indexes
 ```
 
 ## Game Logic
@@ -104,6 +109,7 @@ High-level endpoint groups:
 - `POST /api/lobby/presence`
 - `GET /api/rooms`
 - `GET /api/room`
+- `GET /api/room/socket`
 - `POST /api/room/create`
 - `POST /api/room/join`
 - `POST /api/room/leave`
@@ -134,7 +140,7 @@ Git is the source of truth for revision identity.
 
 Likely progression:
 
-1. Keep HTTP polling while family playtesting remains smooth.
-2. Move per-room authority to Durable Objects when simultaneous turns or stale writes become a real issue.
-3. Add room history/statistics in D1.
-4. Add WebSocket/SSE updates only if polling feels slow or visually noisy.
+1. Use room WebSockets for normal active-room updates.
+2. Keep HTTP refresh/backfill for reconnect and stale snapshots.
+3. Move per-room validation and persistence fully inside Durable Objects when simultaneous turns or stale writes become a real issue.
+4. Add room history/statistics in D1.

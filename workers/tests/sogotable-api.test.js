@@ -64,6 +64,37 @@ function makeEnv() {
   return { SOGOTABLE_STATE: new InMemoryD1() };
 }
 
+function makeEnvWithRooms() {
+  return { SOGOTABLE_STATE: new InMemoryD1(), ROOM_OBJECT: new MockRoomNamespace() };
+}
+
+class MockRoomNamespace {
+  constructor() {
+    this.objects = new Map();
+  }
+
+  getByName(name) {
+    if (!this.objects.has(name)) this.objects.set(name, new MockRoomObject(name));
+    return this.objects.get(name);
+  }
+}
+
+class MockRoomObject {
+  constructor(name) {
+    this.name = name;
+    this.snapshots = [];
+    this.closed = [];
+  }
+
+  async setRoomSnapshot(room) {
+    this.snapshots.push(room);
+  }
+
+  async closeRoom(code) {
+    this.closed.push(code);
+  }
+}
+
 function player(id, name = id, color = "#1f7a5f") {
   return { id, name, icon: name.slice(0, 1), color };
 }
@@ -150,10 +181,19 @@ test("allows known browser origins and blocks unknown browser origins", async ()
     { player: player("p2", "Player Two") },
     { Origin: "https://example.com" },
   );
+  const localPreview = await request(
+    env,
+    "GET",
+    "/api/players",
+    undefined,
+    { Origin: "http://127.0.0.1:8788" },
+  );
 
   assert.equal(allowed.response.status, 200);
   assert.equal(allowed.response.headers.get("Access-Control-Allow-Origin"), "https://sogotable.sogodojo.com");
   assert.equal(allowed.json.ok, true);
+  assert.equal(localPreview.response.status, 200);
+  assert.equal(localPreview.response.headers.get("Access-Control-Allow-Origin"), "http://127.0.0.1:8788");
   assert.equal(blocked.response.status, 403);
   assert.equal(blocked.response.headers.get("Access-Control-Allow-Origin"), null);
   assert.equal(blocked.json.ok, false);
@@ -239,4 +279,35 @@ test("creates invites and handles decline and accept", async () => {
   assert.equal(accepted.accepted, true);
   assert.equal(accepted.room.status, "active");
   assert.equal(accepted.room.players.length, 2);
+});
+
+test("notifies the room durable object after meaningful room changes", async () => {
+  const env = makeEnvWithRooms();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "PUSH" });
+  const roomObject = env.ROOM_OBJECT.getByName("PUSH");
+
+  assert.equal(created.ok, true);
+  assert.equal(roomObject.snapshots.length, 1);
+  assert.equal(roomObject.snapshots[0].status, "waiting_for_player");
+
+  const invite = await post(env, "/api/invite/create", { code: "PUSH", host_id: host.id, player: guest });
+  assert.equal(invite.ok, true);
+  assert.equal(roomObject.snapshots.at(-1).latest_invite.status, "pending");
+
+  const declined = await post(env, "/api/invite/respond", { invite_id: invite.invite.id, accept: false, player: guest });
+  assert.equal(declined.ok, true);
+  assert.equal(roomObject.snapshots.at(-1).latest_invite.status, "declined");
+
+  const joined = await post(env, "/api/room/join", { code: "PUSH", player: guest });
+  assert.equal(joined.ok, true);
+  assert.equal(roomObject.snapshots.at(-1).status, "active");
+
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+  await post(env, "/api/room/move", { code: "PUSH", player_id: xSeat.id, board: 0, cell: 0 });
+  assert.equal(roomObject.snapshots.at(-1).game.move_count, 1);
+
+  await post(env, "/api/room/leave", { code: "PUSH", player_id: host.id, requester_id: host.id });
+  assert.deepEqual(roomObject.closed, ["PUSH"]);
 });

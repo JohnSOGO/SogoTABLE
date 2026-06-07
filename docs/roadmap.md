@@ -28,7 +28,7 @@
 
 - Support multiple phones from the public Cloudflare site.
 - Keep shared state in the Worker/D1 brain.
-- Continue polling until server-sent updates or WebSockets are clearly worth the complexity.
+- Use room WebSockets for active-room updates and keep polling as reconnect/backfill.
 
 ## 6. Account Persistence
 

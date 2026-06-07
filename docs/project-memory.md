@@ -19,6 +19,7 @@ The target use case is casual local play: family members can open a phone browse
 - The user wants Codex to pay close attention to live playtest feedback and treat it as product-owner direction.
 - The user wants future Codex sessions to be up to speed after reading `AGENTS.md`, `README.md`, and docs.
 - The user values copious documentation as the project evolves, especially project goals, decisions, preferences, and test workflows.
+- The user wants SogoTable to use a Wu Wei / downhill-flow programming method adapted from Ozymandias2: shape the app so correct play naturally flows through the right boundaries instead of relying on scattered special cases. The durable SogoTable version lives in `docs/wu-wei-method.md`.
 - The user prefers small playable improvements over large speculative architecture.
 - The user likes clear, polished mobile UI details: centered marks, obvious valid moves, visual win lines, player-name win declarations, and celebratory feedback.
 - The user wants shared player rosters across PC/iPhone, not per-device player lists.
@@ -44,6 +45,7 @@ The target use case is casual local play: family members can open a phone browse
 - All `/api/*` browser calls target the hosted Worker brain at `https://sogotable.sogodojo.com/api/*`, including local static previews. Do not reintroduce localhost/private-LAN API routing unless the user explicitly asks for a local backend again.
 - If the Worker is unavailable, the UI must fail visibly and disable multiplayer actions rather than creating local-only player or room state.
 - The hosted brain is a Cloudflare Worker configured by `wrangler.toml` and implemented in `workers/sogotable-api.js`. It owns players, lobby presence, rooms, invites, reset voting, and Super Tic Tac Toe moves so public browsers can see each other and play together. It currently stores shared state as one JSON row in D1 database `sogotable-state` (`bbb1cdec-0410-476f-b058-f216263b61d8`) with optimistic version locking. KV was rejected because lobby/player activity hit the free daily write limit; isolate memory was rejected because phone and PC could land on different edge instances. Durable Objects remain a strong future architecture for stricter turn consistency, but D1 is the current public-playtesting backend.
+- A Wu Wei room-events branch adds `RoomDurableObject` as one live WebSocket fanout object per room. HTTP/D1 still validates and persists the state change, then sends the resulting room snapshot to the room object for broadcast. This removes aggressive active-room polling in normal connected play while preserving HTTP as the reconnect/backfill path. A later deeper pass can move per-room validation/persistence fully into the Durable Object.
 - Browser local storage keeps the device/home selected player separately from the active hot-seat turn actor. `sogotable.deviceSelectedPlayerId` is the browser's durable selected player; `selectedPlayerId` in runtime may temporarily point at the current turn owner during local hot-seat play.
 - Do not clear the durable device/home selected player merely because a roster fetch fails or a single refreshed roster does not contain that id. Clear it only when the user explicitly deletes that player or chooses another one; otherwise users feel forced to recreate persistent names.
 - Public builds briefly had a localStorage player fallback before the hosted D1 brain was stable. That fallback is intentionally removed because it creates false positives and separate PC/iPhone player universes. Player creation, deletion, room creation, and joins must use the shared API only.
@@ -92,7 +94,7 @@ The target use case is casual local play: family members can open a phone browse
 
 ## Verification Habits
 
-- Run `npm run test:worker` after hosted brain changes.
+- Run `npm run test:worker` after hosted brain changes, including Durable Object notification behavior.
 - Run `node --check` for changed browser JavaScript files after browser changes.
 - Check static assets through Cloudflare Pages after publishing, or through a generic static preview server for local UI inspection.
 - PWA support is intentionally conservative: cache static shell assets and icons, but never cache `/api/` requests. The PWA improves phone install/reload feel; it does not promise offline multiplayer or replace the hosted Worker/state layer.

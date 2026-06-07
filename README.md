@@ -19,6 +19,7 @@ The product target is simple: family members sitting together at a restaurant ca
 - Vanilla HTML/CSS/JavaScript under `src/sogotable/static/`.
 - PWA manifest and service worker for installable phone-browser shell.
 - Cloudflare Worker + D1 brain for hosted public multiplayer API.
+- Cloudflare Durable Object room channel for live room WebSocket updates.
 - Node built-in tests for the hosted Worker API.
 
 This avoids framework weight while keeping the app focused on the actual public play path: Cloudflare Pages for static files and a Cloudflare Worker backed by D1 for shared multiplayer state.
@@ -81,5 +82,6 @@ npm run test:worker
 - [API Contract](docs/api-contract.md)
 - [Purpose](docs/purpose.md)
 - [Architecture](docs/architecture.md)
+- [Wu Wei Method](docs/wu-wei-method.md)
 - [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)
 - [Roadmap](docs/roadmap.md)

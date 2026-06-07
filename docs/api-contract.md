@@ -177,6 +177,30 @@ Returns a full room by code.
 }
 ```
 
+### `GET /api/room/socket?code=ABCD`
+
+Opens a WebSocket to the room's live update channel.
+
+The room Durable Object sends messages shaped like:
+
+```json
+{
+  "type": "room_snapshot",
+  "room": { "code": "ABCD" }
+}
+```
+
+When a room is closed, clients receive:
+
+```json
+{
+  "type": "room_closed",
+  "code": "ABCD"
+}
+```
+
+HTTP room endpoints remain the recovery/backfill path. The browser should fetch the latest room through `GET /api/room` after reconnect or when the WebSocket cannot be established.
+
 ### `POST /api/room/create`
 
 Creates a room for a game or returns the player's existing unfinished room for that game.
