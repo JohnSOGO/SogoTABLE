@@ -1532,7 +1532,7 @@ async function refreshPlayers() {
     const data = await fetchJson("/api/players");
     if (!data.ok) throw new Error(data.error || "Could not load players.");
     playerApiAvailable = true;
-    players = data.players;
+    players = await syncLocalPlayersToSharedRoster(data.players);
     if (deviceSelectedPlayerId && !players.some((player) => player.id === deviceSelectedPlayerId)) {
       deviceSelectedPlayerId = "";
     }
@@ -1582,6 +1582,19 @@ async function migrateLocalPlayers() {
     await api("/api/players/create", { player });
   }
   localStorage.setItem("sogogames.playersMigrated", "1");
+}
+
+async function syncLocalPlayersToSharedRoster(remotePlayers) {
+  const localPlayers = loadLocalPlayers();
+  const remoteIds = new Set(remotePlayers.map((player) => player.id));
+  const missingPlayers = localPlayers.filter((player) => player.id && player.name && !remoteIds.has(player.id));
+  let syncedPlayers = remotePlayers;
+  for (const player of missingPlayers) {
+    const response = await api("/api/players/create", { player: cleanLocalPlayer(player) });
+    syncedPlayers = response.players;
+  }
+  if (missingPlayers.length) localStorage.setItem("sogogames.playersMigrated", "1");
+  return syncedPlayers;
 }
 
 function loadLocalPlayers() {

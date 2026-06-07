@@ -34,7 +34,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
-let memoryState = null;
 
 export default {
   async fetch(request, env) {
@@ -202,15 +201,12 @@ async function routeRequest(method, url, payload, data) {
 }
 
 async function loadState(env) {
-  if (memoryState) return structuredClone(memoryState);
   await ensureSchema(env);
   const row = await env.SOGOTABLE_STATE.prepare("SELECT value FROM app_state WHERE key = ?").bind("state").first();
-  memoryState = row ? JSON.parse(row.value) : { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
-  return structuredClone(memoryState);
+  return row ? JSON.parse(row.value) : { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
 }
 
 async function saveState(env, data) {
-  memoryState = structuredClone(data);
   await ensureSchema(env);
   await env.SOGOTABLE_STATE.prepare(
     "INSERT INTO app_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
