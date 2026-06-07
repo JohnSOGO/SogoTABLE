@@ -267,7 +267,7 @@ Purpose:
 
 Required display:
 
-- Header with `Close` button.
+- Header with `Exit` button.
 - Centered game name.
 - Centered room id line, formatted as `Room ABCD`.
 - `Reset` button.
@@ -286,16 +286,19 @@ Required display:
 - Turn/status row says waiting for opponent.
 - Super Tic Tac Toe board visible and disabled.
 
-Close behavior:
+Exit behavior:
 
-- `Close` opens a Yes/No confirmation.
-- Yes deletes the room and returns polling players to `PLAYER_GAME_SELECTION`.
-- No keeps the game open.
+- `Exit` opens a Yes/No confirmation.
+- Yes lets the selected player leave without requiring agreement from the other player.
+- The current in-memory implementation closes the game room so polling players return to `PLAYER_GAME_SELECTION`.
+- No keeps the player in the game.
 
 Reset behavior:
 
 - `Reset` opens a Yes/No confirmation.
-- Yes resets the game board for both players.
+- If two players are seated, Yes requests a reset and waits for the other seated player to agree.
+- The board resets only after both seated players agree.
+- If the other player declines, the pending reset request is cleared.
 - No leaves the board unchanged.
 
 Do not:
@@ -386,7 +389,7 @@ Purpose:
 
 Required display:
 
-- Header with `Close`, centered game name, centered room id, and `Reset`.
+- Header with `Exit`, centered game name, centered room id, and `Reset`.
 - Players setup panel hidden.
 - Top player labels visible.
 - Top player labels are passive status labels, not buttons.
@@ -427,17 +430,20 @@ Move behavior:
 - After a local hot-seat move, runtime actor auto-switches to the current-turn player.
 - Remote devices do not auto-switch their device/home selected player.
 
-Close behavior:
+Exit behavior:
 
 - Ask Yes/No before closing.
-- Confirmation copy must make it clear this affects both players.
-- Yes deletes the room and returns all polling players to `PLAYER_GAME_SELECTION`.
+- Confirmation copy must make it clear the local player is leaving.
+- The exiting player does not need the other player to agree.
+- The current in-memory implementation closes the game room so polling players return to `PLAYER_GAME_SELECTION`.
 
 Reset behavior:
 
 - Ask Yes/No before reset.
-- Confirmation copy must make it clear this affects both players.
-- Yes resets board state.
+- Confirmation copy must make it clear the other player must agree.
+- Yes creates a pending reset request if another player is seated.
+- The other player sees a Yes/No agreement prompt.
+- Board state resets only after both seated players agree.
 
 Do not:
 
@@ -478,8 +484,8 @@ Local hot-seat completion:
 Room lifecycle:
 
 - Completed rooms are not listed as open or in-progress games.
-- Close still requires Yes/No and then deletes the room.
-- `Play Again` requires Yes/No confirmation and starts a fresh board with the same seated players.
+- Exit still requires local Yes/No and then leaves/closes the room.
+- `Play Again` requires both seated players to agree, then starts a fresh board with the same seated players.
 
 ## Modal State: WIN_OVERLAY
 
@@ -522,8 +528,8 @@ Required display:
 
 Used by:
 
-- Close game.
-- Reset game.
+- Exit game.
+- Reset or Play Again request.
 
 Behavior:
 
@@ -582,7 +588,8 @@ Lobby presence polling:
 - Do not make top player labels touchable during active play.
 - Do not let local hot-seat turn swaps overwrite device/home selected player.
 - Do not mutate persistent player colors to fix a room-seat conflict.
-- Do not remove Yes/No confirmation from Close or Reset.
+- Do not remove Yes/No confirmation from Exit or Reset.
+- Do not let Reset or Play Again clear the board until all seated players have agreed.
 - Do not hide the board while waiting for an opponent.
 - Do not move game descriptions back to the main menu.
 - Do not use raw player color for text on tinted surfaces.

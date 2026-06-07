@@ -64,6 +64,7 @@ let lastCelebratedWinKey = "";
 let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let pendingConfirmAction = null;
+let handledResetRequestKey = "";
 localStorage.setItem("sogogames.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -764,13 +765,14 @@ async function createRoom() {
 }
 
 async function closeGame() {
-  const confirmed = await confirmAction("Are you sure?", "Close this game for both players and return everyone to player and game selection?");
+  const confirmed = await confirmAction("Exit game?", "Exit this game and return to player and game selection?");
   if (!confirmed) return;
   const roomToClose = currentRoom;
   restoreLocalGameHomePlayer(roomToClose);
   if (roomToClose) {
     try {
-      await api("/api/room/close", { code: roomToClose.code, requester_id: selectedPlayerId || deviceSelectedPlayerId });
+      const exitingPlayerId = selectedPlayerId || deviceSelectedPlayerId;
+      await api("/api/room/leave", { code: roomToClose.code, player_id: exitingPlayerId, requester_id: exitingPlayerId });
     } catch (error) {
       alert(error.message);
       return;
@@ -790,14 +792,15 @@ async function resetGame() {
   if (!currentRoom) return;
   const completed = isCompletedRoom(currentRoom);
   const message = completed
-    ? "Start a new game with these same players? This clears the completed board for both players."
-    : "Reset this game board for both players?";
+    ? "Request a new game with these same players? The other player must agree."
+    : "Request a board reset? The other player must agree.";
   const confirmed = await confirmAction("Are you sure?", message);
   if (!confirmed) return;
   hideWinOverlay();
   lastCelebratedWinKey = "";
   const response = await api("/api/room/reset", { code: currentRoom.code, requester_id: selectedPlayerId || deviceSelectedPlayerId });
   setRoom(response.room);
+  if (response.reset === "pending") showTurnStatus(null, "Waiting for the other player to agree.");
 }
 
 async function makeMove(board, cell) {
@@ -845,6 +848,32 @@ function setRoom(room) {
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
   renderGame();
+  handleIncomingResetRequest();
+}
+
+async function handleIncomingResetRequest() {
+  if (!currentRoom || !currentRoom.reset_request) {
+    handledResetRequestKey = "";
+    return;
+  }
+  if (pendingConfirmAction) return;
+  const request = currentRoom.reset_request;
+  const localPlayer = selectedPlayer();
+  if (!localPlayer || localPlayer.id === request.requester_id) return;
+  const requestKey = `${currentRoom.code}:${request.requester_id}:${request.votes.join(",")}`;
+  if (handledResetRequestKey === requestKey) return;
+  handledResetRequestKey = requestKey;
+  const confirmed = await confirmAction("Reset requested", `${request.requester_name} wants to reset this game. Agree?`);
+  try {
+    const response = await api("/api/room/reset", {
+      code: currentRoom.code,
+      requester_id: localPlayer.id,
+      approve: confirmed,
+    });
+    setRoom(response.room);
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function syncHostInviteStatusFromRoom(room) {
@@ -938,6 +967,9 @@ function renderGame() {
     const winner = currentRoom.players.find((player) => player.mark === game.winner);
     showTurnStatus(winner, `${winner ? winner.name : game.winner} won.`);
     scheduleWinOverlay(winner, game.winner);
+  }
+  if (currentRoom.reset_request) {
+    showTurnStatus(null, `${currentRoom.reset_request.requester_name} requested reset. Waiting for agreement.`);
   }
 
   const host = document.getElementById("macroBoard");

@@ -1,6 +1,6 @@
 import pytest
 
-from src.sogogames.server import INVITES, LOBBY_VIEWERS, ROOMS, Invite, Room, _activate_room_if_ready, _active_room_for_host, _active_room_for_player, _add_player_to_room, _close_room, _colors_are_too_similar, _lobby_viewers, _refresh_active_room_player, _room_status
+from src.sogogames.server import INVITES, LOBBY_VIEWERS, ROOMS, Invite, Room, _activate_room_if_ready, _active_room_for_host, _active_room_for_player, _add_player_to_room, _close_room, _colors_are_too_similar, _handle_reset_vote, _lobby_viewers, _refresh_active_room_player, _room_status
 
 
 @pytest.fixture(autouse=True)
@@ -181,6 +181,41 @@ def test_room_serializes_latest_declined_invite_for_host_feedback():
 
     assert room.to_dict()["latest_invite"]["status"] == "declined"
     assert room.to_dict()["latest_invite"]["target_name"] == "Two"
+
+
+def test_reset_waits_for_both_players_to_agree():
+    room = Room(code="TEST", host_id="one", game_id="super_tic_tac_toe")
+    _add_player_to_room(room, player("one"), None)
+    _add_player_to_room(room, player("two"), None)
+    _activate_room_if_ready(room)
+
+    assert _handle_reset_vote(room, "one", True) == "pending"
+    assert room.to_dict()["reset_request"]["requester_name"] == "Player"
+
+
+def test_reset_runs_after_second_player_agrees():
+    room = Room(code="TEST", host_id="one", game_id="super_tic_tac_toe")
+    _add_player_to_room(room, player("one"), None)
+    _add_player_to_room(room, player("two"), None)
+    _activate_room_if_ready(room)
+    room.game.make_move(0, 0)
+
+    assert _handle_reset_vote(room, "one", True) == "pending"
+    assert _handle_reset_vote(room, "two", True) is None
+    assert room.reset_votes == set()
+    assert room.game.move_count == 0
+
+
+def test_reset_decline_clears_pending_request():
+    room = Room(code="TEST", host_id="one", game_id="super_tic_tac_toe")
+    _add_player_to_room(room, player("one"), None)
+    _add_player_to_room(room, player("two"), None)
+    _activate_room_if_ready(room)
+
+    assert _handle_reset_vote(room, "one", True) == "pending"
+    assert _handle_reset_vote(room, "two", False) == "declined"
+    assert room.reset_votes == set()
+    assert room.to_dict()["reset_request"] is None
 
 
 def test_close_room_deletes_room_and_prevents_reentry():

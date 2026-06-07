@@ -58,6 +58,7 @@ class Room:
     local_mode: bool = False
     game: SuperTicTacToeState = field(default_factory=SuperTicTacToeState.new)
     players: list[PlayerSeat] = field(default_factory=list)
+    reset_votes: set[str] = field(default_factory=set)
 
     def to_dict(self) -> dict:
         return {
@@ -70,6 +71,7 @@ class Room:
             "players": [player.__dict__ for player in self.players],
             "game": self.game.to_dict(),
             "latest_invite": _latest_invite_for_room(self),
+            "reset_request": _reset_request_for_room(self),
         }
 
     def player_mark(self, player_id: str) -> str | None:
@@ -262,8 +264,8 @@ class SogoGamesHandler(SimpleHTTPRequestHandler):
         requester_id = str(payload.get("requester_id", "")).strip()
         if requester_id != player_id:
             raise ValueError("Only the seated player can leave their room seat.")
-        room.players = [player for player in room.players if player.id != player_id]
-        self._json({"ok": True, "room": room.to_dict()})
+        _close_room(room.code)
+        self._json({"ok": True, "closed": True})
 
     def _close_room(self) -> None:
         payload = self._read_json()
@@ -308,8 +310,13 @@ class SogoGamesHandler(SimpleHTTPRequestHandler):
         requester_id = str(payload.get("requester_id", "")).strip()
         if requester_id and not any(player.id == requester_id for player in room.players):
             raise ValueError("Only a seated player can reset the game.")
-        room.game = SuperTicTacToeState.new()
-        self._json({"ok": True, "room": room.to_dict()})
+        if not requester_id:
+            raise ValueError("Requester id is required.")
+        reset_status = _handle_reset_vote(room, requester_id, payload.get("approve") is not False)
+        payload = {"ok": True, "room": room.to_dict()}
+        if reset_status:
+            payload["reset"] = reset_status
+        self._json(payload)
 
     def _create_invite(self) -> None:
         payload = self._read_json()
@@ -416,6 +423,31 @@ def _latest_invite_for_room(room: Room) -> dict | None:
     if not room_invites:
         return None
     return room_invites[-1].to_dict()
+
+
+def _reset_request_for_room(room: Room) -> dict | None:
+    if not room.reset_votes:
+        return None
+    requester_id = next(iter(room.reset_votes))
+    requester = next((player for player in room.players if player.id == requester_id), None)
+    return {
+        "requester_id": requester_id,
+        "requester_name": requester.name if requester else "Player",
+        "votes": sorted(room.reset_votes),
+        "needed": len(room.players),
+    }
+
+
+def _handle_reset_vote(room: Room, requester_id: str, approve: bool) -> str | None:
+    if not approve:
+        room.reset_votes.clear()
+        return "declined"
+    room.reset_votes.add(requester_id)
+    if len(room.players) > 1 and len(room.reset_votes) < len(room.players):
+        return "pending"
+    room.reset_votes.clear()
+    room.game = SuperTicTacToeState.new()
+    return None
 
 
 def _lobby_viewers(game_id: str) -> list[dict]:
