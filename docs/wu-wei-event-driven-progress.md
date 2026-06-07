@@ -25,7 +25,7 @@ The app should move downhill toward event-driven updates, but the public play pa
 - [x] Keep fallback polling enabled while testing the app event channel on phones.
 - [x] Public multi-device smoke test passed.
 - [x] Reduce timed room-list/invite/lobby polling after public phone smoke testing proved the event channel.
-- [ ] Split large frontend controller code after the transport path is stable.
+- [x] Split large frontend controller code after the transport path is stable.
 - [ ] Move more active-room authority into Durable Objects only after the current Worker/D1 path is boring.
 
 ## Progress Log
@@ -44,6 +44,7 @@ Completed:
 - Added Worker tests for app-event room, lobby, pending invite, and declined-invite snapshots.
 - User smoke-tested public multi-device play successfully with two iPhones and three browsers.
 - Reduced non-room fallback polling after smoke success: current-room summary fallback is 15 seconds, selected-game lobby fallback is 15 seconds, invite fallback is 30 seconds, and active-room socket recovery remains 15 seconds.
+- Split realtime socket and fallback timer wiring into `src/sogotable/static/realtime.js`. `app.js` still owns screen state and snapshot meaning.
 
 Still pending:
 

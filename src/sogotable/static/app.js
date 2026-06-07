@@ -1,4 +1,4 @@
-import { api, appEventsSocketUrl, fetchJson, roomSocketUrl } from "./api-client.js";
+import { api, fetchJson } from "./api-client.js";
 import {
   colorWithAlpha,
   getContrastAwareTextColor,
@@ -7,6 +7,7 @@ import {
   normalizePlayerColor,
 } from "./color-utils.js";
 import { avatarHtml, escapeHtml } from "./html-utils.js";
+import { createRealtimeController } from "./realtime.js";
 
 const icons = ["🙂", "😎", "🤖", "🦊", "🐲", "⭐", "🌮", "🎲"];
 const colors = ["#1f7a5f", "#1e63d6", "#c43d5d", "#8a4bd1", "#b7791f", "#0f766e"];
@@ -50,10 +51,6 @@ const winLines = [
   [0, 4, 8],
   [2, 4, 6],
 ];
-const ROOM_SUMMARY_FALLBACK_INTERVAL_MS = 15000;
-const INVITE_FALLBACK_INTERVAL_MS = 30000;
-const LOBBY_FALLBACK_INTERVAL_MS = 15000;
-const ROOM_SOCKET_FALLBACK_INTERVAL_MS = 15000;
 
 migrateStorageNamespace();
 
@@ -73,16 +70,6 @@ let currentGameRooms = [];
 let lobbyPlayers = [];
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
-let roomSocket = null;
-let roomSocketFallbackTimer = null;
-let roomReconnectTimer = null;
-let roomSocketReconnectAttempts = 0;
-let appEventsSocket = null;
-let appEventsReconnectTimer = null;
-let appEventsReconnectAttempts = 0;
-let roomListTimer = null;
-let inviteTimer = null;
-let lobbyPresenceTimer = null;
 let lastLegalBoardsKey = "";
 let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
@@ -91,6 +78,21 @@ let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let pendingConfirmAction = null;
 let handledResetRequestKey = "";
+const realtime = createRealtimeController({
+  getAppSubscription: () => ({
+    gameId: selectedGame().id,
+    playerId: deviceSelectedPlayerId,
+  }),
+  onAppMessage: handleAppEventMessage,
+  onRoomMessage: handleRoomSocketMessage,
+  onRoomReconnect: () => showTurnStatus(null, "Reconnecting to room..."),
+  pollInvites,
+  refreshGameRooms,
+  refreshRoom,
+  refreshRooms,
+  shouldReconnectRoom: () => Boolean(currentRoom),
+  updateLobbyPresence,
+});
 localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -128,9 +130,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("confirmPrompt").addEventListener("click", closeConfirmPromptOnBackdrop);
   const closeWinOverlay = document.getElementById("closeWinOverlay");
   if (closeWinOverlay) closeWinOverlay.addEventListener("click", hideWinOverlay);
-  connectAppEvents();
-  startRoomListPolling();
-  startInvitePolling();
+  realtime.connectAppEvents();
+  realtime.startRoomListFallback();
+  realtime.startInviteFallback();
 });
 
 async function refreshRevisionSummary() {
@@ -186,10 +188,10 @@ function showScreen(name) {
     renderGameSelected();
     refreshGameRooms();
     updateLobbyPresence();
-    sendAppEventSubscription();
-    startLobbyPresencePolling();
+    realtime.sendAppEventSubscription();
+    realtime.startLobbyPresenceFallback();
   } else {
-    stopLobbyPresencePolling();
+    realtime.stopLobbyPresenceFallback();
   }
 }
 
@@ -1259,76 +1261,11 @@ function stopPolling() {
 
 function startRoomLiveUpdates() {
   if (!currentRoom) return;
-  connectRoomSocket();
-  refreshRoom();
+  realtime.startRoomLiveUpdates(currentRoom.code);
 }
 
 function stopRoomLiveUpdates() {
-  stopRoomSocket();
-  stopRoomFallbackPolling();
-}
-
-function connectRoomSocket() {
-  if (!currentRoom || !("WebSocket" in window)) {
-    startRoomFallbackPolling();
-    return;
-  }
-  if (roomSocket && roomSocket.readyState <= WebSocket.OPEN) return;
-  stopRoomSocket(false);
-  try {
-    roomSocket = new WebSocket(roomSocketUrl(currentRoom.code));
-  } catch {
-    scheduleRoomReconnect();
-    return;
-  }
-  roomSocket.addEventListener("open", () => {
-    roomSocketReconnectAttempts = 0;
-    stopRoomFallbackPolling();
-  });
-  roomSocket.addEventListener("message", handleRoomSocketMessage);
-  roomSocket.addEventListener("close", () => {
-    roomSocket = null;
-    if (currentRoom) {
-      showTurnStatus(null, "Reconnecting to room...");
-      startRoomFallbackPolling();
-      scheduleRoomReconnect();
-    }
-  });
-  roomSocket.addEventListener("error", () => {
-    if (roomSocket) roomSocket.close();
-  });
-}
-
-function stopRoomSocket(clearReconnect = true) {
-  if (roomSocket) {
-    const socket = roomSocket;
-    roomSocket = null;
-    socket.close();
-  }
-  if (clearReconnect && roomReconnectTimer) {
-    clearTimeout(roomReconnectTimer);
-    roomReconnectTimer = null;
-  }
-}
-
-function scheduleRoomReconnect() {
-  if (roomReconnectTimer || !currentRoom) return;
-  const delay = Math.min(30000, 2000 * 2 ** roomSocketReconnectAttempts);
-  roomSocketReconnectAttempts += 1;
-  roomReconnectTimer = setTimeout(() => {
-    roomReconnectTimer = null;
-    connectRoomSocket();
-  }, delay);
-}
-
-function startRoomFallbackPolling() {
-  if (roomSocketFallbackTimer) return;
-  roomSocketFallbackTimer = setInterval(refreshRoom, ROOM_SOCKET_FALLBACK_INTERVAL_MS);
-}
-
-function stopRoomFallbackPolling() {
-  if (roomSocketFallbackTimer) clearInterval(roomSocketFallbackTimer);
-  roomSocketFallbackTimer = null;
+  realtime.stopRoomLiveUpdates();
 }
 
 function handleRoomSocketMessage(event) {
@@ -1345,71 +1282,6 @@ function handleRoomSocketMessage(event) {
   if (message.type === "room_closed") {
     leaveClosedRoom();
   }
-}
-
-function startRoomListPolling() {
-  if (roomListTimer) clearInterval(roomListTimer);
-  roomListTimer = setInterval(refreshRooms, ROOM_SUMMARY_FALLBACK_INTERVAL_MS);
-  refreshRooms();
-}
-
-function connectAppEvents() {
-  if (!("WebSocket" in window)) return;
-  if (appEventsSocket && appEventsSocket.readyState <= WebSocket.OPEN) return;
-  stopAppEvents(false);
-  try {
-    appEventsSocket = new WebSocket(appEventsSocketUrl({
-      gameId: selectedGame().id,
-      playerId: deviceSelectedPlayerId,
-    }));
-  } catch {
-    scheduleAppEventsReconnect();
-    return;
-  }
-  appEventsSocket.addEventListener("open", () => {
-    appEventsReconnectAttempts = 0;
-    sendAppEventSubscription();
-  });
-  appEventsSocket.addEventListener("message", handleAppEventMessage);
-  appEventsSocket.addEventListener("close", () => {
-    appEventsSocket = null;
-    scheduleAppEventsReconnect();
-  });
-  appEventsSocket.addEventListener("error", () => {
-    if (appEventsSocket) appEventsSocket.close();
-  });
-}
-
-function stopAppEvents(clearReconnect = true) {
-  if (appEventsSocket) {
-    const socket = appEventsSocket;
-    appEventsSocket = null;
-    socket.close();
-  }
-  if (clearReconnect && appEventsReconnectTimer) {
-    clearTimeout(appEventsReconnectTimer);
-    appEventsReconnectTimer = null;
-  }
-}
-
-function scheduleAppEventsReconnect() {
-  if (appEventsReconnectTimer) return;
-  const delay = Math.min(30000, 2000 * 2 ** appEventsReconnectAttempts);
-  appEventsReconnectAttempts += 1;
-  appEventsReconnectTimer = setTimeout(() => {
-    appEventsReconnectTimer = null;
-    connectAppEvents();
-  }, delay);
-}
-
-function sendAppEventSubscription() {
-  if (!appEventsSocket || appEventsSocket.readyState !== WebSocket.OPEN) return;
-  const game = selectedGame();
-  appEventsSocket.send(JSON.stringify({
-    type: "subscribe",
-    game_id: game ? game.id : selectedGameId,
-    player_id: deviceSelectedPlayerId,
-  }));
 }
 
 function handleAppEventMessage(event) {
@@ -1440,31 +1312,12 @@ function handleAppEventMessage(event) {
   }
 }
 
-function startInvitePolling() {
-  if (inviteTimer) clearInterval(inviteTimer);
-  inviteTimer = setInterval(pollInvites, INVITE_FALLBACK_INTERVAL_MS);
-  pollInvites();
-}
-
 async function refreshRooms() {
   try {
     await refreshCurrentRoomSummary();
   } catch {
     if (currentRoom) showTurnStatus(null, "Room refresh failed.");
   }
-}
-
-function startLobbyPresencePolling() {
-  if (lobbyPresenceTimer) clearInterval(lobbyPresenceTimer);
-  lobbyPresenceTimer = setInterval(() => {
-    updateLobbyPresence();
-    refreshGameRooms();
-  }, LOBBY_FALLBACK_INTERVAL_MS);
-}
-
-function stopLobbyPresencePolling() {
-  if (lobbyPresenceTimer) clearInterval(lobbyPresenceTimer);
-  lobbyPresenceTimer = null;
 }
 
 async function refreshCurrentRoomSummary() {
@@ -1540,7 +1393,7 @@ function setDeviceSelectedPlayer(playerId) {
   deviceSelectedPlayerId = playerId;
   selectedPlayerId = playerId;
   saveSelectedPlayer();
-  sendAppEventSubscription();
+  realtime.sendAppEventSubscription();
 }
 
 function syncSelectedPlayerForLocalRoom() {
