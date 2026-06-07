@@ -918,6 +918,7 @@ function finishPlayerDelete(playerId) {
 }
 
 function openPlayerModal(mode = "select") {
+  setExistingPlayersVisible(mode !== "create");
   document.getElementById("playerModal").classList.remove("hidden");
   if (mode === "create") {
     resetPlayerForm();
@@ -929,11 +930,17 @@ function openPlayerModal(mode = "select") {
 
 function closePlayerModal() {
   resetPlayerForm();
+  setExistingPlayersVisible(true);
   document.getElementById("playerModal").classList.add("hidden");
 }
 
 function closePlayerModalOnBackdrop(event) {
   if (event.target.id === "playerModal") closePlayerModal();
+}
+
+function setExistingPlayersVisible(visible) {
+  document.getElementById("existingPlayersLabel").classList.toggle("hidden", !visible);
+  document.getElementById("playerList").classList.toggle("hidden", !visible);
 }
 
 async function openInvitePlayerModal() {

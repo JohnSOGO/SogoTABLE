@@ -35,6 +35,7 @@ The target use case is casual local play: family members can open a phone browse
 - Player colors are gameplay signals. When a guest joins with a color too similar to the host's in-room color, automatically assign the guest a non-conflicting room-seat color from the existing palette. Do not mutate the guest's persistent roster color for this.
 - The main menu should stay focused: current player and direct game selection. Player selection and player creation should be separate top-level actions, while editing/deletion stays inside the player modal.
 - Player rows should not have Pick/Selected buttons. Tapping a player row selects it, green border indicates selection, and the modal closes immediately.
+- Opening player creation from the main menu should show only the create-player form, not the existing player list.
 - Main menu game buttons should only show game names. Game descriptions belong on the selected game's game-selected screen or game room, not on the main menu.
 - Incoming AI handoff/prompt files may be placed in `AI/`. That directory is ignored and should be treated as input context, not product source.
 - The user does not want distracting effects. In local hot-seat Super Tic Tac Toe, turn and active-board feedback should use the current player's selected color, with only a brief one-shot flash and no continuous green pulse.

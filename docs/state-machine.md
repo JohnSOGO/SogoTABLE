@@ -184,6 +184,7 @@ Required display:
 - Create Player button.
 - In edit mode, a `Clear Stats` button above `Save Changes`.
 - Each existing player row has emoji/avatar, player name, `Edit`, and `Delete` on one line when space allows. Long player names should truncate before the action buttons wrap.
+- Opening the modal from `Create` hides the existing players list and shows only the create form.
 
 Selection behavior:
 
