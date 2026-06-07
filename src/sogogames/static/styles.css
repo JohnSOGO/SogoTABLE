@@ -270,6 +270,7 @@ button.compact {
   background: #fff7d6;
   color: #4b3710;
   font-weight: 700;
+  text-align: center;
 }
 
 .notice.hidden {
@@ -605,6 +606,12 @@ button.compact {
 .room-slot > button {
   grid-column: 1 / -1;
   width: 100%;
+}
+
+.room-slot.status-only {
+  display: flex;
+  justify-content: center;
+  text-align: center;
 }
 
 .invite-actions {

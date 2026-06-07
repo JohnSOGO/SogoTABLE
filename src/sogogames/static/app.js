@@ -859,6 +859,7 @@ function renderRoomSlots() {
   const hostPlayer = currentRoom.players.find((player) => player.id === currentRoom.host_id);
   const opponent = currentRoom.players.find((player) => player.id !== currentRoom.host_id);
   hostSlot.innerHTML = hostPlayer ? roomPlayerHtml(hostPlayer) : "Host missing.";
+  opponentSlot.classList.remove("status-only");
   if (opponent) {
     opponentSlot.innerHTML = roomPlayerHtml(opponent);
     hostInviteStatus = null;
@@ -877,6 +878,7 @@ function renderRoomSlots() {
   }
   renderRoomInviteStatus();
   opponentSlot.textContent = hostInviteStatus ? inviteStatusText(hostInviteStatus) : "Waiting for host to invite a player.";
+  opponentSlot.classList.add("status-only");
 }
 
 function renderRoomInviteStatus() {
