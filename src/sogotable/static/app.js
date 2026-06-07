@@ -124,6 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSelectedPlayer();
   renderCurrentPlayer();
   document.getElementById("playerForm").addEventListener("submit", createPlayer);
+  document.getElementById("clearPlayerStats").addEventListener("click", clearEditingPlayerStats);
   document.getElementById("openSelectPlayerModal").addEventListener("click", () => openPlayerModal("select"));
   document.getElementById("openCreatePlayerModal").addEventListener("click", () => openPlayerModal("create"));
   document.getElementById("closePlayerModal").addEventListener("click", closePlayerModal);
@@ -716,8 +717,10 @@ function setPlayerFormMode(mode) {
   const editing = mode === "edit";
   const title = document.getElementById("playerFormTitle");
   const submit = document.getElementById("playerFormSubmit");
+  const clearStats = document.getElementById("clearPlayerStats");
   if (title) title.textContent = editing ? "Edit Player" : "Create New Player";
   if (submit) submit.textContent = editing ? "Save Changes" : "Create Player";
+  if (clearStats) clearStats.classList.toggle("hidden", !editing);
 }
 
 function renderPlayers() {
@@ -765,6 +768,24 @@ function editPlayer(playerId) {
   const form = document.getElementById("playerForm");
   form.scrollIntoView({ block: "nearest" });
   form.focus();
+}
+
+async function clearEditingPlayerStats() {
+  const player = players.find((item) => item.id === editingPlayerId);
+  if (!player) return;
+  if (!confirm(`Clear all stats for ${player.name}?`)) return;
+  try {
+    const response = await api("/api/player/stats/clear", { player_id: player.id });
+    if (player.id === deviceSelectedPlayerId) {
+      selectedPlayerStats = response.stats || [];
+      renderSelectedPlayerStats();
+    }
+    await refreshSelectedPlayerStats();
+    await refreshGameStats(selectedGame());
+    alert(`Stats cleared for ${player.name}.`);
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function renderSelectedPlayer() {

@@ -224,6 +224,12 @@ async function routeRequest(method, url, payload, data) {
     if (!playerId) throw new Error("Player id is required.");
     return { ok: true, player_id: playerId, stats: publicPlayerStats(data, playerId) };
   }
+  if (method === "POST" && url.pathname === "/api/player/stats/clear") {
+    const playerId = String(payload.player_id || payload.id || "").trim();
+    if (!playerId) throw new Error("Player id is required.");
+    clearPlayerStats(data, playerId);
+    return { ok: true, player_id: playerId, stats: publicPlayerStats(data, playerId) };
+  }
   if (method === "GET" && url.pathname === "/api/stats") {
     const gameId = cleanGameId(url.searchParams.get("game_id") || "super_tic_tac_toe");
     return { ok: true, game_id: gameId, stats: publicStatsForGame(data, gameId) };
@@ -1196,6 +1202,19 @@ function publicPlayerStats(data, playerId) {
       personal_high_score: Number(personal.personal_high_score ?? topScore ?? 0),
       elo: Number(rating.rating || DEFAULT_ELO_RATING),
     };
+  });
+}
+
+function clearPlayerStats(data, playerId) {
+  ensureStats(data);
+  Object.keys(data.stats.high_scores).forEach((gameId) => {
+    data.stats.high_scores[gameId] = (data.stats.high_scores[gameId] || []).filter((entry) => entry.player_id !== playerId);
+  });
+  Object.values(data.stats.ratings).forEach((ratings) => {
+    delete ratings[playerId];
+  });
+  Object.values(data.stats.personal).forEach((entries) => {
+    delete entries[playerId];
   });
 }
 

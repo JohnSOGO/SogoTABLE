@@ -83,15 +83,15 @@
           <form id="playerForm" class="panel" tabindex="-1">
             <h2 id="playerFormTitle">Create New Player</h2>
             <div class="player-create-row">
-              <label>
+              <label class="player-name-field">
                 Display name
                 <input id="playerName" autocomplete="nickname" maxlength="24" placeholder="Enter Display Name" required />
               </label>
-              <label>
+              <label class="player-icon-field">
                 Icon
                 <input id="playerIconText" class="emoji-input" maxlength="8" aria-label="Player emoji icon" />
               </label>
-              <div>
+              <div class="player-color-field">
                 <span class="label">Color</span>
                 <div class="color-picker-shell">
                   <input id="playerColorText" class="color-value" maxlength="7" aria-label="Player color hex value" />
@@ -100,6 +100,7 @@
                 <div id="colorChoices" class="color-palette"></div>
               </div>
             </div>
+            <button id="clearPlayerStats" class="secondary danger hidden" type="button">Clear Stats</button>
             <button id="playerFormSubmit" class="primary" type="submit">Create Player</button>
           </form>
         </div>

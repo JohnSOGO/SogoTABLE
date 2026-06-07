@@ -192,6 +192,18 @@ Returns selected-player stats for every ready game. Used by the `Player & Game S
 
 Games played and games won are counted once per completed room when room stats are first recorded. Personal high score is kept per player per game, not only from the public top-five leaderboard.
 
+### `POST /api/player/stats/clear`
+
+Clears a player's stats across games and returns the reset selected-player stats rows.
+
+```json
+{
+  "player_id": "player-id"
+}
+```
+
+Clearing stats removes the player's personal stats, ELO entries, and public high-score leaderboard rows. It does not delete the player or rewrite completed room history.
+
 Room statuses:
 
 - `waiting_for_player`

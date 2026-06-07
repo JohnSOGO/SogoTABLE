@@ -206,9 +206,21 @@ p,
 
 .player-create-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px minmax(160px, 220px);
+  grid-template-columns: minmax(0, 1fr) 68px;
   gap: 8px;
   align-items: end;
+}
+
+.player-color-field {
+  grid-column: 1 / -1;
+}
+
+.player-icon-field {
+  justify-self: end;
+}
+
+.player-icon-field .emoji-input {
+  width: 68px;
 }
 
 .color-picker-shell {
@@ -646,6 +658,12 @@ button.compact {
 }
 
 .delete-player {
+  color: #9f1239;
+}
+
+button.danger {
+  border-color: #fecdd3;
+  background: #fff1f2;
   color: #9f1239;
 }
 

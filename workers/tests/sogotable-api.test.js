@@ -535,6 +535,18 @@ test("player profile edits refresh stats display names and icons", async () => w
   assert.equal(classicStats.games_won, 0);
   assert.equal(classicStats.personal_high_score, 0);
   assert.equal(classicStats.elo, 1000);
+
+  const cleared = await post(env, "/api/player/stats/clear", { player_id: xSeat.id });
+  const clearedGameStats = await get(env, "/api/stats?game_id=super_tactical_tac_toe");
+  const clearedTacticalStats = cleared.stats.find((entry) => entry.game_id === "super_tactical_tac_toe");
+
+  assert.equal(cleared.ok, true);
+  assert.equal(clearedTacticalStats.games_played, 0);
+  assert.equal(clearedTacticalStats.games_won, 0);
+  assert.equal(clearedTacticalStats.personal_high_score, 0);
+  assert.equal(clearedTacticalStats.elo, 1000);
+  assert.equal(clearedGameStats.stats.high_scores.some((entry) => entry.player_id === xSeat.id), false);
+  assert.equal(clearedGameStats.stats.ratings.some((entry) => entry.player_id === xSeat.id), false);
 }));
 
 test("tactical score goal alone does not end the game", async () => withMockRandom([0], async () => {

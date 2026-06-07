@@ -179,10 +179,10 @@ Required display:
 - Selected player shown by visual selection styling.
 - No `Pick` or `Selected` buttons.
 - Create New Player form.
-- Display name input.
-- Icon input.
-- Color picker controls.
+- Display name input wide at the top of the form, with the icon/emoji input beside it.
+- Color picker controls below the name/icon row.
 - Create Player button.
+- In edit mode, a `Clear Stats` button above `Save Changes`.
 - Each existing player row has emoji/avatar, player name, `Edit`, and `Delete` on one line when space allows. Long player names should truncate before the action buttons wrap.
 
 Selection behavior:
@@ -193,6 +193,7 @@ Selection behavior:
 - Player identity is anchored by a stable opaque `id`. Editing a player must preserve the id while updating mutable profile fields: name, icon, and color.
 - Tapping `Edit` populates the create form with that player's profile, changes the form heading to `Edit Player`, and changes the submit button to `Save Changes`.
 - Saving an edit updates the shared roster profile and any active-room/stat display snapshots that refer to that player id.
+- `Clear Stats` clears games played, wins, personal high score, ELO, and leaderboard entries for the edited player across games.
 
 Color behavior:
 

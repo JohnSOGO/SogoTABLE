@@ -26,6 +26,7 @@ The target use case is casual local play: family members can open a phone browse
 - The user wants shared player rosters across PC/iPhone, not per-device player lists.
 - The user wants players to be deletable and their emoji icons editable.
 - The user wants players anchored by stable opaque IDs so their profile fields can be edited without changing identity. The shared roster edit flow should support name, icon, and color edits, and those edits should flow into active room seats and stats display names/icons.
+- The Edit Player section should keep display name wide at the top with the icon/emoji beside it, put color controls below, then show Clear Stats and Save Changes as stacked actions. Clear Stats should reset games played, wins, personal high score, ELO, and leaderboard rows for that player.
 - The user wants player creation at the top of the main menu, not buried inside a game-specific flow.
 - The user does not want visible example emoji buttons. Player emoji should default randomly, clear when the emoji field receives focus, and fall back to a random emoji if left blank.
 - The user wants display name, icon, and color on one compact row, with color chosen from a larger color palette.
