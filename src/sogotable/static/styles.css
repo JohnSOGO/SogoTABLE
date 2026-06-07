@@ -636,6 +636,10 @@ button.compact {
   gap: 8px;
 }
 
+.existing-players-section.hidden {
+  display: none;
+}
+
 .player-card {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) max-content;
