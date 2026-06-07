@@ -4,7 +4,7 @@ This file is durable context for future Codex sessions. Read it with `AGENTS.md`
 
 ## Product Direction
 
-SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, but the app should grow through a games menu and clear game modules rather than becoming a single-game app.
+SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, and Super Tactical Tac Toe is the second playable game. The app should grow through a games menu and clear game modules rather than becoming a single-game app.
 
 Naming note: `docs/name-decision.md` records an incoming AI naming decision proposing **MojoTable** as the stronger long-term product name and `table` as the primary user-facing metaphor. The current implemented app name is still **SogoTable** until the user explicitly approves a full product rename.
 
@@ -38,6 +38,7 @@ The target use case is casual local play: family members can open a phone browse
 - The opening splash should emphasize the SogoTable image mark, not a visible `SogoTable` heading. Keep it narrow-window friendly; the image should be centered and about 90% as wide as the `Start Playing` button.
 - During phone playtesting after room WebSockets were added, the user reported that roughly 1 in 10 taps did not take. Avoid rebuilding the board DOM for unchanged room snapshots or background refreshes, because a render between touch-down and click can swallow the tap.
 - During public lobby playtesting, the user reported a random lobby refresh/glitch that looked like assets being removed and replaced. Treat fallback lobby and room-list refreshes as visual no-ops when the incoming snapshot is identical; do not clear and rebuild stable lobby DOM just because a timed safety refresh fired.
+- The user wants all two-player lobbies to share the same architecture. Lobby design changes should apply globally to two-player games unless a later game explicitly needs a different flow.
 - After reviewing `AI/wu-wei-event-driven-code-review-plan.md` and `AI/SogoGames_wu_wei_event_driven.zip`, the event-driven direction was adopted with constraints and the zip was rejected as a direct source snapshot. Track the staged implementation in `docs/wu-wei-event-driven-progress.md`.
 
 ## Current Implemented Shape
@@ -47,7 +48,7 @@ The target use case is casual local play: family members can open a phone browse
 - Cloudflare Pages serves the static app.
 - All `/api/*` browser calls target the hosted Worker brain at `https://sogotable.sogodojo.com/api/*`, including local static previews. Do not reintroduce localhost/private-LAN API routing unless the user explicitly asks for a local backend again.
 - If the Worker is unavailable, the UI must fail visibly and disable multiplayer actions rather than creating local-only player or room state.
-- The hosted brain is a Cloudflare Worker configured by `wrangler.toml` and implemented in `workers/sogotable-api.js`. It owns players, lobby presence, rooms, invites, reset voting, and Super Tic Tac Toe moves so public browsers can see each other and play together. It currently stores shared state as one JSON row in D1 database `sogotable-state` (`bbb1cdec-0410-476f-b058-f216263b61d8`) with optimistic version locking. KV was rejected because lobby/player activity hit the free daily write limit; isolate memory was rejected because phone and PC could land on different edge instances. Durable Objects remain a strong future architecture for stricter turn consistency, but D1 is the current public-playtesting backend.
+- The hosted brain is a Cloudflare Worker configured by `wrangler.toml` and implemented in `workers/sogotable-api.js`. It owns players, lobby presence, rooms, invites, reset voting, Super Tic Tac Toe moves, and Super Tactical Tac Toe pickups/scoring so public browsers can see each other and play together. It currently stores shared state as one JSON row in D1 database `sogotable-state` (`bbb1cdec-0410-476f-b058-f216263b61d8`) with optimistic version locking. KV was rejected because lobby/player activity hit the free daily write limit; isolate memory was rejected because phone and PC could land on different edge instances. Durable Objects remain a strong future architecture for stricter turn consistency, but D1 is the current public-playtesting backend.
 - A Wu Wei room-events branch adds `RoomDurableObject` as one live WebSocket fanout object per room. HTTP/D1 still validates and persists the state change, then sends the resulting room snapshot to the room object for broadcast. This removes aggressive active-room polling in normal connected play while preserving HTTP as the reconnect/backfill path. A later deeper pass can move per-room validation/persistence fully into the Durable Object.
 - Room fanout notifications are sent to `RoomDurableObject` through internal `fetch()` requests. Do not call custom Durable Object RPC methods from the Worker unless the object class is changed to `extends DurableObject` from `cloudflare:workers`; plain classes will surface an RPC support error to move/reset responses.
 - The first app-level event channel is `EventHubDurableObject` behind `/api/events/socket`, bound as `EVENT_HUB` with migration `v2_event_hub`. It broadcasts room-list, lobby, and pending-invite snapshots after Worker writes. Timed room-list, invite, lobby, and room fallback polling intentionally remains enabled until public phone smoke tests prove the event path is reliable.
@@ -63,7 +64,7 @@ The target use case is casual local play: family members can open a phone browse
 - Public room create/join actions must use the browser's device/home selected player from the shared API roster. Do not synthesize or migrate local fallback players into the hosted roster.
 - Open/current game cards are hints, not authority. When a user taps `Join Game` or `Re-enter Game`, fetch the room fresh from the shared brain before deciding whether the selected player is already seated, can join, or should see that the game is no longer open.
 - Hosted API read-only polling must not write the whole D1 state row back to the database. Saving after `GET` requests can resurrect stale room/player snapshots when several browsers and phones are polling at once.
-- Games menu exists, currently with Super Tic Tac Toe as the only ready game.
+- Games menu exists with Super Tic Tac Toe and Super Tactical Tac Toe as ready games.
 - The player/game selection screen is titled `Player & Game Select`. It starts with the current player summary, separate `Change` and `Create` buttons positioned to the right of the player icon/name when space allows, then direct game buttons.
 - Current main menu shape is selected-player summary, separate player action buttons, and simple full-width game buttons showing only game names. There is no generic Continue button and no Create/Re-enter text on the menu.
 - Clicking a game now opens a selected-game screen for that game type. This screen shows the game description, current players actually viewing that selected-game lobby, current open games, current in-progress games, and a `Create Game`/`Re-enter Game` action.
@@ -81,7 +82,14 @@ The target use case is casual local play: family members can open a phone browse
 - Invited players receive an invite popup with `Yes` and `No`. Accepting joins the room and opens it; declining dismisses the invite. Hosts should see invite lifecycle feedback while waiting: sent, accepted, declined, or expired. Remote invite targets must come from players currently present in the selected game's lobby and must exclude anyone already seated in an unfinished game. If none are eligible, show `No players in lobby.`
 - There is no manual Start Game button. When the room has the required players, it becomes active and both devices auto-open the board once polling observes the active state.
 - The selected-game screen must auto-open the game screen when polling sees that the local selected player is seated in an active room. This prevents players from being left on a waiting/list screen after a remote join succeeds.
-- Game definitions should carry explicit availability metadata. Keep Super Tic Tac Toe as the only ready game until another game is actually implemented; future games can be added as unavailable/coming soon without changing the player -> game -> room flow.
+- Game definitions should carry explicit availability metadata. Super Tic Tac Toe and Super Tactical Tac Toe are ready games; future games can be added as unavailable/coming soon without changing the player -> game -> room flow.
+
+## Super Tactical Tac Toe UX Decisions
+
+- Super Tactical Tac Toe is game #2 and uses the same global two-player lobby, room, invite, local-opponent, re-entry, reset, and WebSocket architecture as Super Tic Tac Toe.
+- Tactical pickups and scores are authoritative Worker state. The browser must not decide pickup spawn locations, capture, or score.
+- Use `Sector` for the nine main 3x3 sections in tactical-game docs and UI thinking. The whole play area is the board, and the 81 playable squares are cells.
+- Current MVP pickups are Coin for 10 points and Treasure Chest for 25 points. Future tactical emoji effects should be added through pickup config/effect handling rather than rewriting the base nested-board engine.
 
 ## Super Tic Tac Toe UX Decisions
 

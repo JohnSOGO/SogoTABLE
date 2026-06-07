@@ -8,6 +8,7 @@ The product target is simple: family members sitting together at a restaurant ca
 
 - Repo scaffold: complete.
 - Super Tic Tac Toe rules engine: complete in the hosted Worker brain.
+- Super Tactical Tac Toe rules engine: complete first pass in the hosted Worker brain.
 - Mobile-first web UI: complete first pass.
 - Room creation, invites, and room codes: Cloudflare Worker + D1 first pass.
 - Shared persistent player roster: complete first pass.
@@ -68,7 +69,7 @@ npm run test:worker
 
 ## First Milestone Goals
 
-- Make Super Tic Tac Toe playable end-to-end.
+- Make Super Tic Tac Toe and Super Tactical Tac Toe playable end-to-end.
 - Keep hosted game rules separate from browser rendering where practical.
 - Support simple player selection and room codes.
 - Leave real accounts, history, and richer multiplayer for later phases.
@@ -85,4 +86,5 @@ npm run test:worker
 - [Wu Wei Method](docs/wu-wei-method.md)
 - [Wu Wei Event-Driven Progress](docs/wu-wei-event-driven-progress.md)
 - [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)
+- [Super Tactical Tac Toe](docs/game-super-tactical-tac-toe.md)
 - [Roadmap](docs/roadmap.md)

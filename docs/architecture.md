@@ -53,6 +53,7 @@ It owns:
 - invites and invite responses
 - reset voting through the room Durable Object
 - Super Tic Tac Toe move validation through the room Durable Object
+- Super Tactical Tac Toe pickup, scoring, and move validation through the room Durable Object
 - room status and final game result
 - live room snapshot broadcast to connected room clients
 
@@ -81,7 +82,7 @@ D1 -> roster/history/statistics/backfill indexes
 
 ## Game Logic
 
-Super Tic Tac Toe rules currently live in the Worker because the Worker is the production brain. Keep rule code separated from DOM rendering and browser event handling as much as possible.
+Super Tic Tac Toe and Super Tactical Tac Toe rules currently live in the Worker because the Worker is the production brain. The shared room and lobby shell is global for two-player games; game-specific behavior should live in game-state creation, move validation/application, and board rendering.
 
 When adding future games, add game definitions and game-specific logic through clear modules or clearly named Worker sections. Do not bury a second game inside UI rendering code.
 

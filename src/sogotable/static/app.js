@@ -40,6 +40,14 @@ const games = [
     status: "Ready",
     availability: "ready",
   },
+  {
+    id: "super_tactical_tac_toe",
+    name: "Super Tactical Tac Toe",
+    summary: "Ultimate tic tac toe with tactical coin and treasure pickups for bonus points.",
+    players: "2 players",
+    status: "Ready",
+    availability: "ready",
+  },
 ];
 const winLines = [
   [0, 1, 2],
@@ -1140,11 +1148,13 @@ function renderGame() {
     small.className = `small-board ${legal ? "legal" : ""} ${legal && shouldFlashLegalBoards ? "flash" : ""} ${result ? "done" : ""} ${macroWinner ? "macro-win-cell" : ""}`;
     applyBoardResultColor(small, result);
     board.forEach((value, cellIndex) => {
+      const pickup = value ? null : pickupAtCell(game, boardIndex, cellIndex);
       const cell = document.createElement("button");
       cell.type = "button";
       const smallWinner = smallWinLine.includes(cellIndex);
-      cell.className = `cell ${value ? value.toLowerCase() : ""} ${smallWinner ? "small-win-cell" : ""}`;
-      cell.textContent = value || "";
+      cell.className = `cell ${value ? value.toLowerCase() : ""} ${pickup ? `pickup ${pickup.type}` : ""} ${smallWinner ? "small-win-cell" : ""}`;
+      cell.textContent = value || (pickup ? pickup.emoji : "");
+      if (pickup && !value) cell.title = `${pickup.label || pickup.type} +${pickup.points}`;
       applyMarkColor(cell, value);
       const moveKey = moveIntentKey(currentRoom, selectedPlayerId, boardIndex, cellIndex);
       const isPendingMove = Boolean(pendingMove && pendingMove.key === moveKey);
@@ -1221,11 +1231,12 @@ function renderGamePlayerSwitch() {
 
   currentRoom.players.forEach((roomPlayer) => {
     const isCurrentTurn = roomPlayer.mark === currentRoom.game.current_player && currentRoom.game.status === "playing";
+    const scoreText = tacticalScoreText(roomPlayer);
     const label = document.createElement("div");
     label.className = `player-switch-button ${isCurrentTurn ? "current-turn" : ""}`;
     label.setAttribute("aria-current", isCurrentTurn ? "true" : "false");
     if (isCurrentTurn) applyPlayerLabelTurnColor(label, roomPlayer);
-    label.innerHTML = `${avatarHtml(roomPlayer)}<span><strong>${escapeHtml(roomPlayer.mark)}</strong> ${escapeHtml(roomPlayer.name)}</span>`;
+    label.innerHTML = `${avatarHtml(roomPlayer)}<span><strong>${escapeHtml(roomPlayer.mark)}</strong> ${escapeHtml(roomPlayer.name)}${scoreText}</span>`;
     host.appendChild(label);
   });
 }
@@ -1257,12 +1268,50 @@ function showTurnStatus(currentPlayer, overrideText = "") {
   }
   if (selectedSeat.mark === currentRoom.game.current_player) {
     setTurnColorVariables(host, selectedSeat.color);
-    host.textContent = pendingMove ? "Placing move..." : `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`;
+    setTurnStatusText(host, pendingMove ? "Placing move..." : `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`);
     host.classList.add("your-turn");
     return;
   }
-  host.textContent = `Waiting for ${currentPlayer ? currentPlayer.name : currentRoom.game.current_player}.`;
+  setTurnStatusText(host, `Waiting for ${currentPlayer ? currentPlayer.name : currentRoom.game.current_player}.`);
   host.classList.add("waiting");
+}
+
+function setTurnStatusText(host, text) {
+  const eventText = tacticalEventText();
+  if (!eventText) {
+    host.textContent = text;
+    return;
+  }
+  host.innerHTML = `<span>${escapeHtml(text)}</span><small>${escapeHtml(eventText)}</small>`;
+}
+
+function tacticalScoreText(roomPlayer) {
+  if (!isTacticalGameState(currentRoom && currentRoom.game) || !roomPlayer.mark) return "";
+  const score = Number(currentRoom.game.scores && currentRoom.game.scores[roomPlayer.mark] || 0);
+  return ` <em>${score}</em>`;
+}
+
+function tacticalEventText() {
+  if (!isTacticalGameState(currentRoom && currentRoom.game) || !currentRoom.game.last_event) return "";
+  const event = currentRoom.game.last_event;
+  if (event.type === "pickupCaptured") {
+    const player = currentRoom.players.find((seat) => seat.mark === event.player);
+    return `${player ? player.name : event.player} captured ${event.emoji || ""} ${event.pickup_label || "Pickup"}! +${event.points}`;
+  }
+  if (event.type === "sectorCaptured") {
+    const player = currentRoom.players.find((seat) => seat.mark === event.player);
+    return `${player ? player.name : event.player} captured Sector ${Number(event.sector) + 1}.`;
+  }
+  return "";
+}
+
+function pickupAtCell(game, boardIndex, cellIndex) {
+  if (!isTacticalGameState(game) || !Array.isArray(game.pickups)) return null;
+  return game.pickups.find((pickup) => pickup.board === boardIndex && pickup.cell === cellIndex) || null;
+}
+
+function isTacticalGameState(game) {
+  return Boolean(game && (game.game_id === "super_tactical_tac_toe" || Array.isArray(game.pickups)));
 }
 
 function scheduleWinOverlay(player, mark) {
@@ -1554,6 +1603,7 @@ function roomRenderKey(room) {
       mark: player.mark,
     })),
     game: {
+      game_id: room.game.game_id,
       boards: room.game.boards,
       small_winners: room.game.small_winners,
       current_player: room.game.current_player,
@@ -1562,6 +1612,9 @@ function roomRenderKey(room) {
       winner: room.game.winner,
       move_count: room.game.move_count,
       legal_boards: room.game.legal_boards,
+      pickups: room.game.pickups,
+      scores: room.game.scores,
+      last_event: room.game.last_event,
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,

@@ -16,13 +16,15 @@ The room is the game instance. The game screen is the room. There is no separate
 
 A game type that can be selected from the game list.
 
-Current ready game:
+Current ready games:
 
 - `super_tic_tac_toe`
+- `super_tactical_tac_toe`
 
-Display name:
+Display names:
 
 - `Super Tic Tac Toe`
+- `Super Tactical Tac Toe`
 
 ### Room
 
@@ -139,6 +141,7 @@ Required display:
 Current game list:
 
 - `Super Tic Tac Toe`
+- `Super Tactical Tac Toe`
 
 Game button behavior:
 
@@ -570,6 +573,15 @@ Contrast rules:
 ## Polling And Presence
 
 Current live updates are event-first with conservative timed fallback.
+
+## Global Two-Player Lobby
+
+Super Tic Tac Toe and Super Tactical Tac Toe use the same selected-game lobby architecture.
+
+- Player/game selection, selected-game lobby presence, open/in-progress room cards, create/re-enter, local opponent selection, remote invites, reset, exit, and room WebSockets are global two-player behavior.
+- Lobby design changes should apply to both ready two-player games unless a later game explicitly introduces a different room model.
+- Game-specific code should start at the board/rules/rendering layer, not at the lobby layer.
+- Super Tactical Tac Toe adds Worker-owned pickups and scores, but it does not add a custom lobby.
 
 App-level live updates:
 

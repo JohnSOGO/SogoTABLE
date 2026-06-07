@@ -194,6 +194,24 @@ async function createActiveRoom(env) {
   return { room: joined.room, host, guest };
 }
 
+function withMockRandom(values, action) {
+  const original = Math.random;
+  let index = 0;
+  Math.random = () => values[Math.min(index++, values.length - 1)];
+  return Promise.resolve()
+    .then(action)
+    .finally(() => {
+      Math.random = original;
+    });
+}
+
+function mutateState(env, mutator) {
+  const row = env.SOGOTABLE_STATE.rows.get("state");
+  const data = JSON.parse(row.value);
+  mutator(data);
+  row.value = JSON.stringify(data);
+}
+
 test("creates, lists, and deletes players", async () => {
   const env = makeEnv();
   const created = await post(env, "/api/players/create", { player: player("p1", "Player One") });
@@ -383,6 +401,55 @@ test("notifies the room durable object after meaningful room changes", async () 
   assert.deepEqual(roomObject.actions, ["/api/room/join", "/api/room/move", "/api/room/leave"]);
 });
 
+test("creates tactical rooms with authoritative pickups and scores", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TACT" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+  const oSeat = joined.room.players.find((seat) => seat.mark === "O");
+
+  const firstMove = await post(env, "/api/room/move", { code: "TACT", player_id: xSeat.id, board: 0, cell: 0 });
+  assert.equal(firstMove.ok, true);
+  assert.equal(firstMove.room.game.game_id, "super_tactical_tac_toe");
+  assert.equal(firstMove.room.game.pickups.length, 1);
+  assert.equal(firstMove.room.game.pickups[0].type, "coin");
+  assert.equal(firstMove.room.game.pickups[0].board, 0);
+  assert.equal(firstMove.room.game.pickups[0].cell, 1);
+
+  const capture = await post(env, "/api/room/move", { code: "TACT", player_id: oSeat.id, board: 0, cell: 1 });
+  assert.equal(capture.ok, true);
+  assert.equal(capture.room.game.scores[oSeat.mark], 10);
+  assert.equal(capture.room.game.last_event.type, "pickupCaptured");
+  assert.equal(capture.room.game.events.some((event) => event.type === "pickupCaptured" && event.points === 10), true);
+}));
+
+test("spawns treasure when a tactical sector is captured", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TRSR" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+
+  mutateState(env, (data) => {
+    const game = data.rooms.TRSR.game;
+    game.boards[0][0] = "X";
+    game.boards[0][1] = "X";
+    game.current_player = "X";
+    game.next_board = 0;
+    game.move_count = 4;
+  });
+
+  const moved = await post(env, "/api/room/move", { code: "TRSR", player_id: xSeat.id, board: 0, cell: 2 });
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.small_winners[0], "X");
+  assert.equal(moved.room.game.pickups.some((pickup) => pickup.type === "treasureChest"), true);
+  assert.equal(moved.room.game.pickups.some((pickup) => pickup.type === "coin"), true);
+}));
+
 test("notifies the app event hub with room, lobby, and invite snapshots", async () => {
   const env = makeEnvWithEvents();
   const host = player("host", "Host");
@@ -408,4 +475,18 @@ test("notifies the app event hub with room, lobby, and invite snapshots", async 
   const declined = await post(env, "/api/invite/respond", { invite_id: invite.invite.id, accept: false, player: guest });
   assert.equal(declined.ok, true);
   assert.equal(eventHub.snapshots.at(-1).pending_invites_by_player.guest, undefined);
+});
+
+test("routes tactical lobby snapshots through the tactical event hub", async () => {
+  const env = makeEnvWithEvents();
+  const host = player("host", "Host");
+
+  const presence = await post(env, "/api/lobby/presence", { game_id: "super_tactical_tac_toe", player: host });
+  const tacticalHub = env.EVENT_HUB.getByName("super_tactical_tac_toe");
+  const classicHub = env.EVENT_HUB.getByName("super_tic_tac_toe");
+
+  assert.equal(presence.ok, true);
+  assert.equal(tacticalHub.snapshots.at(-1).game_id, "super_tactical_tac_toe");
+  assert.deepEqual(tacticalHub.snapshots.at(-1).lobby_players.map((item) => item.id), ["host"]);
+  assert.equal(classicHub.snapshots.length, 0);
 });

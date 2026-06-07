@@ -138,6 +138,13 @@ Room summary shape:
 
 Full room responses also include `game`, `latest_invite`, and `reset_request`.
 
+Supported `game_id` values:
+
+- `super_tic_tac_toe`
+- `super_tactical_tac_toe`
+
+Super Tactical Tac Toe room game state reuses the base nested-board fields and adds `pickups`, `scores`, `captures`, `events`, `last_event`, and `score_goal`. Pickups and scores are authoritative Worker state.
+
 Room statuses:
 
 - `waiting_for_player`
@@ -214,6 +221,8 @@ Request:
   "code": "ABCD"
 }
 ```
+
+Use `game_id: "super_tactical_tac_toe"` to create a Super Tactical Tac Toe room.
 
 `code` is optional and mostly useful for tests.
 
@@ -302,6 +311,8 @@ Response:
 ```
 
 Invalid moves return `{ "ok": false, "error": "..." }`.
+
+For Super Tactical Tac Toe, valid moves may also update `game.pickups`, `game.scores`, `game.captures`, `game.events`, and `game.last_event`. The browser must render these values, not invent them locally.
 
 ## Reset
 

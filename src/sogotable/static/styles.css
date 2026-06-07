@@ -707,10 +707,26 @@ button.compact {
   box-shadow: 0 0 0 2px rgba(31, 122, 95, 0.16);
 }
 
+.player-switch-button em {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  min-height: 20px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #172033;
+  color: #fff;
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1;
+}
+
 .turn-status {
   min-height: 42px;
   display: grid;
   place-items: center;
+  gap: 2px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
@@ -800,6 +816,13 @@ button.compact {
   touch-action: manipulation;
 }
 
+.turn-status small {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.82;
+}
+
 .cell.x {
   color: var(--x);
 }
@@ -816,6 +839,17 @@ button.compact {
 .cell.pending {
   opacity: 0.72;
   box-shadow: inset 0 0 0 2px var(--turn-color, var(--accent));
+}
+
+.cell.pickup {
+  font-size: clamp(14px, 4.6vw, 24px);
+  background: #fff9db;
+  border-color: #f4c542;
+}
+
+.cell.pickup.treasureChest {
+  background: #f4ecff;
+  border-color: #b98cff;
 }
 
 .macro-win-line {

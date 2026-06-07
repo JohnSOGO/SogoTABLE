@@ -28,6 +28,23 @@ const WIN_LINES = [
   [0, 4, 8],
   [2, 4, 6],
 ];
+const GAME_IDS = new Set(["super_tic_tac_toe", "super_tactical_tac_toe"]);
+const TACTICAL_GAME_ID = "super_tactical_tac_toe";
+const TACTICAL_SCORE_GOAL = 100;
+const TACTICAL_PICKUP_CONFIG = {
+  coin: {
+    emoji: "\uD83E\uDE99",
+    label: "Coin",
+    points: 10,
+    maxActive: 5,
+  },
+  treasureChest: {
+    emoji: "\uD83C\uDF81",
+    label: "Treasure Chest",
+    points: 25,
+    maxActive: 3,
+  },
+};
 
 const allowedOrigins = new Set([
   "https://sogotable.sogodojo.com",
@@ -216,7 +233,7 @@ async function routeRequest(method, url, payload, data) {
       const gameId = cleanGameId(payload.game_id);
       const player = playerFromPayload(payload);
       data.lobbyViewers[player.id] = { game_id: gameId, player, updated_at: Date.now() };
-      return { ok: true, players: lobbyViewers(data, gameId) };
+      return { ok: true, game_id: gameId, players: lobbyViewers(data, gameId) };
     }
     if (method === "GET" && url.pathname === "/api/rooms") {
       const playerId = url.searchParams.get("player_id") || "";
@@ -250,7 +267,7 @@ async function routeRequest(method, url, payload, data) {
         game_id: gameId,
         started: false,
         local_mode: false,
-        game: newGame(),
+        game: newGame(gameId),
         players: [],
         reset_votes: [],
       };
@@ -401,7 +418,7 @@ async function notifyEventHub(env, data, response) {
     ? response.room.game_id
     : response.invite && response.invite.game_id
       ? response.invite.game_id
-      : "super_tic_tac_toe";
+      : response.game_id || "super_tic_tac_toe";
   const snapshot = eventSnapshotForGame(data, gameId);
   await env.EVENT_HUB.getByName(gameId).fetch(new Request("https://event.hub/__app_snapshot", {
     method: "POST",
@@ -541,7 +558,7 @@ function writeChanged(result) {
 
 function cleanGameId(gameId) {
   const value = String(gameId || "super_tic_tac_toe").trim() || "super_tic_tac_toe";
-  if (value !== "super_tic_tac_toe") throw new Error("Game is not available yet.");
+  if (!GAME_IDS.has(value)) throw new Error("Game is not available yet.");
   return value;
 }
 
@@ -685,7 +702,7 @@ function handleResetVote(room, requesterId, approve) {
   if (!room.reset_votes.includes(requesterId)) room.reset_votes.push(requesterId);
   if (room.players.length > 1 && room.reset_votes.length < room.players.length) return "pending";
   room.reset_votes = [];
-  room.game = newGame();
+  room.game = newGame(room.game_id);
   return null;
 }
 
@@ -703,8 +720,9 @@ function pruneLobbyViewers(data) {
   });
 }
 
-function newGame() {
-  return {
+function newGame(gameId = "super_tic_tac_toe") {
+  const game = {
+    game_id: gameId,
     boards: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null)),
     small_winners: Array.from({ length: 9 }, () => null),
     current_player: "X",
@@ -713,6 +731,18 @@ function newGame() {
     winner: null,
     move_count: 0,
   };
+  if (gameId === TACTICAL_GAME_ID) {
+    game.pickups = [];
+    game.scores = { X: 0, O: 0 };
+    game.captures = {
+      X: { coin: 0, treasureChest: 0 },
+      O: { coin: 0, treasureChest: 0 },
+    };
+    game.events = [];
+    game.last_event = null;
+    game.score_goal = TACTICAL_SCORE_GOAL;
+  }
+  return game;
 }
 
 function gameToDict(game) {
@@ -730,6 +760,11 @@ function boardAvailable(game, boardIndex) {
 }
 
 function makeMove(game, boardIndex, cellIndex) {
+  if (isTacticalGame(game)) return makeTacticalMove(game, boardIndex, cellIndex);
+  return makeClassicMove(game, boardIndex, cellIndex);
+}
+
+function makeClassicMove(game, boardIndex, cellIndex) {
   validateMove(game, boardIndex, cellIndex);
   const player = game.current_player;
   game.boards[boardIndex][cellIndex] = player;
@@ -748,6 +783,58 @@ function makeMove(game, boardIndex, cellIndex) {
     game.next_board = null;
     return;
   }
+  game.current_player = player === "X" ? "O" : "X";
+  game.next_board = boardAvailable(game, cellIndex) ? cellIndex : null;
+}
+
+function makeTacticalMove(game, boardIndex, cellIndex) {
+  validateMove(game, boardIndex, cellIndex);
+  ensureTacticalState(game);
+  const player = game.current_player;
+  const pickup = pickupAt(game, boardIndex, cellIndex);
+
+  game.boards[boardIndex][cellIndex] = player;
+  game.move_count += 1;
+  pushGameEvent(game, {
+    type: "movePlaced",
+    player,
+    board: boardIndex,
+    sector: boardIndex,
+    cell: cellIndex,
+  });
+
+  if (pickup) capturePickup(game, pickup, player);
+
+  const previousSectorResult = game.small_winners[boardIndex];
+  game.small_winners[boardIndex] = smallBoardResult(game.boards[boardIndex]);
+  const capturedSector = previousSectorResult === null && ["X", "O"].includes(game.small_winners[boardIndex]);
+  if (capturedSector) {
+    pushGameEvent(game, {
+      type: "sectorCaptured",
+      player,
+      board: boardIndex,
+      sector: boardIndex,
+    });
+    spawnRandomPickup(game, "treasureChest");
+  }
+
+  spawnRandomPickup(game, "coin");
+
+  const winner = tacticalWinner(game);
+  if (winner) {
+    game.status = winner === "X" ? "x_won" : "o_won";
+    game.winner = winner;
+    game.next_board = null;
+    return;
+  }
+  if (game.small_winners.every((result) => result !== null)) {
+    const tiebreakWinner = tacticalBoardFilledWinner(game);
+    game.status = tiebreakWinner ? (tiebreakWinner === "X" ? "x_won" : "o_won") : "draw";
+    game.winner = tiebreakWinner;
+    game.next_board = null;
+    return;
+  }
+
   game.current_player = player === "X" ? "O" : "X";
   game.next_board = boardAvailable(game, cellIndex) ? cellIndex : null;
 }
@@ -774,6 +861,132 @@ function macroWinnerFor(smallWinners) {
     }
   }
   return null;
+}
+
+function isTacticalGame(game) {
+  return game && (game.game_id === TACTICAL_GAME_ID || Array.isArray(game.pickups));
+}
+
+function ensureTacticalState(game) {
+  if (!game.pickups) game.pickups = [];
+  if (!game.scores) game.scores = { X: 0, O: 0 };
+  if (!game.captures) {
+    game.captures = {
+      X: { coin: 0, treasureChest: 0 },
+      O: { coin: 0, treasureChest: 0 },
+    };
+  }
+  if (!game.events) game.events = [];
+  if (!game.score_goal) game.score_goal = TACTICAL_SCORE_GOAL;
+}
+
+function pickupAt(game, boardIndex, cellIndex) {
+  ensureTacticalState(game);
+  return game.pickups.find((pickup) => pickup.board === boardIndex && pickup.cell === cellIndex) || null;
+}
+
+function capturePickup(game, pickup, player) {
+  const config = TACTICAL_PICKUP_CONFIG[pickup.type];
+  if (!config) return;
+  game.scores[player] = Number(game.scores[player] || 0) + config.points;
+  game.pickups = game.pickups.filter((item) => item.id !== pickup.id);
+  if (!game.captures[player]) game.captures[player] = { coin: 0, treasureChest: 0 };
+  game.captures[player][pickup.type] = Number(game.captures[player][pickup.type] || 0) + 1;
+  pushGameEvent(game, {
+    type: "pickupCaptured",
+    player,
+    pickup_type: pickup.type,
+    pickup_label: config.label,
+    points: config.points,
+    emoji: config.emoji,
+  });
+}
+
+function spawnRandomPickup(game, type) {
+  ensureTacticalState(game);
+  const config = TACTICAL_PICKUP_CONFIG[type];
+  if (!config) return;
+  const openCells = tacticalOpenCells(game);
+  if (!openCells.length) return;
+  const cell = openCells[Math.floor(Math.random() * openCells.length)];
+  const existingOfType = game.pickups.filter((pickup) => pickup.type === type);
+  if (existingOfType.length >= config.maxActive) {
+    const oldest = existingOfType.sort((left, right) => left.created_at_turn - right.created_at_turn)[0];
+    game.pickups = game.pickups.filter((pickup) => pickup.id !== oldest.id);
+  }
+  const pickup = {
+    id: `${type}:${game.move_count}:${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    label: config.label,
+    emoji: config.emoji,
+    points: config.points,
+    board: cell.board,
+    sector: cell.board,
+    cell: cell.cell,
+    created_at_turn: game.move_count,
+  };
+  game.pickups.push(pickup);
+  pushGameEvent(game, {
+    type: "pickupSpawned",
+    pickup_type: type,
+    pickup_label: config.label,
+    board: cell.board,
+    sector: cell.board,
+    cell: cell.cell,
+    emoji: config.emoji,
+    points: config.points,
+  });
+}
+
+function tacticalOpenCells(game) {
+  const occupiedPickupCells = new Set(game.pickups.map((pickup) => `${pickup.board}:${pickup.cell}`));
+  const cells = [];
+  game.boards.forEach((board, boardIndex) => {
+    if (!boardAvailable(game, boardIndex)) return;
+    board.forEach((mark, cellIndex) => {
+      if (mark !== null) return;
+      if (occupiedPickupCells.has(`${boardIndex}:${cellIndex}`)) return;
+      cells.push({ board: boardIndex, cell: cellIndex });
+    });
+  });
+  return cells;
+}
+
+function tacticalWinner(game) {
+  const macroWinner = macroWinnerFor(game.small_winners);
+  if (macroWinner) return macroWinner;
+  if (Number(game.scores.X || 0) >= game.score_goal) return "X";
+  if (Number(game.scores.O || 0) >= game.score_goal) return "O";
+  return null;
+}
+
+function tacticalBoardFilledWinner(game) {
+  return compareMarks(game, [
+    (mark) => Number(game.scores[mark] || 0),
+    (mark) => capturedSectorCount(game, mark),
+    (mark) => Number(game.captures[mark] && game.captures[mark].treasureChest || 0),
+    (mark) => Number(game.captures[mark] && game.captures[mark].coin || 0),
+  ]);
+}
+
+function compareMarks(game, scorers) {
+  for (const scorer of scorers) {
+    const xScore = scorer("X");
+    const oScore = scorer("O");
+    if (xScore > oScore) return "X";
+    if (oScore > xScore) return "O";
+  }
+  return null;
+}
+
+function capturedSectorCount(game, mark) {
+  return game.small_winners.filter((result) => result === mark).length;
+}
+
+function pushGameEvent(game, event) {
+  if (!["movePlaced", "pickupSpawned"].includes(event.type)) game.last_event = event;
+  game.events.push({ ...event, turn: game.move_count });
+  if (game.events.length > 12) game.events = game.events.slice(-12);
 }
 
 function ensureRoomSeatColors(room) {
