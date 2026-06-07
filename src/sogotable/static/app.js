@@ -1,3 +1,13 @@
+import { api, fetchJson } from "./api-client.js";
+import {
+  colorWithAlpha,
+  getContrastAwareTextColor,
+  isHexColor,
+  mixColorWithWhite,
+  normalizePlayerColor,
+} from "./color-utils.js";
+import { avatarHtml, escapeHtml } from "./html-utils.js";
+
 const icons = ["🙂", "😎", "🤖", "🦊", "🐲", "⭐", "🌮", "🎲"];
 const colors = ["#1f7a5f", "#1e63d6", "#c43d5d", "#8a4bd1", "#b7791f", "#0f766e"];
 const randomIcons = ["🙂", "😎", "🤖", "🦊", "🐲", "⭐", "🌮", "🎲", "🎯", "🚀", "🌈", "🍕", "🎸", "🧠", "🔥", "🍀"];
@@ -19,7 +29,6 @@ const paletteColors = [
   "#be123c",
   "#334155",
 ];
-const HOSTED_API_ORIGIN = "https://sogotable.sogodojo.com";
 const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
 const games = [
   {
@@ -469,24 +478,12 @@ function normalizeSelectedColorText(event) {
   if (colorNative) colorNative.value = normalized;
 }
 
-function normalizePlayerColor(value, defaultColor = paletteColors[0], base = paletteColors[0]) {
-  const candidate = (value || "").trim();
-  if (isHexColor(candidate)) return candidate.toLowerCase();
-  if (isHexColor(base)) return base.toLowerCase();
-  if (isHexColor(defaultColor)) return defaultColor.toLowerCase();
-  return "#1f7a5f";
-}
-
 function updateSelectedColorFromNative(event) {
   const normalized = normalizePlayerColor(event.target.value, selectedColor, paletteColors[0]);
   selectedColor = normalized;
   const colorText = document.getElementById("playerColorText");
   if (colorText) colorText.value = normalized;
   renderChoices();
-}
-
-function isHexColor(value) {
-  return /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
 function setTurnColorVariables(element, color) {
@@ -499,53 +496,6 @@ function setTurnColorVariables(element, color) {
   element.style.setProperty("--turn-soft", turnSoft);
   element.style.setProperty("--turn-soft-strong", turnSoftStrong);
   element.style.setProperty("--turn-glow", colorWithAlpha(safeColor, 0.35));
-}
-
-function getContrastAwareTextColor(hexColor) {
-  const safeColor = isHexColor(hexColor || "") ? hexColor : "#1f7a5f";
-  const [red, green, blue] = hexToRgb(safeColor);
-  const bgLum = relativeLuminance(red, green, blue);
-  const blackContrast = contrastRatio(bgLum, relativeLuminance(17, 17, 17));
-  const whiteContrast = contrastRatio(bgLum, relativeLuminance(255, 255, 255));
-  return blackContrast >= whiteContrast ? "#111111" : "#ffffff";
-}
-
-function hexToRgb(hex) {
-  const clean = hex.replace("#", "");
-  return [
-    parseInt(clean.slice(0, 2), 16),
-    parseInt(clean.slice(2, 4), 16),
-    parseInt(clean.slice(4, 6), 16),
-  ];
-}
-
-function relativeLuminance(red, green, blue) {
-  const [r, g, b] = [red, green, blue].map((value) => {
-    const channel = value / 255;
-    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  return r * 0.2126 + g * 0.7152 + b * 0.0722;
-}
-
-function contrastRatio(left, right) {
-  const lighter = Math.max(left, right);
-  const darker = Math.min(left, right);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-function colorWithAlpha(hex, alpha) {
-  const [red, green, blue] = hexToRgb(hex);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
-function mixColorWithWhite(hex, amount) {
-  const [red, green, blue] = hexToRgb(hex);
-  const mix = (channel) => Math.round(channel * amount + 255 * (1 - amount));
-  return rgbToHex(mix(red), mix(green), mix(blue));
-}
-
-function rgbToHex(red, green, blue) {
-  return `#${[red, green, blue].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function updateSelectedIcon(event) {
@@ -1366,38 +1316,6 @@ function leaveClosedRoom() {
   showScreen("gameSelected");
 }
 
-async function api(url, payload) {
-  const data = await fetchJson(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!data.ok) throw new Error(data.error || "Request failed.");
-  return data;
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(apiUrl(url), options);
-  const contentType = response.headers.get("content-type") || "";
-  const text = await response.text();
-  if (!text) throw new Error("Game server returned an empty response.");
-  if (!contentType.includes("application/json")) throw new Error("Game server returned a non-JSON response.");
-  return JSON.parse(text);
-}
-
-function isLocalHost() {
-  const host = location.hostname;
-  return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(host) ||
-    /^192\.168\./.test(host) ||
-    /^10\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
-}
-
-function apiUrl(url) {
-  if (typeof url === "string" && url.startsWith("/api/") && !isLocalHost()) return `${HOSTED_API_ORIGIN}${url}`;
-  return url;
-}
-
 function selectedPlayer() {
   return players.find((player) => player.id === selectedPlayerId) || null;
 }
@@ -1592,16 +1510,3 @@ function saveSelectedGame() {
   localStorage.setItem("sogotable.selectedGameId", selectedGameId);
 }
 
-function avatarHtml(player) {
-  const background = isHexColor(player.color || "") ? player.color : "#1f7a5f";
-  const foreground = getContrastAwareTextColor(background);
-  return `<span class="avatar" style="background:${escapeHtml(background)};color:${foreground}">${escapeHtml(player.icon)}</span>`;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
