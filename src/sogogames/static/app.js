@@ -599,11 +599,14 @@ function closePlayerModalOnBackdrop(event) {
   if (event.target.id === "playerModal") closePlayerModal();
 }
 
-function openInvitePlayerModal() {
+async function openInvitePlayerModal() {
   opponentPickerMode = "remote";
   document.getElementById("invitePlayerTitle").textContent = "Invite Remote Opponent";
-  renderInvitePlayerList();
+  const host = document.getElementById("invitePlayerList");
+  host.textContent = "Checking lobby...";
   document.getElementById("invitePlayerModal").classList.remove("hidden");
+  await refreshRemoteInviteSources();
+  renderInvitePlayerList();
 }
 
 function openLocalOpponentModal() {
@@ -626,9 +629,11 @@ function renderInvitePlayerList() {
   host.innerHTML = "";
   if (!currentRoom) return;
   const seated = new Set(currentRoom.players.map((player) => player.id));
-  const available = players.filter((player) => !seated.has(player.id));
+  const available = opponentPickerMode === "local"
+    ? players.filter((player) => !seated.has(player.id))
+    : remoteInviteCandidates(seated);
   if (!available.length) {
-    host.textContent = "No available players.";
+    host.textContent = opponentPickerMode === "remote" ? "No players in lobby." : "No available players.";
     return;
   }
   available.forEach((player) => {
@@ -642,6 +647,22 @@ function renderInvitePlayerList() {
     });
     host.appendChild(button);
   });
+}
+
+async function refreshRemoteInviteSources() {
+  try {
+    await Promise.all([refreshLobbyPlayers(), refreshGameRooms()]);
+  } catch {
+    // Rendering falls back to the last known lobby/room lists.
+  }
+}
+
+function remoteInviteCandidates(seated) {
+  const busyPlayerIds = new Set(seated);
+  currentGameRooms
+    .filter((room) => room.status === "waiting_for_player" || room.status === "active")
+    .forEach((room) => room.players.forEach((player) => busyPlayerIds.add(player.id)));
+  return lobbyPlayers.filter((player) => !busyPlayerIds.has(player.id));
 }
 
 async function joinLocalOpponent(player) {
