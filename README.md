@@ -8,19 +8,23 @@ The product target is simple: family members sitting together at a restaurant ca
 
 - Repo scaffold: complete.
 - Super Tic Tac Toe rules engine: complete in the hosted Worker brain.
-- Super Tactical Tac Toe rules engine: complete first pass in the hosted Worker brain.
+- Super Tic Tactical Toe rules engine: complete first pass in the hosted Worker brain.
 - Mobile-first web UI: complete first pass.
 - Room creation, invites, and room codes: Cloudflare Worker + D1 first pass.
 - Shared persistent player roster: complete first pass.
 - Progressive Web App shell: complete first pass.
+- Quiet generated UI/game sound: complete first pass.
+- Single-player bot opponent flow: complete first pass.
 - Active room history/statistics: future milestone.
 
 ## Stack
 
 - Vanilla HTML/CSS/JavaScript under `src/sogotable/static/`.
 - PWA manifest and service worker for installable phone-browser shell.
+- Generated Web Audio effects for quiet UI and game feedback.
 - Cloudflare Worker + D1 brain for hosted public multiplayer API.
 - Cloudflare Durable Object room channel for live room WebSocket updates.
+- Worker-owned random legal move bots for instant single-player rooms.
 - Node built-in tests for the hosted Worker API.
 
 This avoids framework weight while keeping the app focused on the actual public play path: Cloudflare Pages for static files and a Cloudflare Worker backed by D1 for shared multiplayer state.
@@ -59,7 +63,7 @@ The public site uses a shared API brain for players, lobby presence, rooms, invi
 npm run deploy:brain
 ```
 
-The Worker is configured in `wrangler.toml` and stores shared game state in a small D1 database. Durable Objects are still the strongest future fit for strict turn consistency, but D1 avoids KV write limits and avoids per-edge memory splits during public playtesting.
+The Worker is configured in `wrangler.toml` and stores shared game state in a small D1 database. Durable Objects now serialize active-room mutations and deliver realtime room/app snapshots, while D1 remains the persistence layer during public playtesting.
 
 ## Run Tests
 
@@ -69,7 +73,7 @@ npm run test:worker
 
 ## First Milestone Goals
 
-- Make Super Tic Tac Toe and Super Tactical Tac Toe playable end-to-end.
+- Make Super Tic Tac Toe and Super Tic Tactical Toe playable end-to-end.
 - Keep hosted game rules separate from browser rendering where practical.
 - Support simple player selection and room codes.
 - Leave real accounts, history, and richer multiplayer for later phases.
@@ -83,8 +87,13 @@ npm run test:worker
 - [API Contract](docs/api-contract.md)
 - [Purpose](docs/purpose.md)
 - [Architecture](docs/architecture.md)
+- [Cloudflare Quota Guardrails](docs/cloudflare-quota.md)
+- [Nomenclature](docs/nomenclature.md)
+- [Live Rounds](docs/live-rounds.md)
 - [Wu Wei Method](docs/wu-wei-method.md)
 - [Wu Wei Event-Driven Progress](docs/wu-wei-event-driven-progress.md)
+- [Audio](docs/audio.md)
+- [Bot Opponents](docs/bots.md)
 - [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)
-- [Super Tactical Tac Toe](docs/game-super-tactical-tac-toe.md)
+- [Super Tic Tactical Toe](docs/game-super-tic-tactical-toe.md)
 - [Roadmap](docs/roadmap.md)

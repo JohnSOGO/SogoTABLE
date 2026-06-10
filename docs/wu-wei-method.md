@@ -23,6 +23,16 @@ player intent -> browser state machine -> Worker API -> shared room state -> gam
 When the path is shaped well, each layer does its own job and passes clean
 state to the next layer.
 
+The game-space language should stay equally clear:
+
+```text
+Table -> Board -> Zone -> Cell
+```
+
+The hosted room is the multiplayer container. The table is the full game-state
+experience inside it. The board is the visible play surface, zones are major
+areas on the board, and cells are the smallest playable squares.
+
 ## Why It Matters For SogoTable
 
 SogoTable is meant to feel easy at a family table:
@@ -55,8 +65,21 @@ The product state-machine riverbed is:
 Intro -> Player & Game Select -> Game Selected -> Game Screen
 ```
 
-The room is the table. The game screen is the room. Do not add a separate
-room-entry screen unless the product model is deliberately changed.
+The room hosts the table. The game screen is the room's playable table view. Do
+not add a separate room-entry screen unless the product model is deliberately
+changed.
+
+Future games may use different timing modes, but they should still flow through
+the same riverbed:
+
+```text
+player intent -> timing mode -> room authority -> game rules -> room snapshot -> browser rendering
+```
+
+For live-round games, the timing mode is not fixed turn order. It is a
+turnless round system: every active player may act once per round, actions
+resolve through the server as they arrive, and the round advances when all
+active players have acted.
 
 ## Layer Responsibilities
 
@@ -104,6 +127,7 @@ Game rules should:
 - return clear state changes or rejection reasons
 - stay separated by game where practical
 - make future game modules easier to add
+- declare their timing model where it affects move authority
 
 Game rules should not:
 
@@ -111,6 +135,7 @@ Game rules should not:
 - decide screen navigation
 - publish UI text as their main output
 - share hidden mutable state across unrelated games
+- smuggle a custom lobby architecture into a timing-mode decision
 
 ### Documentation
 
@@ -133,10 +158,13 @@ Docs should not:
 - Prefer one clear owner for each responsibility.
 - Let room state drive screen state.
 - Let game definitions drive game availability.
+- Let game timing metadata drive turn/round authority.
+- Let table, board, zone, and cell names describe game space consistently.
 - Let the Worker be the multiplayer authority.
 - Let browser state stay local and explicit.
 - Make failure visible instead of pretending play can continue.
 - Add future games through clear game modules and definitions.
+- Treat `liveRound` as rounds without fixed turns, not as unlimited realtime action.
 - Keep the public Cloudflare path as the real play path.
 - Prefer event-driven room snapshots over aggressive interval polling once a room has an active live channel.
 - Use small, testable improvements before larger architecture changes.
@@ -166,6 +194,7 @@ When adding a game, the Wu Wei question is:
 A new game should usually add:
 
 - a game definition
+- timing metadata such as `turnBased`, `liveRound`, or `liveRoundRegroup`
 - a game-specific rule owner
 - tests for the rule owner
 - room/state handling that reuses the existing Worker path
@@ -174,6 +203,16 @@ A new game should usually add:
 
 It should not add a custom room flow, custom identity system, or hidden local
 backend unless the product model explicitly changes.
+
+If a new game uses live rounds, the key question is:
+
+> Who has not acted in this round yet?
+
+Not:
+
+> Whose turn is next?
+
+That distinction is the whole point.
 
 ## Anti-Patterns
 
@@ -186,6 +225,9 @@ Avoid:
 - repeated defensive patches in every caller instead of one upstream boundary
 - adding WebSockets, auth, frameworks, or new storage because they sound grown-up
 - showing future games as ready before they are actually playable
+- implementing live rounds with `currentPlayerId` and `nextPlayer()`
+- implementing live rounds as unlimited realtime movement
+- using `board`, `sector`, `region`, and `area` interchangeably for the same game-space level
 
 ## Review Checklist
 
@@ -196,6 +238,7 @@ Before non-trivial SogoTable changes, ask:
 - What data leaves that layer?
 - Does room state drive the UI state?
 - Does the Worker remain the shared authority?
+- Does the timing mode have one clear authority boundary?
 - Can the game rule change be tested without the browser?
 - Does this preserve one-phone hot-seat play and multi-phone public play?
 - Does the failure mode tell the user the truth?

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker from "../sogotable-api.js";
+import worker, { EventHubDurableObject, RoomDurableObject } from "../sogotable-api.js";
+
+const CLASSIC_GAME_ID = "a3f19c6e42b8";
+const TACTICAL_GAME_ID = "d7e4a91f0c23";
+const HEX_ID_PATTERN = /^[a-f0-9]{12}$/;
 
 class InMemoryD1 {
   constructor() {
@@ -164,6 +168,30 @@ class MockEventHubObject {
   }
 }
 
+class MockHibernatedSocket {
+  constructor(attachment = {}) {
+    this.attachment = attachment;
+    this.sent = [];
+    this.closed = false;
+  }
+
+  send(message) {
+    this.sent.push(JSON.parse(message));
+  }
+
+  close() {
+    this.closed = true;
+  }
+
+  serializeAttachment(attachment) {
+    this.attachment = attachment;
+  }
+
+  deserializeAttachment() {
+    return this.attachment;
+  }
+}
+
 function player(id, name = id, color = "#1f7a5f") {
   return { id, name, icon: name.slice(0, 1), color };
 }
@@ -225,6 +253,41 @@ test("creates, lists, and deletes players", async () => {
   const deleted = await post(env, "/api/players/delete", { id: "p1" });
   assert.equal(deleted.ok, true);
   assert.deepEqual(deleted.players, []);
+});
+
+test("lists ready games from the hosted game registry", async () => {
+  const env = makeEnv();
+  const listed = await get(env, "/api/games");
+
+  assert.equal(listed.ok, true);
+  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID]);
+  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready"]);
+  assert.equal(listed.games[0].name, "Super Tic Tac Toe");
+  assert.equal(listed.games[1].name, "Super Tic Tactical Toe");
+  assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
+  assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
+});
+
+test("player delete is blocked while seated and cleans pending player state otherwise", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  await post(env, "/api/players/create", { player: host });
+  await post(env, "/api/players/create", { player: guest });
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "DLET" });
+  const blocked = await post(env, "/api/players/delete", { id: host.id });
+  await post(env, "/api/lobby/presence", { game_id: "super_tic_tac_toe", player: guest });
+  const invite = await post(env, "/api/invite/create", { code: created.room.code, host_id: host.id, player: guest });
+  const deleted = await post(env, "/api/players/delete", { id: guest.id });
+  const lobby = await get(env, "/api/lobby?game_id=super_tic_tac_toe");
+  const invites = await get(env, `/api/invites?player_id=${encodeURIComponent(guest.id)}`);
+
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.error, "Player is seated in an unfinished room.");
+  assert.equal(invite.ok, true);
+  assert.equal(deleted.ok, true);
+  assert.equal(lobby.players.some((item) => item.id === guest.id), false);
+  assert.equal(invites.invites.length, 0);
 });
 
 test("GET requests do not rewrite D1 state", async () => {
@@ -300,6 +363,235 @@ test("creates a room, joins a second player, and rejects a third player", async 
   assert.equal(third.error, "Room already has two players.");
 });
 
+test("lists bots and lets the host seat a bot opponent", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=super_tic_tac_toe");
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "BOTS" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: bots.bots[0].id });
+
+  assert.equal(bots.ok, true);
+  assert.equal(bots.bots.length >= 3, true);
+  assert.equal(bots.bots.every((bot) => bot.kind === "bot"), true);
+  assert.equal(bots.bots.every((bot) => HEX_ID_PATTERN.test(bot.id) && bot.id === bot.bot_id), true);
+  assert.equal(bots.bots.find((bot) => bot.name === "Tactical Tess").strategy_icon, "🧠");
+  assert.equal(bots.bots.filter((bot) => bot.name !== "Tactical Tess").every((bot) => bot.strategy_icon === "🎲"), true);
+  assert.equal(joined.ok, true);
+  assert.equal(joined.room.status, "active");
+  assert.equal(joined.room.players.length, 2);
+  assert.equal(joined.room.players.some((seat) => seat.kind === "bot"), true);
+}));
+
+test("rejects bot seating by non-hosts and in active rooms", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest");
+  const bots = await get(env, "/api/bots?game_id=super_tic_tac_toe");
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "NOPE" });
+  const nonHost = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: guest.id, bot_id: bots.bots[0].id });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const fullRoom = await post(env, "/api/room/join-bot", { code: joined.room.code, host_id: host.id, bot_id: bots.bots[0].id });
+
+  assert.equal(nonHost.ok, false);
+  assert.equal(nonHost.error, "Only the host can invite a bot.");
+  assert.equal(fullRoom.ok, false);
+  assert.equal(fullRoom.error, "Bot can only join a waiting room.");
+}));
+
+test("bot responds with a legal move through the normal move pipeline", async () => withMockRandom([0, 0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=super_tic_tac_toe");
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "MOVE" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: bots.bots[0].id });
+  const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
+  const moved = await post(env, "/api/room/move", { code: joined.room.code, player_id: humanSeat.id, board: 0, cell: 0 });
+  const filledCells = moved.room.game.boards.flat().filter(Boolean);
+
+  assert.equal(moved.ok, true);
+  assert.equal(filledCells.length, 2);
+  assert.equal(moved.room.game.current_player, humanSeat.mark);
+  assert.equal(moved.room.game.boards[0][0], humanSeat.mark);
+}));
+
+test("Tactical Tess blocks an immediate zone win", async () => withMockRandom([0, 0, 0, 0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=super_tactical_tac_toe");
+  const tess = bots.bots.find((bot) => bot.name === "Tactical Tess");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TBLK" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: tess.id });
+  const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
+  const tessSeat = joined.room.players.find((seat) => seat.id === tess.id);
+
+  mutateState(env, (data) => {
+    const game = data.rooms.TBLK.game;
+    game.current_player = humanSeat.mark;
+    game.next_board = 1;
+    game.boards[0][0] = humanSeat.mark;
+    game.boards[0][1] = humanSeat.mark;
+    game.move_count = 6;
+  });
+
+  const moved = await post(env, "/api/room/move", { code: "TBLK", player_id: humanSeat.id, board: 1, cell: 0 });
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.boards[0][2], tessSeat.mark);
+}));
+
+test("Tactical Tess avoids sending the opponent to a winning destination zone", async () => withMockRandom([0, 0, 0, 0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=super_tactical_tac_toe");
+  const tess = bots.bots.find((bot) => bot.name === "Tactical Tess");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TDST" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: tess.id });
+  const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
+  const tessSeat = joined.room.players.find((seat) => seat.id === tess.id);
+
+  mutateState(env, (data) => {
+    const game = data.rooms.TDST.game;
+    game.current_player = humanSeat.mark;
+    game.next_board = 1;
+    game.boards[2][0] = humanSeat.mark;
+    game.boards[2][1] = humanSeat.mark;
+    game.move_count = 6;
+  });
+
+  const moved = await post(env, "/api/room/move", { code: "TDST", player_id: humanSeat.id, board: 1, cell: 0 });
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.boards[0][2], null);
+  assert.equal(moved.room.game.boards[0].some((cell, index) => index !== 2 && cell === tessSeat.mark), true);
+  assert.notEqual(moved.room.game.next_board, 2);
+}));
+
+test("Tactical Tess values a treasure pickup over a plain center cell", async () => withMockRandom([0, 0, 0, 0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=super_tactical_tac_toe");
+  const tess = bots.bots.find((bot) => bot.name === "Tactical Tess");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TPWR" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: tess.id });
+  const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
+  const tessSeat = joined.room.players.find((seat) => seat.id === tess.id);
+
+  mutateState(env, (data) => {
+    const game = data.rooms.TPWR.game;
+    game.current_player = humanSeat.mark;
+    game.next_board = 1;
+    game.pickups = [{
+      id: "manual-treasure",
+      type: "treasureChest",
+      label: "Treasure Chest",
+      emoji: "\uD83C\uDF81",
+      points: 25,
+      board: 0,
+      sector: 0,
+      cell: 5,
+      created_at_turn: 6,
+    }];
+    game.move_count = 6;
+  });
+
+  const moved = await post(env, "/api/room/move", { code: "TPWR", player_id: humanSeat.id, board: 1, cell: 0 });
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.boards[0][5], tessSeat.mark);
+  assert.equal(moved.room.game.scores[tessSeat.mark], 25);
+}));
+
+test("room durable object returns the latest bot-applied snapshot", async () => withMockRandom([0, 0], async () => {
+  const env = makeEnvWithRooms();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=super_tic_tac_toe");
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "DORB" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: bots.bots[0].id });
+  const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
+  const moved = await post(env, "/api/room/move", { code: joined.room.code, player_id: humanSeat.id, board: 0, cell: 0 });
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.move_count, 2);
+  assert.equal(env.ROOM_OBJECT.getByName("DORB").snapshots.at(-1).game.move_count, 2);
+}));
+
+test("bot auto-agrees to reset and play-again requests", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=super_tic_tac_toe");
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "RSET" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: bots.bots[0].id });
+  const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
+
+  mutateState(env, (data) => {
+    const game = data.rooms.RSET.game;
+    game.boards[0][0] = humanSeat.mark;
+    game.move_count = 1;
+  });
+
+  const reset = await post(env, "/api/room/reset", { code: "RSET", requester_id: humanSeat.id });
+
+  assert.equal(reset.ok, true);
+  assert.equal(reset.reset, undefined);
+  assert.equal(reset.room.reset_request, null);
+  assert.equal(reset.room.game.move_count, 0);
+}));
+
+test("bot games update human stats without exposing bot leaderboard rows", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=super_tactical_tac_toe");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "BWIN" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: bots.bots[0].id });
+  const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
+
+  mutateState(env, (data) => {
+    const room = data.rooms.BWIN;
+    const game = room.game;
+    game.small_winners[0] = humanSeat.mark;
+    game.small_winners[1] = humanSeat.mark;
+    game.boards[2][0] = humanSeat.mark;
+    game.boards[2][1] = humanSeat.mark;
+    game.scores = { X: 0, O: 0, [humanSeat.mark]: 50 };
+    game.current_player = humanSeat.mark;
+    game.next_board = 2;
+    game.move_count = 20;
+  });
+
+  const moved = await post(env, "/api/room/move", { code: "BWIN", player_id: humanSeat.id, board: 2, cell: 2 });
+  const stats = await get(env, "/api/stats?game_id=super_tactical_tac_toe");
+  const playerStats = await get(env, `/api/player/stats?player_id=${encodeURIComponent(humanSeat.id)}`);
+  const tacticalStats = playerStats.stats.find((entry) => entry.game_id === TACTICAL_GAME_ID);
+
+  assert.equal(moved.ok, true);
+  assert.equal(tacticalStats.games_played, 1);
+  assert.equal(tacticalStats.games_won, 1);
+  assert.equal(tacticalStats.personal_high_score, 50);
+  assert.equal(bots.bots.every((bot) => !String(bot.id).includes(String(bot.name).toLowerCase().split(" ")[0])), true);
+  assert.equal(stats.stats.ratings.every((entry) => !entry.bot), true);
+}));
+
+test("canonical opaque game ids work while legacy game ids remain aliases", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const legacyCreated = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "OPAQ" });
+  const canonicalCreated = await post(env, "/api/room/create", { game_id: TACTICAL_GAME_ID, player: guest, code: "OPQ2" });
+  const legacyRooms = await get(env, "/api/rooms?game_id=super_tic_tac_toe");
+  const canonicalRooms = await get(env, `/api/rooms?game_id=${encodeURIComponent(TACTICAL_GAME_ID)}`);
+  const legacyStats = await get(env, "/api/stats?game_id=super_tactical_tac_toe");
+
+  assert.equal(legacyCreated.ok, true);
+  assert.equal(legacyCreated.room.game_id, CLASSIC_GAME_ID);
+  assert.equal(legacyCreated.room.game.game_id, CLASSIC_GAME_ID);
+  assert.equal(canonicalCreated.ok, true);
+  assert.equal(canonicalCreated.room.game_id, TACTICAL_GAME_ID);
+  assert.equal(canonicalCreated.room.game.game_id, TACTICAL_GAME_ID);
+  assert.equal(legacyRooms.rooms.some((room) => room.code === "OPAQ" && room.game_id === CLASSIC_GAME_ID), true);
+  assert.equal(canonicalRooms.rooms.some((room) => room.code === "OPQ2" && room.game_id === TACTICAL_GAME_ID), true);
+  assert.equal(legacyStats.game_id, TACTICAL_GAME_ID);
+}));
+
 test("reuses an unfinished active room for the same player and game", async () => {
   const env = makeEnv();
   const host = player("host", "Host");
@@ -342,6 +634,8 @@ test("tracks reset votes and resets only after both seated players agree", async
   assert.equal(reset.ok, true);
   assert.equal(reset.reset, undefined);
   assert.equal(reset.room.game.move_count, 0);
+  assert.equal(reset.room.game_epoch, room.game_epoch + 1);
+  assert.equal(reset.room.revision > pending.room.revision, true);
   assert.equal(reset.room.reset_request, null);
 });
 
@@ -368,6 +662,21 @@ test("creates invites and handles decline and accept", async () => {
   assert.equal(accepted.room.players.length, 2);
 });
 
+test("invite accept routes through room authority", async () => {
+  const env = makeEnvWithRooms();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest");
+  const room = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "AUTH" });
+  const invite = await post(env, "/api/invite/create", { code: room.room.code, host_id: host.id, player: guest });
+  const accepted = await post(env, "/api/invite/respond", { invite_id: invite.invite.id, accept: true, player: guest });
+  const roomObject = env.ROOM_OBJECT.getByName("AUTH");
+
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.room.status, "active");
+  assert.equal(roomObject.actions.includes("/api/invite/respond"), true);
+  assert.equal(roomObject.snapshots.at(-1).players.some((seat) => seat.id === guest.id), true);
+});
+
 test("notifies the room durable object after meaningful room changes", async () => {
   const env = makeEnvWithRooms();
   const host = player("host", "Host");
@@ -390,7 +699,7 @@ test("notifies the room durable object after meaningful room changes", async () 
   const joined = await post(env, "/api/room/join", { code: "PUSH", player: guest });
   assert.equal(joined.ok, true);
   assert.equal(roomObject.snapshots.at(-1).status, "active");
-  assert.deepEqual(roomObject.actions, ["/api/room/join"]);
+  assert.deepEqual(roomObject.actions, ["/api/invite/respond", "/api/room/join"]);
 
   const xSeat = joined.room.players.find((seat) => seat.mark === "X");
   await post(env, "/api/room/move", { code: "PUSH", player_id: xSeat.id, board: 0, cell: 0 });
@@ -398,7 +707,7 @@ test("notifies the room durable object after meaningful room changes", async () 
 
   await post(env, "/api/room/leave", { code: "PUSH", player_id: host.id, requester_id: host.id });
   assert.deepEqual(roomObject.closed, ["PUSH"]);
-  assert.deepEqual(roomObject.actions, ["/api/room/join", "/api/room/move", "/api/room/leave"]);
+  assert.deepEqual(roomObject.actions, ["/api/invite/respond", "/api/room/join", "/api/room/move", "/api/room/leave"]);
 });
 
 test("creates tactical rooms with authoritative pickups and scores", async () => withMockRandom([0], async () => {
@@ -412,7 +721,7 @@ test("creates tactical rooms with authoritative pickups and scores", async () =>
 
   const firstMove = await post(env, "/api/room/move", { code: "TACT", player_id: xSeat.id, board: 0, cell: 0 });
   assert.equal(firstMove.ok, true);
-  assert.equal(firstMove.room.game.game_id, "super_tactical_tac_toe");
+  assert.equal(firstMove.room.game.game_id, TACTICAL_GAME_ID);
   assert.equal(firstMove.room.game.pickups.length, 1);
   assert.equal(firstMove.room.game.pickups[0].type, "coin");
   assert.equal(firstMove.room.game.pickups[0].board, 0);
@@ -454,6 +763,8 @@ test("tactical game ends on sector line and highest score wins", async () => wit
   const env = makeEnv();
   const host = player("host", "Host");
   const guest = player("guest", "Guest", "#2563eb");
+  await post(env, "/api/players/create", { player: host });
+  await post(env, "/api/players/create", { player: guest });
   const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "SCOR" });
   const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
   const xSeat = joined.room.players.find((seat) => seat.mark === "X");
@@ -489,6 +800,36 @@ test("tactical game ends on sector line and highest score wins", async () => wit
   assert.equal(repeatStats.stats.high_scores.length, 2);
 }));
 
+test("tactical tied score on sector line awards the line completer", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TIED" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+
+  mutateState(env, (data) => {
+    const room = data.rooms.TIED;
+    const game = room.game;
+    game.small_winners[0] = "X";
+    game.small_winners[1] = "X";
+    game.boards[2][0] = "X";
+    game.boards[2][1] = "X";
+    game.scores = { X: 40, O: 40 };
+    game.current_player = "X";
+    game.next_board = 2;
+    game.move_count = 20;
+  });
+
+  const moved = await post(env, "/api/room/move", { code: "TIED", player_id: xSeat.id, board: 2, cell: 2 });
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.line_winner, "X");
+  assert.equal(moved.room.game.status, "x_won");
+  assert.equal(moved.room.game.winner, "X");
+  assert.equal(moved.room.stats_recorded, true);
+}));
+
 test("player profile edits refresh stats display names and icons", async () => withMockRandom([0], async () => {
   const env = makeEnv();
   const host = player("host", "Host", "#d946ef");
@@ -518,8 +859,8 @@ test("player profile edits refresh stats display names and icons", async () => w
   const playerStats = await get(env, `/api/player/stats?player_id=${encodeURIComponent(xSeat.id)}`);
   const highScore = stats.stats.high_scores.find((entry) => entry.player_id === xSeat.id);
   const rating = stats.stats.ratings.find((entry) => entry.player_id === xSeat.id);
-  const tacticalStats = playerStats.stats.find((entry) => entry.game_id === "super_tactical_tac_toe");
-  const classicStats = playerStats.stats.find((entry) => entry.game_id === "super_tic_tac_toe");
+  const tacticalStats = playerStats.stats.find((entry) => entry.game_id === TACTICAL_GAME_ID);
+  const classicStats = playerStats.stats.find((entry) => entry.game_id === CLASSIC_GAME_ID);
 
   assert.equal(edited.ok, true);
   assert.equal(edited.player.id, xSeat.id);
@@ -538,7 +879,7 @@ test("player profile edits refresh stats display names and icons", async () => w
 
   const cleared = await post(env, "/api/player/stats/clear", { player_id: xSeat.id });
   const clearedGameStats = await get(env, "/api/stats?game_id=super_tactical_tac_toe");
-  const clearedTacticalStats = cleared.stats.find((entry) => entry.game_id === "super_tactical_tac_toe");
+  const clearedTacticalStats = cleared.stats.find((entry) => entry.game_id === TACTICAL_GAME_ID);
 
   assert.equal(cleared.ok, true);
   assert.equal(clearedTacticalStats.games_played, 0);
@@ -548,6 +889,109 @@ test("player profile edits refresh stats display names and icons", async () => w
   assert.equal(clearedGameStats.stats.high_scores.some((entry) => entry.player_id === xSeat.id), false);
   assert.equal(clearedGameStats.stats.ratings.some((entry) => entry.player_id === xSeat.id), false);
 }));
+
+test("player edit broadcasts affected room snapshots", async () => {
+  const env = makeEnvWithEvents();
+  const host = player("host", "Host", "#d946ef");
+  const guest = player("guest", "Guest", "#2563eb");
+  await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "EDIT" });
+  await post(env, "/api/room/join", { code: "EDIT", player: guest });
+  const edited = await post(env, "/api/players/create", {
+    player: { ...host, name: "Host Renamed", icon: "HR", color: "#16a34a" },
+  });
+  const roomObject = env.ROOM_OBJECT.getByName("EDIT");
+  const tacticalHub = env.EVENT_HUB.getByName(TACTICAL_GAME_ID);
+
+  assert.equal(edited.ok, true);
+  assert.equal(edited.rooms.length, 1);
+  assert.equal(roomObject.snapshots.at(-1).players.find((seat) => seat.id === host.id).name, "Host Renamed");
+  assert.equal(tacticalHub.snapshots.at(-1).rooms.find((room) => room.code === "EDIT").players.find((seat) => seat.id === host.id).name, "Host Renamed");
+});
+
+test("stats clear notifies all ready game event hubs", async () => {
+  const env = makeEnvWithEvents();
+  const host = player("host", "Host");
+  await post(env, "/api/players/create", { player: host });
+  mutateState(env, (data) => {
+    data.stats = {
+      high_scores: {
+        [TACTICAL_GAME_ID]: [{ player_id: host.id, player_name: host.name, player_icon: host.icon, score: 50 }],
+      },
+      ratings: {
+        [TACTICAL_GAME_ID]: { [host.id]: { player_id: host.id, player_name: host.name, player_icon: host.icon, rating: 1016, games: 1, wins: 1, losses: 0, draws: 0 } },
+      },
+      personal: {
+        [TACTICAL_GAME_ID]: { [host.id]: { player_id: host.id, player_name: host.name, player_icon: host.icon, games_played: 1, games_won: 1, personal_high_score: 50 } },
+      },
+    };
+  });
+
+  const cleared = await post(env, "/api/player/stats/clear", { player_id: host.id });
+  const tacticalHub = env.EVENT_HUB.getByName(TACTICAL_GAME_ID);
+  const classicHub = env.EVENT_HUB.getByName(CLASSIC_GAME_ID);
+
+  assert.equal(cleared.ok, true);
+  assert.equal(tacticalHub.snapshots.at(-1).stats.high_scores.some((entry) => entry.player_id === host.id), false);
+  assert.equal(tacticalHub.snapshots.at(-1).stats.ratings.some((entry) => entry.player_id === host.id), false);
+  assert.equal(classicHub.snapshots.at(-1).game_id, CLASSIC_GAME_ID);
+});
+
+test("public game stats exclude missing players without capping rows", async () => {
+  const env = makeEnv();
+  const roster = Array.from({ length: 6 }, (_, index) => player(`p${index + 1}`, `Player ${index + 1}`));
+  for (const item of roster) {
+    await post(env, "/api/players/create", { player: item });
+  }
+  mutateState(env, (data) => {
+    data.stats = {
+      high_scores: {
+        [TACTICAL_GAME_ID]: [
+          ...roster.map((item, index) => ({
+            player_id: item.id,
+            player_name: item.name,
+            player_icon: item.icon,
+            score: 100 - index,
+            recorded_at: `2026-06-09T00:00:0${index}Z`,
+          })),
+          { player_id: "missing", player_name: "Missing", player_icon: "M", score: 999, recorded_at: "2026-06-09T00:00:09Z" },
+        ],
+      },
+      ratings: {
+        [TACTICAL_GAME_ID]: {
+          ...Object.fromEntries(roster.map((item, index) => [item.id, {
+            player_id: item.id,
+            player_name: item.name,
+            player_icon: item.icon,
+            rating: 1100 - index,
+            games: 1,
+            wins: 1,
+            losses: 0,
+            draws: 0,
+          }])),
+          missing: {
+            player_id: "missing",
+            player_name: "Missing",
+            player_icon: "M",
+            rating: 9999,
+            games: 1,
+            wins: 1,
+            losses: 0,
+            draws: 0,
+          },
+        },
+      },
+      personal: {},
+    };
+  });
+
+  const stats = await get(env, `/api/stats?game_id=${TACTICAL_GAME_ID}`);
+
+  assert.equal(stats.ok, true);
+  assert.equal(stats.stats.high_scores.length, 6);
+  assert.equal(stats.stats.ratings.length, 6);
+  assert.equal(stats.stats.high_scores.some((entry) => entry.player_id === "missing"), false);
+  assert.equal(stats.stats.ratings.some((entry) => entry.player_id === "missing"), false);
+});
 
 test("tactical score goal alone does not end the game", async () => withMockRandom([0], async () => {
   const env = makeEnv();
@@ -577,7 +1021,7 @@ test("notifies the app event hub with room, lobby, and invite snapshots", async 
   const guest = player("guest", "Guest", "#2563eb");
 
   await post(env, "/api/players/create", { player: host });
-  let eventHub = env.EVENT_HUB.getByName("super_tic_tac_toe");
+  let eventHub = env.EVENT_HUB.getByName(CLASSIC_GAME_ID);
   assert.equal(eventHub.snapshots.at(-1).type, "app_snapshot");
   assert.deepEqual(eventHub.snapshots.at(-1).rooms, []);
 
@@ -598,16 +1042,79 @@ test("notifies the app event hub with room, lobby, and invite snapshots", async 
   assert.equal(eventHub.snapshots.at(-1).pending_invites_by_player.guest, undefined);
 });
 
+test("event hub sends an initial snapshot for a subscription", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  await post(env, "/api/players/create", { player: host });
+  await post(env, "/api/lobby/presence", { game_id: "super_tic_tac_toe", player: host });
+  const hub = new EventHubDurableObject({}, env);
+  const sent = [];
+  const session = { send: (message) => sent.push(JSON.parse(message)) };
+  hub.sessions.set(session, { game_id: CLASSIC_GAME_ID, player_id: host.id });
+
+  await hub.sendInitialSnapshot(session);
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].type, "app_snapshot");
+  assert.equal(sent[0].game_id, CLASSIC_GAME_ID);
+  assert.deepEqual(sent[0].lobby_players.map((item) => item.id), [host.id]);
+});
+
+test("event hub broadcasts through hibernated sockets with serialized subscriptions", async () => {
+  const env = makeEnv();
+  const classicSocket = new MockHibernatedSocket({ game_id: CLASSIC_GAME_ID, player_id: "host" });
+  const tacticalSocket = new MockHibernatedSocket({ game_id: TACTICAL_GAME_ID, player_id: "guest" });
+  const hub = new EventHubDurableObject({ getWebSockets: () => [classicSocket, tacticalSocket] }, env);
+
+  hub.broadcastSnapshot({
+    type: "app_snapshot",
+    game_id: CLASSIC_GAME_ID,
+    rooms: [],
+    lobby_players: [player("host", "Host")],
+    pending_invites_by_player: { host: [{ id: "ABCD:host" }] },
+    stats: {},
+  });
+
+  assert.equal(classicSocket.sent.length, 1);
+  assert.equal(classicSocket.sent[0].type, "app_snapshot");
+  assert.deepEqual(classicSocket.sent[0].pending_invites.map((invite) => invite.id), ["ABCD:host"]);
+  assert.equal(tacticalSocket.sent.length, 0);
+});
+
+test("event hub subscribe messages update hibernated socket attachments", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  await post(env, "/api/players/create", { player: host });
+  const socket = new MockHibernatedSocket({ game_id: CLASSIC_GAME_ID, player_id: "" });
+  const hub = new EventHubDurableObject({ getWebSockets: () => [socket] }, env);
+
+  await hub.webSocketMessage(socket, JSON.stringify({ type: "subscribe", game_id: TACTICAL_GAME_ID, player_id: "host" }));
+
+  assert.equal(socket.attachment.game_id, TACTICAL_GAME_ID);
+  assert.equal(socket.attachment.player_id, "host");
+  assert.equal(socket.sent.length, 1);
+  assert.equal(socket.sent[0].game_id, TACTICAL_GAME_ID);
+});
+
+test("room broadcasts through hibernated sockets when in-memory sessions are empty", () => {
+  const socket = new MockHibernatedSocket({ type: "room" });
+  const room = new RoomDurableObject({ getWebSockets: () => [socket] }, makeEnv());
+
+  room.broadcast({ type: "room_closed", code: "ZZZZ" });
+
+  assert.deepEqual(socket.sent, [{ type: "room_closed", code: "ZZZZ" }]);
+});
+
 test("routes tactical lobby snapshots through the tactical event hub", async () => {
   const env = makeEnvWithEvents();
   const host = player("host", "Host");
 
   const presence = await post(env, "/api/lobby/presence", { game_id: "super_tactical_tac_toe", player: host });
-  const tacticalHub = env.EVENT_HUB.getByName("super_tactical_tac_toe");
-  const classicHub = env.EVENT_HUB.getByName("super_tic_tac_toe");
+  const tacticalHub = env.EVENT_HUB.getByName(TACTICAL_GAME_ID);
+  const classicHub = env.EVENT_HUB.getByName(CLASSIC_GAME_ID);
 
   assert.equal(presence.ok, true);
-  assert.equal(tacticalHub.snapshots.at(-1).game_id, "super_tactical_tac_toe");
+  assert.equal(tacticalHub.snapshots.at(-1).game_id, TACTICAL_GAME_ID);
   assert.deepEqual(tacticalHub.snapshots.at(-1).lobby_players.map((item) => item.id), ["host"]);
   assert.equal(classicHub.snapshots.length, 0);
 });

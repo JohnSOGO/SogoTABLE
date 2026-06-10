@@ -84,11 +84,38 @@ Response:
 }
 ```
 
+Delete is blocked while the player is seated in an unfinished room. Successful deletes remove pending lobby presence and pending invites for that player, but do not rewrite completed historical stats.
+
+## Games
+
+### `GET /api/games`
+
+Returns the hosted game registry used by the browser game menu.
+
+```json
+{
+  "ok": true,
+  "games": [
+    {
+      "id": "a3f19c6e42b8",
+      "name": "Super Tic Tac Toe",
+      "summary": "A nested tic tac toe duel where every move sends the next player to a target board.",
+      "players": "2 players",
+      "status": "Ready",
+      "availability": "ready",
+      "aliases": ["super_tic_tac_toe"]
+    }
+  ]
+}
+```
+
+The browser keeps a local fallback registry for startup resilience, but the hosted `/api/games` response is the preferred source for ready-game metadata.
+
 ## Lobby Presence
 
 Lobby presence means a player is currently viewing the selected game screen.
 
-### `GET /api/lobby?game_id=super_tic_tac_toe`
+### `GET /api/lobby?game_id=a3f19c6e42b8`
 
 Response:
 
@@ -106,7 +133,7 @@ Request:
 
 ```json
 {
-  "game_id": "super_tic_tac_toe",
+  "game_id": "a3f19c6e42b8",
   "player": {}
 }
 ```
@@ -128,7 +155,9 @@ Room summary shape:
 {
   "code": "ABCD",
   "host_id": "player-id",
-  "game_id": "super_tic_tac_toe",
+  "game_id": "a3f19c6e42b8",
+  "revision": 1,
+  "game_epoch": 1,
   "started": false,
   "local_mode": false,
   "status": "waiting_for_player",
@@ -137,29 +166,38 @@ Room summary shape:
 }
 ```
 
-Full room responses also include `game`, `latest_invite`, and `reset_request`.
+Full room responses also include `game`, `latest_invite`, and `reset_request`. `revision` is a room-level monotonic freshness marker. `game_epoch` increments when reset/play-again starts a fresh board, so `game.move_count` can safely reset to zero without looking stale.
 
-Supported `game_id` values:
+Canonical `game_id` values:
+
+- `a3f19c6e42b8` - Super Tic Tac Toe
+- `d7e4a91f0c23` - Super Tic Tactical Toe
+
+Legacy aliases accepted for compatibility:
 
 - `super_tic_tac_toe`
 - `super_tactical_tac_toe`
 
-Super Tactical Tac Toe room game state reuses the base nested-board fields and adds `pickups`, `scores`, `captures`, `events`, and `last_event`. Pickups and scores are authoritative Worker state.
+Super Tic Tactical Toe room game state reuses the base nested-board fields and adds `pickups`, `scores`, `captures`, `events`, and `last_event`. Pickups and scores are authoritative Worker state.
 
-When a tactical game ends, `line_winner` records the mark that completed the three-sector macro line. `winner` records the highest-score winner, which may be a different mark.
+When a tactical game ends on a three-zone macro line, `line_winner` records the mark that completed the line. `winner` records the highest-score winner, which may be a different mark. If scores are tied on the line-completing move, `winner` is the same mark as `line_winner`.
+
+Super Tic Tactical Toe product language calls each local 3x3 area a `zone`.
+Current runtime payloads may still include legacy `sector` field names; in those
+payloads, `sector` means `zone`.
 
 ## Game Stats
 
 Stats are per game.
 
-### `GET /api/stats?game_id=super_tactical_tac_toe`
+### `GET /api/stats?game_id=d7e4a91f0c23`
 
 Returns top high scores and ELO ratings for the selected game.
 
 ```json
 {
   "ok": true,
-  "game_id": "super_tactical_tac_toe",
+  "game_id": "d7e4a91f0c23",
   "stats": {
     "high_scores": [],
     "ratings": []
@@ -179,7 +217,7 @@ Returns selected-player stats for every ready game. Used by the `Player & Game S
   "player_id": "player-id",
   "stats": [
     {
-      "game_id": "super_tic_tac_toe",
+      "game_id": "a3f19c6e42b8",
       "game_name": "Super Tic Tac Toe",
       "games_played": 0,
       "games_won": 0,
@@ -210,7 +248,7 @@ Room statuses:
 - `active`
 - `completed`
 
-### `GET /api/rooms?game_id=super_tic_tac_toe`
+### `GET /api/rooms?game_id=a3f19c6e42b8`
 
 Returns open and active rooms for a game.
 
@@ -221,7 +259,7 @@ Returns open and active rooms for a game.
 }
 ```
 
-### `GET /api/rooms?game_id=super_tic_tac_toe&player_id=player-id`
+### `GET /api/rooms?game_id=a3f19c6e42b8&player_id=player-id`
 
 Returns the selected player's unfinished room for that game, if any.
 
@@ -275,13 +313,13 @@ Request:
 
 ```json
 {
-  "game_id": "super_tic_tac_toe",
+  "game_id": "a3f19c6e42b8",
   "player": {},
   "code": "ABCD"
 }
 ```
 
-Use `game_id: "super_tactical_tac_toe"` to create a Super Tactical Tac Toe room.
+Use `game_id: "d7e4a91f0c23"` to create a Super Tic Tactical Toe room. The old `super_tactical_tac_toe` value remains a compatibility alias.
 
 `code` is optional and mostly useful for tests.
 
@@ -319,6 +357,56 @@ Response:
   "room": {}
 }
 ```
+
+### `GET /api/bots?game_id=a3f19c6e42b8`
+
+Returns predefined bot personas available for the selected game.
+
+Response:
+
+```json
+{
+  "ok": true,
+  "bots": [
+    {
+      "id": "7c91a4e2b6d0",
+      "bot_id": "7c91a4e2b6d0",
+      "kind": "bot",
+      "name": "Sogo Bot",
+      "icon": "🤖",
+      "color": "#4f46e5"
+    }
+  ]
+}
+```
+
+Bots are not shared roster players and should not be rendered in lobby player lists.
+
+### `POST /api/room/join-bot`
+
+Seats a predefined bot as the second room player. Only the host can invite a bot, and only while the room is waiting for an opponent.
+
+Request:
+
+```json
+{
+  "code": "ABCD",
+  "host_id": "host-player-id",
+  "bot_id": "7c91a4e2b6d0"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "room": {},
+  "bot": {}
+}
+```
+
+The room seat for a bot includes `kind: "bot"` and `bot_id`. Bot moves are generated by the hosted room path and applied through the same validation path as human moves.
 
 ### `POST /api/room/leave`
 
@@ -371,9 +459,9 @@ Response:
 
 Invalid moves return `{ "ok": false, "error": "..." }`.
 
-For Super Tactical Tac Toe, valid moves may also update `game.pickups`, `game.scores`, `game.captures`, `game.events`, and `game.last_event`. The browser must render these values, not invent them locally.
+For Super Tic Tactical Toe, valid moves may also update `game.pickups`, `game.scores`, `game.captures`, `game.events`, and `game.last_event`. The browser must render these values, not invent them locally.
 
-For Super Tactical Tac Toe, score alone does not end the game. The game ends when a player captures three sectors in a macro line; then the highest final score determines the winner.
+For Super Tic Tactical Toe, score alone does not end the game. The game ends when a player captures three zones in a macro line; then the highest final score determines the winner. If final scores are tied on that line-completing move, the line completer wins.
 
 ## Reset
 
@@ -486,9 +574,9 @@ Declined response:
 
 The hosted Worker stores current playtest state in D1. It uses optimistic locking on the single state row so stale concurrent writes fail instead of silently overwriting newer state.
 
-Active room mutations for `POST /api/room/join`, `POST /api/room/leave`, `POST /api/room/close`, `POST /api/room/move`, and `POST /api/room/reset` are routed through the room's Durable Object before persistence. The public HTTP request/response contract stays the same, but the room object serializes these changes per room and broadcasts the resulting room snapshot.
+Active room mutations for `POST /api/room/join`, `POST /api/room/join-bot`, `POST /api/room/leave`, `POST /api/room/close`, `POST /api/room/move`, `POST /api/room/reset`, and invite acceptance through `POST /api/invite/respond` are routed through the room's Durable Object before persistence. The public HTTP request/response contract stays the same, but the room object serializes these changes per room and broadcasts the resulting room snapshot.
 
-App event snapshots include selected-game room lists, lobby players, pending invites, and game stats. The browser uses these snapshots to update high-score and ELO displays without waiting for fallback polling.
+App event snapshots include selected-game room lists, lobby players, pending invites, and game stats. The EventHub sends an initial snapshot on socket open/subscription, and the browser reconnects the app event socket when the selected game changes.
 
 Read-only `GET` polling endpoints must not write the whole state row back to D1.
 

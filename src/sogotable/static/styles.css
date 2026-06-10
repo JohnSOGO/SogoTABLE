@@ -187,12 +187,82 @@ p,
 }
 
 .topbar h2 {
+  min-width: 0;
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .game-header > div {
   min-width: 0;
   text-align: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.sound-toggle {
+  position: relative;
+  width: 42px;
+  min-height: 36px;
+  padding: 0;
+  overflow: hidden;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--accent-strong);
+  border-color: #efcccc;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.sound-toggle::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  width: 0;
+  background: #16a34a;
+  transition: width 120ms ease;
+}
+
+.sound-toggle span {
+  position: relative;
+  z-index: 1;
+}
+
+.sound-toggle[data-volume-level="1"]::after {
+  width: 20%;
+}
+
+.sound-toggle[data-volume-level="2"]::after {
+  width: 40%;
+}
+
+.sound-toggle[data-volume-level="3"]::after {
+  width: 60%;
+}
+
+.sound-toggle[data-volume-level="4"]::after {
+  width: 80%;
+}
+
+.sound-toggle[data-volume-level="5"]::after {
+  width: 100%;
+}
+
+.sound-toggle.muted {
+  color: var(--muted);
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.sound-toggle.muted::after {
+  display: none;
 }
 
 .panel {
@@ -302,6 +372,30 @@ button.compact {
   padding: 0 10px;
 }
 
+.icon-button {
+  width: 42px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.inline-link {
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.inline-link:active {
+  color: var(--accent);
+}
+
 .lobby-players,
 .room-list {
   display: grid;
@@ -316,7 +410,10 @@ button.compact {
 
 .game-stats {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  max-height: min(58vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .player-stats {
@@ -370,41 +467,43 @@ button.compact {
   border-bottom: 0;
 }
 
-.stats-section {
-  display: grid;
-  gap: 4px;
-}
-
-.stats-list {
-  display: grid;
-  gap: 4px;
-  min-height: 28px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+.lobby-stat-table {
+  width: 100%;
+  border-collapse: collapse;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
-  color: var(--text);
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.stats-row strong {
+.lobby-stat-table th,
+.lobby-stat-table td {
+  padding: 6px 8px;
+  text-align: right;
+  white-space: pre;
+}
+
+.lobby-stat-table thead th {
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.lobby-stat-table th:first-child {
   overflow: hidden;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.stats-row span {
-  min-width: 42px;
-  text-align: right;
+.lobby-stat-table tbody th {
+  color: var(--text);
+}
+
+.lobby-stat-table td {
+  min-width: 54px;
   color: var(--accent-strong);
   font-weight: 900;
 }

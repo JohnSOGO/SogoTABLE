@@ -1,10 +1,10 @@
 {
   "name": "sogotable",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy:brain": "wrangler deploy --config wrangler.toml",
+    "deploy:brain": "npx wrangler deploy --config wrangler.toml",
     "test:worker": "node --test workers/tests/*.test.js"
   },
   "devDependencies": {

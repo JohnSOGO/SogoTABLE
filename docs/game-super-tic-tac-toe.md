@@ -70,3 +70,7 @@ Filled cells and won sub-boards use light tints derived from the owning player's
 When a game ends, the browser status banner names the winning mark and player. The winning macro-board line is drawn across the claimed boards, and the cells that won each claimed small board are highlighted.
 
 One second after a winner is detected, the game shows a lightweight celebration overlay with confetti and the winning player's name. Closing the overlay returns to the completed board so the final line and highlights can still be inspected.
+
+## Lobby Stats
+
+The selected-game lobby heading has a right-aligned `ELO` link. Tapping it opens a popup with a single compact ELO table. Super Tic Tac Toe does not show high scores because classic score has no gameplay meaning. The popup is not capped; it scrolls when needed and only shows active selectable roster players.

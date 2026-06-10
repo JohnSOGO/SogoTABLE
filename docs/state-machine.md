@@ -12,11 +12,29 @@ The room is the game instance. The game screen is the room. There is no separate
 
 ## Core Entities
 
+Preferred game-space language is documented in `docs/nomenclature.md`:
+
+```text
+Table -> Board -> Zone -> Cell
+```
+
+The current hosted `Room` is the multiplayer transport/session container. The
+`Table` is the full game-state concept inside that room.
+
 ### GameDefinition
 
 A game type that can be selected from the game list.
 
-Current ready games:
+The hosted Worker exposes ready-game metadata through `GET /api/games`. The browser may keep a local fallback copy for startup resilience, but future game menu metadata should be added to the hosted registry first.
+
+Game definitions should eventually include timing metadata. Current ready games are `turnBased`. Future games may use `liveRound` or related timing modes from `docs/live-rounds.md` without changing the global player -> game -> room flow.
+
+Current ready game ids:
+
+- `a3f19c6e42b8`
+- `d7e4a91f0c23`
+
+Legacy game id aliases accepted by the hosted brain:
 
 - `super_tic_tac_toe`
 - `super_tactical_tac_toe`
@@ -24,7 +42,7 @@ Current ready games:
 Display names:
 
 - `Super Tic Tac Toe`
-- `Super Tactical Tac Toe`
+- `Super Tic Tactical Toe`
 
 ### Room
 
@@ -40,12 +58,28 @@ The room has:
 
 - a 4-character room code
 - one `game_id`
+- monotonic `revision`
+- monotonic `game_epoch` for reset/play-again freshness
 - a host player id
 - seated room players
 - optional `local_mode`
+- optional timing-mode state for future non-turn-based games
 - the current game engine state
 
 Rooms are stored in hosted D1-backed shared state during public playtesting. Completed or exited rooms should stop appearing in open/in-progress game lists.
+
+### Board, Zone, And Cell
+
+The board is the main visible play surface.
+
+A zone is a major playable area on the board. For Super Tic Tac Toe and Super
+Tic Tactical Toe, each local 3x3 area is a zone.
+
+A cell is the smallest playable square inside a zone.
+
+Prefer `zone` in docs and UI language. Existing runtime fields may still use
+legacy names such as `next_board` or `sector` until an explicit API/code
+migration is made.
 
 ### Player
 
@@ -57,6 +91,27 @@ Player profiles have:
 - `name`
 - `icon`
 - persistent preferred `color`
+
+Human room seats default to `kind: "human"`.
+
+Deleting a player is blocked while that player is seated in an unfinished room. A successful delete removes pending lobby presence and pending invites for that player, but completed room history is not rewritten.
+
+### Bot
+
+A hosted bot opponent is a predefined room-seat actor, not a roster profile.
+
+Bot seats have:
+
+- `id`
+- `bot_id`
+- `kind: "bot"`
+- `name`
+- `icon`
+- room-seat `color`
+
+Bots do not appear in the shared player roster, lobby player list, or public leaderboard rows.
+
+Bot `id` and `bot_id` values must be opaque random ids. Bot names such as `Sogo Bot` are mutable display labels, not identity.
 
 Persistent player color is a preference. A room seat may use a gameplay-safe display color if the preferred color conflicts with another seated player.
 
@@ -81,6 +136,54 @@ During local hot-seat play, runtime `selectedPlayerId` may temporarily point to 
 - Multi-device play must keep each browser's selected player fixed.
 - Local hot-seat play may auto-toggle the runtime actor, but must restore the device/home selected player when the game ends or closes.
 - Player colors are gameplay signals. Use them carefully and keep them readable.
+- Global sound is browser-only presentation state. The compact speaker control cycles through five persisted volume levels and then mute, showing a green bottom progress bar for volume and no bar while muted.
+- Timing mode must not create a separate lobby architecture. Turn-based, simultaneous, and live-round games should all flow through the same global player/game/room shell unless a future product decision deliberately changes that.
+
+## Timing State: Live Round
+
+Current ready games do not use this mode yet, but future SogoTable games may.
+
+Internal mode name:
+
+- `liveRound`
+
+Parent ideology:
+
+- Turnless Round System.
+
+Core rule:
+
+- Every active player may act once per round in any order.
+- Actions resolve immediately in server-processing order.
+- A player locks after acting.
+- The next round begins when all active players have acted.
+
+Minimum room/game state:
+
+- `roundNumber`
+- `phase`: `open`, `resolving`, or `complete`
+- `activePlayerIds`
+- `actedPlayerIds`
+
+Server invariants:
+
+- Reject actions from players who are not active.
+- Reject second actions from players already in `actedPlayerIds`.
+- Validate the action against official room state before resolving.
+- Broadcast the updated room snapshot after every accepted action.
+- Advance the round only when all active players have acted.
+
+Preferred UI language:
+
+- Before acting: `You are ready to act.`
+- After acting: `Action locked. Waiting for other players.`
+- Next round: `New round. You are ready.`
+
+Do not:
+
+- Model this as `currentPlayerId` plus `nextPlayer()`.
+- Let clients decide who acted first.
+- Allow unlimited realtime action spam.
 
 ## Screen State: INTRO
 
@@ -130,6 +233,7 @@ Purpose:
 Required display:
 
 - Current selected player section at the top.
+- Compact global `Audio` toggle in the topbar.
 - If no player is selected, display `No player selected`.
 - Player icon and player name in the current player row.
 - `Edit` button to edit the currently selected player, disabled if no player is selected.
@@ -144,7 +248,7 @@ Required display:
 Current game list:
 
 - `Super Tic Tac Toe`
-- `Super Tactical Tac Toe`
+- `Super Tic Tactical Toe`
 
 Game button behavior:
 
@@ -227,9 +331,11 @@ Purpose:
 Required display:
 
 - Back button to `PLAYER_GAME_SELECTION`.
+- Compact global `Audio` toggle in the topbar.
 - Game name as page title.
 - Game description here, not on the main menu.
-- `Lobby` panel showing players currently viewing this game screen.
+- `Lobby` panel showing players currently viewing this game screen, with only lobby players in the panel body.
+- Right-aligned `ELO` or `High Scores` link on the `Lobby` heading row; tapping it opens the game stats popup.
 - Local selected player first, then other lobby-present players sorted by name.
 - `Current Games` panel.
 - If the selected player has an unfinished room for this game, show a visible recovery notice with `Re-enter Game`.
@@ -291,12 +397,14 @@ Required display:
 - Centered game name.
 - Centered room id line, formatted as `Room ABCD`.
 - `Reset` button.
+- Compact global `Audio` toggle.
 - Players panel visible.
 - Host slot showing host icon, name, and mark/status.
 - Opponent slot.
 - If the current device/home selected player is the host, opponent slot shows:
   - `Select Local Opponent`
   - `Invite Remote Opponent`
+  - `Invite Bot`
 - If a remote invite has been sent by the host, show invite lifecycle feedback near the opponent slot:
   - invite sent / waiting for response
   - accepted / starting game
@@ -342,6 +450,7 @@ Modes:
 
 - Local opponent selection.
 - Remote invite target selection.
+- Bot opponent selection.
 
 Local opponent behavior:
 
@@ -360,11 +469,21 @@ Remote invite behavior:
 - Remote invite targets must exclude players already seated in any unfinished game for that game type.
 - If no eligible remote targets are present, show `No players in lobby.`
 
+Bot opponent behavior:
+
+- `Invite Bot` opens this same modal in bot mode.
+- Bot rows are predefined personas returned by the hosted brain.
+- Selecting a bot seats it as the opponent through `POST /api/room/join-bot`.
+- Bot moves are owned by the hosted room path and must use the same move validation as human moves.
+- Bot seats auto-agree to reset/play-again requests so a human is not stuck waiting for a bot confirmation.
+- Bot games count for the human player's stats/ELO, but bot rows stay out of public player lists and leaderboards.
+
 Do not:
 
 - Let the host invite themselves.
 - Show already seated players as available targets.
 - Show the full persistent player roster for remote invites.
+- Create browser-only bot moves.
 
 ## Modal State: INVITE_PROMPT
 
@@ -449,6 +568,7 @@ Move behavior:
   - board/cell is legal per rules engine
 - After a local hot-seat move, runtime actor auto-switches to the current-turn player.
 - Remote devices do not auto-switch their device/home selected player.
+- Move, invalid-move, turn-change, tactical-event, and game-over sounds should be played from browser-observed intent or room-state transitions through the central sound module, not from game-rule code.
 
 Exit behavior:
 
@@ -587,24 +707,28 @@ Current live updates are event-first with conservative timed fallback.
 
 ## Global Two-Player Lobby
 
-Super Tic Tac Toe and Super Tactical Tac Toe use the same selected-game lobby architecture.
+Super Tic Tac Toe and Super Tic Tactical Toe use the same selected-game lobby architecture.
 
 - Player/game selection, selected-game lobby presence, open/in-progress room cards, create/re-enter, local opponent selection, remote invites, reset, exit, and room WebSockets are global two-player behavior.
 - Lobby design changes should apply to both ready two-player games unless a later game explicitly introduces a different room model.
 - Game-specific code should start at the board/rules/rendering layer, not at the lobby layer.
-- Super Tactical Tac Toe adds Worker-owned pickups and scores, but it does not add a custom lobby.
-- The selected-game lobby shows the selected game's top five high scores and ELO ratings above the active player list.
-- In Super Tactical Tac Toe, score alone does not end the game. The game ends on a three-sector macro line, then the highest final score wins.
+- Super Tic Tactical Toe adds Worker-owned pickups and scores, but it does not add a custom lobby.
+- The selected-game lobby panel shows only the `Lobby` heading and players currently in that game lobby. A tappable `ELO` or `High Scores` link sits on the same heading row at far right and opens a popup with one compact stats table, visually matching the clean player-stats table and using only one separator line under the header. Do not cap popup rows; let the popup scroll when needed. Super Tic Tac Toe shows only ELO ratings because score has no meaning there. Super Tic Tactical Toe shows only high scores because tactical score is the meaningful lobby comparison there. Stat rows must only include active selectable roster players, not deleted/missing player ids.
+- In Super Tic Tactical Toe, score alone does not end the game. The game ends on a three-zone macro line, then the highest final score wins. If scores are tied on the line-completing move, the line completer wins.
 
 App-level live updates:
 
 - Room lists, selected-game lobby presence, and pending invite prompts should arrive through `/api/events/socket` app snapshots during normal connected play.
+- The app event socket must reconnect when the selected game changes, because each ready game has its own `EventHubDurableObject`.
+- The EventHub should send an initial app snapshot on socket open or subscription update, so fallback polling is recovery rather than the normal initializer.
 - Timed reads still exist as fallback and recovery, not as the primary update path.
 
 Room live updates:
 
 - Normal active-room updates should arrive through the room WebSocket.
+- The room WebSocket must reconnect when the active room code changes.
 - Move, join, leave, invite lifecycle, reset, and completed-state changes should render from received room snapshots.
+- Browser freshness checks should prefer room `revision` and `game_epoch`; `game.move_count` is game-local and can reset to zero after Play Again.
 - If a room disappears, return the player to `GAME_SELECTED` for the current game type.
 - If the WebSocket disconnects, show a reconnecting state and use conservative HTTP refresh as fallback/recovery, not constant 1500ms polling.
 

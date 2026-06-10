@@ -43,7 +43,26 @@ Add new games through game definitions with explicit availability metadata. Do n
 
 Candidate games:
 
+- Sorry, Not Sorry as the first `liveRound` or `liveRoundRegroup` candidate.
 - Connect Four
 - Dots and Boxes
 - Word/guessing games
 - Simple card/table games
+
+## 8. Turnless Round System
+
+Build support for future games with rounds but no fixed turns.
+
+Initial target:
+
+- `liveRound`: every active player acts once per round in any order; actions resolve immediately; players lock after acting; the next round starts when all active players have acted.
+
+Preferred richer target:
+
+- `liveRoundRegroup`: a live action phase followed by a regroup phase for rewards, power-ups, spending, drafting, or catch-up choices.
+
+Constraints:
+
+- Do not replace current Super Tic Tac Toe games; they remain `turnBased`.
+- Do not create a separate lobby architecture for live-round games.
+- Use the room Durable Object as the likely authority boundary for action ordering and duplicate-action rejection.

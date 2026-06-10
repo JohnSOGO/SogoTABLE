@@ -1,86 +1,95 @@
 # AREC Command
 
-When the user writes `AREC`, the agent must respond using this structure:
+AREC is SogoTable's structured idea-review protocol:
 
-## A — Abstract
+```text
+Abstract -> ReExplain -> Evaluate -> Conclude
+```
+
+Use AREC when the user explicitly writes `/arec` or `AREC`. Also use it when a
+request is sloppy, exploratory, conflicting, architecture-changing, or likely
+to become product doctrine before it has been pressure-tested.
+
+If the shared local Codex skill exists at `C:\Users\johns\.codex\skills\arec`,
+use it as the reusable protocol source, then apply SogoTable-specific product
+checks from this file, `AGENTS.md`, `docs/project-memory.md`,
+`docs/state-machine.md`, and `docs/wu-wei-method.md`.
+
+Do not apply AREC silently. Start with a short note such as:
+
+```text
+Using AREC because this is an idea-shaped architecture request.
+```
+
+For simple direct implementation requests, skip formal AREC unless the user
+explicitly invoked it.
+
+## A - Abstract
+
 Compress the user's idea into its cleanest underlying concept.
 
-Do not merely repeat the user's words. Identify what the idea is really about.
+- Do not merely repeat the user's words.
+- Identify the real problem, goal, or product need.
+- Treat the user's terminology as potentially imprecise.
+- Note when the idea resembles an existing standard pattern or current
+  SogoTable capability.
 
-Example:
-> The user is proposing that Ozy should use HAM chain breaks as higher-confidence intraday alert triggers, while keeping pivot zones as secondary context.
+## R - ReExplain
 
-## R — ReExplain
-Restate the idea in clearer, more operational language.
+Restate the idea in clearer operational language.
 
-Assume the user may be using imperfect terminology. Translate the thought into what the system should actually understand.
+Answer:
 
-This section should answer:
 - What is the user trying to accomplish?
 - What are the moving parts?
-- What would this mean inside the project?
-- What does the idea look like in practice?
+- What would this mean inside SogoTable?
+- What would this look like in practice?
+- Is there an existing architecture, rule owner, lobby flow, or Worker path that
+  already covers it?
 
-## E — Evaluate
+## E - Evaluate
+
 Critically judge the idea.
 
-The agent must not rubber-stamp. Treat the proposal as possibly coming from another AI or from a half-formed bathroom thought.
-
 Evaluate for:
-- Project consistency
-- Conflict with existing architecture or ideology
-- Practical implementation difficulty
-- Risk of overcomplication
-- Whether the idea introduces a new strategy lane
-- Whether it belongs in `pdash`, `ldash`, Discord, alerts, reports, or documentation
-- Whether the idea is actionable now or needs validation first
 
-Be blunt. If the idea is bad, say so. If it is good but dangerous, say that too.
+- Fit with the mobile-first family game platform direction.
+- Fit with the shared two-player lobby architecture.
+- Fit with Worker/D1/Durable Object authority for public multiplayer truth.
+- Impact on one-phone hot-seat play.
+- Impact on multi-phone public Cloudflare play.
+- Whether rules stay separated from UI and transport code.
+- Whether the feature creates hidden local state, duplicate lobby behavior,
+  aggressive polling, visual noise, or fragile phone UI.
+- Whether it belongs in docs, game rules, Worker API, shared UI, or a future
+  game module.
+- Whether it is actionable now or should be parked.
 
-## C — Conclude
-Give a clear decision.
+Be blunt. A plausible idea from another AI is still only an idea until it fits
+the product and architecture.
 
-Use one of these styles:
+## C - Conclude
 
-- **Adopt** — the idea fits and should be implemented.
-- **Adopt with constraints** — useful, but only under specific limits.
-- **Park** — interesting, but not now.
-- **Reject** — conflicts with the project or adds bad complexity.
-- **Needs clarification** — not enough information to safely act.
+Give a clear decision and next action.
 
-The conclusion should include the next concrete action:
+Use one of:
+
+- **Adopt** - the idea fits and should be implemented.
+- **Adopt with constraints** - useful, but only under specific limits.
+- **Park** - interesting, but not now.
+- **Reject** - conflicts with the project or adds bad complexity.
+- **Needs clarification** - not enough information to safely act.
+
+If work should proceed, include the next concrete action:
+
 - write a spec
 - update a `.md`
-- ask Codex to implement
+- implement a small slice
 - test manually first
-- create a dashboard-only prototype
+- create a prototype
 - do nothing for now
 
----
-
-# AREC Behavior Rules
-
-When using AREC, the agent should be intense and skeptical.
-
-The point is not to be polite.
-The point is to prevent strategy drift, architecture sprawl, and AI hallucination from infecting Ozy or SogoTable.
-
-The agent should especially watch for:
-- new ideology being smuggled in
-- new trading logic that bypasses the Prime Directive
-- features that create noisy alerts
-- dashboard clutter
-- hidden state or magic behavior
-- data flowing uphill instead of downhill
-- human workflow assumptions that do not match the user's real availability
-
-If an idea conflicts with existing project direction, the agent must say so clearly.
-
-If the user confirms a conflicting idea anyway, label it as a deliberate strategy/architecture change, not a minor tweak.
-
----
-
-# AREC Output Template
+## Output Template
 
 ```md
 ## Abstract
@@ -98,3 +107,4 @@ If the user confirms a conflicting idea anyway, label it as a deliberate strateg
 ## Conclude
 
 [Decision and next action.]
+```

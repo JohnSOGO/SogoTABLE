@@ -1,10 +1,10 @@
 {
   "ok": true,
   "status": {
-    "version": "0.1.0",
-    "revision": "a9cee72",
+    "version": "0.1.1",
+    "revision": "d97ce4b",
     "branch": "main",
     "dirty": true,
-    "summary": "SogoTable 0.1.0 rev a9cee72 branch main dirty"
+    "summary": "SogoTable 0.1.1 rev d97ce4b branch main dirty"
   }
 }

@@ -49,11 +49,13 @@ Completed:
 - Split realtime socket and fallback timer wiring into `src/sogotable/static/realtime.js`. `app.js` still owns screen state and snapshot meaning.
 - Routed active room `join`, `leave`/`close`, `move`, and `reset` mutations through `RoomDurableObject` before D1 persistence. The room object now serializes these high-contention mutations and broadcasts the resulting room snapshot.
 - Added stable snapshot guards for selected-game lobby players, current room lists, and the active-game notice so timed fallback refreshes do not clear and rebuild unchanged DOM. This keeps fallback safety while removing the visible lobby blink reported during phone testing.
+- Tightened the follow-up code-review findings: app event sockets reconnect by selected game, room sockets reconnect by room code, EventHub sends an initial snapshot, invite responses route through room authority, and room `revision`/`game_epoch` protect reset/play-again snapshots from stale-move-count rejection.
+- Blocked player deletion while seated in an unfinished room and cleaned pending lobby/invite state when deletion succeeds.
 
 Still pending:
 
 - Watch public phone play for missed app-level updates now that EventHub is primary and timed reads are slower fallback.
-- Smoke-test public play after the room-authority shift, especially quick back-to-back moves, reset voting, local opponent joins, remote joins, and exits.
+- Smoke-test public play after the room-authority shift, especially quick back-to-back moves, reset voting, local opponent joins, invite accept/decline, remote joins, and exits.
 
 ## Next Implementation Slice
 

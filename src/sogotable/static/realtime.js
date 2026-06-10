@@ -1,9 +1,9 @@
 import { appEventsSocketUrl, roomSocketUrl } from "./api-client.js";
 
-const ROOM_SUMMARY_FALLBACK_INTERVAL_MS = 15000;
-const INVITE_FALLBACK_INTERVAL_MS = 30000;
-const LOBBY_FALLBACK_INTERVAL_MS = 15000;
-const ROOM_SOCKET_FALLBACK_INTERVAL_MS = 15000;
+const ROOM_SUMMARY_FALLBACK_INTERVAL_MS = 60000;
+const INVITE_FALLBACK_INTERVAL_MS = 60000;
+const LOBBY_FALLBACK_INTERVAL_MS = 60000;
+const ROOM_SOCKET_FALLBACK_INTERVAL_MS = 30000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
 export function createRealtimeController(callbacks) {
@@ -12,7 +12,9 @@ export function createRealtimeController(callbacks) {
   let roomReconnectTimer = null;
   let roomSocketReconnectAttempts = 0;
   let roomCode = "";
+  let connectedRoomCode = "";
   let appEventsSocket = null;
+  let appEventsGameId = "";
   let appEventsReconnectTimer = null;
   let appEventsReconnectAttempts = 0;
   let roomListTimer = null;
@@ -20,7 +22,9 @@ export function createRealtimeController(callbacks) {
   let lobbyPresenceTimer = null;
 
   function startRoomLiveUpdates(nextRoomCode) {
-    roomCode = nextRoomCode || "";
+    const nextCode = nextRoomCode || "";
+    if (connectedRoomCode && connectedRoomCode !== nextCode) stopRoomSocket();
+    roomCode = nextCode;
     connectRoomSocket();
     callbacks.refreshRoom();
   }
@@ -45,6 +49,7 @@ export function createRealtimeController(callbacks) {
       return;
     }
     roomSocket.addEventListener("open", () => {
+      connectedRoomCode = roomCode;
       roomSocketReconnectAttempts = 0;
       stopRoomFallbackPolling();
     });
@@ -63,6 +68,7 @@ export function createRealtimeController(callbacks) {
   }
 
   function stopRoomSocket(clearReconnect = true) {
+    connectedRoomCode = "";
     if (roomSocket) {
       const socket = roomSocket;
       roomSocket = null;
@@ -96,10 +102,12 @@ export function createRealtimeController(callbacks) {
 
   function connectAppEvents() {
     if (!("WebSocket" in window)) return;
-    if (appEventsSocket && appEventsSocket.readyState <= WebSocket.OPEN) return;
+    const subscription = callbacks.getAppSubscription();
+    if (appEventsSocket && appEventsSocket.readyState <= WebSocket.OPEN && appEventsGameId === subscription.gameId) return;
     stopAppEvents(false);
     try {
-      appEventsSocket = new WebSocket(appEventsSocketUrl(callbacks.getAppSubscription()));
+      appEventsGameId = subscription.gameId;
+      appEventsSocket = new WebSocket(appEventsSocketUrl(subscription));
     } catch {
       scheduleAppEventsReconnect();
       return;
@@ -119,6 +127,7 @@ export function createRealtimeController(callbacks) {
   }
 
   function stopAppEvents(clearReconnect = true) {
+    appEventsGameId = "";
     if (appEventsSocket) {
       const socket = appEventsSocket;
       appEventsSocket = null;
@@ -141,8 +150,11 @@ export function createRealtimeController(callbacks) {
   }
 
   function sendAppEventSubscription() {
-    if (!appEventsSocket || appEventsSocket.readyState !== WebSocket.OPEN) return;
     const subscription = callbacks.getAppSubscription();
+    if (!appEventsSocket || appEventsSocket.readyState !== WebSocket.OPEN || appEventsGameId !== subscription.gameId) {
+      connectAppEvents();
+      return;
+    }
     appEventsSocket.send(JSON.stringify({
       type: "subscribe",
       game_id: subscription.gameId,
@@ -164,10 +176,7 @@ export function createRealtimeController(callbacks) {
 
   function startLobbyPresenceFallback() {
     if (lobbyPresenceTimer) clearInterval(lobbyPresenceTimer);
-    lobbyPresenceTimer = setInterval(() => {
-      callbacks.updateLobbyPresence();
-      callbacks.refreshGameRooms();
-    }, LOBBY_FALLBACK_INTERVAL_MS);
+    lobbyPresenceTimer = setInterval(callbacks.updateLobbyPresence, LOBBY_FALLBACK_INTERVAL_MS);
   }
 
   function stopLobbyPresenceFallback() {

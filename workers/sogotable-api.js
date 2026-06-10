@@ -29,11 +29,40 @@ const WIN_LINES = [
   [2, 4, 6],
 ];
 const GAME_DEFINITIONS = [
-  { id: "super_tic_tac_toe", name: "Super Tic Tac Toe" },
-  { id: "super_tactical_tac_toe", name: "Super Tactical Tac Toe" },
+  {
+    id: "a3f19c6e42b8",
+    name: "Super Tic Tac Toe",
+    summary: "A nested tic tac toe duel where every move sends the next player to a target board.",
+    players: "2 players",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["super_tic_tac_toe"],
+  },
+  {
+    id: "d7e4a91f0c23",
+    name: "Super Tic Tactical Toe",
+    summary: "Ultimate tic tac toe with tactical coin and treasure pickups for bonus points.",
+    players: "2 players",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["super_tactical_tac_toe"],
+  },
 ];
-const GAME_IDS = new Set(GAME_DEFINITIONS.map((game) => game.id));
-const TACTICAL_GAME_ID = "super_tactical_tac_toe";
+const DEFAULT_GAME_ID = GAME_DEFINITIONS[0].id;
+const TACTICAL_GAME_ID = GAME_DEFINITIONS[1].id;
+const GAME_ID_ALIASES = new Map();
+GAME_DEFINITIONS.forEach((game) => {
+  GAME_ID_ALIASES.set(game.id, game.id);
+  (game.aliases || []).forEach((alias) => GAME_ID_ALIASES.set(alias, game.id));
+});
+const BOT_MOVE_DELAY_MS = 700;
+const BOT_DEFINITIONS = [
+  { id: "7c91a4e2b6d0", name: "Sogo Bot", icon: "\uD83E\uDD16", color: "#4f46e5", rating: 1000, strategy: "random" },
+  { id: "0f8a3c9d1e72", name: "Tactical Tess", icon: "\uD83C\uDFAF", color: "#c43d5d", rating: 1000, strategy: "smart" },
+  { id: "b64d20f19a8c", name: "Corner Cade", icon: "\u2B50", color: "#1f7a5f", rating: 1000, strategy: "random" },
+  { id: "5e2c8a71d0f4", name: "Lucky Lina", icon: "\uD83C\uDF40", color: "#b7791f", rating: 1000, strategy: "random" },
+];
+const TACTICAL_TESS_BOT_ID = "0f8a3c9d1e72";
 const TACTICAL_PICKUP_CONFIG = {
   coin: {
     emoji: "\uD83E\uDE99",
@@ -118,13 +147,27 @@ export class RoomDurableObject {
     if (upgrade.toLowerCase() !== "websocket") return json({ ok: false, error: "Expected WebSocket upgrade." }, 426);
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
-    server.accept();
+    const hibernating = acceptDurableWebSocket(this.state, server);
+    setSocketAttachment(server, { type: "room", connected_at: Date.now() });
     this.sessions.add(server);
-    server.addEventListener("close", () => this.sessions.delete(server));
-    server.addEventListener("error", () => this.sessions.delete(server));
+    if (!hibernating) {
+      server.addEventListener("close", () => this.webSocketClose(server));
+      server.addEventListener("error", (event) => this.webSocketError(server, event.error));
+    }
     const snapshot = await this.state.storage.get("room");
     if (snapshot) safeSend(server, { type: "room_snapshot", room: snapshot });
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  webSocketMessage() {}
+
+  webSocketClose(ws, code, reason) {
+    this.sessions.delete(ws);
+    closeSocketQuietly(ws, code, reason);
+  }
+
+  webSocketError(ws) {
+    this.sessions.delete(ws);
   }
 
   async storeRoomSnapshot(room) {
@@ -141,13 +184,14 @@ export class RoomDurableObject {
     try {
       const response = await withStateRetry(async () => {
         const data = await loadState(this.env);
-        const result = await routeRequest("POST", new URL(`https://room.object${pathname}`), payload, data);
+        const result = await routeRequest("POST", new URL(`https://room.object${pathname}`), payload, data, { autoBotMoves: false });
         await saveState(this.env, data);
         await this.publishRoomResult(result);
         await notifyEventHub(this.env, data, result);
         return result;
       });
-      return json(response);
+      const botResponse = await this.runDelayedBotTurns(response);
+      return json(botResponse || response);
     } catch (error) {
       return json({ ok: false, error: error.message || "Room action failed." }, 400);
     }
@@ -162,14 +206,30 @@ export class RoomDurableObject {
     if (response.closed && response.room_code) await this.storeRoomClosed(response.room_code);
   }
 
+  async runDelayedBotTurns(response) {
+    if (!response || !response.room || !botSeatForCurrentTurn(response.room)) return;
+    await sleep(BOT_MOVE_DELAY_MS);
+    return withStateRetry(async () => {
+      const data = await loadState(this.env);
+      const room = data.rooms[response.room.code];
+      const result = runBotTurns(data, room);
+      if (!result) return null;
+      await saveState(this.env, data);
+      await this.publishRoomResult(result);
+      await notifyEventHub(this.env, data, result);
+      return result;
+    });
+  }
+
   broadcast(message) {
-    for (const session of [...this.sessions]) safeSend(session, message);
+    for (const session of durableWebSockets(this.state, this.sessions)) safeSend(session, message);
   }
 }
 
 export class EventHubDurableObject {
-  constructor(state) {
+  constructor(state, env) {
     this.state = state;
+    this.env = env;
     this.sessions = new Map();
   }
 
@@ -184,18 +244,37 @@ export class EventHubDurableObject {
     if (upgrade.toLowerCase() !== "websocket") return json({ ok: false, error: "Expected WebSocket upgrade." }, 426);
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
-    server.accept();
-    this.sessions.set(server, {
-      game_id: safeGameIdForEvents(url.searchParams.get("game_id") || "super_tic_tac_toe"),
+    const subscription = {
+      game_id: safeGameIdForEvents(url.searchParams.get("game_id") || DEFAULT_GAME_ID),
       player_id: String(url.searchParams.get("player_id") || "").trim(),
-    });
-    server.addEventListener("message", (event) => this.handleSessionMessage(server, event.data));
-    server.addEventListener("close", () => this.sessions.delete(server));
-    server.addEventListener("error", () => this.sessions.delete(server));
+      connected_at: Date.now(),
+    };
+    const hibernating = acceptDurableWebSocket(this.state, server);
+    setSocketAttachment(server, subscription);
+    this.sessions.set(server, subscription);
+    if (!hibernating) {
+      server.addEventListener("message", (event) => this.handleSessionMessage(server, event.data));
+      server.addEventListener("close", () => this.webSocketClose(server));
+      server.addEventListener("error", (event) => this.webSocketError(server, event.error));
+    }
+    await this.sendInitialSnapshot(server);
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  handleSessionMessage(session, data) {
+  async webSocketMessage(ws, message) {
+    await this.handleSessionMessage(ws, message);
+  }
+
+  webSocketClose(ws, code, reason) {
+    this.sessions.delete(ws);
+    closeSocketQuietly(ws, code, reason);
+  }
+
+  webSocketError(ws) {
+    this.sessions.delete(ws);
+  }
+
+  async handleSessionMessage(session, data) {
     let message;
     try {
       message = JSON.parse(data);
@@ -203,48 +282,116 @@ export class EventHubDurableObject {
       return;
     }
     if (message.type !== "subscribe") return;
-    this.sessions.set(session, {
-      game_id: safeGameIdForEvents(message.game_id || "super_tic_tac_toe"),
+    const subscription = {
+      game_id: safeGameIdForEvents(message.game_id || DEFAULT_GAME_ID),
       player_id: String(message.player_id || "").trim(),
-    });
+      connected_at: socketAttachment(session).connected_at || Date.now(),
+      subscribed_at: Date.now(),
+    };
+    setSocketAttachment(session, subscription);
+    this.sessions.set(session, subscription);
+    await this.sendInitialSnapshot(session);
+  }
+
+  async sendInitialSnapshot(session) {
+    const subscription = this.subscriptionForSession(session);
+    if (!subscription) return;
+    try {
+      const data = await loadState(this.env);
+      const snapshot = eventSnapshotForGame(data, subscription.game_id);
+      safeSend(session, appSnapshotForSubscription(snapshot, subscription));
+    } catch (error) {
+      safeSend(session, { type: "app_snapshot_error", error: error.message || "Unable to load app snapshot." });
+    }
   }
 
   broadcastSnapshot(snapshot) {
-    for (const [session, subscription] of [...this.sessions]) {
+    for (const session of durableWebSockets(this.state, this.sessions)) {
+      const subscription = this.subscriptionForSession(session);
+      if (!subscription) continue;
       if (subscription.game_id !== snapshot.game_id) continue;
       safeSend(session, appSnapshotForSubscription(snapshot, subscription));
     }
   }
+
+  subscriptionForSession(session) {
+    const subscription = socketAttachment(session);
+    if (subscription.game_id) return subscription;
+    return this.sessions.get(session);
+  }
 }
 
-async function routeRequest(method, url, payload, data) {
+function acceptDurableWebSocket(state, server) {
+  if (state && typeof state.acceptWebSocket === "function") {
+    state.acceptWebSocket(server);
+    return true;
+  }
+  server.accept();
+  return false;
+}
+
+function durableWebSockets(state, fallbackSessions) {
+  if (state && typeof state.getWebSockets === "function") return state.getWebSockets();
+  if (fallbackSessions instanceof Map) return Array.from(fallbackSessions.keys());
+  return Array.from(fallbackSessions || []);
+}
+
+function setSocketAttachment(socket, metadata) {
+  if (socket && typeof socket.serializeAttachment === "function") socket.serializeAttachment(metadata);
+}
+
+function socketAttachment(socket) {
+  if (!socket || typeof socket.deserializeAttachment !== "function") return {};
+  return socket.deserializeAttachment() || {};
+}
+
+function closeSocketQuietly(socket, code, reason) {
+  if (!socket || typeof socket.close !== "function") return;
+  try {
+    socket.close(code, reason);
+  } catch {}
+}
+
+async function routeRequest(method, url, payload, data, options = {}) {
+  const autoBotMoves = options.autoBotMoves !== false;
+  if (method === "GET" && url.pathname === "/api/games") return { ok: true, games: GAME_DEFINITIONS.map(publicGameDefinition) };
   if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: data.players };
+  if (method === "GET" && url.pathname === "/api/bots") {
+    cleanGameId(url.searchParams.get("game_id") || DEFAULT_GAME_ID);
+    return { ok: true, bots: BOT_DEFINITIONS.map(publicBot) };
+  }
   if (method === "GET" && url.pathname === "/api/player/stats") {
     const playerId = String(url.searchParams.get("player_id") || "").trim();
     if (!playerId) throw new Error("Player id is required.");
     return { ok: true, player_id: playerId, stats: publicPlayerStats(data, playerId) };
   }
-  if (method === "POST" && url.pathname === "/api/player/stats/clear") {
-    const playerId = String(payload.player_id || payload.id || "").trim();
-    if (!playerId) throw new Error("Player id is required.");
-    clearPlayerStats(data, playerId);
-    return { ok: true, player_id: playerId, stats: publicPlayerStats(data, playerId) };
+    if (method === "POST" && url.pathname === "/api/player/stats/clear") {
+      const playerId = String(payload.player_id || payload.id || "").trim();
+      if (!playerId) throw new Error("Player id is required.");
+      clearPlayerStats(data, playerId);
+      return { ok: true, player_id: playerId, stats: publicPlayerStats(data, playerId), game_ids: GAME_DEFINITIONS.map((game) => game.id) };
   }
   if (method === "GET" && url.pathname === "/api/stats") {
-    const gameId = cleanGameId(url.searchParams.get("game_id") || "super_tic_tac_toe");
+    const gameId = cleanGameId(url.searchParams.get("game_id") || DEFAULT_GAME_ID);
     return { ok: true, game_id: gameId, stats: publicStatsForGame(data, gameId) };
   }
     if (method === "POST" && url.pathname === "/api/players/create") {
       const player = playerFromPayload(payload);
       upsertPlayer(data, player);
-      refreshActiveRoomPlayer(data, player);
+      const rooms = refreshActiveRoomPlayer(data, player).map((room) => roomToDict(data, room));
       refreshPlayerStats(data, player);
-      return { ok: true, player, players: data.players };
+      return { ok: true, player, players: data.players, rooms };
     }
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
       if (!playerId) throw new Error("Player id is required.");
+      if (playerHasUnfinishedRoom(data, playerId)) throw new Error("Player is seated in an unfinished room.");
       data.players = data.players.filter((player) => player.id !== playerId);
+      delete data.lobbyViewers[playerId];
+      Object.keys(data.invites).forEach((inviteId) => {
+        const invite = data.invites[inviteId];
+        if (invite.host_id === playerId || invite.target_id === playerId) delete data.invites[inviteId];
+      });
       return { ok: true, players: data.players };
     }
     if (method === "GET" && url.pathname === "/api/lobby") {
@@ -258,14 +405,14 @@ async function routeRequest(method, url, payload, data) {
     }
     if (method === "GET" && url.pathname === "/api/rooms") {
       const playerId = url.searchParams.get("player_id") || "";
-      const gameId = cleanGameId(url.searchParams.get("game_id") || "super_tic_tac_toe");
+      const gameId = cleanGameId(url.searchParams.get("game_id") || DEFAULT_GAME_ID);
       if (playerId && gameId) {
         const activeRoom = activeRoomForPlayer(data, playerId, gameId);
         return { ok: true, active_room: activeRoom ? roomToDict(data, activeRoom) : null };
       }
       const rooms = Object.values(data.rooms)
         .filter((room) => ["waiting_for_player", "active"].includes(roomStatus(room)))
-        .filter((room) => !gameId || room.game_id === gameId)
+        .filter((room) => !gameId || gameIdMatches(room.game_id, gameId))
         .map((room) => roomSummary(room));
       return { ok: true, rooms };
     }
@@ -286,6 +433,8 @@ async function routeRequest(method, url, payload, data) {
         code,
         host_id: player.id,
         game_id: gameId,
+        revision: 1,
+        game_epoch: 1,
         started: false,
         local_mode: false,
         game: newGame(gameId),
@@ -301,7 +450,22 @@ async function routeRequest(method, url, payload, data) {
       if (payload.local) room.local_mode = true;
       addPlayerToRoom(room, playerFromPayload(payload));
       activateRoomIfReady(room);
+      bumpRoomRevision(room);
+      if (autoBotMoves) runBotTurns(data, room);
       return { ok: true, room: roomToDict(data, room) };
+    }
+    if (method === "POST" && url.pathname === "/api/room/join-bot") {
+      const room = roomFromPayload(data, payload);
+      const hostId = String(payload.host_id || "").trim();
+      if (hostId !== room.host_id) throw new Error("Only the host can invite a bot.");
+      if (roomStatus(room) !== "waiting_for_player") throw new Error("Bot can only join a waiting room.");
+      if (room.players.length >= 2) throw new Error("Room already has two players.");
+      const bot = botPlayerFromId(payload.bot_id);
+      addPlayerToRoom(room, bot);
+      activateRoomIfReady(room);
+      bumpRoomRevision(room);
+      if (autoBotMoves) runBotTurns(data, room);
+      return { ok: true, room: roomToDict(data, room), bot };
     }
     if (method === "POST" && (url.pathname === "/api/room/leave" || url.pathname === "/api/room/close")) {
       const code = cleanRoomCode(payload.code || "");
@@ -316,7 +480,9 @@ async function routeRequest(method, url, payload, data) {
       if (!mark) throw new Error("Player is not in this room.");
       if (mark !== room.game.current_player) throw new Error(`It is ${room.game.current_player}'s turn.`);
       makeMove(room.game, Number(payload.board), Number(payload.cell));
+      bumpRoomRevision(room);
       recordCompletedRoomStats(data, room);
+      if (autoBotMoves) runBotTurns(data, room);
       return { ok: true, room: roomToDict(data, room) };
     }
     if (method === "POST" && url.pathname === "/api/room/reset") {
@@ -325,6 +491,7 @@ async function routeRequest(method, url, payload, data) {
       if (!requesterId) throw new Error("Requester id is required.");
       if (!room.players.some((player) => player.id === requesterId)) throw new Error("Only a seated player can reset the game.");
       const resetStatus = handleResetVote(room, requesterId, payload.approve !== false);
+      if (autoBotMoves && !resetStatus) runBotTurns(data, room);
       const result = { ok: true, room: roomToDict(data, room) };
       if (resetStatus) result.reset = resetStatus;
       return result;
@@ -336,7 +503,7 @@ async function routeRequest(method, url, payload, data) {
       const invites = Object.values(data.invites).filter((invite) => {
         if (hostId) return invite.host_id === hostId && (!roomCode || invite.room_code === roomCode);
         return invite.target_id === playerId && invite.status === "pending";
-      });
+      }).map(publicInvite);
       return { ok: true, invites };
     }
     if (method === "POST" && url.pathname === "/api/invite/create") {
@@ -350,7 +517,7 @@ async function routeRequest(method, url, payload, data) {
       const invite = {
         id: `${room.code}:${target.id}`,
         room_code: room.code,
-        game_id: room.game_id,
+        game_id: cleanGameId(room.game_id),
         host_id: room.host_id,
         host_name: host ? host.name : "Host",
         target_id: target.id,
@@ -358,7 +525,7 @@ async function routeRequest(method, url, payload, data) {
         status: "pending",
       };
       data.invites[invite.id] = invite;
-      return { ok: true, invite, room: roomToDict(data, room) };
+      return { ok: true, invite: publicInvite(invite), room: roomToDict(data, room) };
     }
     if (method === "POST" && url.pathname === "/api/invite/respond") {
       const invite = data.invites[String(payload.invite_id || "").trim()];
@@ -377,6 +544,7 @@ async function routeRequest(method, url, payload, data) {
       }
       addPlayerToRoom(room, player);
       activateRoomIfReady(room);
+      bumpRoomRevision(room);
       invite.status = "accepted";
       return { ok: true, accepted: true, room: roomToDict(data, room) };
     }
@@ -392,15 +560,17 @@ function roomSocket(request, env, url) {
 function roomAuthorityPath(pathname) {
   return [
     "/api/room/join",
+    "/api/room/join-bot",
     "/api/room/leave",
     "/api/room/close",
     "/api/room/move",
     "/api/room/reset",
+    "/api/invite/respond",
   ].includes(pathname);
 }
 
 async function roomAuthorityRequest(env, pathname, payload) {
-  const code = cleanRoomCode(payload.code || "");
+  const code = cleanRoomCode(payload.code || payload.room_code || roomCodeFromInviteId(payload.invite_id) || "");
   const response = await env.ROOM_OBJECT.getByName(code).fetch(new Request("https://room.object/__room_action", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -409,9 +579,15 @@ async function roomAuthorityRequest(env, pathname, payload) {
   return response.json();
 }
 
+function roomCodeFromInviteId(inviteId) {
+  const value = String(inviteId || "").trim();
+  const [code] = value.split(":");
+  return code || "";
+}
+
 function appEventsSocket(request, env, url) {
   if (!env.EVENT_HUB) return json({ ok: false, error: "App event updates are not configured." }, 503);
-  const gameId = safeGameIdForEvents(url.searchParams.get("game_id") || "super_tic_tac_toe");
+  const gameId = safeGameIdForEvents(url.searchParams.get("game_id") || DEFAULT_GAME_ID);
   return env.EVENT_HUB.getByName(gameId).fetch(request);
 }
 
@@ -425,6 +601,17 @@ async function notifyRoomObject(env, response) {
     }));
     return;
   }
+  if (Array.isArray(response.rooms)) {
+    for (const room of response.rooms) {
+      if (!room || !room.code) continue;
+      await env.ROOM_OBJECT.getByName(room.code).fetch(new Request("https://room.object/__room_snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(room),
+      }));
+    }
+    return;
+  }
   if (response.closed && response.room_code) {
     await env.ROOM_OBJECT.getByName(response.room_code).fetch(new Request("https://room.object/__room_close", {
       method: "POST",
@@ -436,13 +623,37 @@ async function notifyRoomObject(env, response) {
 
 async function notifyEventHub(env, data, response) {
   if (!env.EVENT_HUB || !response || response.ok === false) return;
+  if (Array.isArray(response.rooms) && response.rooms.length) {
+    const gameIds = [...new Set(response.rooms.map((room) => room.game_id).filter(Boolean).map(safeGameIdForEvents))];
+    for (const gameId of gameIds) {
+      const snapshot = eventSnapshotForGame(data, gameId);
+      await env.EVENT_HUB.getByName(gameId).fetch(new Request("https://event.hub/__app_snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(snapshot),
+      }));
+    }
+    return;
+  }
+  if (Array.isArray(response.game_ids) && response.game_ids.length) {
+    for (const gameId of [...new Set(response.game_ids.map(safeGameIdForEvents))]) {
+      const snapshot = eventSnapshotForGame(data, gameId);
+      await env.EVENT_HUB.getByName(gameId).fetch(new Request("https://event.hub/__app_snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(snapshot),
+      }));
+    }
+    return;
+  }
   const gameId = response.room && response.room.game_id
     ? response.room.game_id
     : response.invite && response.invite.game_id
       ? response.invite.game_id
-      : response.game_id || "super_tic_tac_toe";
+      : response.game_id || DEFAULT_GAME_ID;
   const snapshot = eventSnapshotForGame(data, gameId);
-  await env.EVENT_HUB.getByName(gameId).fetch(new Request("https://event.hub/__app_snapshot", {
+  const canonicalGameId = safeGameIdForEvents(gameId);
+  await env.EVENT_HUB.getByName(canonicalGameId).fetch(new Request("https://event.hub/__app_snapshot", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(snapshot),
@@ -451,18 +662,19 @@ async function notifyEventHub(env, data, response) {
 
 function eventSnapshotForGame(data, gameId) {
   const cleanId = safeGameIdForEvents(gameId);
+  const lookupIds = gameIdsForLookup(cleanId);
   const pendingInvitesByPlayer = {};
   Object.values(data.invites).forEach((invite) => {
-    if (invite.game_id !== cleanId || invite.status !== "pending") return;
+    if (!lookupIds.includes(cleanGameId(invite.game_id)) || invite.status !== "pending") return;
     if (!pendingInvitesByPlayer[invite.target_id]) pendingInvitesByPlayer[invite.target_id] = [];
-    pendingInvitesByPlayer[invite.target_id].push(invite);
+    pendingInvitesByPlayer[invite.target_id].push(publicInvite(invite));
   });
   return {
     type: "app_snapshot",
     game_id: cleanId,
     rooms: Object.values(data.rooms)
       .filter((room) => ["waiting_for_player", "active"].includes(roomStatus(room)))
-      .filter((room) => room.game_id === cleanId)
+      .filter((room) => gameIdMatches(room.game_id, cleanId))
       .map((room) => roomSummary(room)),
     lobby_players: lobbyViewers(data, cleanId),
     pending_invites_by_player: pendingInvitesByPlayer,
@@ -482,7 +694,11 @@ function appSnapshotForSubscription(snapshot, subscription) {
 }
 
 function safeGameIdForEvents(gameId) {
-  return String(gameId || "super_tic_tac_toe").trim() || "super_tic_tac_toe";
+  try {
+    return cleanGameId(gameId || DEFAULT_GAME_ID);
+  } catch {
+    return DEFAULT_GAME_ID;
+  }
 }
 
 function safeSend(session, message) {
@@ -495,6 +711,10 @@ function safeSend(session, message) {
       // The connection is already gone.
     }
   }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function loadState(env) {
@@ -585,9 +805,36 @@ function writeChanged(result) {
 }
 
 function cleanGameId(gameId) {
-  const value = String(gameId || "super_tic_tac_toe").trim() || "super_tic_tac_toe";
-  if (!GAME_IDS.has(value)) throw new Error("Game is not available yet.");
-  return value;
+  const value = String(gameId || DEFAULT_GAME_ID).trim() || DEFAULT_GAME_ID;
+  const canonical = GAME_ID_ALIASES.get(value);
+  if (!canonical) throw new Error("Game is not available yet.");
+  return canonical;
+}
+
+function gameDefinitionFor(gameId) {
+  const canonical = cleanGameId(gameId);
+  return GAME_DEFINITIONS.find((game) => game.id === canonical);
+}
+
+function publicGameDefinition(game) {
+  return {
+    id: game.id,
+    name: game.name,
+    summary: game.summary,
+    players: game.players,
+    status: game.status,
+    availability: game.availability,
+    aliases: [...(game.aliases || [])],
+  };
+}
+
+function gameIdsForLookup(gameId) {
+  const game = gameDefinitionFor(gameId);
+  return [game.id, ...(game.aliases || [])];
+}
+
+function gameIdMatches(candidate, gameId) {
+  return cleanGameId(candidate) === cleanGameId(gameId);
 }
 
 function playerFromPayload(payload) {
@@ -597,9 +844,36 @@ function playerFromPayload(payload) {
     name: String(player.name || "").trim().slice(0, 24),
     icon: String(player.icon || "🙂").slice(0, 8),
     color: safeHexColor(player.color || "#2f80ed"),
+    kind: player.kind === "bot" ? "bot" : "human",
   };
+  if (player.bot_id) clean.bot_id = String(player.bot_id).trim().slice(0, 80);
   if (!clean.id || !clean.name) throw new Error("Player id and name are required.");
   return clean;
+}
+
+function publicBot(bot) {
+  return {
+    id: bot.id,
+    bot_id: bot.id,
+    kind: "bot",
+    name: bot.name,
+    icon: bot.icon,
+    color: bot.color,
+    strategy: bot.strategy || "random",
+    strategy_icon: bot.strategy === "smart" ? "\uD83E\uDDE0" : "\uD83C\uDFB2",
+    strategy_label: bot.strategy === "smart" ? "Smart move scoring" : "Random legal moves",
+  };
+}
+
+function publicInvite(invite) {
+  return { ...invite, game_id: cleanGameId(invite.game_id) };
+}
+
+function botPlayerFromId(botId) {
+  const id = String(botId || "").trim();
+  const bot = BOT_DEFINITIONS.find((item) => item.id === id);
+  if (!bot) throw new Error("Bot is not available.");
+  return publicBot(bot);
 }
 
 function upsertPlayer(data, player) {
@@ -610,12 +884,22 @@ function upsertPlayer(data, player) {
 }
 
 function refreshActiveRoomPlayer(data, player) {
+  const changedRooms = [];
   Object.values(data.rooms).forEach((room) => {
+    let changed = false;
     room.players.forEach((seat) => {
-      if (seat.id === player.id) Object.assign(seat, player);
+      if (seat.id === player.id) {
+        Object.assign(seat, player);
+        changed = true;
+      }
     });
-    ensureRoomSeatColors(room);
+    if (changed) {
+      ensureRoomSeatColors(room);
+      bumpRoomRevision(room);
+      changedRooms.push(room);
+    }
   });
+  return changedRooms;
 }
 
 function refreshPlayerStats(data, player) {
@@ -671,10 +955,13 @@ function roomStatus(room) {
 }
 
 function roomToDict(data, room) {
+  ensureRoomFreshness(room);
   return {
     code: room.code,
     host_id: room.host_id,
-    game_id: room.game_id,
+    game_id: cleanGameId(room.game_id),
+    revision: room.revision,
+    game_epoch: room.game_epoch,
     started: room.started,
     local_mode: room.local_mode,
     status: roomStatus(room),
@@ -687,10 +974,13 @@ function roomToDict(data, room) {
 }
 
 function roomSummary(room) {
+  ensureRoomFreshness(room);
   return {
     code: room.code,
     host_id: room.host_id,
-    game_id: room.game_id,
+    game_id: cleanGameId(room.game_id),
+    revision: room.revision,
+    game_epoch: room.game_epoch,
     started: room.started,
     local_mode: room.local_mode,
     status: roomStatus(room),
@@ -699,9 +989,23 @@ function roomSummary(room) {
   };
 }
 
+function ensureRoomFreshness(room) {
+  if (!room) return;
+  const revision = Number(room.revision);
+  const gameEpoch = Number(room.game_epoch);
+  room.revision = Number.isFinite(revision) && revision > 0 ? revision : 1;
+  room.game_epoch = Number.isFinite(gameEpoch) && gameEpoch > 0 ? gameEpoch : 1;
+}
+
+function bumpRoomRevision(room, options = {}) {
+  ensureRoomFreshness(room);
+  if (options.newGame) room.game_epoch += 1;
+  room.revision += 1;
+}
+
 function latestInviteForRoom(data, room) {
   const invites = Object.values(data.invites).filter((invite) => invite.room_code === room.code);
-  return invites.length ? invites[invites.length - 1] : null;
+  return invites.length ? publicInvite(invites[invites.length - 1]) : null;
 }
 
 function resetRequestForRoom(room) {
@@ -718,10 +1022,17 @@ function resetRequestForRoom(room) {
 
 function activeRoomForPlayer(data, playerId, gameId) {
   return Object.values(data.rooms).find((room) => (
-    room.game_id === gameId &&
+    gameIdMatches(room.game_id, gameId) &&
     ["waiting_for_player", "active"].includes(roomStatus(room)) &&
     room.players.some((player) => player.id === playerId)
   )) || null;
+}
+
+function playerHasUnfinishedRoom(data, playerId) {
+  return Object.values(data.rooms).some((room) => (
+    ["waiting_for_player", "active"].includes(roomStatus(room)) &&
+    room.players.some((player) => player.id === playerId)
+  ));
 }
 
 function addPlayerToRoom(room, player) {
@@ -747,15 +1058,204 @@ function playerMark(room, playerId) {
   return player ? player.mark : null;
 }
 
+function isBotSeat(seat) {
+  return Boolean(seat && seat.kind === "bot");
+}
+
+function botSeatForCurrentTurn(room) {
+  if (!room || !room.started || !room.game || room.game.status !== "playing") return null;
+  return room.players.find((seat) => isBotSeat(seat) && seat.mark === room.game.current_player) || null;
+}
+
+function runBotTurns(data, room) {
+  if (!room) return null;
+  let moves = 0;
+  while (moves < 4) {
+    const bot = botSeatForCurrentTurn(room);
+    if (!bot) break;
+    const move = chooseBotMove(room.game, bot);
+    if (!move) break;
+    makeMove(room.game, move.board, move.cell);
+    bumpRoomRevision(room);
+    recordCompletedRoomStats(data, room);
+    moves += 1;
+  }
+  return moves ? { ok: true, room: roomToDict(data, room), bot_moves: moves } : null;
+}
+
+function chooseBotMove(game, bot = null) {
+  const moves = legalMoves(game);
+  if (!moves.length) return null;
+  if (bot && (bot.bot_id === TACTICAL_TESS_BOT_ID || bot.id === TACTICAL_TESS_BOT_ID)) return chooseScoredBotMove(game, bot, moves);
+  return moves[Math.floor(Math.random() * moves.length)];
+}
+
+function chooseScoredBotMove(game, bot, moves) {
+  const player = game.current_player;
+  const scoredMoves = moves.map((move) => ({
+    move,
+    score: scoreBotMove(game, move, player),
+  }));
+  const bestScore = Math.max(...scoredMoves.map((item) => item.score));
+  const bestMoves = scoredMoves.filter((item) => item.score === bestScore);
+  return bestMoves[Math.floor(Math.random() * bestMoves.length)].move;
+}
+
+function scoreBotMove(game, move, player) {
+  const opponent = otherMark(player);
+  const preview = previewMove(game, move, player);
+  let score = 100;
+  if (preview.winner === player) score += 100000;
+  if (blocksOpponentGameWin(game, move, opponent)) score += 50000;
+  if (preview.capturedBoard && preview.boardWinner === player) score += 10000;
+  if (blocksOpponentZoneWin(game, move, opponent)) score += 7000;
+  score += scoreThreats(preview.game, player, opponent);
+  score += scoreZoneShape(move.board);
+  score += scoreCellShape(move.cell);
+  score += scoreDestination(preview.game, player, opponent);
+  score += scorePickup(game, move);
+  if (preview.game.small_winners[move.board] === "D") score -= 3000;
+  return score;
+}
+
+function previewMove(game, move, player) {
+  const next = cloneGameForPreview(game);
+  const previousBoardResult = next.small_winners[move.board];
+  const pickup = isTacticalGame(next) ? pickupAt(next, move.board, move.cell) : null;
+  if (pickup) {
+    ensureTacticalState(next);
+    const config = TACTICAL_PICKUP_CONFIG[pickup.type];
+    if (config) next.scores[player] = Number(next.scores[player] || 0) + config.points;
+    next.pickups = next.pickups.filter((item) => item.id !== pickup.id);
+  }
+  next.boards[move.board][move.cell] = player;
+  next.move_count = Number(next.move_count || 0) + 1;
+  const boardWinner = smallBoardResult(next.boards[move.board]);
+  next.small_winners[move.board] = boardWinner;
+  const capturedBoard = previousBoardResult === null && ["X", "O"].includes(boardWinner);
+  const lineWinner = macroWinnerFor(next.small_winners);
+  if (lineWinner) {
+    const winner = isTacticalGame(next) ? tacticalLineWinner(next, lineWinner) : lineWinner;
+    next.line_winner = lineWinner;
+    next.status = winner ? (winner === "X" ? "x_won" : "o_won") : "draw";
+    next.winner = winner;
+    next.next_board = null;
+  } else if (next.small_winners.every((result) => result !== null)) {
+    const winner = isTacticalGame(next) ? tacticalBoardFilledWinner(next) : null;
+    next.status = winner ? (winner === "X" ? "x_won" : "o_won") : "draw";
+    next.winner = winner;
+    next.next_board = null;
+  } else {
+    next.current_player = otherMark(player);
+    next.next_board = boardAvailable(next, move.cell) ? move.cell : null;
+  }
+  return { game: next, boardWinner, capturedBoard, winner: next.winner };
+}
+
+function cloneGameForPreview(game) {
+  return JSON.parse(JSON.stringify(game));
+}
+
+function otherMark(mark) {
+  return mark === "X" ? "O" : "X";
+}
+
+function blocksOpponentGameWin(game, move, opponent) {
+  if (!blocksOpponentZoneWin(game, move, opponent)) return false;
+  const winners = [...game.small_winners];
+  winners[move.board] = opponent;
+  return macroWinnerFor(winners) === opponent;
+}
+
+function blocksOpponentZoneWin(game, move, opponent) {
+  if (game.small_winners[move.board] !== null) return false;
+  if (game.boards[move.board][move.cell] !== null) return false;
+  const board = [...game.boards[move.board]];
+  board[move.cell] = opponent;
+  return smallBoardResult(board) === opponent;
+}
+
+function scoreThreats(game, player, opponent) {
+  const playerThreats = countImmediateZoneWins(game, player);
+  const opponentThreats = countImmediateZoneWins(game, opponent);
+  return (playerThreats >= 2 ? 3000 : 0) - (opponentThreats >= 2 ? 3000 : 0);
+}
+
+function countImmediateZoneWins(game, player) {
+  return legalMoves(game).filter((move) => {
+    if (game.small_winners[move.board] !== null) return false;
+    const board = [...game.boards[move.board]];
+    board[move.cell] = player;
+    return smallBoardResult(board) === player;
+  }).length;
+}
+
+function scoreCellShape(cellIndex) {
+  if (cellIndex === 4) return 1000;
+  if ([0, 2, 6, 8].includes(cellIndex)) return 700;
+  return 250;
+}
+
+function scoreZoneShape(boardIndex) {
+  if (boardIndex === 4) return 2000;
+  if ([0, 2, 6, 8].includes(boardIndex)) return 1500;
+  return 500;
+}
+
+function scoreDestination(gameAfterMove, player, opponent) {
+  if (gameAfterMove.status !== "playing") return 0;
+  const destination = gameAfterMove.next_board;
+  if (destination === null || !boardAvailable(gameAfterMove, destination)) return -1000;
+  let score = 0;
+  if (gameAfterMove.small_winners[destination] === player) score += 700;
+  if (gameAfterMove.small_winners[destination] !== null) score += 900;
+  const opponentWinningMoves = legalMoves(gameAfterMove).filter((move) => {
+    const preview = previewMove(gameAfterMove, move, opponent);
+    return preview.winner === opponent || (preview.capturedBoard && preview.boardWinner === opponent);
+  });
+  if (opponentWinningMoves.some((move) => {
+    const preview = previewMove(gameAfterMove, move, opponent);
+    return preview.winner === opponent;
+  })) score -= 5000;
+  if (opponentWinningMoves.some((move) => {
+    const preview = previewMove(gameAfterMove, move, opponent);
+    return preview.capturedBoard && preview.boardWinner === opponent;
+  })) score -= 3000;
+  return score;
+}
+
+function scorePickup(game, move) {
+  if (!isTacticalGame(game)) return 0;
+  const pickup = pickupAt(game, move.board, move.cell);
+  if (!pickup) return 0;
+  const config = TACTICAL_PICKUP_CONFIG[pickup.type];
+  return config ? config.points * 120 : 0;
+}
+
+function legalMoves(game) {
+  if (!game || game.status !== "playing") return [];
+  const moves = [];
+  legalBoards(game).forEach((boardIndex) => {
+    game.boards[boardIndex].forEach((value, cellIndex) => {
+      if (value === null) moves.push({ board: boardIndex, cell: cellIndex });
+    });
+  });
+  return moves;
+}
+
 function handleResetVote(room, requesterId, approve) {
   if (!approve) {
     room.reset_votes = [];
     return "declined";
   }
   if (!room.reset_votes.includes(requesterId)) room.reset_votes.push(requesterId);
+  room.players.filter(isBotSeat).forEach((bot) => {
+    if (!room.reset_votes.includes(bot.id)) room.reset_votes.push(bot.id);
+  });
   if (room.players.length > 1 && room.reset_votes.length < room.players.length) return "pending";
   room.reset_votes = [];
   room.game = newGame(room.game_id);
+  bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
 }
@@ -763,7 +1263,7 @@ function handleResetVote(room, requesterId, approve) {
 function lobbyViewers(data, gameId) {
   pruneLobbyViewers(data);
   return Object.values(data.lobbyViewers)
-    .filter((viewer) => !gameId || viewer.game_id === gameId)
+    .filter((viewer) => !gameId || gameIdMatches(viewer.game_id, gameId))
     .map((viewer) => viewer.player);
 }
 
@@ -774,9 +1274,10 @@ function pruneLobbyViewers(data) {
   });
 }
 
-function newGame(gameId = "super_tic_tac_toe") {
+function newGame(gameId = DEFAULT_GAME_ID) {
+  const canonicalGameId = cleanGameId(gameId);
   const game = {
-    game_id: gameId,
+    game_id: canonicalGameId,
     boards: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null)),
     small_winners: Array.from({ length: 9 }, () => null),
     current_player: "X",
@@ -786,7 +1287,7 @@ function newGame(gameId = "super_tic_tac_toe") {
     line_winner: null,
     move_count: 0,
   };
-  if (gameId === TACTICAL_GAME_ID) {
+  if (canonicalGameId === TACTICAL_GAME_ID) {
     game.pickups = [];
     game.scores = { X: 0, O: 0 };
     game.captures = {
@@ -800,7 +1301,7 @@ function newGame(gameId = "super_tic_tac_toe") {
 }
 
 function gameToDict(game) {
-  return { ...game, legal_boards: legalBoards(game) };
+  return { ...game, game_id: cleanGameId(game.game_id), legal_boards: legalBoards(game) };
 }
 
 function legalBoards(game) {
@@ -876,7 +1377,7 @@ function makeTacticalMove(game, boardIndex, cellIndex) {
 
   const lineWinner = macroWinnerFor(game.small_winners);
   if (lineWinner) {
-    const winner = tacticalScoreWinner(game);
+    const winner = tacticalLineWinner(game, lineWinner);
     game.line_winner = lineWinner;
     game.status = winner ? (winner === "X" ? "x_won" : "o_won") : "draw";
     game.winner = winner;
@@ -920,7 +1421,7 @@ function macroWinnerFor(smallWinners) {
 }
 
 function isTacticalGame(game) {
-  return game && (game.game_id === TACTICAL_GAME_ID || Array.isArray(game.pickups));
+  return game && (cleanGameId(game.game_id) === TACTICAL_GAME_ID || Array.isArray(game.pickups));
 }
 
 function ensureTacticalState(game) {
@@ -1011,26 +1512,16 @@ function tacticalBoardFilledWinner(game) {
   return tacticalScoreWinner(game);
 }
 
+function tacticalLineWinner(game, lineWinner) {
+  return tacticalScoreWinner(game) || lineWinner;
+}
+
 function tacticalScoreWinner(game) {
   const xScore = Number(game.scores.X || 0);
   const oScore = Number(game.scores.O || 0);
   if (xScore > oScore) return "X";
   if (oScore > xScore) return "O";
   return null;
-}
-
-function compareMarks(game, scorers) {
-  for (const scorer of scorers) {
-    const xScore = scorer("X");
-    const oScore = scorer("O");
-    if (xScore > oScore) return "X";
-    if (oScore > xScore) return "O";
-  }
-  return null;
-}
-
-function capturedSectorCount(game, mark) {
-  return game.small_winners.filter((result) => result === mark).length;
 }
 
 function pushGameEvent(game, event) {
@@ -1081,9 +1572,11 @@ function ensureStats(data) {
 }
 
 function updateHighScores(data, room, result) {
-  if (!data.stats.high_scores[room.game_id]) data.stats.high_scores[room.game_id] = [];
-  const entries = data.stats.high_scores[room.game_id];
+  const gameId = cleanGameId(room.game_id);
+  if (!data.stats.high_scores[gameId]) data.stats.high_scores[gameId] = [];
+  const entries = data.stats.high_scores[gameId];
   room.players.forEach((seat) => {
+    if (isBotSeat(seat)) return;
     const score = Number(result.score_by_mark[seat.mark] || 0);
     if (score <= 0) return;
     entries.push({
@@ -1096,15 +1589,15 @@ function updateHighScores(data, room, result) {
       recorded_at: new Date().toISOString(),
     });
   });
-  data.stats.high_scores[room.game_id] = entries
-    .sort((left, right) => right.score - left.score || String(left.recorded_at).localeCompare(String(right.recorded_at)))
-    .slice(0, 5);
+  data.stats.high_scores[gameId] = entries
+    .sort((left, right) => right.score - left.score || String(left.recorded_at).localeCompare(String(right.recorded_at)));
 }
 
 function updateEloRatings(data, room, result) {
   if (room.players.length !== 2) return;
-  if (!data.stats.ratings[room.game_id]) data.stats.ratings[room.game_id] = {};
-  const ratings = data.stats.ratings[room.game_id];
+  const gameId = cleanGameId(room.game_id);
+  if (!data.stats.ratings[gameId]) data.stats.ratings[gameId] = {};
+  const ratings = data.stats.ratings[gameId];
   const [left, right] = room.players;
   const leftRating = ratingEntry(ratings, left);
   const rightRating = ratingEntry(ratings, right);
@@ -1119,9 +1612,11 @@ function updateEloRatings(data, room, result) {
 }
 
 function updatePersonalStats(data, room, result) {
-  if (!data.stats.personal[room.game_id]) data.stats.personal[room.game_id] = {};
-  const personal = data.stats.personal[room.game_id];
+  const gameId = cleanGameId(room.game_id);
+  if (!data.stats.personal[gameId]) data.stats.personal[gameId] = {};
+  const personal = data.stats.personal[gameId];
   room.players.forEach((seat) => {
+    if (isBotSeat(seat)) return;
     if (!personal[seat.id]) {
       personal[seat.id] = {
         player_id: seat.id,
@@ -1143,11 +1638,13 @@ function updatePersonalStats(data, room, result) {
 
 function ratingEntry(ratings, player) {
   if (!ratings[player.id]) {
+    const botDefinition = isBotSeat(player) ? BOT_DEFINITIONS.find((bot) => bot.id === player.bot_id || bot.id === player.id) : null;
     ratings[player.id] = {
       player_id: player.id,
       player_name: player.name,
       player_icon: player.icon,
-      rating: DEFAULT_ELO_RATING,
+      rating: botDefinition ? Number(botDefinition.rating || DEFAULT_ELO_RATING) : DEFAULT_ELO_RATING,
+      bot: isBotSeat(player),
       games: 0,
       wins: 0,
       losses: 0,
@@ -1156,6 +1653,7 @@ function ratingEntry(ratings, player) {
   }
   ratings[player.id].player_name = player.name;
   ratings[player.id].player_icon = player.icon;
+  ratings[player.id].bot = isBotSeat(player);
   return ratings[player.id];
 }
 
@@ -1177,11 +1675,25 @@ function applyEloRecord(entry, score) {
 
 function publicStatsForGame(data, gameId) {
   ensureStats(data);
-  const ratings = Object.values(data.stats.ratings[gameId] || {})
-    .sort((left, right) => right.rating - left.rating || String(left.player_name).localeCompare(String(right.player_name)))
-    .slice(0, 10);
+  const lookupIds = gameIdsForLookup(gameId);
+  const selectablePlayerIds = new Set((data.players || []).map((player) => player.id));
+  const ratingsByPlayer = new Map();
+  lookupIds.forEach((id) => {
+    Object.values(data.stats.ratings[id] || {}).forEach((entry) => {
+      if (!ratingsByPlayer.has(entry.player_id) || Number(entry.games || 0) > Number(ratingsByPlayer.get(entry.player_id).games || 0)) {
+        ratingsByPlayer.set(entry.player_id, entry);
+      }
+    });
+  });
+  const ratings = [...ratingsByPlayer.values()]
+    .filter((entry) => !entry.bot && selectablePlayerIds.has(entry.player_id))
+    .sort((left, right) => right.rating - left.rating || String(left.player_name).localeCompare(String(right.player_name)));
+  const highScores = lookupIds
+    .flatMap((id) => data.stats.high_scores[id] || [])
+    .filter((entry) => selectablePlayerIds.has(entry.player_id))
+    .sort((left, right) => right.score - left.score || String(left.recorded_at).localeCompare(String(right.recorded_at)));
   return {
-    high_scores: data.stats.high_scores[gameId] || [],
+    high_scores: highScores,
     ratings,
   };
 }
@@ -1189,16 +1701,23 @@ function publicStatsForGame(data, gameId) {
 function publicPlayerStats(data, playerId) {
   ensureStats(data);
   return GAME_DEFINITIONS.map((game) => {
-    const personal = data.stats.personal[game.id] && data.stats.personal[game.id][playerId] || {};
-    const rating = data.stats.ratings[game.id] && data.stats.ratings[game.id][playerId] || {};
-    const topScore = (data.stats.high_scores[game.id] || [])
+    const lookupIds = gameIdsForLookup(game.id);
+    const personalEntries = lookupIds.map((id) => data.stats.personal[id] && data.stats.personal[id][playerId] || null).filter(Boolean);
+    const ratingEntries = lookupIds.map((id) => data.stats.ratings[id] && data.stats.ratings[id][playerId] || null).filter(Boolean);
+    const topScore = lookupIds.flatMap((id) => data.stats.high_scores[id] || [])
       .filter((entry) => entry.player_id === playerId)
       .reduce((best, entry) => Math.max(best, Number(entry.score || 0)), 0);
+    const personal = personalEntries.reduce((total, entry) => ({
+      games_played: total.games_played + Number(entry.games_played || 0),
+      games_won: total.games_won + Number(entry.games_won || 0),
+      personal_high_score: Math.max(total.personal_high_score, Number(entry.personal_high_score || 0)),
+    }), { games_played: 0, games_won: 0, personal_high_score: 0 });
+    const rating = ratingEntries[0] || {};
     return {
       game_id: game.id,
       game_name: game.name,
-      games_played: Number(personal.games_played ?? rating.games ?? 0),
-      games_won: Number(personal.games_won ?? rating.wins ?? 0),
+      games_played: personalEntries.length ? personal.games_played : Number(rating.games || 0),
+      games_won: personalEntries.length ? personal.games_won : Number(rating.wins || 0),
       personal_high_score: Number(personal.personal_high_score ?? topScore ?? 0),
       elo: Number(rating.rating || DEFAULT_ELO_RATING),
     };

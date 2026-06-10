@@ -8,6 +8,22 @@ import {
 } from "./color-utils.js";
 import { avatarHtml, escapeHtml } from "./html-utils.js";
 import { createRealtimeController } from "./realtime.js";
+import {
+  isSoundEnabled,
+  soundVolumeLevel,
+  playCancel,
+  playClick,
+  playConfirm,
+  playInvalidMove,
+  playInviteReceived,
+  playLose,
+  playPlayerJoined,
+  playRoomCreated,
+  playTurnChanged,
+  playWin,
+  toggleSound,
+  unlockAudio,
+} from "./sound.js";
 
 const icons = ["🙂", "😎", "🤖", "🦊", "🐲", "⭐", "🌮", "🎲"];
 const colors = ["#1f7a5f", "#1e63d6", "#c43d5d", "#8a4bd1", "#b7791f", "#0f766e"];
@@ -31,9 +47,12 @@ const paletteColors = [
   "#334155",
 ];
 const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
-const games = [
+const CLASSIC_GAME_ID = "a3f19c6e42b8";
+const TACTICAL_GAME_ID = "d7e4a91f0c23";
+const fallbackGames = [
   {
-    id: "super_tic_tac_toe",
+    id: CLASSIC_GAME_ID,
+    aliases: ["super_tic_tac_toe"],
     name: "Super Tic Tac Toe",
     summary: "A nested tic tac toe duel where every move sends the next player to a target board.",
     players: "2 players",
@@ -41,14 +60,16 @@ const games = [
     availability: "ready",
   },
   {
-    id: "super_tactical_tac_toe",
-    name: "Super Tactical Tac Toe",
+    id: TACTICAL_GAME_ID,
+    aliases: ["super_tactical_tac_toe"],
+    name: "Super Tic Tactical Toe",
     summary: "Ultimate tic tac toe with tactical coin and treasure pickups for bonus points.",
     players: "2 players",
     status: "Ready",
     availability: "ready",
   },
 ];
+let games = [...fallbackGames];
 const winLines = [
   [0, 1, 2],
   [3, 4, 5],
@@ -68,6 +89,7 @@ let deviceSelectedPlayerId = localStorage.getItem("sogotable.deviceSelectedPlaye
 let deviceSelectionHash = localStorage.getItem("sogotable.deviceSelectionHash") || randomTenDigitHash();
 if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
 let selectedGameId = localStorage.getItem("sogotable.selectedGameId") || games[0].id;
+selectedGameId = canonicalGameId(selectedGameId);
 let selectedIcon = randomIcon();
 let selectedColor = paletteColors[0];
 let editingPlayerId = "";
@@ -78,6 +100,7 @@ let hostInviteStatus = null;
 let activeGameRoom = null;
 let currentGameRooms = [];
 let lobbyPlayers = [];
+let availableBots = [];
 let currentGameStats = { high_scores: [], ratings: [] };
 let selectedPlayerStats = [];
 let lastLobbyPlayersKey = "";
@@ -85,6 +108,11 @@ let lastCurrentGameRoomsKey = "";
 let lastActiveGameNoticeKey = "";
 let lastGameStatsKey = "";
 let lastSelectedPlayerStatsKey = "";
+let lastInviteSoundKey = "";
+let lastPlayerJoinedSoundKey = "";
+let lastTurnSoundKey = "";
+let lastGameEventSoundKey = "";
+let lastGameOverSoundKey = "";
 let selectedPlayerStatsRequestId = 0;
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
@@ -118,6 +146,8 @@ document.addEventListener("DOMContentLoaded", () => {
   registerServiceWorker();
   refreshRevisionSummary();
   bindNavigation();
+  bindSoundControls();
+  refreshGameDefinitions();
   renderGames();
   renderChoices();
   refreshPlayers();
@@ -139,6 +169,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("playerColorNative").addEventListener("input", updateSelectedColorFromNative);
   document.getElementById("closeInvitePlayerModal").addEventListener("click", closeInvitePlayerModal);
   document.getElementById("invitePlayerModal").addEventListener("click", closeInvitePlayerModalOnBackdrop);
+  document.getElementById("openGameStats").addEventListener("click", openGameStatsModal);
+  document.getElementById("closeGameStatsModal").addEventListener("click", closeGameStatsModal);
+  document.getElementById("gameStatsModal").addEventListener("click", closeGameStatsModalOnBackdrop);
   document.getElementById("createGame").addEventListener("click", createRoom);
   document.getElementById("refreshGameList").addEventListener("click", refreshGameRooms);
   document.getElementById("acceptInvite").addEventListener("click", () => respondToInvite(true));
@@ -154,6 +187,44 @@ document.addEventListener("DOMContentLoaded", () => {
   realtime.startRoomListFallback();
   realtime.startInviteFallback();
 });
+
+function bindSoundControls() {
+  renderSoundControls();
+  document.addEventListener("pointerdown", unlockAudio, { once: true });
+  document.addEventListener("keydown", unlockAudio, { once: true });
+  document.addEventListener("click", playControlClickSound);
+  document.querySelectorAll("[data-sound-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleSound();
+      renderSoundControls();
+      playConfirm();
+    });
+  });
+}
+
+function renderSoundControls() {
+  const enabled = isSoundEnabled();
+  const level = soundVolumeLevel();
+  document.querySelectorAll("[data-sound-toggle]").forEach((button) => {
+    button.classList.toggle("muted", !enabled);
+    button.textContent = enabled ? "🔊" : "🔇";
+    button.setAttribute("aria-pressed", String(enabled));
+    button.setAttribute("aria-label", enabled ? "Mute sound" : "Unmute sound");
+    button.title = enabled ? "Mute sound" : "Unmute sound";
+    button.dataset.volumeLevel = enabled ? String(level) : "0";
+    button.innerHTML = `<span aria-hidden="true">${enabled ? "🔊" : "🔇"}</span>`;
+    button.setAttribute("aria-label", enabled ? `Sound volume ${level} of 5` : "Sound muted");
+    button.title = enabled ? `Sound volume ${level} of 5` : "Sound muted";
+  });
+}
+
+function playControlClickSound(event) {
+  const button = event.target.closest("button");
+  if (!button || button.disabled) return;
+  if (button.classList.contains("cell")) return;
+  if (button.matches("[data-sound-toggle]")) return;
+  playClick();
+}
 
 async function refreshRevisionSummary() {
   const host = document.getElementById("revisionSummary");
@@ -259,6 +330,7 @@ function renderGameSelected() {
   const game = selectedGame();
   document.getElementById("selectedGameTitle").textContent = game ? game.name : "Game";
   document.getElementById("selectedGameDescription").textContent = game ? game.summary : "";
+  renderGameStatsLink();
   lastLobbyPlayersKey = "";
   lastCurrentGameRoomsKey = "";
   lastActiveGameNoticeKey = "";
@@ -268,6 +340,36 @@ function renderGameSelected() {
   renderCurrentGames();
   renderCreateGameButton();
   renderActiveGameNotice();
+}
+
+async function refreshGameDefinitions() {
+  try {
+    const data = await fetchJson("/api/games");
+    if (!data.ok || !Array.isArray(data.games) || !data.games.length) throw new Error(data.error || "Could not load games.");
+    games = normalizeGameDefinitions(data.games);
+    selectedGameId = canonicalGameId(selectedGameId);
+    saveSelectedGame();
+    renderGames();
+    renderSelectedGame();
+    if (document.getElementById("gameSelected").classList.contains("active")) renderGameSelected();
+  } catch {
+    games = [...fallbackGames];
+    selectedGameId = canonicalGameId(selectedGameId);
+    renderGames();
+    renderSelectedGame();
+  }
+}
+
+function normalizeGameDefinitions(definitions) {
+  return definitions.map((game) => ({
+    id: String(game.id || "").trim(),
+    aliases: Array.isArray(game.aliases) ? game.aliases.map((alias) => String(alias)) : [],
+    name: String(game.name || "Game").trim() || "Game",
+    summary: String(game.summary || "").trim(),
+    players: String(game.players || "2 players").trim(),
+    status: String(game.status || "Ready").trim(),
+    availability: String(game.availability || "ready").trim(),
+  })).filter((game) => game.id);
 }
 
 function renderLobbyPlayers() {
@@ -524,38 +626,71 @@ function gameRoomsSignature(rooms) {
 function renderGameStats() {
   const host = document.getElementById("gameStats");
   if (!host) return;
-  const nextKey = JSON.stringify(currentGameStats || {});
+  const game = selectedGame();
+  const gameId = canonicalGameId(game && game.id);
+  const nextKey = JSON.stringify({ gameId, stats: currentGameStats || {} });
   if (nextKey === lastGameStatsKey) return;
   lastGameStatsKey = nextKey;
   host.innerHTML = "";
-  const highScores = (currentGameStats.high_scores || []).slice(0, 5);
-  const ratings = (currentGameStats.ratings || []).slice(0, 5);
-  host.appendChild(statsSection("Top Scores", highScores, (item, index) => (
-    `<strong>${index + 1}. ${escapeHtml(item.player_icon || "")} ${escapeHtml(item.player_name || "Player")}</strong><span>${Number(item.score || 0)}</span>`
-  ), "No scores yet."));
-  host.appendChild(statsSection("ELO Ratings", ratings, (item, index) => (
-    `<strong>${index + 1}. ${escapeHtml(item.player_icon || "")} ${escapeHtml(item.player_name || "Player")}</strong><span>${Number(item.rating || 1000)}</span>`
-  ), "No ratings yet."));
+  if (gameId === TACTICAL_GAME_ID) {
+    host.appendChild(lobbyStatsTable("High Scores", currentGameStats.high_scores || [], "Score", "score", "No scores yet."));
+  } else {
+    host.appendChild(lobbyStatsTable("ELO Ratings", currentGameStats.ratings || [], "ELO", "rating", "No ratings yet."));
+  }
 }
 
-function statsSection(title, items, rowHtml, emptyText) {
-  const section = document.createElement("div");
-  section.className = "stats-section";
-  section.innerHTML = `<span class="label">${escapeHtml(title)}</span>`;
-  const list = document.createElement("div");
-  list.className = "stats-list";
-  if (!items.length) {
-    list.textContent = emptyText;
-  } else {
-    items.forEach((item, index) => {
-      const row = document.createElement("div");
-      row.className = "stats-row";
-      row.innerHTML = rowHtml(item, index);
-      list.appendChild(row);
-    });
+function renderGameStatsLink() {
+  const button = document.getElementById("openGameStats");
+  const title = document.getElementById("gameStatsTitle");
+  const label = canonicalGameId(selectedGame().id) === TACTICAL_GAME_ID ? "High Scores" : "ELO";
+  if (button) button.textContent = label;
+  if (title) title.textContent = label;
+}
+
+async function openGameStatsModal() {
+  renderGameStatsLink();
+  await refreshGameStats();
+  document.getElementById("gameStatsModal").classList.remove("hidden");
+}
+
+function closeGameStatsModal() {
+  document.getElementById("gameStatsModal").classList.add("hidden");
+}
+
+function closeGameStatsModalOnBackdrop(event) {
+  if (event.target.id === "gameStatsModal") closeGameStatsModal();
+}
+
+function lobbyStatsTable(title, items, valueLabel, valueKey, emptyText) {
+  const table = document.createElement("table");
+  table.className = "lobby-stat-table";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th scope="col">${escapeHtml(title)}</th>
+        <th scope="col">${escapeHtml(valueLabel)}</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const body = table.querySelector("tbody");
+  const rows = items;
+  if (!rows.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<th scope="row">${escapeHtml(emptyText)}</th><td>-</td>`;
+    body.appendChild(row);
+    return table;
   }
-  section.appendChild(list);
-  return section;
+  rows.forEach((item, index) => {
+    const row = document.createElement("tr");
+    const value = Number(item[valueKey] || (valueKey === "rating" ? 1000 : 0));
+    row.innerHTML = `
+      <th scope="row">${index + 1}. ${escapeHtml(item.player_icon || "")} ${escapeHtml(item.player_name || "Player")}</th>
+      <td>${value}</td>
+    `;
+    body.appendChild(row);
+  });
+  return table;
 }
 
 function roomSummarySignature(room) {
@@ -684,6 +819,7 @@ async function createPlayer(event) {
     const response = await api("/api/players/create", { player });
     players = response.players;
     finishPlayerSave(response.player.id, input, wasEditing);
+    playConfirm();
   } catch (error) {
     alert(error.message);
   }
@@ -799,6 +935,7 @@ async function clearEditingPlayerStats() {
     }
     await refreshSelectedPlayerStats();
     await refreshGameStats(selectedGame());
+    playConfirm();
     alert(`Stats cleared for ${player.name}.`);
   } catch (error) {
     alert(error.message);
@@ -981,6 +1118,16 @@ async function openInvitePlayerModal() {
   renderInvitePlayerList();
 }
 
+async function openBotOpponentModal() {
+  opponentPickerMode = "bot";
+  document.getElementById("invitePlayerTitle").textContent = "Invite Bot";
+  const host = document.getElementById("invitePlayerList");
+  host.textContent = "Loading bots...";
+  document.getElementById("invitePlayerModal").classList.remove("hidden");
+  await refreshAvailableBots();
+  renderInvitePlayerList();
+}
+
 function openLocalOpponentModal() {
   opponentPickerMode = "local";
   document.getElementById("invitePlayerTitle").textContent = "Select Local Opponent";
@@ -1001,24 +1148,45 @@ function renderInvitePlayerList() {
   host.innerHTML = "";
   if (!currentRoom) return;
   const seated = new Set(currentRoom.players.map((player) => player.id));
-  const available = opponentPickerMode === "local"
+  const available = opponentPickerMode === "bot"
+    ? availableBots.filter((bot) => !seated.has(bot.id))
+    : opponentPickerMode === "local"
     ? players.filter((player) => !seated.has(player.id))
     : remoteInviteCandidates(seated);
   if (!available.length) {
-    host.textContent = opponentPickerMode === "remote" ? "No players in lobby." : "No available players.";
+    host.textContent = opponentPickerMode === "remote"
+      ? "No players in lobby."
+      : opponentPickerMode === "bot" ? "No bots available." : "No available players.";
     return;
   }
   available.forEach((player) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "roster-player";
-    button.innerHTML = `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>`;
+    button.innerHTML = opponentPickerMode === "bot"
+      ? `${avatarHtml(player)}<strong>${escapeHtml(botDisplayName(player))}</strong>`
+      : `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>`;
     button.addEventListener("click", () => {
-      if (opponentPickerMode === "local") joinLocalOpponent(player);
+      if (opponentPickerMode === "bot") joinBotOpponent(player);
+      else if (opponentPickerMode === "local") joinLocalOpponent(player);
       else invitePlayer(player);
     });
     host.appendChild(button);
   });
+}
+
+function botDisplayName(bot) {
+  const strategyIcon = String(bot.strategy_icon || "").trim();
+  return `${strategyIcon ? `${strategyIcon} ` : ""}${bot.name}`;
+}
+
+async function refreshAvailableBots() {
+  try {
+    const data = await fetchJson(`/api/bots?game_id=${encodeURIComponent(selectedGame().id)}`);
+    availableBots = data.ok ? data.bots || [] : [];
+  } catch {
+    availableBots = [];
+  }
 }
 
 async function refreshRemoteInviteSources() {
@@ -1051,6 +1219,23 @@ async function joinLocalOpponent(player) {
   }
 }
 
+async function joinBotOpponent(bot) {
+  if (!currentRoom) return;
+  try {
+    const response = await api("/api/room/join-bot", {
+      code: currentRoom.code,
+      host_id: currentRoom.host_id,
+      bot_id: bot.id,
+    });
+    hostInviteStatus = null;
+    setRoom(response.room);
+    closeInvitePlayerModal();
+    playConfirm();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 async function invitePlayer(player) {
   if (!currentRoom) return;
   try {
@@ -1058,6 +1243,7 @@ async function invitePlayer(player) {
     hostInviteStatus = response.invite;
     renderRoomInviteStatus();
     closeInvitePlayerModal();
+    playConfirm();
   } catch (error) {
     alert(error.message);
   }
@@ -1078,6 +1264,11 @@ function showInvitePrompt(invite) {
   currentInvite = invite;
   document.getElementById("invitePromptText").textContent = `${invite.host_name} invited you to play ${gameName(invite.game_id)}.`;
   document.getElementById("invitePrompt").classList.remove("hidden");
+  const soundKey = invite.id || `${invite.room_code || ""}:${invite.host_id || ""}:${invite.game_id || ""}`;
+  if (soundKey && soundKey !== lastInviteSoundKey) {
+    lastInviteSoundKey = soundKey;
+    playInviteReceived();
+  }
 }
 
 async function respondToInvite(accept) {
@@ -1087,8 +1278,10 @@ async function respondToInvite(accept) {
     const response = await api("/api/invite/respond", { invite_id: currentInvite.id, accept, player });
     document.getElementById("invitePrompt").classList.add("hidden");
     currentInvite = null;
+    if (accept) playConfirm();
+    else playCancel();
     if (response.accepted && response.room) {
-      selectedGameId = response.room.game_id;
+      selectedGameId = canonicalGameId(response.room.game_id);
       saveSelectedGame();
       hostInviteStatus = null;
       activeGameRoom = response.room;
@@ -1113,6 +1306,7 @@ async function createRoom() {
     renderGames();
     refreshGameRooms();
     showScreen("game");
+    playRoomCreated();
   } catch (error) {
     playerApiAvailable = false;
     renderCreateGameButton();
@@ -1162,8 +1356,11 @@ async function resetGame() {
 async function makeMove(board, cell) {
   const player = selectedPlayer();
   if (!player || !currentRoom) return;
+  const selectedSeat = currentRoom.players.find((seat) => seat.id === player.id);
+  if (!canRoomSeatMove(selectedSeat, currentRoom.game)) return;
   const moveKey = moveIntentKey(currentRoom, player.id, board, cell);
   if (pendingMove) return;
+  playClick();
   pendingMove = {
     key: moveKey,
     roomCode: currentRoom.code,
@@ -1183,6 +1380,7 @@ async function makeMove(board, cell) {
     pendingMove = null;
     renderGame();
     showTurnStatus(null, error.message);
+    playInvalidMove();
   }
 }
 
@@ -1198,6 +1396,8 @@ function confirmAction(title, message) {
 
 function resolveConfirmPrompt(confirmed) {
   document.getElementById("confirmPrompt").classList.add("hidden");
+  if (confirmed) playConfirm();
+  else playCancel();
   if (!pendingConfirmAction) return;
   const resolve = pendingConfirmAction;
   pendingConfirmAction = null;
@@ -1209,6 +1409,8 @@ function closeConfirmPromptOnBackdrop(event) {
 }
 
 function setRoom(room) {
+  if (isStaleRoomSnapshot(currentRoom, room)) return;
+  const previousRoom = currentRoom;
   currentRoom = room;
   clearResolvedPendingMove(room);
   const roomKey = roomRenderKey(room);
@@ -1216,10 +1418,105 @@ function setRoom(room) {
   lastRenderedRoomKey = roomKey;
   syncHostInviteStatusFromRoom(room);
   syncSelectedPlayerForLocalRoom();
+  playRoomStateSounds(previousRoom, room);
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
   renderGame();
   handleIncomingResetRequest();
+}
+
+function isStaleRoomSnapshot(current, next) {
+  if (!current || !next || current.code !== next.code) return false;
+  const currentRevision = Number(current.revision || 0);
+  const nextRevision = Number(next.revision || 0);
+  if (currentRevision && nextRevision) return nextRevision < currentRevision;
+  const currentEpoch = Number(current.game_epoch || 0);
+  const nextEpoch = Number(next.game_epoch || 0);
+  if (currentEpoch && nextEpoch && nextEpoch !== currentEpoch) return nextEpoch < currentEpoch;
+  const currentMoveCount = Number(current.game && current.game.move_count || 0);
+  const nextMoveCount = Number(next.game && next.game.move_count || 0);
+  if (nextMoveCount < currentMoveCount) return true;
+  if (nextMoveCount > currentMoveCount) return false;
+  const currentStatusRank = roomStatusRank(current);
+  const nextStatusRank = roomStatusRank(next);
+  if (nextStatusRank < currentStatusRank) return true;
+  return false;
+}
+
+function roomStatusRank(room) {
+  const gameStatus = room && room.game && room.game.status;
+  if (room && room.status === "completed") return 3;
+  if (["x_won", "o_won", "draw"].includes(gameStatus)) return 3;
+  if (room && room.status === "active") return 2;
+  if (room && room.started) return 2;
+  if (room && room.status === "waiting_for_player") return 1;
+  return 0;
+}
+
+function playRoomStateSounds(previousRoom, room) {
+  if (!room || !previousRoom || previousRoom.code !== room.code) return;
+  playPlayerJoinedSound(previousRoom, room);
+  playTurnChangedSound(previousRoom, room);
+  playTacticalEventSound(previousRoom, room);
+  playGameOverSound(previousRoom, room);
+}
+
+function playPlayerJoinedSound(previousRoom, room) {
+  const previousIds = new Set((previousRoom.players || []).map((player) => player.id));
+  const joinedPlayers = (room.players || []).filter((player) => !previousIds.has(player.id));
+  if (!joinedPlayers.length) return;
+  const soundKey = `${room.code}:${joinedPlayers.map((player) => player.id).sort().join(",")}`;
+  if (soundKey === lastPlayerJoinedSoundKey) return;
+  lastPlayerJoinedSoundKey = soundKey;
+  playPlayerJoined();
+}
+
+function playTurnChangedSound(previousRoom, room) {
+  if (!room.started || !room.game || room.game.status !== "playing") return;
+  if (!previousRoom.game || previousRoom.game.current_player === room.game.current_player) return;
+  const currentTurnPlayer = room.players.find((player) => player.mark === room.game.current_player);
+  if (isBotPlayer(currentTurnPlayer)) return;
+  const soundKey = `${room.code}:${room.game.move_count}:${room.game.current_player}`;
+  if (soundKey === lastTurnSoundKey) return;
+  lastTurnSoundKey = soundKey;
+  playTurnChanged(room.game.current_player);
+}
+
+function playTacticalEventSound(previousRoom, room) {
+  if (!isTacticalGameState(room.game) || !room.game.last_event) return;
+  const previousEventKey = tacticalSoundEventKey(previousRoom.game && previousRoom.game.last_event);
+  const nextEventKey = tacticalSoundEventKey(room.game.last_event);
+  if (!nextEventKey || previousEventKey === nextEventKey || nextEventKey === lastGameEventSoundKey) return;
+  lastGameEventSoundKey = nextEventKey;
+  playConfirm();
+}
+
+function playGameOverSound(previousRoom, room) {
+  if (!room.game || room.game.status === "playing") return;
+  if (previousRoom.game && previousRoom.game.status !== "playing") return;
+  const soundKey = `${room.code}:${room.game.move_count}:${room.game.status}:${room.game.winner || ""}`;
+  if (soundKey === lastGameOverSoundKey) return;
+  lastGameOverSoundKey = soundKey;
+  const selectedSeat = room.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+  if (!room.game.winner || room.game.status === "draw") {
+    playConfirm();
+    return;
+  }
+  if (selectedSeat && selectedSeat.mark === room.game.winner) playWin();
+  else playLose();
+}
+
+function tacticalSoundEventKey(event) {
+  if (!event || !["pickupCaptured", "sectorCaptured"].includes(event.type)) return "";
+  return JSON.stringify({
+    type: event.type,
+    player: event.player,
+    board: event.board,
+    cell: event.cell,
+    sector: event.sector,
+    points: event.points,
+    pickup_type: event.pickup_type,
+  });
 }
 
 async function handleIncomingResetRequest() {
@@ -1270,9 +1567,11 @@ function renderRoomSlots() {
     opponentSlot.innerHTML = `
       <button id="selectLocalOpponent" class="secondary" type="button">Select Local Opponent</button>
       <button id="inviteRemoteOpponent" class="secondary" type="button">Invite Remote Opponent</button>
+      <button id="inviteBotOpponent" class="secondary" type="button">Invite Bot</button>
     `;
     document.getElementById("selectLocalOpponent").addEventListener("click", openLocalOpponentModal);
     document.getElementById("inviteRemoteOpponent").addEventListener("click", openInvitePlayerModal);
+    document.getElementById("inviteBotOpponent").addEventListener("click", openBotOpponentModal);
     renderRoomInviteStatus();
     return;
   }
@@ -1302,18 +1601,8 @@ function inviteStatusText(invite) {
 }
 
 function roomPlayerHtml(player) {
-  return `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><span>${escapeHtml(player.mark || "Waiting")}</span>`;
-}
-
-async function leaveRoom(playerId) {
-  if (!currentRoom) return;
-  try {
-    const response = await api("/api/room/leave", { code: currentRoom.code, player_id: playerId, requester_id: selectedPlayerId });
-    setRoom(response.room);
-    refreshRooms();
-  } catch (error) {
-    alert(error.message);
-  }
+  const label = player.kind === "bot" ? `${player.mark || "Waiting"} Bot` : player.mark || "Waiting";
+  return `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><span>${escapeHtml(label)}</span>`;
 }
 
 function renderGame() {
@@ -1322,7 +1611,12 @@ function renderGame() {
   const meta = document.getElementById("gameMeta");
   const resetButton = document.getElementById("resetGame");
   meta.textContent = `Room ${currentRoom.code}`;
-  if (resetButton) resetButton.textContent = isCompletedRoom(currentRoom) ? "Play Again" : "Reset";
+  if (resetButton) {
+    const resetLabel = isCompletedRoom(currentRoom) ? "Play Again" : "Reset";
+    resetButton.textContent = "🔁";
+    resetButton.setAttribute("aria-label", resetLabel);
+    resetButton.title = resetLabel;
+  }
   document.getElementById("gamePlayersPanel").classList.toggle("hidden", currentRoom.started);
   setGameBoardVisible(true);
   renderGamePlayerSwitch();
@@ -1351,7 +1645,7 @@ function renderGame() {
   const shouldFlashLegalBoards = legalBoardsKey !== lastLegalBoardsKey;
   const macroWinLine = winningLineFor(game.small_winners, game.line_winner || game.winner);
   const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
-  const canSelectedPlayerMove = Boolean(currentRoom.started && selectedSeat && selectedSeat.mark === game.current_player);
+  const canSelectedPlayerMove = canRoomSeatMove(selectedSeat, game);
   host.classList.toggle("your-turn", canSelectedPlayerMove && game.status === "playing");
   host.classList.toggle("waiting", game.status === "playing" && !canSelectedPlayerMove);
   game.boards.forEach((board, boardIndex) => {
@@ -1402,6 +1696,22 @@ function renderGame() {
 
 function isCompletedRoom(room) {
   return Boolean(room && (room.status === "completed" || ["x_won", "o_won", "draw"].includes(room.game.status)));
+}
+
+function canRoomSeatMove(seat, game) {
+  return Boolean(
+    currentRoom &&
+    currentRoom.started &&
+    seat &&
+    !isBotPlayer(seat) &&
+    game &&
+    game.status === "playing" &&
+    seat.mark === game.current_player
+  );
+}
+
+function isBotPlayer(player) {
+  return Boolean(player && player.kind === "bot");
 }
 
 function setGameBoardVisible(visible) {
@@ -1487,7 +1797,10 @@ function showTurnStatus(currentPlayer, overrideText = "") {
     host.classList.add("your-turn");
     return;
   }
-  setTurnStatusText(host, `Waiting for ${currentPlayer ? currentPlayer.name : currentRoom.game.current_player}.`);
+  const waitingText = isBotPlayer(currentPlayer)
+    ? `${currentPlayer.name} is thinking...`
+    : `Waiting for ${currentPlayer ? currentPlayer.name : currentRoom.game.current_player}.`;
+  setTurnStatusText(host, waitingText);
   host.classList.add("waiting");
 }
 
@@ -1526,7 +1839,7 @@ function pickupAtCell(game, boardIndex, cellIndex) {
 }
 
 function isTacticalGameState(game) {
-  return Boolean(game && (game.game_id === "super_tactical_tac_toe" || Array.isArray(game.pickups)));
+  return Boolean(game && (canonicalGameId(game.game_id) === "d7e4a91f0c23" || Array.isArray(game.pickups)));
 }
 
 function scheduleWinOverlay(player, mark) {
@@ -1610,7 +1923,7 @@ function handleAppEventMessage(event) {
   } catch {
     return;
   }
-  if (message.type !== "app_snapshot" || message.game_id !== selectedGame().id) return;
+  if (message.type !== "app_snapshot" || canonicalGameId(message.game_id) !== selectedGame().id) return;
   if (Array.isArray(message.rooms)) {
     currentGameRooms = message.rooms;
     renderCurrentGames();
@@ -1783,12 +2096,17 @@ function forgetLocalGameHomePlayer(room) {
 }
 
 function selectedGame() {
-  return games.find((game) => game.id === selectedGameId) || games.find(gameIsReady) || games[0];
+  return games.find((game) => game.id === canonicalGameId(selectedGameId)) || games.find(gameIsReady) || games[0];
 }
 
 function gameName(gameId) {
-  const game = games.find((item) => item.id === gameId);
+  const game = games.find((item) => item.id === canonicalGameId(gameId));
   return game ? game.name : "Game";
+}
+
+function canonicalGameId(gameId) {
+  const value = String(gameId || games[0].id).trim() || games[0].id;
+  return games.find((game) => game.id === value || (game.aliases || []).includes(value))?.id || games[0].id;
 }
 
 function gameIsReady(game) {
@@ -1823,7 +2141,7 @@ function roomRenderKey(room) {
       mark: player.mark,
     })),
     game: {
-      game_id: room.game.game_id,
+      game_id: canonicalGameId(room.game.game_id),
       boards: room.game.boards,
       small_winners: room.game.small_winners,
       current_player: room.game.current_player,

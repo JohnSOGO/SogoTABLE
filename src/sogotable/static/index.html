@@ -22,8 +22,9 @@
 
       <section id="games" class="screen">
         <header class="topbar">
-          <button class="ghost" data-screen="intro">Back</button>
+          <button class="ghost icon-button" data-screen="intro" aria-label="Back" title="Back">🔙</button>
           <h2>Player & Game Select</h2>
+          <button class="ghost sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Mute sound">🔊</button>
         </header>
         <div class="panel">
           <span class="label">Playing as</span>
@@ -45,15 +46,17 @@
 
       <section id="gameSelected" class="screen">
         <header class="topbar">
-          <button class="ghost" data-screen="games">Back</button>
+          <button class="ghost icon-button" data-screen="games" aria-label="Back" title="Back">🔙</button>
           <h2 id="selectedGameTitle">Super Tic Tac Toe</h2>
+          <button class="ghost sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Mute sound">🔊</button>
         </header>
         <p id="selectedGameDescription" class="game-description"></p>
         <div id="activeGameNotice" class="notice hidden"></div>
         <div id="selectedGameLobbyPanel" class="panel">
-          <h2>Lobby</h2>
-          <div id="gameStats" class="game-stats"></div>
-          <span class="label">Players</span>
+          <div class="section-heading">
+            <h2>Lobby</h2>
+            <button id="openGameStats" class="inline-link" type="button">ELO</button>
+          </div>
           <div id="lobbyPlayers" class="lobby-players"></div>
         </div>
         <div class="panel">
@@ -119,6 +122,16 @@
         </div>
       </div>
 
+      <div id="gameStatsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameStatsTitle">
+        <div class="modal-panel">
+          <header class="modal-header">
+            <h2 id="gameStatsTitle">ELO</h2>
+            <button id="closeGameStatsModal" class="ghost" type="button">Close</button>
+          </header>
+          <div id="gameStats" class="game-stats"></div>
+        </div>
+      </div>
+
       <div id="invitePrompt" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="invitePromptTitle">
         <div class="modal-panel">
           <h2 id="invitePromptTitle">Invite Received</h2>
@@ -132,12 +145,15 @@
 
       <section id="game" class="screen">
         <header class="game-header">
-          <button id="closeGame" class="ghost" type="button">Exit</button>
+          <button id="closeGame" class="ghost icon-button" type="button" aria-label="Exit game" title="Exit game">🔙</button>
           <div>
             <h2 id="roomTitle">Super Tic Tac Toe</h2>
             <div id="gameMeta" class="meta"></div>
           </div>
-          <button id="resetGame" class="ghost">Reset</button>
+          <div class="header-actions">
+            <button id="resetGame" class="ghost icon-button" type="button" aria-label="Reset" title="Reset">🔁</button>
+            <button class="ghost sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Mute sound">🔊</button>
+          </div>
         </header>
         <div id="gamePlayersPanel" class="panel">
           <h2>Players</h2>

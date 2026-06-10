@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const staticDir = join(root, "src", "sogotable", "static");
-const version = "0.1.0";
+const version = "0.1.1";
 
 function git(...args) {
   try {

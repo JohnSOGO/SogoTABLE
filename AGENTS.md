@@ -1,70 +1,140 @@
-# AI Instructions
+# SogoTable AGENTS
 
-SogoTable is a separate project from Ozymandias2. Ozymandias2 may be used as a reference for organization, documentation habits, local runtime pragmatism, and small-system design, but future agents must not mutate or depend on Ozymandias2 while working here.
+## Purpose
 
-## Project Goal
+SogoTable is an independent project. These instructions govern how Codex should operate in this repository: preserve architecture, keep changes focused, and avoid unnecessary process overhead.
 
-Build a mobile-first, browser-based family game platform for simple turn-based games. The first proof-of-concept is Super Tic Tac Toe.
+## Ownership & Stewardship
 
-## Working Rules
+- You are the owner of this repository’s coding decisions during the session.
+- You decide the implementation path and are fully accountable for outcomes.
+- Keep the repository clean: never leave generated/runtime junk or temporary artifacts committed.
+- Branch work is the default standard:
+  - Create a focused topic branch first.
+  - Implement and validate on that branch.
+  - Merge to `main` only when the scope is complete.
+- Do not keep work directly on `main` unless there is a clear exception; document the exception and rationale explicitly.
 
-- At session start, read `AGENTS.md`, `README.md`, `docs/project-memory.md`, `docs/state-machine.md`, `docs/AREC.md`, and `docs/wu-wei-method.md` before making project changes.
-- If the user writes `AREC`, follow the command structure and behavior rules in `docs/AREC.md`.
-- Keep scope small and playable.
-- Prefer the public Cloudflare play path over maintaining a separate local backend.
-- Do not build production authentication until a later explicit milestone.
-- Do not require paid services, app installs, or vendor lock-in.
-- Separate game rules from UI and transport code where practical.
-- Keep rules engines testable without a browser.
-- Use mobile-first layout decisions.
-- Make copious documentation as the project evolves. Future Codex sessions should be able to get up to speed after reading `AGENTS.md`, `README.md`, and the docs in `docs/`.
-- Document important behavior changes, user-approved preferences, current goals, test-room/debug workflows, and product decisions in `docs/`.
-- Keep a running project memory in `docs/project-memory.md`; update it whenever the user teaches a preference, approves/rejects behavior, or the project direction changes.
-- Treat files in `AI/` as ignored incoming context from the user or other AI tools. Read them when asked, but do not commit that directory.
-- Preserve simple run and test commands in `README.md`.
-- Pay close attention to the user as the product owner. Their live feedback during playtesting is authoritative and should be captured as durable project context.
+## Project Invariants
 
-## Architecture Preferences
+- SogoTable is a mobile-first browser-based family game platform.
+- Super Tic Tac Toe is the initial proof-of-concept; the platform is not a single-game app.
+- Cloudflare Pages hosts the static frontend.
+- Cloudflare Workers + D1 are the active shared multiplayer backend.
+- Do not reintroduce a Python gameplay backend unless explicitly requested.
+- Prefer the public Cloudflare multiplayer path over separate local backends.
+- Use the room WebSocket path for active-room updates.
+- Keep game rules testable without a browser.
+- Keep architecture modular: add games through dedicated modules, not by mixing rules into UI code.
+- Keep generated caches, virtual environments, and runtime data out of Git.
+- Preserve simple run/test commands in `README.md` and keep them accurate.
+- Treat `AI/` as ignored incoming context unless explicitly instructed otherwise.
 
-- Cloudflare Pages serves the static app.
-- Cloudflare Worker + D1 is the active shared multiplayer brain.
-- Do not reintroduce a Python gameplay backend unless the user explicitly asks for it.
-- Use the room WebSocket path for active-room updates; keep other realtime mechanisms conservative until they are clearly worth the complexity.
-- Add games through clear modules instead of mixing all rules into the UI.
+## Operating Doctrine
 
-## First Game
+- Prefer clarity over cleverness.
+- Verify assumptions against repository code before edits.
+- Preserve architectural consistency unless a redesign is explicitly requested.
+- For non-trivial changes, do all of the following:
+  - Confirm the goal and affected contracts.
+  - Make the smallest correct change.
+  - Exercise focused behavior checks.
+  - Check sibling/related paths for parity.
+  - Update docs when behavior or contracts change.
+  - Note follow-up risks and ownership.
+- Scale ceremony to risk:
+  - Docs-only or comment-only updates: keep ceremony minimal.
+  - Gameplay, network, persistence, or orchestration changes: fuller review and docs.
+- Ask MojoSOGO before changes that alter an established invariant, product direction, or dependency strategy.
 
-Super Tic Tac Toe is the first proof-of-concept. It should prove:
+## SogoTable Wu Wei Flow
 
-- nested-board rendering on phones
-- clean move validation
-- room-as-game-instance flow
-- player identity basics
-- testable game rules
+Canonical flow:
 
-## User Preferences And Style
+`player input -> normalize action -> validate via rules -> apply state transition -> persist room state -> broadcast public state -> render UI -> record outcome`
 
-- The user wants fast, playable iteration with frequent attention to details noticed during phone testing.
-- The user prefers practical local workflows, test rooms, and quick verification over abstract planning.
-- The user wants visible polish: centered marks, clear active-board indication, win highlights, player-name celebrations, and mobile-friendly controls.
-- The user does not want distracting visual noise. For local hot-seat play, active-board and turn feedback should use the current player's selected color rather than a generic green pulse, and it should not pulse continuously.
-- The user wants future Codex agents to read `AGENTS.md` and immediately understand the current goals, recent decisions, and user preferences.
+Rules:
+- Game rules own validation and state transitions.
+- UI should render prepared state and capture intent; it must not implement legal/illegal logic.
+- Transport moves messages; it does not resolve game rules.
+- Persistence stores state; it does not mutate rules.
+- Room orchestration coordinates players and timing only; avoid game-specific rule logic.
+- Reject invalid/stale/ambiguous/out-of-order actions with explicit debug details.
+- If feature ownership is unclear, create a focused owner module instead of adding one-off logic to a nearby file.
 
-## Current Product Memory
+### Sibling-path Review
 
-- SogoTable is a game platform, not a single-game app. Super Tic Tac Toe is the first game in a future games menu.
-- One-phone hot-seat play matters: a single phone should be able to host both players and swap turns smoothly.
-- Multi-phone public play matters: use the Cloudflare URL and room codes.
-- Win feedback matters: show the winning macro line, highlight winning cells, declare the winning player by name, and show a delayed celebration overlay with the player's icon.
-- Test rooms are useful for approval. Hosted development may stage rooms such as `AAAA` one move away from a win so the user can verify behavior quickly.
+For each behavior change, review comparable paths that share the same contract.
 
-## Git
+- Hot-seat vs multi-phone room play
+- Offline local harness vs hosted Cloudflare room
+- Super Tic Tac Toe vs future game modules
+- Bot moves vs human moves
+- Public room view vs private player view
+- Reconnect/resume vs initial join
+- Mobile touch UI vs desktop pointer UI
+- Local debug rooms vs production room codes
 
-Use small logical commits:
+If a sibling path is in scope, update and test it too.  
+If intentionally out of scope, document the exclusion and reason in handoff notes.
 
-1. scaffold and docs
-2. hosted rules engine and Worker tests
-3. playable UI
-4. room/player flow improvements
+## AI Intake Files (`AI/`)
 
-Keep generated caches, virtual environments, and runtime data out of Git.
+- `AI/` is treated as ignored incoming context.
+- Read files under `AI/` only when requested.
+- Never commit any file under `AI/`.
+- If an AI-provided brief is unclear, conflicting, or incomplete:
+  - do not infer missing behavior;
+  - ask for a replacement spec or request clarifying questions.
+- Move durable decisions from `AI/` into normal project docs or this file; avoid storing lasting doctrine in ignored inputs.
+- Ensure `AI/` remains in `.gitignore` and include this as pre-commit hygiene.
+
+## Documentation Discipline
+
+- Update `README.md` when run/test/dev workflows change.
+- Update architecture or product-direction docs (`docs/project-memory.md`, `docs/wu-wei-method.md`, `docs/state-machine.md`, `docs/AREC.md`, and related docs) for meaningful behavior edits.
+- Prefer durable docs over chat memory for decisions and tradeoffs.
+- Keep docs concise and actionable.
+
+## Git Workflow
+
+- Run `git status --short --branch` before making edits.
+- If on `main` and changes are non-trivial, use a topic branch:
+  - `fix/<short-topic>`
+  - `feature/<short-topic>`
+  - `docs/<short-topic>`
+  - `refactor/<short-topic>`
+  - `chore/<short-topic>`
+- Keep branches focused and make small logical commits.
+- Avoid force-push, destructive reset/restore, and rewriting `main` unless explicitly requested.
+- On completion, provide a concise handoff including:
+  - commit hash/subject (if committed)
+  - what changed and why
+  - verification done
+  - intentionally untouched scope
+  - recommended next step
+
+## AREC
+
+- Use AREC for sloppy, exploratory, conflicting, or architecture-changing proposals.
+- If input includes `/arec` or `AREC`, run through the full AREC review filter before implementation.
+- Use SogoTable docs as the decision source.
+- AREC should improve confidence, not add ceremony for tiny local edits.
+
+## Multiplayer Resilience
+
+- Assume stale, duplicate, out-of-order, and duplicate actions are possible.
+- Treat reconnects, refreshes, duplicate tabs, dropped sockets, bad room codes, invalid state, and mobile edge cases as normal.
+- Keep server-side validation authoritative.
+- Prefer deterministic and replayable state transitions.
+- Add debug visibility when introducing complex room/player behavior.
+- Fail loudly in development; fail gracefully in production.
+- Avoid unnecessary polling and repeated writes to protect Cloudflare resource limits.
+- Do not allow UI convenience to create hidden rule mutations.
+
+## Communication & Handoff Style
+
+- Keep updates calm, concise, technically confident, and direct about uncertainty.
+- Lead with impact first, then risk and assumptions.
+- Prefer short bullet summaries for implementation and next steps.
+- Ask for direction only when an action risks product direction drift or cannot be safely inferred.
