@@ -91,6 +91,7 @@ If intentionally out of scope, document the exclusion and reason in handoff note
 
 ## Documentation Discipline
 
+- Use `docs/doctrine.md` as the first audit stop for future code, docs, or architecture changes, then consult the deeper owner docs it routes to.
 - Update `README.md` when run/test/dev workflows change.
 - Update architecture or product-direction docs (`docs/project-memory.md`, `docs/wu-wei-method.md`, `docs/state-machine.md`, `docs/AREC.md`, and related docs) for meaningful behavior edits.
 - Prefer durable docs over chat memory for decisions and tradeoffs.
@@ -140,4 +141,4 @@ If intentionally out of scope, document the exclusion and reason in handoff note
 - Ask for direction only when an action risks product direction drift or cannot be safely inferred.
 - End assistant messages with:
 
-`CODEX 🎲♥️👾`
+`CODEX 🎲❤️👾`

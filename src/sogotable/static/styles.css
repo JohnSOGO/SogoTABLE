@@ -194,6 +194,18 @@ p,
   white-space: nowrap;
 }
 
+.refreshable-title {
+  cursor: pointer;
+  user-select: none;
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 0.14em;
+}
+
+.refreshable-title:hover,
+.refreshable-title:focus-visible {
+  text-decoration-color: currentColor;
+}
+
 .game-header > div {
   min-width: 0;
   text-align: center;

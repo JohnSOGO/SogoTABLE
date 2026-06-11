@@ -4,6 +4,9 @@ This document adapts Ozymandias2's Wu Wei / downhill-flow doctrine for
 SogoTable. Ozy remains reference material only; SogoTable should own its own
 version of the method.
 
+This method is the flow counterpart to `docs/doctrine.md`: event-driven first,
+explicit refresh when needed, and no background polling as the default path.
+
 ## Core Idea
 
 Wu Wei programming does not mean passive programming.
@@ -90,7 +93,7 @@ The browser should:
 - render screens and modals
 - hold the device/home selected player id
 - handle local hot-seat actor switching without overwriting device identity
-- poll the hosted brain
+- use push, reconnect, and explicit user refresh rather than normal polling
 - show visible API failures
 - disable actions that cannot safely continue
 
@@ -228,6 +231,10 @@ Avoid:
 - implementing live rounds with `currentPlayerId` and `nextPlayer()`
 - implementing live rounds as unlimited realtime movement
 - using `board`, `sector`, `region`, and `area` interchangeably for the same game-space level
+- making background polling the default way to learn that something changed
+
+If a manual refresh is desired, the page title or game title can be the refresh
+affordance. That keeps recovery explicit instead of hidden in timer-driven UI.
 
 ## Review Checklist
 
@@ -243,5 +250,6 @@ Before non-trivial SogoTable changes, ask:
 - Does this preserve one-phone hot-seat play and multi-phone public play?
 - Does the failure mode tell the user the truth?
 - Did docs capture the durable decision?
+- Is refresh event-driven or explicit instead of hidden behind a polling loop?
 
 If the answer is muddy, shape the riverbed before pushing more water through it.

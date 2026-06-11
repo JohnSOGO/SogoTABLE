@@ -1,6 +1,9 @@
 # Cloudflare Quota Guardrails
 
 This note records the fix from `AI/CODEX_CLOUDFLARE_QUOTA_FIX.md`.
+It is the Cloudflare-runtime counterpart to `docs/doctrine.md` and
+`docs/wu-wei-method.md`: keep updates event-driven, make refresh explicit, and
+do not make background polling the normal path.
 
 ## Problem
 
@@ -42,8 +45,10 @@ sleep.
   routing survives hibernation.
 - Broadcasts use `state.getWebSockets()` in production and in-memory sets/maps
   only as local/test fallback.
-- Frontend fallback polling is degraded behavior, not the normal data path.
-- Lobby presence heartbeat no longer forces a full room-list refresh every tick.
+- Frontend fallback polling should be treated as an exception path only.
+- The normal data path should be WebSocket push, reconnect, or explicit user refresh.
+- Lobby presence heartbeat must not force a full room-list refresh every tick.
+- Prefer no repeating timers at all for room or lobby freshness when push or explicit refresh can do the job.
 
 ## KV Rule
 
