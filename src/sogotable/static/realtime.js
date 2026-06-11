@@ -1,14 +1,9 @@
 import { appEventsSocketUrl, roomSocketUrl } from "./api-client.js";
 
-const ROOM_SUMMARY_FALLBACK_INTERVAL_MS = 60000;
-const INVITE_FALLBACK_INTERVAL_MS = 60000;
-const LOBBY_FALLBACK_INTERVAL_MS = 60000;
-const ROOM_SOCKET_FALLBACK_INTERVAL_MS = 30000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
 export function createRealtimeController(callbacks) {
   let roomSocket = null;
-  let roomSocketFallbackTimer = null;
   let roomReconnectTimer = null;
   let roomSocketReconnectAttempts = 0;
   let roomCode = "";
@@ -17,9 +12,6 @@ export function createRealtimeController(callbacks) {
   let appEventsGameId = "";
   let appEventsReconnectTimer = null;
   let appEventsReconnectAttempts = 0;
-  let roomListTimer = null;
-  let inviteTimer = null;
-  let lobbyPresenceTimer = null;
 
   function startRoomLiveUpdates(nextRoomCode) {
     const nextCode = nextRoomCode || "";
@@ -31,15 +23,11 @@ export function createRealtimeController(callbacks) {
 
   function stopRoomLiveUpdates() {
     stopRoomSocket();
-    stopRoomFallbackPolling();
     roomCode = "";
   }
 
   function connectRoomSocket() {
-    if (!roomCode || !("WebSocket" in window)) {
-      startRoomFallbackPolling();
-      return;
-    }
+    if (!roomCode || !("WebSocket" in window)) return;
     if (roomSocket && roomSocket.readyState <= WebSocket.OPEN) return;
     stopRoomSocket(false);
     try {
@@ -49,16 +37,16 @@ export function createRealtimeController(callbacks) {
       return;
     }
     roomSocket.addEventListener("open", () => {
+      const wasReconnecting = roomSocketReconnectAttempts > 0;
       connectedRoomCode = roomCode;
       roomSocketReconnectAttempts = 0;
-      stopRoomFallbackPolling();
+      if (wasReconnecting) callbacks.refreshRoom();
     });
     roomSocket.addEventListener("message", callbacks.onRoomMessage);
     roomSocket.addEventListener("close", () => {
       roomSocket = null;
       if (callbacks.shouldReconnectRoom()) {
         callbacks.onRoomReconnect();
-        startRoomFallbackPolling();
         scheduleRoomReconnect();
       }
     });
@@ -88,16 +76,6 @@ export function createRealtimeController(callbacks) {
       roomReconnectTimer = null;
       connectRoomSocket();
     }, delay);
-  }
-
-  function startRoomFallbackPolling() {
-    if (roomSocketFallbackTimer) return;
-    roomSocketFallbackTimer = setInterval(callbacks.refreshRoom, ROOM_SOCKET_FALLBACK_INTERVAL_MS);
-  }
-
-  function stopRoomFallbackPolling() {
-    if (roomSocketFallbackTimer) clearInterval(roomSocketFallbackTimer);
-    roomSocketFallbackTimer = null;
   }
 
   function connectAppEvents() {
@@ -162,36 +140,10 @@ export function createRealtimeController(callbacks) {
     }));
   }
 
-  function startRoomListFallback() {
-    if (roomListTimer) clearInterval(roomListTimer);
-    roomListTimer = setInterval(callbacks.refreshRooms, ROOM_SUMMARY_FALLBACK_INTERVAL_MS);
-    callbacks.refreshRooms();
-  }
-
-  function startInviteFallback() {
-    if (inviteTimer) clearInterval(inviteTimer);
-    inviteTimer = setInterval(callbacks.pollInvites, INVITE_FALLBACK_INTERVAL_MS);
-    callbacks.pollInvites();
-  }
-
-  function startLobbyPresenceFallback() {
-    if (lobbyPresenceTimer) clearInterval(lobbyPresenceTimer);
-    lobbyPresenceTimer = setInterval(callbacks.updateLobbyPresence, LOBBY_FALLBACK_INTERVAL_MS);
-  }
-
-  function stopLobbyPresenceFallback() {
-    if (lobbyPresenceTimer) clearInterval(lobbyPresenceTimer);
-    lobbyPresenceTimer = null;
-  }
-
   return {
     connectAppEvents,
     sendAppEventSubscription,
-    startInviteFallback,
-    startLobbyPresenceFallback,
-    startRoomListFallback,
     startRoomLiveUpdates,
-    stopLobbyPresenceFallback,
     stopRoomLiveUpdates,
   };
 }

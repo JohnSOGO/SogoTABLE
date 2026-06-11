@@ -1,18 +1,30 @@
 # Wu Wei Event-Driven Progress
 
-This file tracks the reviewed event-driven plan from `AI/wu-wei-event-driven-code-review-plan.md` and `AI/SogoGames_wu_wei_event_driven.zip`.
+This file tracks the reviewed event-driven implementation transition from
+`AI/wu-wei-event-driven-code-review-plan.md` and
+`AI/SogoGames_wu_wei_event_driven.zip`.
 
 Decision: adopt the direction, but do not apply the zip as a snapshot.
 
-## Code Decision
+This is a transition log, not the current doctrine. The current long-term
+direction is documented in `docs/doctrine.md` and `docs/wu-wei-method.md`:
+prefer push, reconnect, and explicit user refresh over background polling.
 
-The app should move downhill toward event-driven updates, but the public play path must stay conservative:
+## Transition Log
+
+The app moved downhill toward event-driven updates, but the public play path
+kept conservative fallback behavior during the transition:
 
 - Keep the per-room WebSocket as the normal active-room update path.
 - Keep HTTP refresh as recovery when a socket disconnects or a phone browser sleeps.
 - Do not remove invite, lobby, or room-list polling until the replacement event channel has Worker tests and phone smoke coverage.
 - Do not use the zip's full repo snapshot as source. Extract small, reviewed changes only.
 - Add any new Durable Object class with a fresh Wrangler migration tag.
+
+## Current Doctrine
+
+The current doctrine now lives in `docs/doctrine.md` and `docs/wu-wei-method.md`.
+This file is historical implementation context, not current policy.
 
 ## Checklist
 

@@ -24,6 +24,8 @@ There is no Python code required in the current architecture.
 
 The stack is intentionally small. The app should stay easy to reason about while proving the family-table game experience.
 
+This document is an architecture owner doc, but the durable audit lens now lives in `docs/doctrine.md`. Use the doctrine index when deciding whether a change fits the current architecture or whether the architecture itself needs to move.
+
 ## Folder Layout
 
 ```text
@@ -70,7 +72,9 @@ The browser owns:
 - local device/home selected player id
 - local hot-seat actor switching inside one browser
 - PWA shell behavior
-- polling and user-facing error display
+- explicit refresh and user-facing error display
+
+The browser should not rely on background polling as the default freshness mechanism when push, reconnect, or explicit user refresh can do the job.
 
 The static frontend must not create local fallback players or local fallback rooms when the Worker is unavailable. A failed API call should be visible and actionable, not silently split phones and PCs into different realities.
 
@@ -147,7 +151,7 @@ The browser UI is under `src/sogotable/static/`.
 
 Current helper split:
 
-- `app.js`: state machine, rendering, polling, event flow.
+- `app.js`: state machine, rendering, event flow, and explicit refresh handling.
 - `api-client.js`: hosted API routing and JSON handling.
 - `color-utils.js`: contrast-aware and tint color helpers.
 - `html-utils.js`: escaping and avatar HTML.

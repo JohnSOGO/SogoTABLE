@@ -81,6 +81,7 @@ npm run test:worker
 ## Useful Docs
 
 - [Project Memory](docs/project-memory.md)
+- [Doctrine Index](docs/doctrine.md)
 - [State Machine](docs/state-machine.md)
 - [Name Decision](docs/name-decision.md)
 - [AREC Command](docs/AREC.md)

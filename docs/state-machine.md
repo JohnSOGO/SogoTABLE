@@ -2,6 +2,11 @@
 
 This document is the durable state-machine source of truth for the current SogoTable browser UI.
 
+Use `docs/doctrine.md` as the audit front door when evaluating changes to this
+state machine. The state machine remains the source of truth for navigation and
+room flow, but the doctrine index is the first place to check whether a change
+fits the current product direction.
+
 Future AI agents should read this before changing navigation, room flow, lobby behavior, player identity, or Super Tic Tac Toe display behavior. The project has moved beyond the older design idea where a room-entry screen or separate game lobby was the primary interaction model. The current product model is:
 
 ```text
@@ -356,7 +361,7 @@ Open game card requirements:
 - Treat the rendered card as a stale snapshot. On tap, fetch the room by code from the shared API before joining or re-entering so phone and PC clients use current room state.
 - Before creating, joining, or re-entering a hosted room, require the browser's device/home selected player to exist in the shared API roster. Do not use local-only fallback players and do not silently migrate old localStorage fallback players into the hosted roster.
 - If the shared API is unavailable or returns non-JSON/static HTML, show an explicit error and disable multiplayer actions. Do not render empty rosters or empty game lists as if they were valid server state.
-- Polling endpoints such as room lists, room reads, player lists, lobby reads, and invite reads are read-only. Hosted storage must not save the whole state row after `GET` requests, or stale polling snapshots can overwrite newer room/player changes.
+- Read-only refresh endpoints such as room lists, room reads, player lists, lobby reads, and invite reads must not write the whole state row after `GET` requests, or stale refresh snapshots can overwrite newer room/player changes.
 
 Create/Re-enter behavior:
 
@@ -418,7 +423,7 @@ Exit behavior:
 
 - `Exit` opens a Yes/No confirmation.
 - Yes lets the selected player leave without requiring agreement from the other player.
-- The current hosted implementation closes the game room so polling players return to `GAME_SELECTED` for the current game type.
+- The current hosted implementation closes the game room so browsers return to `GAME_SELECTED` for the current game type.
 - No keeps the player in the game.
 
 Reset behavior:
@@ -462,7 +467,7 @@ Remote invite behavior:
 
 - Host sends an invite to a target player.
 - Host receives visible lifecycle feedback while waiting.
-- The waiting room payload carries the latest invite status so normal room polling can update the host after a decline.
+- The waiting room payload carries the latest invite status so normal room refresh can update the host after a decline.
 - Invite lifecycle feedback must not depend on a fragile local selected-player check; if the waiting room has a latest invite, render that state.
 - Target player sees `INVITE_PROMPT` in their browser if they are selected on that device.
 - Remote invite targets are limited to players currently present in the selected game's lobby.
@@ -575,7 +580,7 @@ Exit behavior:
 - Ask Yes/No before closing.
 - Confirmation copy must make it clear the local player is leaving.
 - The exiting player does not need the other player to agree.
-- The current hosted implementation closes the game room so polling players return to `GAME_SELECTED` for the current game type.
+- The current hosted implementation closes the game room so browsers return to `GAME_SELECTED` for the current game type.
 
 Reset behavior:
 
@@ -720,8 +725,8 @@ App-level live updates:
 
 - Room lists, selected-game lobby presence, and pending invite prompts should arrive through `/api/events/socket` app snapshots during normal connected play.
 - The app event socket must reconnect when the selected game changes, because each ready game has its own `EventHubDurableObject`.
-- The EventHub should send an initial app snapshot on socket open or subscription update, so fallback polling is recovery rather than the normal initializer.
-- Timed reads still exist as fallback and recovery, not as the primary update path.
+- The EventHub should send an initial app snapshot on socket open or subscription update, so fallback refresh is recovery rather than the normal initializer.
+- Recovery reads exist only as explicit backfill, not as the primary update path.
 
 Room live updates:
 
@@ -730,16 +735,16 @@ Room live updates:
 - Move, join, leave, invite lifecycle, reset, and completed-state changes should render from received room snapshots.
 - Browser freshness checks should prefer room `revision` and `game_epoch`; `game.move_count` is game-local and can reset to zero after Play Again.
 - If a room disappears, return the player to `GAME_SELECTED` for the current game type.
-- If the WebSocket disconnects, show a reconnecting state and use conservative HTTP refresh as fallback/recovery, not constant 1500ms polling.
+- If the WebSocket disconnects, show a reconnecting state and use conservative HTTP refresh as fallback/recovery, not background polling.
 
-Invite polling:
+Invite recovery:
 
-- Checks for pending invites for the browser's device/home selected player every 30 seconds as fallback.
+- Checks for pending invites only when the browser explicitly refreshes or reconnects after a gap.
 - EventHub app snapshots should deliver normal pending invite prompts first.
 
-Lobby presence polling:
+Lobby presence recovery:
 
-- Runs while on `GAME_SELECTED` every 15 seconds as fallback.
+- Runs only as explicit backfill or reconnect recovery, not on a repeating timer.
 - Shows only players currently looking at the selected game screen.
 - Does not imply all roster players are present.
 - Use a forgiving presence TTL. Mobile browsers can pause timers and network requests, so a tight 10-second TTL makes players flicker in and out of the lobby even when they are still present. The current target TTL is 45 seconds.

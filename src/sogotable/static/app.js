@@ -132,12 +132,8 @@ const realtime = createRealtimeController({
   onAppMessage: handleAppEventMessage,
   onRoomMessage: handleRoomSocketMessage,
   onRoomReconnect: () => showTurnStatus(null, "Reconnecting to room..."),
-  pollInvites,
-  refreshGameRooms,
   refreshRoom,
-  refreshRooms,
   shouldReconnectRoom: () => Boolean(currentRoom),
-  updateLobbyPresence,
 });
 localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
 
@@ -183,9 +179,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("confirmPrompt").addEventListener("click", closeConfirmPromptOnBackdrop);
   const closeWinOverlay = document.getElementById("closeWinOverlay");
   if (closeWinOverlay) closeWinOverlay.addEventListener("click", hideWinOverlay);
+  bindRefreshTitleControls();
   realtime.connectAppEvents();
-  realtime.startRoomListFallback();
-  realtime.startInviteFallback();
 });
 
 function bindSoundControls() {
@@ -274,16 +269,35 @@ function showScreen(name) {
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.toggle("active", screen.id === name);
   });
-  if (name === "game") startPolling();
+  if (name === "game") startRoomLiveUpdates();
   if (name === "gameSelected") {
     renderGameSelected();
-    refreshGameRooms();
-    updateLobbyPresence();
-    realtime.sendAppEventSubscription();
-    realtime.startLobbyPresenceFallback();
-  } else {
-    realtime.stopLobbyPresenceFallback();
+    refreshSelectedGameView();
   }
+}
+
+function bindRefreshTitleControls() {
+  bindRefreshTitleControl("selectedGameTitle", "Refresh game view", refreshSelectedGameView);
+  bindRefreshTitleControl("roomTitle", "Refresh room view", refreshCurrentRoomView);
+}
+
+function bindRefreshTitleControl(elementId, label, refreshAction) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  element.classList.add("refreshable-title");
+  element.setAttribute("role", "button");
+  element.setAttribute("tabindex", "0");
+  element.setAttribute("aria-label", label);
+  element.title = label;
+  const triggerRefresh = () => {
+    void refreshAction();
+  };
+  element.addEventListener("click", triggerRefresh);
+  element.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    triggerRefresh();
+  });
 }
 
 function renderGames() {
@@ -335,11 +349,21 @@ function renderGameSelected() {
   lastCurrentGameRoomsKey = "";
   lastActiveGameNoticeKey = "";
   lastGameStatsKey = "";
-  refreshLobbyPlayers();
-  refreshGameStats();
   renderCurrentGames();
   renderCreateGameButton();
   renderActiveGameNotice();
+}
+
+async function refreshSelectedGameView() {
+  if (!selectedGame()) return;
+  realtime.sendAppEventSubscription();
+  await Promise.all([
+    refreshLobbyPlayers(),
+    refreshGameStats(),
+    refreshGameRooms(),
+    refreshPendingInvites(),
+    updateLobbyPresence(),
+  ]);
 }
 
 async function refreshGameDefinitions() {
@@ -351,12 +375,19 @@ async function refreshGameDefinitions() {
     saveSelectedGame();
     renderGames();
     renderSelectedGame();
-    if (document.getElementById("gameSelected").classList.contains("active")) renderGameSelected();
+    if (document.getElementById("gameSelected").classList.contains("active")) {
+      renderGameSelected();
+      refreshSelectedGameView();
+    }
   } catch {
     games = [...fallbackGames];
     selectedGameId = canonicalGameId(selectedGameId);
     renderGames();
     renderSelectedGame();
+    if (document.getElementById("gameSelected").classList.contains("active")) {
+      renderGameSelected();
+      refreshSelectedGameView();
+    }
   }
 }
 
@@ -477,7 +508,7 @@ async function autoOpenActiveRoomForSelectedPlayer() {
     setRoom(data.room);
     showScreen("game");
   } catch {
-    // The room list will continue polling; a transient read failure should not strand the screen.
+    // A transient read failure should not strand the screen; the next explicit refresh or socket update can recover.
   }
 }
 
@@ -1249,14 +1280,14 @@ async function invitePlayer(player) {
   }
 }
 
-async function pollInvites() {
+async function refreshPendingInvites() {
   const player = deviceSelectedPlayer();
   if (!player || !document.getElementById("invitePrompt").classList.contains("hidden")) return;
   try {
     const data = await fetchJson(`/api/invites?player_id=${encodeURIComponent(player.id)}`);
     if (data.ok && data.invites.length) showInvitePrompt(data.invites[0]);
   } catch {
-    // Invite polling is best-effort; room actions still work without it.
+    // Invite refresh is best-effort; room actions still work without it.
   }
 }
 
@@ -1333,7 +1364,7 @@ async function closeGame() {
   currentRoom = null;
   activeGameRoom = null;
   hideWinOverlay();
-  stopPolling();
+  stopRoomLiveUpdates();
   refreshGameRooms();
   showScreen("gameSelected");
 }
@@ -1883,14 +1914,6 @@ function renderConfetti() {
   }
 }
 
-function startPolling() {
-  startRoomLiveUpdates();
-}
-
-function stopPolling() {
-  stopRoomLiveUpdates();
-}
-
 function startRoomLiveUpdates() {
   if (!currentRoom) return;
   realtime.startRoomLiveUpdates(currentRoom.code);
@@ -1956,6 +1979,10 @@ async function refreshRooms() {
   }
 }
 
+async function refreshCurrentRoomView() {
+  await refreshRooms();
+}
+
 async function refreshCurrentRoomSummary() {
   if (!currentRoom) return;
   const wasStarted = currentRoom.started;
@@ -2011,7 +2038,7 @@ function leaveClosedRoom() {
   activeGameRoom = null;
   lastRenderedRoomKey = "";
   hideWinOverlay();
-  stopPolling();
+  stopRoomLiveUpdates();
   renderGames();
   refreshGameRooms();
   showScreen("gameSelected");
