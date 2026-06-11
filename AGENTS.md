@@ -138,3 +138,6 @@ If intentionally out of scope, document the exclusion and reason in handoff note
 - Lead with impact first, then risk and assumptions.
 - Prefer short bullet summaries for implementation and next steps.
 - Ask for direction only when an action risks product direction drift or cannot be safely inferred.
+- End assistant messages with:
+
+`CODEX 🎲♥️👾`
