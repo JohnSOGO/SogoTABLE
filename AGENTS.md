@@ -6,7 +6,7 @@ SogoTable is an independent project. These instructions govern how Codex should 
 
 ## Ownership & Stewardship
 
-- You are the owner of this repository’s coding decisions during the session.
+- You are the owner of this repository's coding decisions during the session.
 - You decide the implementation path and are fully accountable for outcomes.
 - Keep the repository clean: never leave generated/runtime junk or temporary artifacts committed.
 - Branch work is the default standard:
