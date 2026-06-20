@@ -65,14 +65,14 @@ function renderTenThousandLobby(host, ctx) {
 }
 
 function renderTenThousandPlay(host, ctx) {
-  const { room, game, pendingMove } = ctx;
+  const { room, game, pendingMove, escapeHtml = escapeText } = ctx;
   const seats = Array.isArray(game.players) ? game.players : [];
   const localMark = markForPlayer(room, ctx.localPlayerId);
   const localSeat = seats.find((seat) => seat.mark === localMark) || null;
   const complete = game.status === "complete";
 
   host.innerHTML = `
-    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove, ctx.statusText || "") : ""}
+    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove, ctx.statusText || "", escapeHtml) : ""}
     ${standingsHtml(seats, room, game)}
   `;
 
@@ -80,7 +80,7 @@ function renderTenThousandPlay(host, ctx) {
   wireStandings(host);
 }
 
-function trayHtml(seat, game, pendingMove, statusText = "") {
+function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeText) {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
   const canAct = game.status === "playing" && !resolved && !pendingMove;
@@ -327,5 +327,9 @@ function fmt(value) {
 }
 
 function escapeName(value) {
+  return String(value || "").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
+}
+
+function escapeText(value) {
   return String(value || "").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
 }
