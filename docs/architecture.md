@@ -121,7 +121,7 @@ coordination and D1 for durable shared state.
 
 ## Game Logic
 
-Super Tic Tac Toe, Super Tic Tactical Toe, and Dots and Boxes rules currently live in the Worker because the Worker is the production brain. The shared room and lobby shell is global for two-player games; game-specific behavior should live in game-state creation, move validation/application, and board rendering.
+Super Tic Tac Toe, Super Tic Tactical Toe, Dots and Boxes, Battleship, and Quoridor rules currently live in the Worker because the Worker is the production brain. The shared room and lobby shell is global for two-player games; game-specific behavior should live in game-state creation, move validation/application, and board rendering.
 
 Browser-side game modules live under `src/sogotable/static/games/`. Super Tic
 Tac Toe owns the shared nested-board renderer in `super-tic-tac-toe/`; Super
@@ -138,6 +138,11 @@ Battleship also uses the shared room shell and has a dedicated Worker rule path.
 Its hosted moves carry an `action` object for setup and attacks. The game owns
 explicit `setup`, `playing`, and `complete` phases, and the browser renders
 offence/defence views from the authoritative room snapshot.
+
+Quoridor also uses the shared room shell and has a dedicated Worker rule path.
+Its hosted moves carry an `action` object for pawn moves and wall placements.
+The Worker validates jump rules, wall conflicts, and the requirement that both
+players keep at least one path to their goal edge.
 
 ## Timing Modes
 

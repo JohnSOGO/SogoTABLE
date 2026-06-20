@@ -122,6 +122,15 @@ Returns the hosted game registry used by the browser game menu.
       "status": "Ready",
       "availability": "ready",
       "aliases": ["battleship", "battle_ship"]
+    },
+    {
+      "id": "8f5d2c7a1b90",
+      "name": "Quoridor",
+      "summary": "Race your pawn across the board while placing walls that slow your opponent without blocking every path.",
+      "players": "2 players",
+      "status": "Ready",
+      "availability": "ready",
+      "aliases": ["quoridor"]
     }
   ]
 }
@@ -192,6 +201,7 @@ Canonical `game_id` values:
 - `d7e4a91f0c23` - Super Tic Tactical Toe
 - `4b7e2d9a6c10` - Dots and Boxes
 - `9c2f7a81d4e6` - Battleship
+- `8f5d2c7a1b90` - Quoridor
 
 Legacy aliases accepted for compatibility:
 
@@ -202,6 +212,7 @@ Legacy aliases accepted for compatibility:
 - `dots_and_dashes`
 - `battleship`
 - `battle_ship`
+- `quoridor`
 
 Super Tic Tactical Toe room game state reuses the base nested-board fields and adds `pickups`, `scores`, `captures`, `events`, and `last_event`. Pickups and scores are authoritative Worker state.
 
@@ -220,6 +231,12 @@ Battleship room game state uses `phase`, `status`, `players`, `current_player`,
 `playing`, and `complete`. Each player state includes `ready`, `ships`, and
 `shots`; ships use `{ id, name, size, cells }` and shots use
 `{ row, col, result }`.
+
+Quoridor room game state uses `size`, `status`, `current_player`, `winner`,
+`pawns`, `walls`, `walls_remaining`, `legal_pawn_moves`, `legal_walls`,
+`events`, and `last_move`. Pawns are keyed by mark and use
+`{ row, col, goal }`. Walls use `{ orientation, row, col }` where orientation
+is `h` or `v`.
 
 ## Game Stats
 
@@ -529,6 +546,24 @@ During play, attacks use a target cell:
 }
 ```
 
+Quoridor moves use an action object for pawn moves and wall placement:
+
+```json
+{
+  "code": "ABCD",
+  "player_id": "player-id",
+  "action": { "type": "move_pawn", "row": 7, "col": 4 }
+}
+```
+
+```json
+{
+  "code": "ABCD",
+  "player_id": "player-id",
+  "action": { "type": "place_wall", "orientation": "h", "row": 4, "col": 3 }
+}
+```
+
 Response:
 
 ```json
@@ -552,6 +587,12 @@ For Battleship, setup actions mark the player's fleet ready. The game advances
 from `setup` to `playing` after both fleets are ready. A valid attack records a
 hit or miss in `game.players[mark].shots`, updates `last_move`, changes
 `current_player`, and moves to `complete` when all enemy ship cells are hit.
+
+For Quoridor, a valid pawn move updates `game.pawns[mark]`. A valid wall
+placement spends one wall from `game.walls_remaining[mark]` and is rejected if
+it overlaps, crosses, or leaves either player with no path to their goal edge.
+Either valid action changes `current_player`, and reaching the opposite edge
+moves the game to `complete`.
 
 ## Reset
 

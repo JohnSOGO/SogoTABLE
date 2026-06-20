@@ -30,3 +30,5 @@ Current module folders:
 - `boxes/` owns the Dots and Boxes standalone lab and hosted board renderer
   helpers.
 - `battleship/` owns the Battleship hosted-game plan and module metadata.
+- `Quoridor/` owns the Quoridor hosted-game plan, module metadata, and AI
+  difficulty spec.

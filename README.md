@@ -99,4 +99,5 @@ npm run test:worker
 - [Super Tic Tactical Toe](docs/game-super-tic-tactical-toe.md)
 - [Dots and Boxes](docs/game-dots-and-boxes.md)
 - [Battleship](docs/game-battleship.md)
+- [Quoridor](docs/game-quoridor.md)
 - [Roadmap](docs/roadmap.md)

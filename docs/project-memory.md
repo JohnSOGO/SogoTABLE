@@ -4,7 +4,7 @@ This file is durable context for future Codex sessions. Read it with `AGENTS.md`
 
 ## Product Direction
 
-SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, Super Tic Tactical Toe is the second playable game, Dots and Boxes is the third ready two-player game, and Battleship is the fourth ready two-player game. The app should grow through a games menu and clear game modules rather than becoming a single-game app.
+SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, Super Tic Tactical Toe is the second playable game, Dots and Boxes is the third ready two-player game, Battleship is the fourth ready two-player game, and Quoridor is the fifth ready two-player game. The app should grow through a games menu and clear game modules rather than becoming a single-game app.
 
 Local workspace note: the canonical local repository directory is now `C:\Users\Public\git\SogoTable`. The former `C:\Users\Public\git\SogoGames` path was retired during the SogoTable naming cleanup; do not start new work from the old path.
 
@@ -100,7 +100,7 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - Public room create/join actions must use the browser's device/home selected player from the shared API roster. Do not synthesize or migrate local fallback players into the hosted roster.
 - Open/current game cards are hints, not authority. When a user taps `Join Game` or `Re-enter Game`, fetch the room fresh from the shared brain before deciding whether the selected player is already seated, can join, or should see that the game is no longer open.
 - Hosted API read-only refresh calls must not write the whole D1 state row back to the database. Saving after `GET` requests can resurrect stale room/player snapshots when several browsers and phones are refreshing at once.
-- Games menu exists with Super Tic Tac Toe, Super Tic Tactical Toe, and Dots and Boxes as ready games. The browser now loads ready-game metadata from the hosted `/api/games` registry, with a small local fallback only for startup resilience.
+- Games menu exists with Super Tic Tac Toe, Super Tic Tactical Toe, Dots and Boxes, Battleship, and Quoridor as ready games. The browser now loads ready-game metadata from the hosted `/api/games` registry, with a small local fallback only for startup resilience.
 - The player/game selection screen is titled `Player & Game Select`. It starts with the current player summary, separate `Change` and `Create` buttons positioned to the right of the player icon/name when space allows, then direct game buttons.
 - Current main menu shape is selected-player summary, separate player action buttons, and simple full-width game buttons showing only game names. There is no generic Continue button and no Create/Re-enter text on the menu.
 - Clicking a game now opens a selected-game screen for that game type. This screen shows the game description, current players actually viewing that selected-game lobby, current open games, current in-progress games, and a `Create Game`/`Re-enter Game` action.
@@ -144,6 +144,13 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - Battleship phases are `setup`, `playing`, and `complete`.
 - During setup, players can manually draft ship positions by selecting a ship, toggling horizontal/vertical, and tapping a start cell, or use `Auto Place` for quick review.
 - During play, the board defaults to offence on the local player's turn and defence while waiting, with manual `Auto`, `Offence`, and `Defence` view controls.
+
+## Quoridor UX Decisions
+
+- Quoridor is game #5 and uses the same selected-game lobby, room, invite, local-opponent, bot-opponent, reset, exit, and room WebSocket architecture as the other ready two-player games.
+- Quoridor uses a 9x9 board, ten walls per player, standard orthogonal move, jump, and diagonal side-jump rules, and Worker validation that wall placements never block every path to either goal edge.
+- Players use their selected emoji as pawn tokens. The browser offers Pawn, horizontal wall, and vertical wall modes while the Worker remains authoritative for legal moves and legal walls.
+- Quoridor bots use the four difficulty model from `src/sogotable/static/games/Quoridor/quoridor_ai_rules_four_difficulties.md`: Rookie, Scout, Tactician, and Master.
 
 ## Super Tic Tac Toe UX Decisions
 

@@ -7,6 +7,7 @@ const CLASSIC_GAME_ID = "a3f19c6e42b8";
 const TACTICAL_GAME_ID = "d7e4a91f0c23";
 const BOXES_GAME_ID = "4b7e2d9a6c10";
 const BATTLESHIP_GAME_ID = "9c2f7a81d4e6";
+const QUORIDOR_GAME_ID = "8f5d2c7a1b90";
 const HEX_ID_PATTERN = /^[a-f0-9]{12}$/;
 
 class InMemoryD1 {
@@ -262,12 +263,13 @@ test("lists ready games from the hosted game registry", async () => {
   const listed = await get(env, "/api/games");
 
   assert.equal(listed.ok, true);
-  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID]);
-  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready"]);
+  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID]);
+  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready"]);
   assert.equal(listed.games[0].name, "Super Tic Tac Toe");
   assert.equal(listed.games[1].name, "Super Tic Tactical Toe");
-  assert.equal(listed.games[3].name, "Battleship");
   assert.equal(listed.games[2].name, "Dots and Boxes");
+  assert.equal(listed.games[3].name, "Battleship");
+  assert.equal(listed.games[4].name, "Quoridor");
   assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
 });
@@ -709,6 +711,111 @@ test("Dots and Boxes all-bot room plays through capture chains without stalling"
   assert.equal(joined.room.game.lines.length, 93);
   assert.equal(joined.room.game.legal_lines.length, 0);
   assert.notEqual(joined.room.game.status, "playing");
+}));
+
+test("creates Quoridor rooms and applies pawn moves", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: "quoridor", player: host, code: "QOR1" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+  const oSeat = joined.room.players.find((seat) => seat.mark === "O");
+
+  const wrongTurn = await post(env, "/api/room/move", { code: "QOR1", player_id: oSeat.id, action: { type: "move_pawn", row: 7, col: 4 } });
+  const moved = await post(env, "/api/room/move", { code: "QOR1", player_id: xSeat.id, action: { type: "move_pawn", row: 7, col: 4 } });
+
+  assert.equal(joined.room.game_id, QUORIDOR_GAME_ID);
+  assert.equal(joined.room.game.board_size, 9);
+  assert.equal(joined.room.game.walls_remaining.X, 10);
+  assert.equal(joined.room.game.legal_pawn_moves.length, 3);
+  assert.equal(wrongTurn.ok, false);
+  assert.equal(wrongTurn.error, "It is X's turn.");
+  assert.equal(moved.ok, true);
+  assert.deepEqual(moved.room.game.pawns.X, { row: 7, col: 4, goal: 0 });
+  assert.equal(moved.room.game.current_player, "O");
+});
+
+test("Quoridor places walls and rejects overlap crossing and sealed paths", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  await post(env, "/api/room/create", { game_id: "quoridor", player: host, code: "QOR2" });
+  const joined = await post(env, "/api/room/join", { code: "QOR2", player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+  const oSeat = joined.room.players.find((seat) => seat.mark === "O");
+
+  const wall = await post(env, "/api/room/move", { code: "QOR2", player_id: xSeat.id, action: { type: "place_wall", orientation: "h", row: 7, col: 3 } });
+  const overlap = await post(env, "/api/room/move", { code: "QOR2", player_id: oSeat.id, action: { type: "place_wall", orientation: "h", row: 7, col: 4 } });
+  const crossing = await post(env, "/api/room/move", { code: "QOR2", player_id: oSeat.id, action: { type: "place_wall", orientation: "v", row: 7, col: 3 } });
+
+  mutateState(env, (data) => {
+    const game = data.rooms.QOR2.game;
+    game.current_player = oSeat.mark;
+    game.walls_remaining[oSeat.mark] = 10;
+    game.walls = [
+      { orientation: "h", row: 7, col: 0 },
+      { orientation: "h", row: 7, col: 2 },
+      { orientation: "h", row: 7, col: 4 },
+      { orientation: "v", row: 7, col: 7 },
+    ];
+    game.pawns.X = { row: 8, col: 0, goal: 0 };
+  });
+  const sealed = await post(env, "/api/room/move", { code: "QOR2", player_id: oSeat.id, action: { type: "place_wall", orientation: "h", row: 7, col: 6 } });
+
+  assert.equal(wall.ok, true);
+  assert.equal(wall.room.game.walls_remaining.X, 9);
+  assert.equal(overlap.ok, false);
+  assert.equal(overlap.error, "Wall placement is not legal.");
+  assert.equal(crossing.ok, false);
+  assert.equal(crossing.error, "Wall placement is not legal.");
+  assert.equal(sealed.ok, false);
+  assert.equal(sealed.error, "Wall placement is not legal.");
+});
+
+test("Quoridor supports jumps and detects wins", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  await post(env, "/api/room/create", { game_id: "quoridor", player: host, code: "QOR3" });
+  const joined = await post(env, "/api/room/join", { code: "QOR3", player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+
+  mutateState(env, (data) => {
+    const game = data.rooms.QOR3.game;
+    game.current_player = xSeat.mark;
+    game.pawns.X = { row: 4, col: 4, goal: 0 };
+    game.pawns.O = { row: 3, col: 4, goal: 8 };
+  });
+  const jump = await post(env, "/api/room/move", { code: "QOR3", player_id: xSeat.id, action: { type: "move_pawn", row: 2, col: 4 } });
+
+  mutateState(env, (data) => {
+    const game = data.rooms.QOR3.game;
+    game.current_player = xSeat.mark;
+    game.pawns.X = { row: 1, col: 4, goal: 0 };
+    game.pawns.O = { row: 8, col: 4, goal: 8 };
+  });
+  const win = await post(env, "/api/room/move", { code: "QOR3", player_id: xSeat.id, action: { type: "move_pawn", row: 0, col: 4 } });
+
+  assert.equal(jump.ok, true);
+  assert.deepEqual(jump.room.game.pawns.X, { row: 2, col: 4, goal: 0 });
+  assert.equal(win.ok, true);
+  assert.equal(win.room.game.status, "x_won");
+  assert.equal(win.room.game.winner, "X");
+});
+
+test("Quoridor bot responds through the normal move pipeline", async () => withMockRandom([0, 0.9, 0.9], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=quoridor");
+  const created = await post(env, "/api/room/create", { game_id: "quoridor", player: host, code: "QBOT" });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: bots.bots[0].id });
+  const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
+  const moved = await post(env, "/api/room/move", { code: "QBOT", player_id: humanSeat.id, action: { type: "move_pawn", row: 7, col: 4 } });
+
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.move_count >= 2, true);
+  assert.equal(["X", "O"].includes(moved.room.game.current_player), true);
 }));
 
 const fleet = (offset = 0) => [
