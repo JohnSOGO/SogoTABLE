@@ -1803,6 +1803,10 @@ function tenThousandStatusText(room, game, localSeat, seatState) {
   if (!room.started) return room.host_id === deviceSelectedPlayerId ? "Add players and bots, then start." : "Waiting for the host to start.";
   if (game.status === "complete") return "Game over.";
   if (!localSeat || !seatState) return "Waiting for your seat to be ready.";
+  if (game.round_pending_advance) {
+    if (seatState.phase === "farkled") return "You Farkled! Round complete. Roll to start the next round.";
+    return "Round complete. Roll to start the next round.";
+  }
   if (seatState.phase === "farkled") return "You Farkled! Tap OK to continue.";
   if (seatState.resolved) return "Waiting for the other players to finish the round.";
   if (seatState.phase === "rolled") return "Select scoring dice, then bank or press.";

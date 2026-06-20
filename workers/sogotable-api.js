@@ -1482,6 +1482,7 @@ function newTenThousandGame() {
     target_score: TEN_THOUSAND_TARGET_SCORE,
     status: "playing",
     round: 1,
+    round_pending_advance: false,
     final_round: false,
     final_trigger: null,
     winner: null,
@@ -1515,6 +1516,7 @@ function initTenThousandSeats(game, seats) {
   game.status = "playing";
   game.move_count = 0;
   game.last_move = null;
+  game.round_pending_advance = false;
   resolveTenThousandBots(game);
 }
 
@@ -1573,6 +1575,7 @@ function normalizeTenThousandGame(game) {
   game.round = clampInteger(game.round, 1, 999999, 1);
   game.final_round = Boolean(game.final_round);
   game.final_trigger = game.final_trigger || null;
+  game.round_pending_advance = Boolean(game.round_pending_advance);
   game.seat_order = Array.isArray(game.seat_order) ? game.seat_order.map(String) : [];
   if (!game.players || typeof game.players !== "object") game.players = {};
   game.seat_order.forEach((mark) => {
@@ -1629,9 +1632,10 @@ function makeTenThousandMove(game, mark, action) {
   const seat = game.players[mark];
   if (!seat) throw new Error("You are not seated in this game.");
   if (seat.is_bot) throw new Error("Bot seats are resolved automatically.");
-  if (seat.resolved) throw new Error("You already finished this round. Wait for the next round.");
   const type = String(action && action.type || "").trim();
+  if (seat.resolved && !(type === "roll" && game.round_pending_advance)) throw new Error("You already finished this round. Wait for the next round.");
   if (seat.phase === "farkled" && type !== "ack_farkle") throw new Error("Acknowledge the farkle to continue.");
+  if (type === "roll" && game.round_pending_advance) startTenThousandRound(game);
   if (type === "roll") rollTenThousandDice(seat);
   else if (type === "select") selectTenThousandDice(seat, action.dice_ids || action.diceIds || []);
   else if (type === "reroll") rerollTenThousandDice(seat);
@@ -1736,10 +1740,7 @@ function bankTenThousandScore(game, mark, seat) {
 }
 
 // Barrier: a round ends only once every seat has resolved (banked or farkled
-// and acknowledged).
-// If anyone has reached the target the game ends (highest score wins, since
-// simultaneous play guarantees equal rounds); otherwise advance to the next
-// round and resolve bots for it.
+// and acknowledged). The next round does not start until someone rolls again.
 function maybeAdvanceTenThousandRound(game) {
   const marks = game.seat_order;
   if (!marks.length) return;
@@ -1751,7 +1752,15 @@ function maybeAdvanceTenThousandRound(game) {
     game.last_move = { type: "complete", round: game.round, winner: game.winner };
     return;
   }
+  game.round_pending_advance = true;
+}
+
+function startTenThousandRound(game) {
+  const marks = game.seat_order;
+  if (!marks.length) return;
+  if (!game.round_pending_advance && !marks.every((mark) => game.players[mark].resolved)) return;
   game.round += 1;
+  game.round_pending_advance = false;
   marks.forEach((mark) => {
     const seat = game.players[mark];
     seat.turn_score = 0;

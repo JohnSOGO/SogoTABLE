@@ -2132,8 +2132,13 @@ button.player-switch-button {
 .ten-thousand-message {
   min-height: 24px;
   margin: 0;
+  padding: 10px 12px;
   color: var(--muted);
   text-align: center;
+  border: 1px solid #d7dde5;
+  border-radius: 12px;
+  background: #f8fafc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 /* Lobby */

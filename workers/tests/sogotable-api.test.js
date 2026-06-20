@@ -340,11 +340,16 @@ test("10,000 rolls, selects scoring dice, presses, and banks (per seat)", async 
   assert.equal(seatByMark(rerolled, "P1").phase, "rolled");
   assert.deepEqual(seatByMark(rerolled, "P1").dice.slice(3).map((die) => die.value), [5, 6, 2]);
   assert.equal(seatByMark(scoredAgain, "P1").turn_score, 1050);
-  // A solo bank resolves the only seat, so the round barrier advances immediately.
+  // A solo bank resolves the only seat; the next round begins on the next roll.
   assert.equal(seatByMark(banked, "P1").score, 1050);
-  assert.equal(banked.room.game.round, 2);
-  assert.equal(seatByMark(banked, "P1").phase, "ready");
-}));
+  assert.equal(banked.room.game.round, 1);
+  assert.equal(banked.room.game.round_pending_advance, true);
+  assert.equal(seatByMark(banked, "P1").phase, "done");
+  const nextRound = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "roll" } });
+  assert.equal(nextRound.room.game.round, 2);
+  assert.equal(nextRound.room.game.round_pending_advance, false);
+  assert.equal(seatByMark(nextRound, "P1").phase, "rolled");
+})); 
 
 test("10,000 farkle preserves the final dice until acknowledged", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
   const env = makeEnv();
@@ -353,6 +358,7 @@ test("10,000 farkle preserves the final dice until acknowledged", async () => wi
   await post(env, "/api/room/start", { code: "BUST", host_id: host.id });
   const rolled = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "roll" } });
   const acked = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "ack_farkle" } });
+  const nextRoll = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "roll" } });
 
   assert.equal(rolled.room.game.last_move.type, "farkle");
   assert.deepEqual(rolled.room.game.last_move.dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
@@ -362,9 +368,14 @@ test("10,000 farkle preserves the final dice until acknowledged", async () => wi
   assert.equal(seatByMark(rolled, "P1").resolved, false);
   assert.deepEqual(seatByMark(rolled, "P1").dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
   assert.equal(acked.room.game.last_move.type, "ack_farkle");
-  assert.equal(acked.room.game.round, 2);
-  assert.equal(seatByMark(acked, "P1").phase, "ready");
-  assert.equal(seatByMark(acked, "P1").resolved, false);
+  assert.equal(acked.room.game.round, 1);
+  assert.equal(acked.room.game.round_pending_advance, true);
+  assert.equal(seatByMark(acked, "P1").phase, "done");
+  assert.equal(seatByMark(acked, "P1").resolved, true);
+  assert.deepEqual(seatByMark(acked, "P1").dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
+  assert.equal(nextRoll.room.game.round, 2);
+  assert.equal(nextRoll.room.game.round_pending_advance, false);
+  assert.equal(seatByMark(nextRoll, "P1").phase, "rolled");
 }));
 
 test("10,000 multiplayer: barrier waits for all humans before advancing", async () => withMockRandom([0], async () => {
@@ -387,10 +398,16 @@ test("10,000 multiplayer: barrier waits for all humans before advancing", async 
   assert.equal(seatByMark(afterHost, "P2").resolved, false);
 
   const afterGuest = await play(guest.id);
-  assert.equal(afterGuest.room.game.round, 2);
-  assert.equal(seatByMark(afterGuest, "P1").resolved, false);
+  assert.equal(afterGuest.room.game.round, 1);
+  assert.equal(afterGuest.room.game.round_pending_advance, true);
+  assert.equal(seatByMark(afterGuest, "P1").resolved, true);
   assert.equal(seatByMark(afterGuest, "P1").score, 1000);
   assert.equal(seatByMark(afterGuest, "P2").score, 1000);
+
+  const nextRound = await post(env, "/api/room/move", { code: "DUOS", player_id: host.id, action: { type: "roll" } });
+  assert.equal(nextRound.room.game.round, 2);
+  assert.equal(nextRound.room.game.round_pending_advance, false);
+  assert.equal(seatByMark(nextRound, "P1").resolved, false);
 }));
 
 test("10,000 multiplayer: bots resolve each round automatically", async () => withMockRandom([0], async () => {
@@ -411,12 +428,17 @@ test("10,000 multiplayer: bots resolve each round automatically", async () => wi
   await post(env, "/api/room/move", { code: "PRTY", player_id: host.id, action: { type: "select", dice_ids: ["d1", "d2", "d3"] } });
   const banked = await post(env, "/api/room/move", { code: "PRTY", player_id: host.id, action: { type: "bank" } });
 
-  // Host's bank fires the barrier -> round 2, bot auto-resolves again.
-  assert.equal(banked.room.game.round, 2);
+  // Host's bank finishes the round; the next roll starts round 2 and bots auto-resolve again.
+  assert.equal(banked.room.game.round, 1);
+  assert.equal(banked.room.game.round_pending_advance, true);
   assert.equal(seatByMark(banked, "P1").score, 1000);
-  assert.equal(seatByMark(banked, "P1").resolved, false);
-  assert.equal(seatByMark(banked, "P2").score, 2600);
+  assert.equal(seatByMark(banked, "P1").resolved, true);
+  assert.equal(seatByMark(banked, "P2").score, 1300);
   assert.equal(seatByMark(banked, "P2").resolved, true);
+
+  const nextRound = await post(env, "/api/room/move", { code: "PRTY", player_id: host.id, action: { type: "roll" } });
+  assert.equal(nextRound.room.game.round, 2);
+  assert.equal(seatByMark(nextRound, "P2").resolved, true);
 }));
 
 test("10,000 completion records a high score", async () => withMockRandom([0, 0, 0, 0, 0, 0], async () => {

@@ -117,15 +117,20 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
         <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
         <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>
       </div>
-      <p class="ten-thousand-message">${escapeHtml(statusText || trayMessage(seat))}</p>
+      <p class="ten-thousand-message">${escapeHtml(statusText || trayMessage(seat, game))}</p>
     </section>`;
 }
 
-function trayMessage(seat) {
+function trayMessage(seat, game = null) {
   if (seat.resolved) {
-    if (seat.phase === "farkled") return "You Farkled! Tap OK to continue.";
+    if (seat.phase === "farkled") {
+      if (game && game.round_pending_advance) return "You Farkled! Round complete. Roll to start the next round.";
+      return "You Farkled! Waiting for the other players to finish the round.";
+    }
+    if (game && game.round_pending_advance) return "Round complete. Roll to start the next round.";
     return "Waiting for the other players to finish the round.";
   }
+  if (game && game.round_pending_advance) return "Round complete. Roll to start the next round.";
   if (seat.phase === "rolled") return "Select scoring dice, then bank or press.";
   if (seat.phase === "selected") return "Bank your turn score or press your luck.";
   return "Tap Roll to begin.";

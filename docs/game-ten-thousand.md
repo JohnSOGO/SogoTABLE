@@ -23,6 +23,8 @@
 - A roll with no scoring dice is a farkle: the turn score is lost, farkle count
   increments, the dice stay on their final rolled values, the dice turn red,
   and the player must acknowledge a popup before continuing.
+- After all seats have banked or farkled and acknowledged, the round is marked
+  complete and the next round starts when a player rolls again.
 - Tapping scoring dice updates the visible `This turn` score immediately; tapping
   them off subtracts their value again before the move is committed.
 - Banking brings the total score closer to 10,000. Reaching 10,000 completes the

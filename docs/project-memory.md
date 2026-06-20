@@ -160,7 +160,8 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - The Worker owns dice rolls, scoring validation, farkles, banking, and game completion. The browser renders CSS 3D dice animation as presentation only and must settle on the Worker-provided dice values.
 - Tapping scoring dice updates the visible `This turn` score immediately; deselecting them subtracts the value back out before the move is committed.
 - A farkle preserves the final rolled dice values, turns the dice red, and opens a popup that must be acknowledged before play continues.
-- The top status bar should give the player the next action first, then explain wait states while the round resolves.
+- The in-tray message box under the action buttons should give the player the next action first, then explain wait states while the round resolves.
+- After every seat has banked or farkled and acknowledged, the round stays on the current board until the next roll starts the following round.
 - The standings table shows player icon first, reveals the player name on tap, and includes Farkle and status columns so the round state is obvious at a glance.
 - Scoring uses the first classic rule set: single 1s and 5s, triples, 1-6 straight, and three pairs. The target score is 10,000.
 
