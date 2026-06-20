@@ -128,7 +128,7 @@ function trayMessage(seat) {
   }
   if (seat.phase === "rolled") return "Select scoring dice, then bank or press.";
   if (seat.phase === "selected") return "Bank your turn score or press your luck.";
-  return "Roll the dice to start your turn.";
+  return "";
 }
 
 function wireTray(host, seat, game, ctx) {

@@ -231,6 +231,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshRevisionSummary();
   bindNavigation();
   bindSoundControls();
+  bindTouchZoomGuard();
   refreshGameDefinitions();
   renderGames();
   renderChoices();
@@ -283,6 +284,21 @@ function bindSoundControls() {
       playConfirm();
     });
   });
+}
+
+function bindTouchZoomGuard() {
+  let lastTapTime = 0;
+  document.addEventListener("touchend", (event) => {
+    if (!event || !event.changedTouches || event.changedTouches.length !== 1) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const now = Date.now();
+    const isDoubleTap = now - lastTapTime < 300;
+    lastTapTime = now;
+    if (isDoubleTap) {
+      event.preventDefault();
+    }
+  }, { passive: false });
 }
 
 function renderSoundControls() {
@@ -1785,7 +1801,7 @@ function tenThousandStatusText(room, game, localSeat, seatState) {
   if (seatState.resolved) return "Waiting for the other players to finish the round.";
   if (seatState.phase === "rolled") return "Select scoring dice, then bank or press.";
   if (seatState.phase === "selected") return "Bank your turn score or press your luck.";
-  return "Roll the dice to start your turn.";
+  return "";
 }
 
 function isStaleRoomSnapshot(current, next) {
@@ -2963,10 +2979,6 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game)) {
-    host.classList.add("hidden");
-    return;
-  }
   host.classList.remove("hidden");
   const isBattleship = isBattleshipGameState(currentRoom.game);
   const isBattleshipReview = isBattleship && currentRoom.game && currentRoom.game.phase === "complete";

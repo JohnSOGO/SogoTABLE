@@ -1008,6 +1008,10 @@ button.player-switch-button {
   text-align: center;
 }
 
+.player-switch + .turn-status {
+  margin-top: 8px;
+}
+
 .turn-status.your-turn {
   border-color: var(--turn-color, var(--accent));
   background: var(--turn-soft, #e8f3ef);
