@@ -2048,18 +2048,10 @@ button.player-switch-button {
   top: -10px;
 }
 
-.ten-thousand-die.selected .die-cube,
-.ten-thousand-die.scored .die-cube {
-  filter: drop-shadow(0 8px 10px rgba(31, 122, 95, 0.22));
-}
-
-.ten-thousand-die.select-score .die-cube {
-  filter: drop-shadow(0 0 10px rgba(34, 161, 97, 0.55));
-}
-
-.ten-thousand-die.select-bust .die-cube {
-  filter: drop-shadow(0 0 10px rgba(220, 64, 64, 0.55));
-}
+/* NB: never put `filter` on .die-cube — it has transform-style: preserve-3d,
+   and filter forces a flattening context that collapses the rotated faces, so
+   any die not showing the 1-face (no rotation) disappears when selected.
+   Selection is conveyed by the lift, border, and face colour instead. */
 
 /* Live selection feedback: green = this die scores in the current selection,
    red = selected but it can't score yet (e.g. one or two of a kind). */
