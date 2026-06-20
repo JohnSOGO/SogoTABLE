@@ -1472,6 +1472,7 @@ function gameToDict(game) {
 const TEN_THOUSAND_TARGET_SCORE = 10000;
 const TEN_THOUSAND_DICE_COUNT = 6;
 const TEN_THOUSAND_PHASES = ["ready", "rolled", "selected", "farkled", "done"];
+const TEN_THOUSAND_FINISH_STATES = ["active", "banked", "farkled_pending_ack", "farkled_acked"];
 // Level 2 (Kitchen Table) bank thresholds by dice remaining, per
 // farkle_ai_players_4_levels.md. Used to resolve bot rounds server-side.
 const TEN_THOUSAND_BOT_BANK = { 6: 1000, 5: 750, 4: 600, 3: 450, 2: 350, 1: 250 };
@@ -1551,6 +1552,7 @@ function tenThousandGameToDict(game) {
       turn_score: seat.turn_score,
       round_score: seat.round_score,
       farkles: seat.farkles,
+      finish_state: seat.finish_state,
       phase: seat.phase,
       resolved: seat.resolved,
       is_bot: seat.is_bot,
@@ -1588,17 +1590,27 @@ function normalizeTenThousandGame(game) {
 
 function normalizeTenThousandSeat(seat) {
   const source = seat || {};
+  const finishState = normalizeTenThousandFinishState(source);
   return {
     score: clampInteger(source.score, 0, 9999999, 0),
     turn_score: clampInteger(source.turn_score, 0, 9999999, 0),
     round_score: clampInteger(source.round_score, 0, 9999999, 0),
     farkles: clampInteger(source.farkles, 0, 999999, 0),
     dice: normalizeTenThousandDice(source.dice),
+    finish_state: finishState,
     phase: TEN_THOUSAND_PHASES.includes(source.phase) ? source.phase : "ready",
-    resolved: Boolean(source.resolved),
+    resolved: Boolean(source.resolved) || finishState === "banked" || finishState === "farkled_acked",
     is_bot: Boolean(source.is_bot),
     level: Number.isInteger(source.level) ? source.level : (source.is_bot ? 2 : 0),
   };
+}
+
+function normalizeTenThousandFinishState(source) {
+  const finishState = String(source && source.finish_state || "").trim();
+  if (TEN_THOUSAND_FINISH_STATES.includes(finishState)) return finishState;
+  if (source && source.phase === "farkled") return source.resolved ? "farkled_acked" : "farkled_pending_ack";
+  if (source && source.resolved) return "banked";
+  return "active";
 }
 
 function tenThousandBlankDice() {
@@ -1697,15 +1709,18 @@ function finishTenThousandRoll(seat) {
     seat.round_score = 0;
     seat.farkles += 1;
     seat.phase = "farkled";
+    seat.finish_state = "farkled_pending_ack";
     seat.resolved = false;
     return;
   }
   seat.phase = "rolled";
+  seat.finish_state = "active";
 }
 
 function acknowledgeTenThousandFarkle(game, seat) {
   if (seat.phase !== "farkled") throw new Error("There is no farkle to acknowledge.");
   seat.resolved = true;
+  seat.finish_state = "farkled_acked";
   seat.phase = "done";
 }
 
@@ -1723,6 +1738,7 @@ function selectTenThousandDice(seat, diceIds) {
   });
   seat.turn_score += score.score;
   seat.phase = "selected";
+  seat.finish_state = "active";
 }
 
 function bankTenThousandScore(game, mark, seat) {
@@ -1732,6 +1748,7 @@ function bankTenThousandScore(game, mark, seat) {
   seat.turn_score = 0;
   seat.dice = tenThousandBlankDice();
   seat.phase = "done";
+  seat.finish_state = "banked";
   seat.resolved = true;
   if (seat.score >= game.target_score && !game.final_round) {
     game.final_round = true;
@@ -1767,6 +1784,7 @@ function startTenThousandRound(game) {
     seat.round_score = 0;
     seat.dice = tenThousandBlankDice();
     seat.phase = "ready";
+    seat.finish_state = "active";
     seat.resolved = false;
   });
   resolveTenThousandBots(game);

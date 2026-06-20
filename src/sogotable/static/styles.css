@@ -2316,6 +2316,24 @@ button.player-switch-button {
 
 .tt-standing-status {
   width: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 3ch;
+}
+
+.tt-status-good {
+  color: #15803d;
+}
+
+.tt-status-bad {
+  color: #dc2626;
+}
+
+.tt-status-wait,
+.tt-status-done {
+  color: var(--muted);
 }
 
 @keyframes dice-tumble {

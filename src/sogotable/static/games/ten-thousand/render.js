@@ -196,7 +196,7 @@ function standingsHtml(seats, room, game) {
   return `
     <section class="ten-thousand-standings" aria-label="Standings">
       <table>
-        <thead><tr><th>Player</th><th aria-label="Status"></th><th>Farkle</th><th>Score</th></tr></thead>
+        <thead><tr><th>Player</th><th aria-label="Status">?</th><th>Farkle</th><th>Score</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </section>`;
@@ -207,8 +207,8 @@ function standingsRow(seat, room, game) {
   const emoji = seatEmoji(room, seat.mark);
   const classes = [
     "tt-standing",
-    seat.resolved ? "is-resolved" : "",
-    seat.phase === "farkled" ? "is-farkle" : "",
+    seat.finish_state === "banked" || seat.finish_state === "farkled_acked" ? "is-finished" : "",
+    seat.finish_state === "farkled_pending_ack" ? "is-farkle" : "",
   ].filter(Boolean).join(" ");
   const status = standingStatusIcon(seat, game);
   return `
@@ -219,7 +219,7 @@ function standingsRow(seat, room, game) {
           <span class="tt-standing-player-name">${escapeName(name)}</span>
         </button>
       </td>
-      <td class="tt-standing-status" title="${status.title}">${status.symbol}</td>
+      <td class="tt-standing-status" title="${escapeName(status.title)}">${status.html}</td>
       <td>${fmt(seat.farkles)}</td>
       <td><strong>${fmt(seat.score)}</strong></td>
     </tr>`;
@@ -228,12 +228,13 @@ function standingsRow(seat, room, game) {
 function standingStatusIcon(seat, game) {
   if (game.status === "complete") {
     return seat.mark === game.winner
-      ? { symbol: "✅", title: "Winner" }
-      : { symbol: "—", title: "Finished" };
+      ? { html: '<span class="tt-status-good">&#9989;</span>', title: "Winner" }
+      : { html: '<span class="tt-status-done">&mdash;</span>', title: "Finished" };
   }
-  if (seat.phase === "farkled") return { symbol: "❌", title: "Farkled this round" };
-  if (seat.resolved) return { symbol: "✅", title: "Banked this round" };
-  return { symbol: "⏳", title: "Waiting for this player to finish" };
+  if (seat.finish_state === "farkled_pending_ack") return { html: '<span class="tt-status-bad">&#10060;</span>', title: "Farkled, waiting for OK" };
+  if (seat.finish_state === "banked") return { html: '<span class="tt-status-good">&#9989;</span>', title: "Banked this round" };
+  if (seat.finish_state === "farkled_acked") return { html: '<span class="tt-status-bad">&#10060;</span><span class="tt-status-good">&#9989;</span>', title: "Farkled and acknowledged" };
+  return { html: '<span class="tt-status-wait">&#9203;</span>', title: "Waiting for this player to finish" };
 }
 
 function wireStandings(host) {

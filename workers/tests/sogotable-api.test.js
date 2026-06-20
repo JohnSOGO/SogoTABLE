@@ -345,6 +345,7 @@ test("10,000 rolls, selects scoring dice, presses, and banks (per seat)", async 
   assert.equal(banked.room.game.round, 1);
   assert.equal(banked.room.game.round_pending_advance, true);
   assert.equal(seatByMark(banked, "P1").phase, "done");
+  assert.equal(seatByMark(banked, "P1").finish_state, "banked");
   const nextRound = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "roll" } });
   assert.equal(nextRound.room.game.round, 2);
   assert.equal(nextRound.room.game.round_pending_advance, false);
@@ -365,12 +366,14 @@ test("10,000 farkle preserves the final dice until acknowledged", async () => wi
   assert.equal(seatByMark(rolled, "P1").farkles, 1);
   assert.equal(seatByMark(rolled, "P1").turn_score, 0);
   assert.equal(seatByMark(rolled, "P1").phase, "farkled");
+  assert.equal(seatByMark(rolled, "P1").finish_state, "farkled_pending_ack");
   assert.equal(seatByMark(rolled, "P1").resolved, false);
   assert.deepEqual(seatByMark(rolled, "P1").dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
   assert.equal(acked.room.game.last_move.type, "ack_farkle");
   assert.equal(acked.room.game.round, 1);
   assert.equal(acked.room.game.round_pending_advance, true);
   assert.equal(seatByMark(acked, "P1").phase, "done");
+  assert.equal(seatByMark(acked, "P1").finish_state, "farkled_acked");
   assert.equal(seatByMark(acked, "P1").resolved, true);
   assert.deepEqual(seatByMark(acked, "P1").dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
   assert.equal(nextRoll.room.game.round, 2);
@@ -395,12 +398,14 @@ test("10,000 multiplayer: barrier waits for all humans before advancing", async 
   const afterHost = await play(host.id);
   assert.equal(afterHost.room.game.round, 1);
   assert.equal(seatByMark(afterHost, "P1").resolved, true);
+  assert.equal(seatByMark(afterHost, "P1").finish_state, "banked");
   assert.equal(seatByMark(afterHost, "P2").resolved, false);
 
   const afterGuest = await play(guest.id);
   assert.equal(afterGuest.room.game.round, 1);
   assert.equal(afterGuest.room.game.round_pending_advance, true);
   assert.equal(seatByMark(afterGuest, "P1").resolved, true);
+  assert.equal(seatByMark(afterGuest, "P1").finish_state, "banked");
   assert.equal(seatByMark(afterGuest, "P1").score, 1000);
   assert.equal(seatByMark(afterGuest, "P2").score, 1000);
 
