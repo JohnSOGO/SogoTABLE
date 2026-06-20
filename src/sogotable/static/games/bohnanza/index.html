@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fff5f5" />
+    <title>Bohnanza Lab</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="lab-shell">
+      <header class="lab-topbar">
+        <div class="lab-title-wrap">
+          <p class="eyebrow">SogoTable Game Lab</p>
+          <div class="lab-title-row">
+            <h1 class="lab-title">Bohnanza</h1>
+            <label class="seat-field" title="Your player number">
+              Seat
+              <input id="localPlayerNumber" type="number" min="1" max="7" value="1" />
+            </label>
+          </div>
+        </div>
+        <div class="lab-topbar-actions">
+          <label class="inline-field">
+            Players
+            <input id="playerCount" type="number" min="2" max="7" value="4" />
+          </label>
+          <label class="inline-field">
+            Seed
+            <input id="seedValue" type="number" value="42" />
+          </label>
+          <button id="newTable" class="primary" type="button">New Table</button>
+        </div>
+      </header>
+
+      <section class="lab-layout">
+        <section class="lab-main">
+          <div id="publicBoard" class="public-board"></div>
+          <section class="panel">
+            <div class="section-head">
+              <h2>My Hand</h2>
+              <span id="turnLabel" class="pill"></span>
+            </div>
+            <div id="privateHand" class="hand-row"></div>
+            <div id="handHint" class="hint"></div>
+          </section>
+          <section class="panel">
+            <div class="section-head">
+              <h2>Turn Controls</h2>
+              <span id="phaseLabel" class="pill"></span>
+            </div>
+            <div class="control-row">
+              <button id="plantFront" class="secondary" type="button">Plant Front Card</button>
+              <button id="harvestField" class="secondary" type="button">Harvest Selected Field</button>
+              <button id="endTurn" class="primary" type="button">End Turn</button>
+            </div>
+            <div id="controlHint" class="hint"></div>
+          </section>
+        </section>
+
+        <aside class="lab-side">
+          <section class="panel">
+            <div class="tabs">
+              <button class="tab active" type="button" data-tab="players">Players</button>
+              <button class="tab" type="button" data-tab="deck">Deck</button>
+              <button class="tab" type="button" data-tab="market">Market</button>
+              <button class="tab" type="button" data-tab="rules">Rules</button>
+            </div>
+            <div id="queryPanel" class="query-panel"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
