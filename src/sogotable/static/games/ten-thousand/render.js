@@ -72,7 +72,7 @@ function renderTenThousandPlay(host, ctx) {
   const complete = game.status === "complete";
 
   host.innerHTML = `
-    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove) : ""}
+    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove, ctx.statusText || "") : ""}
     ${standingsHtml(seats, room, game)}
   `;
 
@@ -80,7 +80,7 @@ function renderTenThousandPlay(host, ctx) {
   wireStandings(host);
 }
 
-function trayHtml(seat, game, pendingMove) {
+function trayHtml(seat, game, pendingMove, statusText = "") {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
   const canAct = game.status === "playing" && !resolved && !pendingMove;
@@ -117,7 +117,7 @@ function trayHtml(seat, game, pendingMove) {
         <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
         <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>
       </div>
-      <p class="ten-thousand-message">${trayMessage(seat)}</p>
+      <p class="ten-thousand-message">${escapeHtml(statusText || trayMessage(seat))}</p>
     </section>`;
 }
 
@@ -128,7 +128,7 @@ function trayMessage(seat) {
   }
   if (seat.phase === "rolled") return "Select scoring dice, then bank or press.";
   if (seat.phase === "selected") return "Bank your turn score or press your luck.";
-  return "";
+  return "Tap Roll to begin.";
 }
 
 function wireTray(host, seat, game, ctx) {

@@ -1801,7 +1801,7 @@ function tenThousandStatusText(room, game, localSeat, seatState) {
   if (seatState.resolved) return "Waiting for the other players to finish the round.";
   if (seatState.phase === "rolled") return "Select scoring dice, then bank or press.";
   if (seatState.phase === "selected") return "Bank your turn score or press your luck.";
-  return "";
+  return "Tap Roll to begin.";
 }
 
 function isStaleRoomSnapshot(current, next) {
@@ -2071,6 +2071,7 @@ function renderGame() {
   document.getElementById("gamePlayersPanel").classList.toggle("hidden", currentRoom.started);
   setGameBoardVisible(true);
   syncBattleshipReviewMark(game);
+  document.getElementById("turnStatus").classList.toggle("hidden", isTenThousandGameState(game));
   renderGamePlayerSwitch();
   if (isBattleshipGameState(game)) {
     renderBattleshipGame(game);
@@ -2084,6 +2085,7 @@ function renderGame() {
     document.getElementById("gamePlayersPanel").classList.add("hidden");
     const localSeat = currentRoom.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
     const tenThousandSeat = localSeat ? (game.players || []).find((seat) => seat.mark === localSeat.mark) : null;
+    const turnText = tenThousandStatusText(currentRoom, game, localSeat, tenThousandSeat);
     renderTenThousandGame({
       host: document.getElementById("macroBoard"),
       game,
@@ -2097,17 +2099,8 @@ function renderGame() {
       addBot: openBotOpponentModal,
       invitePlayer: openInvitePlayerModal,
       escapeHtml,
+      statusText: turnText,
     });
-    if (!currentRoom.started) {
-      showTurnStatus(null, currentRoom.host_id === deviceSelectedPlayerId ? "Add players and bots, then start." : "Waiting for the host to start.");
-    } else if (game.status === "complete") {
-      const winner = currentRoom.players.find((player) => player.mark === game.winner);
-      showTurnStatus(winner, `${winner ? winner.name : "Player"} wins!`);
-      scheduleWinOverlay(winner, game.winner);
-    } else {
-      const turnText = tenThousandStatusText(currentRoom, game, localSeat, tenThousandSeat);
-      showTurnStatus(localSeat || selectedPlayer(), turnText);
-    }
     return;
   }
   if (!currentRoom.started) {
@@ -2979,6 +2972,10 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
+  if (isTenThousandGameState(currentRoom.game)) {
+    host.classList.add("hidden");
+    return;
+  }
   host.classList.remove("hidden");
   const isBattleship = isBattleshipGameState(currentRoom.game);
   const isBattleshipReview = isBattleship && currentRoom.game && currentRoom.game.phase === "complete";
