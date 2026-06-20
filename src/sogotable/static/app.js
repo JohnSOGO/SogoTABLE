@@ -2963,6 +2963,11 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
+  if (isTenThousandGameState(currentRoom.game)) {
+    host.classList.add("hidden");
+    return;
+  }
+  host.classList.remove("hidden");
   const isBattleship = isBattleshipGameState(currentRoom.game);
   const isBattleshipReview = isBattleship && currentRoom.game && currentRoom.game.phase === "complete";
   const battleshipActiveMark = isBattleship && !isBattleshipReview ? visibleBattleshipPlayerMark(currentRoom) : "";

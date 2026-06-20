@@ -85,6 +85,9 @@ function trayHtml(seat, game, pendingMove) {
   const farkled = seat.phase === "farkled";
   const canAct = game.status === "playing" && !resolved && !pendingMove;
   const dice = Array.isArray(seat.dice) ? seat.dice : [];
+  const displayDice = farkled
+    ? dice.map((die) => ({ ...die, selected: false, scored: false }))
+    : dice;
   const lastMove = game.last_move || {};
   const moveCount = Number(game.move_count || 0);
   const animate = !pendingMove
@@ -96,7 +99,7 @@ function trayHtml(seat, game, pendingMove) {
     : new Set();
   if (animate) lastAnimatedMoveCount = moveCount;
 
-  const diceHtml = dice
+  const diceHtml = displayDice
     .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: farkled }))
     .join("");
 
@@ -196,6 +199,7 @@ function standingsHtml(seats, room, game) {
 
 function standingsRow(seat, room, game) {
   const name = seatName(room, seat.mark);
+  const emoji = seatEmoji(room, seat.mark);
   const classes = [
     "tt-standing",
     seat.resolved ? "is-resolved" : "",
@@ -206,7 +210,7 @@ function standingsRow(seat, room, game) {
     <tr class="${classes}">
       <td>
         <button class="tt-standing-player" type="button" data-standing-player="${seat.mark}" title="Tap to show name">
-          <span class="tt-standing-player-icon">${seat.icon || "🙂"}</span>
+          <span class="tt-standing-player-icon">${emoji}</span>
           <span class="tt-standing-player-name">${escapeName(name)}</span>
         </button>
       </td>
@@ -306,6 +310,11 @@ function tenThousandSelectionScore(selected) {
 function markForPlayer(room, playerId) {
   const seat = (room.players || []).find((player) => player.id === playerId);
   return seat ? seat.mark : null;
+}
+
+function seatEmoji(room, mark) {
+  const seat = (room.players || []).find((player) => player.mark === mark);
+  return seat && seat.icon ? seat.icon : "🙂";
 }
 
 function seatName(room, mark) {
