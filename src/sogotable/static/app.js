@@ -2496,9 +2496,18 @@ function renderQuoridorBoard(grid, game, selectedSeat, canSelectedPlayerMove) {
   const currentColor = selectedSeat ? safePlayerColor(selectedSeat) : "#1f7a5f";
   grid.style.setProperty("--quoridor-active-color", currentColor);
   grid.innerHTML = "";
+  grid.addEventListener("click", (event) => {
+    if (!canSelectedPlayerMove || pendingMove || quoridorMode === "wall") return;
+    if (event.target.closest(".quoridor-wall-dot")) return;
+    if (event.target.closest(".quoridor-cell.legal")) return;
+    if (event.target.closest(".quoridor-cell.own-pawn-control")) return;
+    quoridorMode = "wall";
+    quoridorDraftWall = null;
+    renderQuoridorGame(currentRoom.game);
+  });
   for (let row = 0; row < size; row += 1) {
     for (let col = 0; col < size; col += 1) {
-      grid.appendChild(quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMove));
+      grid.appendChild(quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMove, selectedSeat));
     }
   }
   for (let row = 0; row < size - 1; row += 1) {
@@ -2513,7 +2522,7 @@ function renderQuoridorBoard(grid, game, selectedSeat, canSelectedPlayerMove) {
   }
 }
 
-function quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMove) {
+function quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMove, selectedSeat) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "quoridor-cell";
@@ -2531,9 +2540,26 @@ function quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMov
     button.setAttribute("aria-label", `${occupant.name} pawn`);
   }
   const legal = canSelectedPlayerMove && quoridorMode === "pawn" && legalPawnMoves.has(`${row}:${col}`);
+  const ownPawnControl = canSelectedPlayerMove && occupant && selectedSeat && occupant.mark === selectedSeat.mark;
   button.classList.toggle("legal", legal);
-  button.disabled = !legal || Boolean(pendingMove);
+  button.classList.toggle("own-pawn-control", ownPawnControl);
+  button.disabled = Boolean(pendingMove);
   if (legal) button.addEventListener("click", () => makeQuoridorAction({ type: "move_pawn", row, col }));
+  else if (ownPawnControl) {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      quoridorMode = "pawn";
+      quoridorDraftWall = null;
+      renderQuoridorGame(currentRoom.game);
+    });
+  } else if (canSelectedPlayerMove) {
+    button.addEventListener("click", () => {
+      if (pendingMove || quoridorMode === "wall") return;
+      quoridorMode = "wall";
+      quoridorDraftWall = null;
+      renderQuoridorGame(currentRoom.game);
+    });
+  }
   return button;
 }
 
@@ -2574,6 +2600,7 @@ function quoridorWallDot(row, col, legalWalls, canSelectedPlayerMove) {
     button.addEventListener("pointerup", () => cancelQuoridorWallHold(button));
     button.addEventListener("pointercancel", () => cancelQuoridorWallHold(button));
     button.addEventListener("pointerleave", () => cancelQuoridorWallHold(button));
+    button.addEventListener("contextmenu", (event) => event.preventDefault());
   }
   return button;
 }
@@ -2581,6 +2608,7 @@ function quoridorWallDot(row, col, legalWalls, canSelectedPlayerMove) {
 function startQuoridorWallHold(event, button) {
   if (!quoridorDraftWall || pendingMove || !currentRoom || !isQuoridorGameState(currentRoom.game)) return;
   if (!quoridorWallIsLegalDraft(currentRoom.game, quoridorDraftWall)) return;
+  event.preventDefault();
   clearQuoridorWallHold();
   quoridorWallHoldButton = button;
   button.dataset.wallHold = "pending";

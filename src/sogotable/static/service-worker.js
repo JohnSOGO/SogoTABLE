@@ -1,4 +1,4 @@
-const CACHE_NAME = "sogotable-static-v68";
+const CACHE_NAME = "sogotable-static-v69";
 const STATIC_ASSETS = [
   "/assets/intro-screen.png",
   "/assets/icon-192.png",

@@ -1551,6 +1551,9 @@ button.player-switch-button {
   overflow-x: auto;
   padding: 8px 2px;
   touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .quoridor-cell {
@@ -1568,6 +1571,9 @@ button.player-switch-button {
   font-size: clamp(1rem, 5vw, 1.65rem);
   font-weight: 900;
   line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .quoridor-cell.occupied {
@@ -1580,6 +1586,10 @@ button.player-switch-button {
   border-color: var(--quoridor-active-color, var(--accent));
   background: color-mix(in srgb, var(--quoridor-active-color, var(--accent)) 14%, #fff);
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--quoridor-active-color, var(--accent)) 32%, transparent);
+}
+
+.quoridor-cell.own-pawn-control {
+  cursor: pointer;
 }
 
 .quoridor-wall {
@@ -1630,7 +1640,10 @@ button.player-switch-button {
   opacity: 1;
   overflow: hidden;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
 .quoridor-wall-dot::after {
