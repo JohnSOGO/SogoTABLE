@@ -3424,6 +3424,19 @@ function gameAvailabilityText(game) {
 
 function roomRenderKey(room) {
   if (!room) return "";
+  const gameId = canonicalGameId(room.game.game_id);
+  const tenThousandSeats = gameId === "ten_thousand" && Array.isArray(room.game.players)
+    ? room.game.players.map((seat) => ({
+      mark: seat.mark,
+      phase: seat.phase,
+      resolved: seat.resolved,
+      finish_state: seat.finish_state,
+      score: seat.score,
+      turn_score: seat.turn_score,
+      round_score: seat.round_score,
+      farkles: seat.farkles,
+    }))
+    : null;
   return JSON.stringify({
     code: room.code,
     started: room.started,
@@ -3437,7 +3450,7 @@ function roomRenderKey(room) {
       mark: player.mark,
     })),
     game: {
-      game_id: canonicalGameId(room.game.game_id),
+      game_id: gameId,
       boards: room.game.boards,
       small_winners: room.game.small_winners,
       current_player: room.game.current_player,
@@ -3473,6 +3486,7 @@ function roomRenderKey(room) {
       can_roll: room.game.can_roll,
       can_reroll: room.game.can_reroll,
       can_bank: room.game.can_bank,
+      ten_thousand_seats: tenThousandSeats,
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,
