@@ -2526,7 +2526,7 @@ function quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMov
     button.textContent = occupant.icon || "🙂";
     button.setAttribute("aria-label", `${occupant.name} pawn`);
   }
-  const legal = canSelectedPlayerMove && legalPawnMoves.has(`${row}:${col}`);
+  const legal = canSelectedPlayerMove && quoridorMode === "pawn" && legalPawnMoves.has(`${row}:${col}`);
   button.classList.toggle("legal", legal);
   button.disabled = !legal || Boolean(pendingMove);
   if (legal) button.addEventListener("click", () => makeQuoridorAction({ type: "move_pawn", row, col }));
