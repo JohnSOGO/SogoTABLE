@@ -188,6 +188,8 @@ let battleshipPendingDefenceTimer = null;
 let battleshipReviewMark = "";
 let quoridorMode = "pawn";
 let quoridorDraftWall = null;
+let quoridorWallHoldTimer = null;
+let quoridorWallHoldButton = null;
 let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
 let pendingMove = null;
@@ -1566,6 +1568,7 @@ async function makeQuoridorAction(action) {
       player_id: player.id,
       action,
     });
+    clearQuoridorWallHold();
     quoridorDraftWall = null;
     pendingMove = null;
     setRoom(response.room);
@@ -2415,6 +2418,7 @@ function activeBattleshipPendingDefence(room, selectedSeat) {
 }
 
 function renderQuoridorGame(game) {
+  clearQuoridorWallHold();
   const host = document.getElementById("macroBoard");
   host.className = "macro-board quoridor-room-board";
   host.innerHTML = "";
@@ -2555,12 +2559,60 @@ function quoridorWallDot(row, col, legalWalls, canSelectedPlayerMove) {
   button.style.gridRow = String(row * 2 + 2);
   button.style.gridColumn = String(col * 2 + 2);
   button.setAttribute("aria-label", `Wall anchor ${row + 1}, ${col + 1}`);
+  button.innerHTML = '<span class="quoridor-wall-hold-progress" aria-hidden="true"></span>';
   button.disabled = Boolean(pendingMove);
   button.addEventListener("click", () => {
+    if (button.dataset.wallHold === "committed") {
+      button.dataset.wallHold = "";
+      return;
+    }
     quoridorDraftWall = nextQuoridorDraftWall(row, col, horizontalLegal, verticalLegal);
     renderQuoridorGame(currentRoom.game);
   });
+  if (selected) {
+    button.addEventListener("pointerdown", (event) => startQuoridorWallHold(event, button));
+    button.addEventListener("pointerup", () => cancelQuoridorWallHold(button));
+    button.addEventListener("pointercancel", () => cancelQuoridorWallHold(button));
+    button.addEventListener("pointerleave", () => cancelQuoridorWallHold(button));
+  }
   return button;
+}
+
+function startQuoridorWallHold(event, button) {
+  if (!quoridorDraftWall || pendingMove || !currentRoom || !isQuoridorGameState(currentRoom.game)) return;
+  if (!quoridorWallIsLegalDraft(currentRoom.game, quoridorDraftWall)) return;
+  clearQuoridorWallHold();
+  quoridorWallHoldButton = button;
+  button.dataset.wallHold = "pending";
+  button.classList.add("holding");
+  if (event.pointerId !== undefined && button.setPointerCapture) {
+    try {
+      button.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort on older mobile browsers.
+    }
+  }
+  quoridorWallHoldTimer = setTimeout(() => {
+    if (!quoridorDraftWall || button.dataset.wallHold !== "pending") return;
+    button.dataset.wallHold = "committed";
+    button.classList.remove("holding");
+    makeQuoridorAction({ type: "place_wall", ...quoridorDraftWall });
+  }, 1000);
+}
+
+function cancelQuoridorWallHold(button) {
+  if (!button || button.dataset.wallHold === "committed") return;
+  clearQuoridorWallHold();
+}
+
+function clearQuoridorWallHold() {
+  if (quoridorWallHoldTimer) clearTimeout(quoridorWallHoldTimer);
+  quoridorWallHoldTimer = null;
+  if (quoridorWallHoldButton) {
+    quoridorWallHoldButton.classList.remove("holding");
+    if (quoridorWallHoldButton.dataset.wallHold !== "committed") quoridorWallHoldButton.dataset.wallHold = "";
+  }
+  quoridorWallHoldButton = null;
 }
 
 function nextQuoridorDraftWall(row, col, horizontalLegal, verticalLegal) {

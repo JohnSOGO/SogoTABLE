@@ -1628,15 +1628,46 @@ button.player-switch-button {
   background: transparent;
   box-shadow: none;
   opacity: 1;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .quoridor-wall-dot::after {
   content: "";
+  z-index: 2;
   width: clamp(3px, 0.8vw, 4px);
   height: clamp(3px, 0.8vw, 4px);
   border: 1px solid #475569;
   border-radius: 999px;
   background: #fff;
+}
+
+.quoridor-wall-hold-progress {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  z-index: 1;
+  width: clamp(5px, 1.4vw, 7px);
+  height: calc(100% - 8px);
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.86);
+  transform: translateX(-50%) scaleY(0);
+  transform-origin: bottom center;
+  pointer-events: none;
+}
+
+.quoridor-wall-dot.holding .quoridor-wall-hold-progress {
+  animation: quoridor-wall-hold-fill 1s linear forwards;
+}
+
+@keyframes quoridor-wall-hold-fill {
+  from {
+    transform: translateX(-50%) scaleY(0);
+  }
+  to {
+    transform: translateX(-50%) scaleY(1);
+  }
 }
 
 .quoridor-wall-dot:disabled {
