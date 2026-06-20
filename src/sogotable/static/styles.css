@@ -2130,7 +2130,7 @@ button.player-switch-button {
   flex-direction: column;
   gap: 12px;
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
   margin-inline: auto;
 }
 
@@ -2139,7 +2139,7 @@ button.player-switch-button {
   text-align: center;
 }
 
-.tt-lobby-seats {
+.tt-lobby-roster {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2148,9 +2148,9 @@ button.player-switch-button {
   gap: 6px;
 }
 
-.tt-lobby-seat {
+.tt-lobby-player {
   display: grid;
-  grid-template-columns: 28px 1fr auto;
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -2158,14 +2158,35 @@ button.player-switch-button {
   background: var(--turn-soft, #eef2f7);
 }
 
-.tt-seat-no {
+.tt-lobby-player-no {
   font-weight: 700;
   color: var(--muted);
 }
 
-.tt-seat-tag {
+.tt-lobby-player-body {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.tt-lobby-player-body strong,
+.tt-lobby-player-body span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-lobby-player-body span {
   font-size: 0.85em;
   color: var(--muted);
+}
+
+.tt-lobby-empty {
+  list-style: none;
+  padding: 8px 10px;
+  color: var(--muted);
+  text-align: center;
 }
 
 .tt-lobby-actions {

@@ -15,7 +15,7 @@ The product target is simple: family members sitting together at a restaurant ca
 - Progressive Web App shell: complete first pass.
 - Quiet generated UI/game sound: complete first pass.
 - Single-player bot opponent flow: complete first pass.
-- Hosted solo dice game flow: complete first pass with 10,000.
+- Hosted dice game flow: 10,000 with a flexible guest list.
 - Active room history/statistics: future milestone.
 
 ## Stack

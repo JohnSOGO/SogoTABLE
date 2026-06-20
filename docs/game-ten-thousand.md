@@ -1,14 +1,15 @@
 # 10,000
 
-10,000 is the sixth ready SogoTable game and the first hosted solo game.
+10,000 is the sixth ready SogoTable game and the first hosted dice game with a flexible guest list.
 
 ## Shape
 
-- One player.
+- One host player, plus optional guests.
 - Six dice.
 - Goal score: 10,000.
-- Hosted Worker room starts immediately after creation; there is no opponent,
-  invite, or bot seat.
+- Hosted Worker room starts immediately after creation; the lobby shows
+  `Invite Remote Opponent` and `Invite Bot`, and it accepts any number of
+  additional guests.
 - The browser renders animated CSS 3D dice, but the Worker owns final dice
   values, scoring validation, banking, farkles, and completion.
 
@@ -20,7 +21,10 @@
 - If all six dice have scored, the player has hot dice and may reroll all six
   while keeping the current turn score.
 - A roll with no scoring dice is a farkle: the turn score is lost, farkle count
-  increments, and the player may start a new turn.
+  increments, the dice turn red, and the player must acknowledge a popup before
+  continuing.
+- Tapping scoring dice updates the visible `This turn` score immediately; tapping
+  them off subtracts their value again before the move is committed.
 - Banking brings the total score closer to 10,000. Reaching 10,000 completes the
   game and records a high score.
 
