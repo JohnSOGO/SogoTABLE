@@ -158,7 +158,9 @@ migrateStorageNamespace();
 
 let players = [];
 let selectedPlayerId = localStorage.getItem("sogotable.selectedPlayerId") || "";
-let deviceSelectedPlayerId = localStorage.getItem("sogotable.deviceSelectedPlayerId") || selectedPlayerId;
+let deviceSelectedPlayerId = sessionStorage.getItem("sogotable.deviceSelectedPlayerId")
+  || localStorage.getItem("sogotable.deviceSelectedPlayerId")
+  || selectedPlayerId;
 let deviceSelectionHash = localStorage.getItem("sogotable.deviceSelectionHash") || randomTenDigitHash();
 if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
 let selectedGameId = localStorage.getItem("sogotable.selectedGameId") || games[0].id;
@@ -1785,12 +1787,16 @@ function maybeShowTenThousandFarklePrompt(previousRoom, room) {
   if (!localSeat) return;
   const seatState = (room.game.players || []).find((seat) => seat.mark === localSeat.mark);
   if (!seatState || seatState.phase !== "farkled") return;
+  const previousSeatState = previousRoom && previousRoom.code === room.code
+    ? (previousRoom.game && previousRoom.game.players || []).find((seat) => seat.mark === localSeat.mark)
+    : null;
+  if (previousSeatState && previousSeatState.phase === "farkled") return;
+  const lastMove = room.game.last_move || {};
+  if (lastMove.type !== "farkle" || lastMove.mark !== localSeat.mark) return;
   const moveCount = Number(room.game.move_count || 0);
   const nextKey = `${room.code}:${localSeat.mark}:${moveCount}`;
   if (nextKey === lastTenThousandFarkleNoticeKey) return;
   lastTenThousandFarkleNoticeKey = nextKey;
-  const justFarkled = !previousRoom || previousRoom.code !== room.code || Number(previousRoom.game && previousRoom.game.move_count || 0) !== moveCount;
-  if (!justFarkled) return;
   showInfoPrompt("You Farkled!", "Your turn score is lost. Tap OK to continue.")
     .then(async (confirmed) => {
       if (!confirmed) return;
@@ -3293,7 +3299,9 @@ function leaveClosedRoom() {
 }
 
 function selectedPlayer() {
-  return players.find((player) => player.id === selectedPlayerId) || null;
+  return players.find((player) => player.id === deviceSelectedPlayerId)
+    || players.find((player) => player.id === selectedPlayerId)
+    || null;
 }
 
 function deviceSelectedPlayer() {
@@ -3529,7 +3537,7 @@ function saveLocalGameHomePlayers() {
 }
 
 function saveSelectedPlayer() {
-  localStorage.setItem("sogotable.deviceSelectedPlayerId", deviceSelectedPlayerId);
+  sessionStorage.setItem("sogotable.deviceSelectedPlayerId", deviceSelectedPlayerId);
   localStorage.setItem("sogotable.selectedPlayerId", deviceSelectedPlayerId);
   localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
 }
