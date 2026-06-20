@@ -1806,21 +1806,6 @@ function maybeShowTenThousandFarklePrompt(previousRoom, room) {
     });
 }
 
-function tenThousandStatusText(room, game, localSeat, seatState) {
-  if (!room || !game) return "";
-  if (!room.started) return room.host_id === deviceSelectedPlayerId ? "Add players and bots, then start." : "Waiting for the host to start.";
-  if (game.status === "complete") return "Game over.";
-  if (!localSeat || !seatState) return "Waiting for your seat to be ready.";
-  if (game.round_pending_advance) {
-    if (seatState.finish_state === "farkled_pending_ack") return "You Farkled! Round complete. Roll to start the next round.";
-    return "Round complete. Roll to start the next round.";
-  }
-  if (seatState.finish_state === "farkled_pending_ack") return "You Farkled! Press to continue.";
-  if (seatState.finish_state === "farkled_acked" || seatState.finish_state === "banked") return "Waiting for the other players to finish the round.";
-  // Roll/score/bank are self-evident from the buttons — no instructional text.
-  return "";
-}
-
 function isStaleRoomSnapshot(current, next) {
   if (!current || !next || current.code !== next.code) return false;
   const currentRevision = Number(current.revision || 0);
@@ -2088,7 +2073,6 @@ function renderGame() {
   document.getElementById("gamePlayersPanel").classList.toggle("hidden", currentRoom.started);
   setGameBoardVisible(true);
   syncBattleshipReviewMark(game);
-  document.getElementById("turnStatus").classList.toggle("hidden", isTenThousandGameState(game));
   renderGamePlayerSwitch();
   if (isBattleshipGameState(game)) {
     renderBattleshipGame(game);
@@ -2100,9 +2084,8 @@ function renderGame() {
   }
   if (isTenThousandGameState(game)) {
     document.getElementById("gamePlayersPanel").classList.add("hidden");
+    showTurnStatus(null, `Round ${game.round}`);
     const localSeat = currentRoom.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
-    const tenThousandSeat = localSeat ? (game.players || []).find((seat) => seat.mark === localSeat.mark) : null;
-    const turnText = tenThousandStatusText(currentRoom, game, localSeat, tenThousandSeat);
     renderTenThousandGame({
       host: document.getElementById("macroBoard"),
       game,
@@ -2116,7 +2099,6 @@ function renderGame() {
       addBot: openBotOpponentModal,
       invitePlayer: openInvitePlayerModal,
       escapeHtml,
-      statusText: turnText,
     });
     return;
   }

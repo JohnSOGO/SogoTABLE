@@ -27,6 +27,8 @@
 - The standings table publishes a canonical `finish_state` for each seat. The
   UI renders that state as `Status`, green check, red X, or both for an
   acknowledged farkle.
+- The top status banner is just the round number. The lower tray message copy
+  stays empty so the actions and dice are the focus.
 - After all seats have banked or farkled and acknowledged, the round is marked
   complete and the next round starts when a player rolls again.
 - Tapping scoring dice updates the visible `This turn` score immediately; tapping

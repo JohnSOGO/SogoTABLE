@@ -65,14 +65,14 @@ function renderTenThousandLobby(host, ctx) {
 }
 
 function renderTenThousandPlay(host, ctx) {
-  const { room, game, pendingMove, escapeHtml = escapeText } = ctx;
+  const { room, game, pendingMove } = ctx;
   const seats = Array.isArray(game.players) ? game.players : [];
   const localMark = markForPlayer(room, ctx.localPlayerId);
   const localSeat = seats.find((seat) => seat.mark === localMark) || null;
   const complete = game.status === "complete";
 
   host.innerHTML = `
-    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove, ctx.statusText || "", escapeHtml) : ""}
+    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove) : ""}
     ${standingsHtml(seats, room, game)}
   `;
 
@@ -80,7 +80,7 @@ function renderTenThousandPlay(host, ctx) {
   wireStandings(host);
 }
 
-function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeText) {
+function trayHtml(seat, game, pendingMove) {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
   // Keep the busted roll red for the whole farkle state. Drive it off the phase
@@ -118,8 +118,6 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
       <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
       <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>`;
 
-  const message = statusText || trayMessage(seat, game);
-
   return `
     <section class="ten-thousand-tray">
       <div class="ten-thousand-scoreboard">
@@ -129,22 +127,7 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
       </div>
       <div class="ten-thousand-dice" aria-label="Dice">${diceHtml}</div>
       <div class="ten-thousand-actions" aria-label="Dice actions">${actionsHtml}</div>
-      ${message ? `<p class="ten-thousand-message">${escapeHtml(message)}</p>` : ""}
     </section>`;
-}
-
-function trayMessage(seat, game = null) {
-  if (seat.resolved) {
-    if (seat.phase === "farkled") {
-      if (game && game.round_pending_advance) return "You Farkled! Round complete. Roll to start the next round.";
-      return "You Farkled! Waiting for the other players to finish the round.";
-    }
-    if (game && game.round_pending_advance) return "Round complete. Roll to start the next round.";
-    return "Waiting for the other players to finish the round.";
-  }
-  if (game && game.round_pending_advance) return "Round complete. Roll to start the next round.";
-  // Roll/score/bank states need no instructional text — the buttons are clear.
-  return "";
 }
 
 function wireTray(host, seat, game, ctx) {
