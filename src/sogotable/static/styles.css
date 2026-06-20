@@ -2013,6 +2013,7 @@ button.player-switch-button {
   background: transparent;
   perspective: 700px;
   cursor: pointer;
+  transition: transform 200ms ease;
 }
 
 .ten-thousand-die:disabled {
@@ -2028,18 +2029,43 @@ button.player-switch-button {
   height: var(--die-size);
   transform-style: preserve-3d;
   transition: transform 360ms ease, filter 180ms ease;
+}
+
+.die-cube.rolling {
   animation: dice-tumble 900ms cubic-bezier(.2, .8, .25, 1);
+}
+
+/* Lift the whole die on the button so the cube keeps its face rotation
+   (.die-face-N); overriding the cube transform here snapped every die to the
+   front face, which is the 1. */
+.ten-thousand-die.selected,
+.ten-thousand-die.scored {
+  transform: translateY(-8px);
+}
+
+.ten-thousand-die.pending {
+  transform: translateY(-10px);
 }
 
 .ten-thousand-die.selected .die-cube,
 .ten-thousand-die.scored .die-cube {
   filter: drop-shadow(0 8px 10px rgba(31, 122, 95, 0.22));
-  transform: translateY(-8px) rotateX(0deg) rotateY(0deg);
 }
 
 .ten-thousand-die.pending .die-cube {
-  filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0)) drop-shadow(0 0 10px rgba(202, 138, 4, 0.55));
-  transform: translateY(-10px) rotateX(12deg) rotateY(-12deg);
+  filter: drop-shadow(0 0 10px rgba(34, 161, 97, 0.55));
+}
+
+/* Light-green face tint marks dice selected to score. */
+.ten-thousand-die.pending .die-face {
+  border-color: #5cc492;
+  background: linear-gradient(145deg, #e9fbf0, #bfeccf);
+}
+
+.ten-thousand-die.selected .die-face,
+.ten-thousand-die.scored .die-face {
+  border-color: #8ad3ad;
+  background: linear-gradient(145deg, #eef9f3, #d2ecdc);
 }
 
 .die-face {
