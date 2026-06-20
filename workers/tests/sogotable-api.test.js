@@ -258,6 +258,18 @@ test("creates, lists, and deletes players", async () => {
   assert.deepEqual(deleted.players, []);
 });
 
+test("reserved Codex test players are hidden from public roster and lobby", async () => {
+  const env = makeEnv();
+  await post(env, "/api/players/create", { player: { id: "codex-test-player-1" } });
+  await post(env, "/api/lobby/presence", { game_id: "super_tic_tac_toe", id: "codex-test-player-1" });
+
+  const listed = await get(env, "/api/players");
+  const lobby = await get(env, "/api/lobby?game_id=super_tic_tac_toe");
+
+  assert.equal(listed.players.some((item) => item.id === "codex-test-player-1"), false);
+  assert.equal(lobby.players.some((item) => item.id === "codex-test-player-1"), false);
+});
+
 test("lists ready games from the hosted game registry", async () => {
   const env = makeEnv();
   const listed = await get(env, "/api/games");
@@ -1400,6 +1412,67 @@ test("public game stats exclude missing players without capping rows", async () 
   assert.equal(stats.stats.ratings.length, 6);
   assert.equal(stats.stats.high_scores.some((entry) => entry.player_id === "missing"), false);
   assert.equal(stats.stats.ratings.some((entry) => entry.player_id === "missing"), false);
+});
+
+test("public game stats exclude hidden test players", async () => {
+  const env = makeEnv();
+  const visible = player("visible", "Visible Player");
+  await post(env, "/api/players/create", { player: visible });
+  await post(env, "/api/players/create", { player: { id: "codex-test-player-1" } });
+  mutateState(env, (data) => {
+    data.stats = {
+      high_scores: {
+        [TACTICAL_GAME_ID]: [
+          {
+            player_id: visible.id,
+            player_name: visible.name,
+            player_icon: visible.icon,
+            score: 12,
+            recorded_at: "2026-06-09T00:00:00Z",
+          },
+          {
+            player_id: "codex-test-player-1",
+            player_name: "Codex Test 1",
+            player_icon: "T",
+            score: 999,
+            recorded_at: "2026-06-09T00:00:01Z",
+          },
+        ],
+      },
+      ratings: {
+        [TACTICAL_GAME_ID]: {
+          [visible.id]: {
+            player_id: visible.id,
+            player_name: visible.name,
+            player_icon: visible.icon,
+            rating: 1000,
+            games: 1,
+            wins: 0,
+            losses: 0,
+            draws: 1,
+          },
+          "codex-test-player-1": {
+            player_id: "codex-test-player-1",
+            player_name: "Codex Test 1",
+            player_icon: "T",
+            rating: 3000,
+            games: 1,
+            wins: 1,
+            losses: 0,
+            draws: 0,
+          },
+        },
+      },
+      personal: {},
+    };
+  });
+
+  const stats = await get(env, `/api/stats?game_id=${TACTICAL_GAME_ID}`);
+
+  assert.equal(stats.stats.high_scores.length, 1);
+  assert.equal(stats.stats.ratings.length, 1);
+  assert.equal(stats.stats.high_scores[0].player_id, visible.id);
+  assert.equal(stats.stats.ratings[0].player_id, visible.id);
 });
 
 test("tactical score goal alone does not end the game", async () => withMockRandom([0], async () => {

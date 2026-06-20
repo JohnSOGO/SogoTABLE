@@ -92,6 +92,11 @@ const BOT_DEFINITIONS = [
   { id: "b64d20f19a8c", name: "Corner Cade", icon: "\u2B50", color: "#1f7a5f", rating: 1000, strategy: "random" },
   { id: "5e2c8a71d0f4", name: "Lucky Lina", icon: "\uD83C\uDF40", color: "#b7791f", rating: 1000, strategy: "random" },
 ];
+const RESERVED_TEST_PLAYERS = [
+  { id: "codex-test-player-1", name: "Codex Test 1", icon: "\uD83E\uDDEA", color: "#4f46e5", kind: "test", hidden: true },
+  { id: "codex-test-player-2", name: "Codex Test 2", icon: "\uD83E\uDDEA", color: "#be123c", kind: "test", hidden: true },
+];
+const RESERVED_TEST_PLAYER_IDS = new Set(RESERVED_TEST_PLAYERS.map((player) => player.id));
 const TACTICAL_TESS_BOT_ID = "0f8a3c9d1e72";
 const TACTICAL_PICKUP_CONFIG = {
   coin: {
@@ -385,7 +390,7 @@ function closeSocketQuietly(socket, code, reason) {
 async function routeRequest(method, url, payload, data, options = {}) {
   const autoBotMoves = options.autoBotMoves !== false;
   if (method === "GET" && url.pathname === "/api/games") return { ok: true, games: GAME_DEFINITIONS.map(publicGameDefinition) };
-  if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: data.players };
+  if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: publicPlayers(data) };
   if (method === "GET" && url.pathname === "/api/bots") {
     cleanGameId(url.searchParams.get("game_id") || DEFAULT_GAME_ID);
     return { ok: true, bots: BOT_DEFINITIONS.map(publicBot) };
@@ -410,7 +415,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       upsertPlayer(data, player);
       const rooms = refreshActiveRoomPlayer(data, player).map((room) => roomToDict(data, room));
       refreshPlayerStats(data, player);
-      return { ok: true, player, players: data.players, rooms };
+      return { ok: true, player, players: publicPlayers(data), rooms };
     }
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
@@ -422,7 +427,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
         const invite = data.invites[inviteId];
         if (invite.host_id === playerId || invite.target_id === playerId) delete data.invites[inviteId];
       });
-      return { ok: true, players: data.players };
+      return { ok: true, players: publicPlayers(data) };
     }
     if (method === "GET" && url.pathname === "/api/lobby") {
       return { ok: true, players: lobbyViewers(data, url.searchParams.get("game_id") || "") };
@@ -885,8 +890,11 @@ function gameIdMatches(candidate, gameId) {
 
 function playerFromPayload(payload) {
   const player = payload.player || payload;
+  const rawId = String(player.id || "").trim().slice(0, 80);
+  const reservedTestPlayer = reservedTestPlayerFromId(rawId);
+  if (reservedTestPlayer) return { ...reservedTestPlayer };
   const clean = {
-    id: String(player.id || "").trim().slice(0, 80),
+    id: rawId,
     name: String(player.name || "").trim().slice(0, 24),
     icon: String(player.icon || "🙂").slice(0, 8),
     color: safeHexColor(player.color || "#2f80ed"),
@@ -895,6 +903,18 @@ function playerFromPayload(payload) {
   if (player.bot_id) clean.bot_id = String(player.bot_id).trim().slice(0, 80);
   if (!clean.id || !clean.name) throw new Error("Player id and name are required.");
   return clean;
+}
+
+function reservedTestPlayerFromId(playerId) {
+  return RESERVED_TEST_PLAYERS.find((player) => player.id === playerId) || null;
+}
+
+function isHiddenPlayer(player) {
+  return Boolean(player && (player.hidden || player.kind === "test" || RESERVED_TEST_PLAYER_IDS.has(player.id)));
+}
+
+function publicPlayers(data) {
+  return (data.players || []).filter((player) => !isHiddenPlayer(player));
 }
 
 function publicBot(bot) {
@@ -1319,6 +1339,7 @@ function lobbyViewers(data, gameId) {
   pruneLobbyViewers(data);
   return Object.values(data.lobbyViewers)
     .filter((viewer) => !gameId || gameIdMatches(viewer.game_id, gameId))
+    .filter((viewer) => !isHiddenPlayer(viewer.player))
     .map((viewer) => viewer.player);
 }
 
@@ -2943,7 +2964,7 @@ function applyEloRecord(entry, score) {
 function publicStatsForGame(data, gameId) {
   ensureStats(data);
   const lookupIds = gameIdsForLookup(gameId);
-  const selectablePlayerIds = new Set((data.players || []).map((player) => player.id));
+  const selectablePlayerIds = new Set(publicPlayers(data).map((player) => player.id));
   const ratingsByPlayer = new Map();
   lookupIds.forEach((id) => {
     Object.values(data.stats.ratings[id] || {}).forEach((entry) => {

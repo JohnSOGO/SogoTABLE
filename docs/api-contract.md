@@ -31,7 +31,9 @@ Player shape:
 
 ### `GET /api/players`
 
-Returns the shared player roster.
+Returns the shared player roster. Reserved hidden test players are accepted by
+write endpoints for smoke testing, but they are filtered from this public roster,
+lobby presence, and public game stats.
 
 ```json
 {
