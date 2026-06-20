@@ -54,20 +54,71 @@ export function renderTenThousandGame({
   `;
 
   const selectButton = host.querySelector('[data-action="select"]');
-  host.querySelectorAll(".ten-thousand-die").forEach((button) => {
+  const valueById = new Map(dice.map((die) => [die.id, Number(die.value) || 0]));
+  const dieButtons = [...host.querySelectorAll(".ten-thousand-die")];
+
+  function refreshSelection() {
+    const selected = [...selectedDice].map((id) => ({ id, value: valueById.get(id) }));
+    const scoringIds = tenThousandScoringIds(selected);
+    dieButtons.forEach((button) => {
+      const id = button.dataset.dieId;
+      const isSelected = selectedDice.has(id);
+      const scores = isSelected && scoringIds.has(id);
+      button.classList.toggle("pending", isSelected);
+      button.classList.toggle("select-score", scores);
+      button.classList.toggle("select-bust", isSelected && !scores);
+    });
+    // Enable scoring only when every selected die contributes (matches the
+    // worker, which rejects a selection with any non-scoring die).
+    selectButton.disabled = !selected.length || selected.some((die) => !scoringIds.has(die.id));
+  }
+
+  dieButtons.forEach((button) => {
     button.addEventListener("click", () => {
       if (!canAct || button.disabled) return;
       const id = button.dataset.dieId;
       if (selectedDice.has(id)) selectedDice.delete(id);
       else selectedDice.add(id);
-      button.classList.toggle("pending", selectedDice.has(id));
-      selectButton.disabled = selectedDice.size === 0;
+      refreshSelection();
     });
   });
   host.querySelector('[data-action="roll"]').addEventListener("click", () => makeMove({ type: "roll" }));
   host.querySelector('[data-action="reroll"]').addEventListener("click", () => makeMove({ type: "reroll" }));
   host.querySelector('[data-action="bank"]').addEventListener("click", () => makeMove({ type: "bank" }));
   selectButton.addEventListener("click", () => makeMove({ type: "select", dice_ids: [...selectedDice] }));
+}
+
+// Mirrors the worker's scoring rules so dice can be coloured live as they are
+// tapped (selection never round-trips to the server). Returns the set of
+// selected die ids that contribute to a score; the rest are non-scoring (red).
+function tenThousandScoringIds(selected) {
+  const scoring = new Set();
+  if (!selected.length) return scoring;
+  if (selected.length === 6) {
+    const counts = [0, 0, 0, 0, 0, 0];
+    selected.forEach((die) => {
+      if (die.value >= 1 && die.value <= 6) counts[die.value - 1] += 1;
+    });
+    const straight = counts.every((count) => count === 1);
+    const threePairs = counts.filter((count) => count === 2).length === 3;
+    if (straight || threePairs) {
+      selected.forEach((die) => scoring.add(die.id));
+      return scoring;
+    }
+  }
+  const byFace = new Map();
+  selected.forEach((die) => {
+    if (!byFace.has(die.value)) byFace.set(die.value, []);
+    byFace.get(die.value).push(die.id);
+  });
+  byFace.forEach((ids, face) => {
+    if (face === 1 || face === 5) {
+      ids.forEach((id) => scoring.add(id)); // single 1s and 5s always score
+    } else if (ids.length >= 3) {
+      ids.slice(0, 3).forEach((id) => scoring.add(id)); // one triple scores; extras do not
+    }
+  });
+  return scoring;
 }
 
 function dieHtml(die, rolling = false) {
