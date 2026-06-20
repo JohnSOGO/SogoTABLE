@@ -448,6 +448,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const rooms = Object.values(data.rooms)
         .filter((room) => ["waiting_for_player", "active"].includes(roomStatus(room)))
         .filter((room) => !gameId || gameIdMatches(room.game_id, gameId))
+        .filter((room) => !isHiddenTestRoom(room))
         .map((room) => roomSummary(room));
       return { ok: true, rooms };
     }
@@ -726,6 +727,7 @@ function eventSnapshotForGame(data, gameId) {
     rooms: Object.values(data.rooms)
       .filter((room) => ["waiting_for_player", "active"].includes(roomStatus(room)))
       .filter((room) => gameIdMatches(room.game_id, cleanId))
+      .filter((room) => !isHiddenTestRoom(room))
       .map((room) => roomSummary(room)),
     lobby_players: lobbyViewers(data, cleanId),
     pending_invites_by_player: pendingInvitesByPlayer,
@@ -915,6 +917,10 @@ function isHiddenPlayer(player) {
 
 function publicPlayers(data) {
   return (data.players || []).filter((player) => !isHiddenPlayer(player));
+}
+
+function isHiddenTestRoom(room) {
+  return Boolean(room && Array.isArray(room.players) && room.players.some(isHiddenPlayer));
 }
 
 function publicBot(bot) {

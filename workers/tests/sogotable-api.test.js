@@ -270,6 +270,18 @@ test("reserved Codex test players are hidden from public roster and lobby", asyn
   assert.equal(lobby.players.some((item) => item.id === "codex-test-player-1"), false);
 });
 
+test("reserved Codex test rooms are hidden from public room lists", async () => {
+  const env = makeEnv();
+  await post(env, "/api/players/create", { player: { id: "codex-test-player-1" } });
+  await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: { id: "codex-test-player-1" }, code: "HIDE" });
+
+  const publicRooms = await get(env, "/api/rooms?game_id=super_tic_tac_toe");
+  const ownRoom = await get(env, "/api/rooms?game_id=super_tic_tac_toe&player_id=codex-test-player-1");
+
+  assert.equal(publicRooms.rooms.some((room) => room.code === "HIDE"), false);
+  assert.equal(ownRoom.active_room.code, "HIDE");
+});
+
 test("lists ready games from the hosted game registry", async () => {
   const env = makeEnv();
   const listed = await get(env, "/api/games");
