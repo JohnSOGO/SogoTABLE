@@ -1767,6 +1767,7 @@ function setRoom(room) {
   const previousRoom = currentRoom;
   currentRoom = room;
   clearResolvedPendingMove(room);
+  maybeShowTenThousandFarklePrompt(previousRoom, room);
   const roomKey = roomRenderKey(room);
   if (roomKey === lastRenderedRoomKey) return;
   lastRenderedRoomKey = roomKey;
@@ -1777,7 +1778,6 @@ function setRoom(room) {
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
   renderGame();
-  maybeShowTenThousandFarklePrompt(previousRoom, room);
   handleIncomingResetRequest();
 }
 

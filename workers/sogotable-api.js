@@ -1705,12 +1705,7 @@ function finishTenThousandRoll(seat) {
   const rolledDice = seat.dice.filter((die) => die.rolling);
   seat.dice.forEach((die) => { die.rolling = false; });
   if (!tenThousandHasAnyScoringSet(rolledDice.map((die) => die.value))) {
-    seat.turn_score = 0;
-    seat.round_score = 0;
-    seat.farkles += 1;
-    seat.phase = "farkled";
-    seat.finish_state = "farkled_pending_ack";
-    seat.resolved = false;
+    resolveTenThousandFarkle(seat, false);
     return;
   }
   seat.phase = "rolled";
@@ -1719,9 +1714,7 @@ function finishTenThousandRoll(seat) {
 
 function acknowledgeTenThousandFarkle(game, seat) {
   if (seat.phase !== "farkled") throw new Error("There is no farkle to acknowledge.");
-  seat.resolved = true;
-  seat.finish_state = "farkled_acked";
-  seat.phase = "done";
+  resolveTenThousandFarkle(seat, true, false);
 }
 
 function selectTenThousandDice(seat, diceIds) {
@@ -1807,6 +1800,15 @@ function resolveTenThousandBots(game) {
   });
 }
 
+function resolveTenThousandFarkle(seat, acknowledged = false, countFarkle = true) {
+  seat.turn_score = 0;
+  seat.round_score = 0;
+  if (countFarkle) seat.farkles += 1;
+  seat.phase = acknowledged ? "done" : "farkled";
+  seat.finish_state = acknowledged ? "farkled_acked" : "farkled_pending_ack";
+  seat.resolved = Boolean(acknowledged);
+}
+
 // Plays a bot's entire round in one shot (Level 2 policy by default).
 function playTenThousandBotRound(game, mark, seat) {
   for (let guard = 0; guard < 50; guard += 1) {
@@ -1814,7 +1816,7 @@ function playTenThousandBotRound(game, mark, seat) {
     else if (seat.phase === "selected") rerollTenThousandDice(seat);
     if (seat.resolved) return; // farkled
     const keep = bestTenThousandKeep(seat.dice);
-    if (!keep.ids.length) { seat.phase = "farkled"; seat.turn_score = 0; seat.resolved = true; return; }
+    if (!keep.ids.length) { resolveTenThousandFarkle(seat, true); return; }
     selectTenThousandDice(seat, keep.ids);
     if (tenThousandBotShouldBank(game, seat)) {
       bankTenThousandScore(game, mark, seat);
@@ -1823,7 +1825,7 @@ function playTenThousandBotRound(game, mark, seat) {
   }
   // Safety: never loop forever — bank whatever is on the table.
   if (seat.phase === "selected" && seat.turn_score > 0) bankTenThousandScore(game, mark, seat);
-  else { seat.phase = "farkled"; seat.turn_score = 0; seat.resolved = true; }
+  else resolveTenThousandFarkle(seat, true);
 }
 
 function tenThousandBotShouldBank(game, seat) {

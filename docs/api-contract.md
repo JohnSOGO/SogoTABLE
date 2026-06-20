@@ -646,6 +646,8 @@ values, and waits for `ack_farkle` before the round is marked complete. Each
 seat publishes a canonical `finish_state` so the UI can render a status table
 without inferring state from prompts or buttons. The next round starts on the
 next roll after everyone has banked or busted and acknowledged their popup.
+The farkled seat also exposes a visible OK action in the tray so a missed popup
+cannot trap the turn.
 
 ## Reset
 

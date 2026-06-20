@@ -102,6 +102,13 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
   const diceHtml = displayDice
     .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: farkled }))
     .join("");
+  const actionsHtml = farkled && !resolved
+    ? `<button class="primary" type="button" data-action="ack">OK - Continue</button>`
+    : `
+      <button class="primary" type="button" data-action="roll" ${canAct && seat.can_roll ? "" : "disabled"}>Roll</button>
+      <button class="secondary" type="button" data-action="select" disabled>Score Selected</button>
+      <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
+      <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>`;
 
   return `
     <section class="ten-thousand-tray">
@@ -111,12 +118,7 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
         <div><span class="label">Farkles</span><strong>${fmt(seat.farkles)}</strong></div>
       </div>
       <div class="ten-thousand-dice" aria-label="Dice">${diceHtml}</div>
-      <div class="ten-thousand-actions" aria-label="Dice actions">
-        <button class="primary" type="button" data-action="roll" ${canAct && seat.can_roll ? "" : "disabled"}>Roll</button>
-        <button class="secondary" type="button" data-action="select" disabled>Score Selected</button>
-        <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
-        <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>
-      </div>
+      <div class="ten-thousand-actions" aria-label="Dice actions">${actionsHtml}</div>
       <p class="ten-thousand-message">${escapeHtml(statusText || trayMessage(seat, game))}</p>
     </section>`;
 }
@@ -177,6 +179,7 @@ function wireTray(host, seat, game, ctx) {
       if (!button.disabled) makeMove(build());
     });
   };
+  action('[data-action="ack"]', () => ({ type: "ack_farkle" }));
   action('[data-action="roll"]', () => ({ type: "roll" }));
   action('[data-action="reroll"]', () => ({ type: "reroll" }));
   action('[data-action="bank"]', () => ({ type: "bank" }));
@@ -196,7 +199,7 @@ function standingsHtml(seats, room, game) {
   return `
     <section class="ten-thousand-standings" aria-label="Standings">
       <table>
-        <thead><tr><th>Player</th><th aria-label="Status">?</th><th>Farkle</th><th>Score</th></tr></thead>
+        <thead><tr><th>Player</th><th aria-label="Status">Status</th><th>Farkle</th><th>Score</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </section>`;
@@ -221,7 +224,7 @@ function standingsRow(seat, room, game) {
       </td>
       <td class="tt-standing-status" title="${escapeName(status.title)}">${status.html}</td>
       <td>${fmt(seat.farkles)}</td>
-      <td><strong>${fmt(seat.score)}</strong></td>
+      <td><strong>${fmt(seat.score)}</strong>${seat.turn_score > 0 ? `<span class="tt-standing-turn">+${fmt(seat.turn_score)}</span>` : ""}</td>
     </tr>`;
 }
 
@@ -234,6 +237,13 @@ function standingStatusIcon(seat, game) {
   if (seat.finish_state === "farkled_pending_ack") return { html: '<span class="tt-status-bad">&#10060;</span>', title: "Farkled, waiting for OK" };
   if (seat.finish_state === "banked") return { html: '<span class="tt-status-good">&#9989;</span>', title: "Banked this round" };
   if (seat.finish_state === "farkled_acked") return { html: '<span class="tt-status-bad">&#10060;</span><span class="tt-status-good">&#9989;</span>', title: "Farkled and acknowledged" };
+  if (seat.phase === "rolled" || seat.phase === "selected") {
+    const score = Number(seat.turn_score || 0);
+    return {
+      html: `<span class="tt-status-wait">&#9203;</span>${score > 0 ? `<span class="tt-status-inline">${fmt(score)}</span>` : ""}`,
+      title: score > 0 ? `Active turn, ${fmt(score)} this round` : "Rolling this turn",
+    };
+  }
   return { html: '<span class="tt-status-wait">&#9203;</span>', title: "Waiting for this player to finish" };
 }
 

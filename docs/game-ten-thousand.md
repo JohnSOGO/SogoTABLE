@@ -22,9 +22,10 @@
   while keeping the current turn score.
 - A roll with no scoring dice is a farkle: the turn score is lost, farkle count
   increments, the dice stay on their final rolled values, the dice turn red,
-  and the player must acknowledge a popup before continuing.
+  and the player must acknowledge a popup or the in-tray OK button before
+  continuing.
 - The standings table publishes a canonical `finish_state` for each seat. The
-  UI renders that state as `?` status, green check, red X, or both for an
+  UI renders that state as `Status`, green check, red X, or both for an
   acknowledged farkle.
 - After all seats have banked or farkled and acknowledged, the round is marked
   complete and the next round starts when a player rolls again.
