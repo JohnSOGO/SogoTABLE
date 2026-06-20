@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fff5f5" />
+    <title>Dots and Boxes Lab</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="boxes-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">SogoTable Game Lab</p>
+          <h1>Dots and Boxes</h1>
+        </div>
+        <div class="controls">
+          <label>
+            Mode
+            <select id="mode">
+              <option value="local">2 Player Local</option>
+              <option value="bot">Vs AI</option>
+              <option value="remote">Remote Preview</option>
+            </select>
+          </label>
+          <label>
+            Rows
+            <input id="rows" type="number" min="2" max="8" value="8" />
+          </label>
+          <label>
+            Columns
+            <input id="cols" type="number" min="2" max="8" value="5" />
+          </label>
+          <button id="newGame" type="button">New Game</button>
+        </div>
+      </header>
+
+      <section class="status-panel">
+        <strong id="status"></strong>
+        <span id="hint"></span>
+        <span id="remoteNote" hidden></span>
+      </section>
+
+      <section id="board" class="board-host"></section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

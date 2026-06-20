@@ -174,3 +174,18 @@ export function playLose() {
     { frequency: 294, duration: 0.12, type: "triangle", volume: 0.026, delay: 0.1 },
   ]);
 }
+
+export function playBattleshipHit() {
+  playSequence([
+    { frequency: 130, duration: 0.08, type: "sawtooth", volume: 0.038, slideTo: 82 },
+    { frequency: 76, duration: 0.14, type: "square", volume: 0.034, delay: 0.07 },
+    { frequency: 420, duration: 0.05, type: "triangle", volume: 0.024, delay: 0.18, slideTo: 240 },
+  ]);
+}
+
+export function playBattleshipMiss() {
+  playSequence([
+    { frequency: 260, duration: 0.06, type: "sine", volume: 0.026, slideTo: 380 },
+    { frequency: 190, duration: 0.08, type: "triangle", volume: 0.023, delay: 0.08, slideTo: 150 },
+  ]);
+}

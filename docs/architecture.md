@@ -121,9 +121,23 @@ coordination and D1 for durable shared state.
 
 ## Game Logic
 
-Super Tic Tac Toe and Super Tic Tactical Toe rules currently live in the Worker because the Worker is the production brain. The shared room and lobby shell is global for two-player games; game-specific behavior should live in game-state creation, move validation/application, and board rendering.
+Super Tic Tac Toe, Super Tic Tactical Toe, and Dots and Boxes rules currently live in the Worker because the Worker is the production brain. The shared room and lobby shell is global for two-player games; game-specific behavior should live in game-state creation, move validation/application, and board rendering.
 
-When adding future games, add game definitions to the Worker-hosted `/api/games` registry and add game-specific logic through clear modules or clearly named Worker sections. The browser can keep a tiny fallback registry for startup resilience, but hosted game metadata is the preferred source for the menu. Do not bury a second game inside UI rendering code.
+Browser-side game modules live under `src/sogotable/static/games/`. Super Tic
+Tac Toe owns the shared nested-board renderer in `super-tic-tac-toe/`; Super
+Tic Tactical Toe has its own module boundary in `super-tic-tactical-toe/` and
+reuses that renderer with Worker-owned pickup and score fields.
+
+New local game work should live under `src/sogotable/static/games/<game-id>/` as a dedicated module, keeping manifest, rules, state, and rendering separated from the main shell.
+
+When adding future games, add game definitions to the Worker-hosted `/api/games` registry and add game-specific logic through clear modules or clearly named Worker sections. The browser can keep a tiny fallback registry for startup resilience, but hosted game metadata is the preferred source for the menu. Do not bury additional games inside unrelated UI rendering code.
+
+Dots and Boxes uses the same room shell as the Super Tic Tac Toe games but has its own Worker rule path. Its hosted moves carry a `line_id` instead of `board` and `cell`, and its browser board renderer is selected by game id.
+
+Battleship also uses the shared room shell and has a dedicated Worker rule path.
+Its hosted moves carry an `action` object for setup and attacks. The game owns
+explicit `setup`, `playing`, and `complete` phases, and the browser renders
+offence/defence views from the authoritative room snapshot.
 
 ## Timing Modes
 
@@ -157,6 +171,8 @@ Current helper split:
 - `html-utils.js`: escaping and avatar HTML.
 
 Future cleanup should continue extracting stable helpers first. Do not split the state machine until the screen/controller boundary is obvious.
+
+Game modules should follow the same discipline: keep rules pure, keep rendering isolated, and keep the module entrypoint small enough to reuse when the game is later promoted into the hosted SogoTable integration path.
 
 ## HTTP Endpoints
 

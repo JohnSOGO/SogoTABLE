@@ -38,16 +38,25 @@ Current ready game ids:
 
 - `a3f19c6e42b8`
 - `d7e4a91f0c23`
+- `4b7e2d9a6c10`
+- `9c2f7a81d4e6`
 
 Legacy game id aliases accepted by the hosted brain:
 
 - `super_tic_tac_toe`
 - `super_tactical_tac_toe`
+- `boxes`
+- `dots_and_boxes`
+- `dots_and_dashes`
+- `battleship`
+- `battle_ship`
 
 Display names:
 
 - `Super Tic Tac Toe`
 - `Super Tic Tactical Toe`
+- `Dots and Boxes`
+- `Battleship`
 
 ### Room
 
@@ -254,6 +263,7 @@ Current game list:
 
 - `Super Tic Tac Toe`
 - `Super Tic Tactical Toe`
+- `Dots and Boxes`
 
 Game button behavior:
 
@@ -712,12 +722,13 @@ Current live updates are event-first with conservative timed fallback.
 
 ## Global Two-Player Lobby
 
-Super Tic Tac Toe and Super Tic Tactical Toe use the same selected-game lobby architecture.
+Super Tic Tac Toe, Super Tic Tactical Toe, and Dots and Boxes use the same selected-game lobby architecture.
 
 - Player/game selection, selected-game lobby presence, open/in-progress room cards, create/re-enter, local opponent selection, remote invites, reset, exit, and room WebSockets are global two-player behavior.
-- Lobby design changes should apply to both ready two-player games unless a later game explicitly introduces a different room model.
+- Lobby design changes should apply to ready two-player games unless a later game explicitly introduces a different room model.
 - Game-specific code should start at the board/rules/rendering layer, not at the lobby layer.
 - Super Tic Tactical Toe adds Worker-owned pickups and scores, but it does not add a custom lobby.
+- Dots and Boxes adds Worker-owned line claims, box ownership, and scores, but it does not add a custom lobby.
 - The selected-game lobby panel shows only the `Lobby` heading and players currently in that game lobby. A tappable `ELO` or `High Scores` link sits on the same heading row at far right and opens a popup with one compact stats table, visually matching the clean player-stats table and using only one separator line under the header. Do not cap popup rows; let the popup scroll when needed. Super Tic Tac Toe shows only ELO ratings because score has no meaning there. Super Tic Tactical Toe shows only high scores because tactical score is the meaningful lobby comparison there. Stat rows must only include active selectable roster players, not deleted/missing player ids.
 - In Super Tic Tactical Toe, score alone does not end the game. The game ends on a three-zone macro line, then the highest final score wins. If scores are tied on the line-completing move, the line completer wins.
 

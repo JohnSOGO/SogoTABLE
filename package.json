@@ -8,6 +8,7 @@
     "test:worker": "node --test workers/tests/*.test.js"
   },
   "devDependencies": {
+    "playwright": "^1.61.0",
     "wrangler": "^4.0.0"
   }
 }

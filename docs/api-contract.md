@@ -104,6 +104,24 @@ Returns the hosted game registry used by the browser game menu.
       "status": "Ready",
       "availability": "ready",
       "aliases": ["super_tic_tac_toe"]
+    },
+    {
+      "id": "4b7e2d9a6c10",
+      "name": "Dots and Boxes",
+      "summary": "Claim edges between dots, complete boxes, and keep the turn when you score.",
+      "players": "2 players",
+      "status": "Ready",
+      "availability": "ready",
+      "aliases": ["boxes", "dots_and_boxes", "dots_and_dashes"]
+    },
+    {
+      "id": "9c2f7a81d4e6",
+      "name": "Battleship",
+      "summary": "Place your fleet, switch between defence and offence, and sink the enemy ships.",
+      "players": "2 players",
+      "status": "Ready",
+      "availability": "ready",
+      "aliases": ["battleship", "battle_ship"]
     }
   ]
 }
@@ -172,11 +190,18 @@ Canonical `game_id` values:
 
 - `a3f19c6e42b8` - Super Tic Tac Toe
 - `d7e4a91f0c23` - Super Tic Tactical Toe
+- `4b7e2d9a6c10` - Dots and Boxes
+- `9c2f7a81d4e6` - Battleship
 
 Legacy aliases accepted for compatibility:
 
 - `super_tic_tac_toe`
 - `super_tactical_tac_toe`
+- `boxes`
+- `dots_and_boxes`
+- `dots_and_dashes`
+- `battleship`
+- `battle_ship`
 
 Super Tic Tactical Toe room game state reuses the base nested-board fields and adds `pickups`, `scores`, `captures`, `events`, and `last_event`. Pickups and scores are authoritative Worker state.
 
@@ -185,6 +210,16 @@ When a tactical game ends on a three-zone macro line, `line_winner` records the 
 Super Tic Tactical Toe product language calls each local 3x3 area a `zone`.
 Current runtime payloads may still include legacy `sector` field names; in those
 payloads, `sector` means `zone`.
+
+Dots and Boxes room game state uses `rows`, `cols`, `lines`, `boxes`,
+`current_player`, `scores`, `last_move`, `events`, and `legal_lines`. Line ids
+use `h-row-col` for horizontal edges and `v-row-col` for vertical edges.
+
+Battleship room game state uses `phase`, `status`, `players`, `current_player`,
+`winner`, `fleet`, `events`, and `last_move`. Valid phases are `setup`,
+`playing`, and `complete`. Each player state includes `ready`, `ships`, and
+`shots`; ships use `{ id, name, size, cells }` and shots use
+`{ row, col, result }`.
 
 ## Game Stats
 
@@ -448,6 +483,52 @@ Request:
 }
 ```
 
+Dots and Boxes move request:
+
+```json
+{
+  "code": "ABCD",
+  "player_id": "player-id",
+  "line_id": "h-0-0"
+}
+```
+
+Battleship move requests use an action object. Setup can auto-place a valid
+fleet:
+
+```json
+{
+  "code": "ABCD",
+  "player_id": "player-id",
+  "action": { "type": "auto_place" }
+}
+```
+
+Setup can also submit a complete manually placed fleet:
+
+```json
+{
+  "code": "ABCD",
+  "player_id": "player-id",
+  "action": {
+    "type": "place_fleet",
+    "ships": [
+      { "id": "carrier", "cells": [{"row": 0, "col": 0}] }
+    ]
+  }
+}
+```
+
+During play, attacks use a target cell:
+
+```json
+{
+  "code": "ABCD",
+  "player_id": "player-id",
+  "action": { "type": "attack", "row": 4, "col": 6 }
+}
+```
+
 Response:
 
 ```json
@@ -462,6 +543,15 @@ Invalid moves return `{ "ok": false, "error": "..." }`.
 For Super Tic Tactical Toe, valid moves may also update `game.pickups`, `game.scores`, `game.captures`, `game.events`, and `game.last_event`. The browser must render these values, not invent them locally.
 
 For Super Tic Tactical Toe, score alone does not end the game. The game ends when a player captures three zones in a macro line; then the highest final score determines the winner. If final scores are tied on that line-completing move, the line completer wins.
+
+For Dots and Boxes, a valid line claim updates `game.lines`, may update
+`game.boxes`, updates `game.scores`, records `game.last_move`, and keeps the
+same `current_player` only when at least one box was completed.
+
+For Battleship, setup actions mark the player's fleet ready. The game advances
+from `setup` to `playing` after both fleets are ready. A valid attack records a
+hit or miss in `game.players[mark].shots`, updates `last_move`, changes
+`current_player`, and moves to `complete` when all enemy ship cells are hit.
 
 ## Reset
 

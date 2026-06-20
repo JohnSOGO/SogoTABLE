@@ -97,4 +97,6 @@ npm run test:worker
 - [Bot Opponents](docs/bots.md)
 - [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)
 - [Super Tic Tactical Toe](docs/game-super-tic-tactical-toe.md)
+- [Dots and Boxes](docs/game-dots-and-boxes.md)
+- [Battleship](docs/game-battleship.md)
 - [Roadmap](docs/roadmap.md)

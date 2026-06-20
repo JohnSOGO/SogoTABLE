@@ -4,7 +4,7 @@ This file is durable context for future Codex sessions. Read it with `AGENTS.md`
 
 ## Product Direction
 
-SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, and Super Tic Tactical Toe is the second playable game. The app should grow through a games menu and clear game modules rather than becoming a single-game app.
+SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, Super Tic Tactical Toe is the second playable game, Dots and Boxes is the third ready two-player game, and Battleship is the fourth ready two-player game. The app should grow through a games menu and clear game modules rather than becoming a single-game app.
 
 Local workspace note: the canonical local repository directory is now `C:\Users\Public\git\SogoTable`. The former `C:\Users\Public\git\SogoGames` path was retired during the SogoTable naming cleanup; do not start new work from the old path.
 
@@ -100,7 +100,7 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - Public room create/join actions must use the browser's device/home selected player from the shared API roster. Do not synthesize or migrate local fallback players into the hosted roster.
 - Open/current game cards are hints, not authority. When a user taps `Join Game` or `Re-enter Game`, fetch the room fresh from the shared brain before deciding whether the selected player is already seated, can join, or should see that the game is no longer open.
 - Hosted API read-only refresh calls must not write the whole D1 state row back to the database. Saving after `GET` requests can resurrect stale room/player snapshots when several browsers and phones are refreshing at once.
-- Games menu exists with Super Tic Tac Toe and Super Tic Tactical Toe as ready games. The browser now loads ready-game metadata from the hosted `/api/games` registry, with a small local fallback only for startup resilience.
+- Games menu exists with Super Tic Tac Toe, Super Tic Tactical Toe, and Dots and Boxes as ready games. The browser now loads ready-game metadata from the hosted `/api/games` registry, with a small local fallback only for startup resilience.
 - The player/game selection screen is titled `Player & Game Select`. It starts with the current player summary, separate `Change` and `Create` buttons positioned to the right of the player icon/name when space allows, then direct game buttons.
 - Current main menu shape is selected-player summary, separate player action buttons, and simple full-width game buttons showing only game names. There is no generic Continue button and no Create/Re-enter text on the menu.
 - Clicking a game now opens a selected-game screen for that game type. This screen shows the game description, current players actually viewing that selected-game lobby, current open games, current in-progress games, and a `Create Game`/`Re-enter Game` action.
@@ -128,6 +128,22 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - Tactical score alone does not end the game. The game ends when a player captures three zones in a macro line, then the player with the highest final score wins. If scores are tied on the line-completing move, the line completer wins. If the board fills first and scores are tied, the game is a draw.
 - Use `Zone` for the nine main 3x3 sections in tactical-game docs and UI thinking. The whole play area is the board, and the 81 playable squares are cells. Existing code/API names may still contain legacy `sector` or `board` terms until an explicit migration.
 - Current MVP pickups are Coin for 10 points and Treasure Chest for 25 points. Future tactical emoji effects should be added through pickup config/effect handling rather than rewriting the base nested-board engine.
+
+## Dots And Boxes UX Decisions
+
+- Dots and Boxes is game #3 and uses the same selected-game lobby, room, invite, local-opponent, bot-opponent, reset, exit, and room WebSocket architecture as the other ready two-player games.
+- Hosted moves use `line_id` values such as `h-0-0` and `v-0-1` instead of Super Tic Tac Toe `board`/`cell` coordinates.
+- Completing a box awards that box and keeps the current turn. Non-capturing line claims pass the turn.
+- The game ends when all lines are claimed. Highest box count wins; equal scores draw.
+- Dots and Boxes uses high scores in the selected-game lobby because box count is meaningful.
+- Dots and Boxes defaults to 5 boxes across by 8 boxes down. Bot auto-play must allow long capture chains to finish instead of using the small fixed tic-tac-toe bot-turn cap.
+
+## Battleship UX Decisions
+
+- Battleship is game #4 and uses the same selected-game lobby, room, invite, local-opponent, bot-opponent, reset, exit, and room WebSocket architecture as the other ready two-player games.
+- Battleship phases are `setup`, `playing`, and `complete`.
+- During setup, players can manually draft ship positions by selecting a ship, toggling horizontal/vertical, and tapping a start cell, or use `Auto Place` for quick review.
+- During play, the board defaults to offence on the local player's turn and defence while waiting, with manual `Auto`, `Offence`, and `Defence` view controls.
 
 ## Super Tic Tac Toe UX Decisions
 

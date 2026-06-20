@@ -47,9 +47,29 @@ const GAME_DEFINITIONS = [
     availability: "ready",
     aliases: ["super_tactical_tac_toe"],
   },
+  {
+    id: "4b7e2d9a6c10",
+    name: "Dots and Boxes",
+    summary: "Claim edges between dots, complete boxes, and keep the turn when you score.",
+    players: "2 players",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["boxes", "dots_and_boxes", "dots_and_dashes"],
+  },
+  {
+    id: "9c2f7a81d4e6",
+    name: "Battleship",
+    summary: "Place your fleet, switch between defence and offence, and sink the enemy ships.",
+    players: "2 players",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["battleship", "battle_ship"],
+  },
 ];
 const DEFAULT_GAME_ID = GAME_DEFINITIONS[0].id;
 const TACTICAL_GAME_ID = GAME_DEFINITIONS[1].id;
+const BOXES_GAME_ID = GAME_DEFINITIONS[2].id;
+const BATTLESHIP_GAME_ID = GAME_DEFINITIONS[3].id;
 const GAME_ID_ALIASES = new Map();
 GAME_DEFINITIONS.forEach((game) => {
   GAME_ID_ALIASES.set(game.id, game.id);
@@ -463,6 +483,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const bot = botPlayerFromId(payload.bot_id);
       addPlayerToRoom(room, bot);
       activateRoomIfReady(room);
+      ensureBattleshipBotFleets(room);
       bumpRoomRevision(room);
       if (autoBotMoves) runBotTurns(data, room);
       return { ok: true, room: roomToDict(data, room), bot };
@@ -478,8 +499,16 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (!room.started) throw new Error("Room is waiting for another player.");
       const mark = playerMark(room, String(payload.player_id || ""));
       if (!mark) throw new Error("Player is not in this room.");
+      if (isBattleshipGame(room.game)) {
+        ensureBattleshipBotFleets(room);
+        makeBattleshipMove(room.game, mark, payload.action || payload);
+        bumpRoomRevision(room);
+        recordCompletedRoomStats(data, room);
+        if (autoBotMoves) runBotTurns(data, room);
+        return { ok: true, room: roomToDict(data, room) };
+      }
       if (mark !== room.game.current_player) throw new Error(`It is ${room.game.current_player}'s turn.`);
-      makeMove(room.game, Number(payload.board), Number(payload.cell));
+      makeMove(room.game, Number(payload.board), Number(payload.cell), payload.line_id);
       bumpRoomRevision(room);
       recordCompletedRoomStats(data, room);
       if (autoBotMoves) runBotTurns(data, room);
@@ -1070,12 +1099,14 @@ function botSeatForCurrentTurn(room) {
 function runBotTurns(data, room) {
   if (!room) return null;
   let moves = 0;
-  while (moves < 4) {
+  const maxMoves = Math.max(4, legalMoves(room.game).length);
+  while (moves < maxMoves) {
     const bot = botSeatForCurrentTurn(room);
     if (!bot) break;
     const move = chooseBotMove(room.game, bot);
     if (!move) break;
-    makeMove(room.game, move.board, move.cell);
+    if (isBattleshipGame(room.game)) makeBattleshipMove(room.game, bot.mark, move);
+    else makeMove(room.game, move.board, move.cell, move.line_id);
     bumpRoomRevision(room);
     recordCompletedRoomStats(data, room);
     moves += 1;
@@ -1086,6 +1117,8 @@ function runBotTurns(data, room) {
 function chooseBotMove(game, bot = null) {
   const moves = legalMoves(game);
   if (!moves.length) return null;
+  if (isBattleshipGame(game)) return chooseBattleshipBotMove(game, bot, moves);
+  if (isBoxesGame(game)) return chooseBoxesBotMove(game, moves);
   if (bot && (bot.bot_id === TACTICAL_TESS_BOT_ID || bot.id === TACTICAL_TESS_BOT_ID)) return chooseScoredBotMove(game, bot, moves);
   return moves[Math.floor(Math.random() * moves.length)];
 }
@@ -1233,6 +1266,8 @@ function scorePickup(game, move) {
 }
 
 function legalMoves(game) {
+  if (isBattleshipGame(game)) return battleshipLegalMoves(game);
+  if (isBoxesGame(game)) return boxesLegalMoves(game);
   if (!game || game.status !== "playing") return [];
   const moves = [];
   legalBoards(game).forEach((boardIndex) => {
@@ -1276,6 +1311,8 @@ function pruneLobbyViewers(data) {
 
 function newGame(gameId = DEFAULT_GAME_ID) {
   const canonicalGameId = cleanGameId(gameId);
+  if (canonicalGameId === BATTLESHIP_GAME_ID) return newBattleshipGame();
+  if (canonicalGameId === BOXES_GAME_ID) return newBoxesGame();
   const game = {
     game_id: canonicalGameId,
     boards: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null)),
@@ -1301,7 +1338,514 @@ function newGame(gameId = DEFAULT_GAME_ID) {
 }
 
 function gameToDict(game) {
+  if (isBattleshipGame(game)) return battleshipGameToDict(game);
+  if (isBoxesGame(game)) return boxesGameToDict(game);
   return { ...game, game_id: cleanGameId(game.game_id), legal_boards: legalBoards(game) };
+}
+
+const BATTLESHIP_SIZE = 10;
+const BATTLESHIP_FLEET = [
+  { id: "carrier", name: "Carrier", size: 5 },
+  { id: "battleship", name: "Battleship", size: 4 },
+  { id: "cruiser", name: "Cruiser", size: 3 },
+  { id: "submarine", name: "Submarine", size: 3 },
+  { id: "destroyer", name: "Destroyer", size: 2 },
+];
+
+function newBattleshipGame() {
+  return {
+    game_id: BATTLESHIP_GAME_ID,
+    board_size: BATTLESHIP_SIZE,
+    phase: "setup",
+    status: "setup",
+    current_player: null,
+    winner: null,
+    move_count: 0,
+    fleet: BATTLESHIP_FLEET.map((ship) => ({ ...ship })),
+    players: {
+      X: newBattleshipPlayerState(),
+      O: newBattleshipPlayerState(),
+    },
+    last_move: null,
+    events: [],
+  };
+}
+
+function newBattleshipPlayerState() {
+  return {
+    ready: false,
+    ships: [],
+    shots: [],
+  };
+}
+
+function isBattleshipGame(game) {
+  return Boolean(game && (cleanGameId(game.game_id) === BATTLESHIP_GAME_ID || game.phase === "setup" && game.players && game.fleet));
+}
+
+function ensureBattleshipState(game) {
+  game.game_id = BATTLESHIP_GAME_ID;
+  game.board_size = Number.isInteger(game.board_size) ? Math.min(12, Math.max(6, game.board_size)) : BATTLESHIP_SIZE;
+  game.phase = game.phase === "complete" ? "complete" : game.phase === "playing" ? "playing" : "setup";
+  game.status = ["setup", "playing", "x_won", "o_won", "draw"].includes(game.status) ? game.status : game.phase;
+  game.fleet = BATTLESHIP_FLEET.map((ship) => ({ ...ship }));
+  if (!game.players) game.players = {};
+  ["X", "O"].forEach((mark) => {
+    const player = game.players[mark] || {};
+    game.players[mark] = {
+      ready: Boolean(player.ready),
+      ships: normalizeBattleshipShips(player.ships, game.board_size),
+      shots: normalizeBattleshipShots(player.shots, game.board_size),
+    };
+  });
+  if (!Array.isArray(game.events)) game.events = [];
+  if (!Number.isFinite(Number(game.move_count))) game.move_count = 0;
+}
+
+function battleshipGameToDict(game) {
+  ensureBattleshipState(game);
+  return {
+    ...game,
+    game_id: BATTLESHIP_GAME_ID,
+    legal_attacks: battleshipLegalMoves(game).map((move) => ({ row: move.row, col: move.col })),
+  };
+}
+
+function makeBattleshipMove(game, mark, action) {
+  ensureBattleshipState(game);
+  const type = String(action && action.type || "").trim();
+  if (game.status === "setup") {
+    if (type === "auto_place") return placeBattleshipFleet(game, mark, autoBattleshipFleet(mark === "O"));
+    if (type === "place_fleet") return placeBattleshipFleet(game, mark, action.ships);
+    throw new Error("Place your fleet before attacking.");
+  }
+  if (game.status !== "playing") throw new Error("Game is already over.");
+  if (type !== "attack") throw new Error("Attack action is required.");
+  if (mark !== game.current_player) throw new Error(`It is ${game.current_player}'s turn.`);
+  return attackBattleshipCell(game, mark, Number(action.row), Number(action.col));
+}
+
+function ensureBattleshipBotFleets(room) {
+  if (!room || !isBattleshipGame(room.game) || !room.started) return false;
+  ensureBattleshipState(room.game);
+  let changed = false;
+  room.players.filter(isBotSeat).forEach((bot) => {
+    if (!bot.mark || !room.game.players[bot.mark]) return;
+    const state = room.game.players[bot.mark];
+    const hasCompleteFleet = state.ready && Array.isArray(state.ships) && state.ships.length === BATTLESHIP_FLEET.length;
+    if (hasCompleteFleet) return;
+    placeBattleshipFleet(room.game, bot.mark, chooseBattleshipBotFleet(bot));
+    changed = true;
+  });
+  return changed;
+}
+
+function placeBattleshipFleet(game, mark, ships) {
+  const normalized = normalizeBattleshipShips(ships, game.board_size);
+  validateBattleshipFleet(normalized, game.board_size);
+  game.players[mark].ships = normalized;
+  game.players[mark].ready = true;
+  game.last_move = { type: "fleetPlaced", player: mark };
+  game.events.push(game.last_move);
+  game.events = game.events.slice(-30);
+  if (game.players.X.ready && game.players.O.ready) {
+    game.phase = "playing";
+    game.status = "playing";
+    game.current_player = "X";
+  }
+}
+
+function attackBattleshipCell(game, mark, row, col) {
+  if (!Number.isInteger(row) || row < 0 || row >= game.board_size || !Number.isInteger(col) || col < 0 || col >= game.board_size) {
+    throw new Error("Attack is outside the board.");
+  }
+  const attacker = game.players[mark];
+  const defenderMark = otherMark(mark);
+  const defender = game.players[defenderMark];
+  if (attacker.shots.some((shot) => shot.row === row && shot.col === col)) throw new Error("That cell was already targeted.");
+  const target = battleshipShipAt(defender.ships, row, col);
+  const hit = Boolean(target);
+  attacker.shots.push({ row, col, hit, ship_id: target ? target.id : null });
+  game.move_count += 1;
+  const sunk = target ? battleshipShipSunk(defender, attacker.shots, target.id) : false;
+  game.last_move = { type: "attack", player: mark, row, col, hit, sunk, ship_id: target ? target.id : null };
+  game.events.push(game.last_move);
+  game.events = game.events.slice(-40);
+  if (battleshipFleetSunk(defender, attacker.shots)) {
+    game.status = mark === "X" ? "x_won" : "o_won";
+    game.phase = "complete";
+    game.winner = mark;
+    game.current_player = null;
+    return;
+  }
+  game.current_player = defenderMark;
+}
+
+function battleshipLegalMoves(game) {
+  if (!game || game.status !== "playing" || !game.current_player) return [];
+  ensureBattleshipState(game);
+  const shots = new Set(game.players[game.current_player].shots.map((shot) => `${shot.row}:${shot.col}`));
+  const moves = [];
+  for (let row = 0; row < game.board_size; row += 1) {
+    for (let col = 0; col < game.board_size; col += 1) {
+      if (!shots.has(`${row}:${col}`)) moves.push({ type: "attack", row, col });
+    }
+  }
+  return moves;
+}
+
+function normalizeBattleshipShips(ships, boardSize) {
+  if (!Array.isArray(ships)) return [];
+  return ships.map((ship) => ({
+    id: String(ship && ship.id || "").trim(),
+    row: Number(ship && ship.row),
+    col: Number(ship && ship.col),
+    orientation: ship && ship.orientation === "v" ? "v" : "h",
+  })).filter((ship) => (
+    ship.id &&
+    Number.isInteger(ship.row) &&
+    Number.isInteger(ship.col) &&
+    ship.row >= 0 &&
+    ship.col >= 0 &&
+    ship.row < boardSize &&
+    ship.col < boardSize
+  ));
+}
+
+function normalizeBattleshipShots(shots, boardSize) {
+  if (!Array.isArray(shots)) return [];
+  return shots.map((shot) => ({
+    row: Number(shot && shot.row),
+    col: Number(shot && shot.col),
+    hit: Boolean(shot && shot.hit),
+    ship_id: shot && shot.ship_id ? String(shot.ship_id) : null,
+  })).filter((shot) => Number.isInteger(shot.row) && Number.isInteger(shot.col) && shot.row >= 0 && shot.col >= 0 && shot.row < boardSize && shot.col < boardSize);
+}
+
+function validateBattleshipFleet(ships, boardSize) {
+  if (ships.length !== BATTLESHIP_FLEET.length) throw new Error("Place every ship before readying fleet.");
+  const occupied = new Set();
+  BATTLESHIP_FLEET.forEach((required) => {
+    const ship = ships.find((item) => item.id === required.id);
+    if (!ship) throw new Error(`${required.name} is not placed.`);
+    const cells = battleshipShipCells(ship, required.size);
+    if (!cells.length) throw new Error(`${required.name} is not placed.`);
+    cells.forEach((cell) => {
+      if (cell.row < 0 || cell.col < 0 || cell.row >= boardSize || cell.col >= boardSize) throw new Error(`${required.name} is outside the board.`);
+      const key = `${cell.row}:${cell.col}`;
+      if (occupied.has(key)) throw new Error("Ships cannot overlap.");
+      occupied.add(key);
+    });
+  });
+}
+
+function battleshipShipCells(ship, size = battleshipShipSize(ship.id)) {
+  if (!size) return [];
+  return Array.from({ length: size }, (_, index) => ({
+    row: ship.row + (ship.orientation === "v" ? index : 0),
+    col: ship.col + (ship.orientation === "h" ? index : 0),
+  }));
+}
+
+function battleshipShipSize(shipId) {
+  return (BATTLESHIP_FLEET.find((ship) => ship.id === shipId) || {}).size || 0;
+}
+
+function battleshipShipAt(ships, row, col) {
+  return ships.find((ship) => battleshipShipCells(ship).some((cell) => cell.row === row && cell.col === col)) || null;
+}
+
+function battleshipShipSunk(defender, attackerShots, shipId) {
+  const ship = defender.ships.find((item) => item.id === shipId);
+  if (!ship) return false;
+  const hits = new Set(attackerShots.filter((shot) => shot.hit).map((shot) => `${shot.row}:${shot.col}`));
+  return battleshipShipCells(ship).every((cell) => hits.has(`${cell.row}:${cell.col}`));
+}
+
+function battleshipFleetSunk(defender, attackerShots) {
+  return defender.ships.length === BATTLESHIP_FLEET.length && defender.ships.every((ship) => battleshipShipSunk(defender, attackerShots, ship.id));
+}
+
+function autoBattleshipFleet() {
+  const randomFleet = generateRandomBattleshipFleet(BATTLESHIP_SIZE, BATTLESHIP_FLEET);
+  if (randomFleet.length === BATTLESHIP_FLEET.length) return randomFleet;
+  return [
+    { id: "carrier", row: 0, col: 0, orientation: "h" },
+    { id: "battleship", row: 2, col: 0, orientation: "h" },
+    { id: "cruiser", row: 4, col: 0, orientation: "h" },
+    { id: "submarine", row: 6, col: 0, orientation: "h" },
+    { id: "destroyer", row: 8, col: 0, orientation: "h" },
+  ];
+}
+
+function chooseBattleshipBotFleet(bot = null) {
+  if (!isTacticalTessBot(bot)) return autoBattleshipFleet();
+  return chooseStrongBattleshipFleet(BATTLESHIP_SIZE, BATTLESHIP_FLEET, 5000);
+}
+
+function chooseStrongBattleshipFleet(boardSize, fleet, attempts = 5000) {
+  const enemyHeatMap = buildBattleshipEmptyBoardHeatMap(boardSize, fleet);
+  const candidates = [];
+  for (let index = 0; index < attempts; index += 1) {
+    const layout = generateRandomBattleshipFleet(boardSize, fleet);
+    if (!layout.length) continue;
+    candidates.push({
+      fleet: layout,
+      score: scoreBattleshipFleetPlacement(layout, enemyHeatMap, boardSize),
+    });
+  }
+  candidates.sort((left, right) => left.score - right.score);
+  const topCount = Math.min(candidates.length, Math.max(10, Math.floor(attempts * 0.02)));
+  const top = candidates.slice(0, topCount);
+  return (top[Math.floor(Math.random() * top.length)] || candidates[0] || { fleet: autoBattleshipFleet() }).fleet;
+}
+
+function generateRandomBattleshipFleet(boardSize, fleet) {
+  const placed = [];
+  const occupied = new Set();
+  const shuffled = fleet.slice().sort(() => Math.random() - 0.5);
+  for (const ship of shuffled) {
+    let placedShip = null;
+    for (let attempt = 0; attempt < 120 && !placedShip; attempt += 1) {
+      const orientation = Math.random() < 0.5 ? "h" : "v";
+      const rowMax = orientation === "v" ? boardSize - ship.size : boardSize - 1;
+      const colMax = orientation === "h" ? boardSize - ship.size : boardSize - 1;
+      const candidate = {
+        id: ship.id,
+        row: Math.floor(Math.random() * (rowMax + 1)),
+        col: Math.floor(Math.random() * (colMax + 1)),
+        orientation,
+      };
+      const cells = battleshipShipCells(candidate, ship.size);
+      if (cells.every((cell) => !occupied.has(`${cell.row}:${cell.col}`))) placedShip = candidate;
+    }
+    if (!placedShip) return [];
+    battleshipShipCells(placedShip, ship.size).forEach((cell) => occupied.add(`${cell.row}:${cell.col}`));
+    placed.push(placedShip);
+  }
+  return fleet.map((ship) => placed.find((item) => item.id === ship.id));
+}
+
+function buildBattleshipEmptyBoardHeatMap(boardSize, fleet) {
+  const heat = zeroBattleshipGrid(boardSize);
+  fleet.forEach((ship) => {
+    allBattleshipPlacements(boardSize, ship.size).forEach((placement) => {
+      battleshipShipCells(placement, ship.size).forEach((cell) => {
+        heat[cell.row][cell.col] += 1;
+      });
+    });
+  });
+  return heat;
+}
+
+function scoreBattleshipFleetPlacement(fleet, enemyHeatMap, boardSize) {
+  return scoreBattleshipEnemyHeat(fleet, enemyHeatMap)
+    + scoreBattleshipClustering(fleet)
+    + scoreBattleshipEdgeOveruse(fleet, boardSize)
+    + scoreBattleshipOrientationBalance(fleet)
+    + Math.random() * 10;
+}
+
+function scoreBattleshipEnemyHeat(fleet, enemyHeatMap) {
+  return fleet.reduce((total, ship) => total + battleshipShipCells(ship).reduce((shipTotal, cell) => shipTotal + enemyHeatMap[cell.row][cell.col], 0), 0);
+}
+
+function scoreBattleshipClustering(fleet) {
+  const cells = fleet.flatMap((ship) => battleshipShipCells(ship));
+  let penalty = 0;
+  for (let left = 0; left < cells.length; left += 1) {
+    for (let right = left + 1; right < cells.length; right += 1) {
+      const distance = Math.abs(cells[left].row - cells[right].row) + Math.abs(cells[left].col - cells[right].col);
+      if (distance === 1) penalty += 8;
+      else if (distance === 2) penalty += 3;
+    }
+  }
+  return penalty;
+}
+
+function scoreBattleshipEdgeOveruse(fleet, boardSize) {
+  const cells = fleet.flatMap((ship) => battleshipShipCells(ship));
+  const edgeCells = cells.filter((cell) => cell.row === 0 || cell.col === 0 || cell.row === boardSize - 1 || cell.col === boardSize - 1).length;
+  const edgeRatio = edgeCells / Math.max(1, cells.length);
+  return edgeRatio > 0.45 ? (edgeRatio - 0.45) * 100 : 0;
+}
+
+function scoreBattleshipOrientationBalance(fleet) {
+  const horizontal = fleet.filter((ship) => ship.orientation === "h").length;
+  const vertical = fleet.length - horizontal;
+  return Math.abs(horizontal - vertical) * 6;
+}
+
+function chooseBattleshipBotMove(game, bot, moves) {
+  const mark = game.current_player;
+  const knowledge = battleshipKnowledgeBoard(game, mark);
+  const remainingShips = battleshipRemainingShipsFromShots(game.players[mark].shots || []);
+  const heat = buildBattleshipAttackHeatMap(knowledge, remainingShips);
+  const target = chooseBattleshipTargetMove(knowledge, heat, remainingShips);
+  if (target) return target;
+  if (!isTacticalTessBot(bot)) return moves[Math.floor(Math.random() * moves.length)];
+  return chooseBattleshipHuntMove(knowledge, heat, remainingShips, moves);
+}
+
+function battleshipKnowledgeBoard(game, mark) {
+  const board = Array.from({ length: game.board_size }, () => Array.from({ length: game.board_size }, () => ({ state: "unknown", ship_id: null })));
+  (game.players[mark].shots || []).forEach((shot) => {
+    board[shot.row][shot.col] = { state: shot.hit ? "hit" : "miss", ship_id: shot.ship_id || null };
+  });
+  return board;
+}
+
+function battleshipRemainingShipsFromShots(shots) {
+  const hitsByShip = new Map();
+  (shots || []).filter((shot) => shot.hit && shot.ship_id).forEach((shot) => {
+    hitsByShip.set(shot.ship_id, (hitsByShip.get(shot.ship_id) || 0) + 1);
+  });
+  return BATTLESHIP_FLEET.filter((ship) => (hitsByShip.get(ship.id) || 0) < ship.size);
+}
+
+function buildBattleshipAttackHeatMap(board, remainingShips) {
+  const boardSize = board.length;
+  const heat = zeroBattleshipGrid(boardSize);
+  remainingShips.forEach((ship) => {
+    allBattleshipPlacements(boardSize, ship.size).forEach((placement) => {
+      const cells = battleshipShipCells(placement, ship.size);
+      if (!cells.every((cell) => board[cell.row][cell.col].state !== "miss")) return;
+      cells.forEach((cell) => {
+        if (board[cell.row][cell.col].state === "unknown") heat[cell.row][cell.col] += 1;
+      });
+    });
+  });
+  return heat;
+}
+
+function chooseBattleshipTargetMove(board, heat, remainingShips) {
+  const clusters = battleshipHitClusters(board).filter((cluster) => !battleshipClusterSunk(cluster, remainingShips));
+  const candidates = clusters.flatMap((cluster) => battleshipTargetCandidatesForCluster(board, cluster));
+  return bestBattleshipCell(candidates, (cell) => heat[cell.row][cell.col] * 10 + battleshipInformationValue(cell, board, remainingShips));
+}
+
+function battleshipHitClusters(board) {
+  const visited = new Set();
+  const clusters = [];
+  for (let row = 0; row < board.length; row += 1) {
+    for (let col = 0; col < board.length; col += 1) {
+      if (board[row][col].state !== "hit" || visited.has(`${row}:${col}`)) continue;
+      const cluster = [];
+      const stack = [{ row, col }];
+      visited.add(`${row}:${col}`);
+      while (stack.length) {
+        const cell = stack.pop();
+        cluster.push(cell);
+        battleshipNeighbors(cell, board.length).forEach((next) => {
+          const key = `${next.row}:${next.col}`;
+          if (visited.has(key) || board[next.row][next.col].state !== "hit") return;
+          visited.add(key);
+          stack.push(next);
+        });
+      }
+      clusters.push(cluster);
+    }
+  }
+  return clusters;
+}
+
+function battleshipClusterSunk(cluster, remainingShips) {
+  const ids = [...new Set(cluster.map((cell) => cell.ship_id).filter(Boolean))];
+  return ids.length === 1 && !remainingShips.some((ship) => ship.id === ids[0]);
+}
+
+function battleshipTargetCandidatesForCluster(board, cluster) {
+  if (!cluster.length) return [];
+  if (cluster.length === 1) return battleshipNeighbors(cluster[0], board.length).filter((cell) => board[cell.row][cell.col].state === "unknown");
+  const sameRow = cluster.every((cell) => cell.row === cluster[0].row);
+  const sameCol = cluster.every((cell) => cell.col === cluster[0].col);
+  if (!sameRow && !sameCol) return cluster.flatMap((cell) => battleshipNeighbors(cell, board.length)).filter((cell) => board[cell.row][cell.col].state === "unknown");
+  const sorted = cluster.slice().sort((left, right) => sameRow ? left.col - right.col : left.row - right.row);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const ends = sameRow
+    ? [{ row: first.row, col: first.col - 1 }, { row: last.row, col: last.col + 1 }]
+    : [{ row: first.row - 1, col: first.col }, { row: last.row + 1, col: last.col }];
+  return ends.filter((cell) => cell.row >= 0 && cell.col >= 0 && cell.row < board.length && cell.col < board.length && board[cell.row][cell.col].state === "unknown");
+}
+
+function chooseBattleshipHuntMove(board, heat, remainingShips, moves) {
+  return bestBattleshipCell(moves, (cell) => {
+    const smallestShip = Math.min(...remainingShips.map((ship) => ship.size));
+    return heat[cell.row][cell.col] * 10
+      + battleshipParityBonus(cell, smallestShip)
+      + battleshipInformationValue(cell, board, remainingShips);
+  });
+}
+
+function battleshipParityBonus(cell, smallestShip) {
+  if (smallestShip <= 2) return (cell.row + cell.col) % 2 === 0 ? 5 : 0;
+  if (smallestShip === 3) return (cell.row + cell.col) % 3 === 0 ? 5 : 0;
+  return 0;
+}
+
+function battleshipInformationValue(cell, board, remainingShips) {
+  const maxShipSize = Math.max(...remainingShips.map((ship) => ship.size), 2);
+  const horizontal = countBattleshipOpenCells(cell, board, 0, -1) + countBattleshipOpenCells(cell, board, 0, 1) + 1;
+  const vertical = countBattleshipOpenCells(cell, board, -1, 0) + countBattleshipOpenCells(cell, board, 1, 0) + 1;
+  return (horizontal >= maxShipSize ? 2 : 0) + (vertical >= maxShipSize ? 2 : 0) + Math.min(horizontal, vertical);
+}
+
+function countBattleshipOpenCells(cell, board, rowStep, colStep) {
+  let count = 0;
+  let row = cell.row + rowStep;
+  let col = cell.col + colStep;
+  while (row >= 0 && col >= 0 && row < board.length && col < board.length && board[row][col].state === "unknown") {
+    count += 1;
+    row += rowStep;
+    col += colStep;
+  }
+  return count;
+}
+
+function bestBattleshipCell(cells, scoreCell) {
+  if (!cells.length) return null;
+  let bestScore = -Infinity;
+  let best = [];
+  cells.forEach((cell) => {
+    const score = scoreCell(cell);
+    if (score > bestScore) {
+      bestScore = score;
+      best = [cell];
+    } else if (score === bestScore) {
+      best.push(cell);
+    }
+  });
+  const picked = best[Math.floor(Math.random() * best.length)];
+  return picked ? { type: "attack", row: picked.row, col: picked.col } : null;
+}
+
+function battleshipNeighbors(cell, boardSize) {
+  return [
+    { row: cell.row - 1, col: cell.col },
+    { row: cell.row + 1, col: cell.col },
+    { row: cell.row, col: cell.col - 1 },
+    { row: cell.row, col: cell.col + 1 },
+  ].filter((item) => item.row >= 0 && item.col >= 0 && item.row < boardSize && item.col < boardSize);
+}
+
+function allBattleshipPlacements(boardSize, shipSize) {
+  const placements = [];
+  for (let row = 0; row < boardSize; row += 1) {
+    for (let col = 0; col <= boardSize - shipSize; col += 1) placements.push({ row, col, orientation: "h" });
+  }
+  for (let row = 0; row <= boardSize - shipSize; row += 1) {
+    for (let col = 0; col < boardSize; col += 1) placements.push({ row, col, orientation: "v" });
+  }
+  return placements;
+}
+
+function zeroBattleshipGrid(boardSize) {
+  return Array.from({ length: boardSize }, () => Array.from({ length: boardSize }, () => 0));
+}
+
+function isTacticalTessBot(bot) {
+  return Boolean(bot && (bot.bot_id === TACTICAL_TESS_BOT_ID || bot.id === TACTICAL_TESS_BOT_ID));
 }
 
 function legalBoards(game) {
@@ -1314,7 +1858,226 @@ function boardAvailable(game, boardIndex) {
   return game.small_winners[boardIndex] === null && game.boards[boardIndex].some((cell) => cell === null);
 }
 
-function makeMove(game, boardIndex, cellIndex) {
+function newBoxesGame() {
+  const rows = 8;
+  const cols = 5;
+  return {
+    game_id: BOXES_GAME_ID,
+    rows,
+    cols,
+    lines: [],
+    boxes: Array.from({ length: rows }, () => Array.from({ length: cols }, () => null)),
+    current_player: "X",
+    status: "playing",
+    winner: null,
+    move_count: 0,
+    last_move: null,
+    events: [],
+    scores: { X: 0, O: 0 },
+  };
+}
+
+function isBoxesGame(game) {
+  return Boolean(game && (cleanGameId(game.game_id) === BOXES_GAME_ID || Array.isArray(game.lines) && Array.isArray(game.boxes)));
+}
+
+function boxesGameToDict(game) {
+  ensureBoxesState(game);
+  return {
+    ...game,
+    game_id: BOXES_GAME_ID,
+    legal_lines: boxesLegalMoves(game).map((move) => move.line_id),
+  };
+}
+
+function ensureBoxesState(game) {
+  game.game_id = BOXES_GAME_ID;
+  game.rows = Number.isInteger(game.rows) ? Math.min(8, Math.max(2, game.rows)) : 8;
+  game.cols = Number.isInteger(game.cols) ? Math.min(8, Math.max(2, game.cols)) : 5;
+  if (!Array.isArray(game.lines)) game.lines = [];
+  game.lines = [...new Set(game.lines.map(normalizeBoxesLineId).filter((lineId) => boxesLineInBounds(game, lineId)))].sort(compareBoxesLineIds);
+  if (!Array.isArray(game.boxes)) game.boxes = [];
+  game.boxes = Array.from({ length: game.rows }, (_, row) => (
+    Array.from({ length: game.cols }, (_, col) => {
+      const owner = game.boxes[row] && game.boxes[row][col];
+      return owner === "X" || owner === "O" ? owner : null;
+    })
+  ));
+  if (!game.scores) game.scores = { X: 0, O: 0 };
+  game.scores = boxesScores(game.boxes);
+  if (!Array.isArray(game.events)) game.events = [];
+  game.events = game.events
+    .filter((event) => event && event.type === "lineClaimed" && ["X", "O"].includes(event.player))
+    .map((event) => ({
+      type: "lineClaimed",
+      player: event.player,
+      line_id: normalizeBoxesLineId(event.line_id),
+      captured: Array.isArray(event.captured) ? event.captured : [],
+    }))
+    .filter((event) => event.line_id);
+  if (game.current_player !== "O") game.current_player = "X";
+  if (!["playing", "x_won", "o_won", "draw"].includes(game.status)) game.status = "playing";
+  if (!Number.isFinite(Number(game.move_count))) game.move_count = game.lines.length;
+}
+
+function boxesLegalMoves(game) {
+  if (!game || game.status !== "playing") return [];
+  ensureBoxesState(game);
+  const claimed = new Set(game.lines);
+  return allBoxesLineIds(game.rows, game.cols)
+    .filter((lineId) => !claimed.has(lineId))
+    .map((lineId) => ({ line_id: lineId }));
+}
+
+function makeBoxesMove(game, lineId) {
+  ensureBoxesState(game);
+  if (game.status !== "playing") throw new Error("Game is already over.");
+  const cleanLineId = normalizeBoxesLineId(lineId);
+  if (!cleanLineId || !boxesLineInBounds(game, cleanLineId)) throw new Error("Line id is not valid.");
+  if (game.lines.includes(cleanLineId)) throw new Error("Line is already claimed.");
+
+  const player = game.current_player;
+  game.lines.push(cleanLineId);
+  game.lines.sort(compareBoxesLineIds);
+  const claimed = new Set(game.lines);
+  const captured = [];
+  boxesAdjacentBoxes(game, cleanLineId).forEach((box) => {
+    if (game.boxes[box.row][box.col]) return;
+    if (boxesBoxLineIds(box.row, box.col).every((id) => claimed.has(id))) {
+      game.boxes[box.row][box.col] = player;
+      captured.push(box);
+    }
+  });
+  game.move_count += 1;
+  game.scores = boxesScores(game.boxes);
+  game.last_move = { player, line_id: cleanLineId, captured };
+  game.events.push({ type: "lineClaimed", player, line_id: cleanLineId, captured });
+  game.events = game.events.slice(-80);
+  if (game.lines.length >= allBoxesLineIds(game.rows, game.cols).length) {
+    if (game.scores.X > game.scores.O) {
+      game.status = "x_won";
+      game.winner = "X";
+    } else if (game.scores.O > game.scores.X) {
+      game.status = "o_won";
+      game.winner = "O";
+    } else {
+      game.status = "draw";
+      game.winner = null;
+    }
+    return;
+  }
+  if (!captured.length) game.current_player = otherMark(player);
+}
+
+function chooseBoxesBotMove(game, moves) {
+  const capturing = moves
+    .map((move) => ({ move, captures: boxesCaptureCountAfterLine(game, move.line_id) }))
+    .filter((item) => item.captures > 0)
+    .sort((left, right) => right.captures - left.captures || left.move.line_id.localeCompare(right.move.line_id));
+  if (capturing.length) return capturing[0].move;
+  const safe = moves.filter((move) => !boxesCreatesThreeSidedBox(game, move.line_id));
+  const candidates = (safe.length ? safe : moves).slice().sort((left, right) => left.line_id.localeCompare(right.line_id));
+  return candidates[0] || null;
+}
+
+function boxesCaptureCountAfterLine(game, lineId) {
+  ensureBoxesState(game);
+  const claimed = new Set(game.lines);
+  claimed.add(lineId);
+  return boxesAdjacentBoxes(game, lineId)
+    .filter((box) => !game.boxes[box.row][box.col])
+    .filter((box) => boxesBoxLineIds(box.row, box.col).every((id) => claimed.has(id)))
+    .length;
+}
+
+function boxesCreatesThreeSidedBox(game, lineId) {
+  ensureBoxesState(game);
+  const claimed = new Set(game.lines);
+  claimed.add(lineId);
+  return boxesAdjacentBoxes(game, lineId)
+    .filter((box) => !game.boxes[box.row][box.col])
+    .some((box) => boxesBoxLineIds(box.row, box.col).filter((id) => claimed.has(id)).length === 3);
+}
+
+function boxesScores(boxes) {
+  return {
+    X: boxes.flat().filter((owner) => owner === "X").length,
+    O: boxes.flat().filter((owner) => owner === "O").length,
+  };
+}
+
+function allBoxesLineIds(rows, cols) {
+  const lines = [];
+  for (let row = 0; row <= rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) lines.push(boxesLineId("h", row, col));
+  }
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col <= cols; col += 1) lines.push(boxesLineId("v", row, col));
+  }
+  return lines;
+}
+
+function boxesLineId(orientation, row, col) {
+  return `${orientation === "v" ? "v" : "h"}-${Number(row)}-${Number(col)}`;
+}
+
+function normalizeBoxesLineId(lineId) {
+  const parts = String(lineId || "").trim().split("-");
+  if (parts.length !== 3 || !["h", "v"].includes(parts[0])) return "";
+  const row = Number(parts[1]);
+  const col = Number(parts[2]);
+  if (!Number.isInteger(row) || !Number.isInteger(col)) return "";
+  return boxesLineId(parts[0], row, col);
+}
+
+function boxesLineInBounds(game, lineId) {
+  const line = parseBoxesLineId(lineId);
+  if (!line) return false;
+  if (line.orientation === "h") return line.row >= 0 && line.row <= game.rows && line.col >= 0 && line.col < game.cols;
+  return line.row >= 0 && line.row < game.rows && line.col >= 0 && line.col <= game.cols;
+}
+
+function parseBoxesLineId(lineId) {
+  const cleanLineId = normalizeBoxesLineId(lineId);
+  if (!cleanLineId) return null;
+  const [orientation, row, col] = cleanLineId.split("-");
+  return { orientation, row: Number(row), col: Number(col), id: cleanLineId };
+}
+
+function compareBoxesLineIds(left, right) {
+  const a = parseBoxesLineId(left);
+  const b = parseBoxesLineId(right);
+  if (!a || !b) return String(left).localeCompare(String(right));
+  if (a.orientation !== b.orientation) return a.orientation.localeCompare(b.orientation);
+  if (a.row !== b.row) return a.row - b.row;
+  return a.col - b.col;
+}
+
+function boxesAdjacentBoxes(game, lineId) {
+  const line = parseBoxesLineId(lineId);
+  if (!line) return [];
+  const boxes = [];
+  if (line.orientation === "h") {
+    if (line.row > 0) boxes.push({ row: line.row - 1, col: line.col });
+    if (line.row < game.rows) boxes.push({ row: line.row, col: line.col });
+  } else {
+    if (line.col > 0) boxes.push({ row: line.row, col: line.col - 1 });
+    if (line.col < game.cols) boxes.push({ row: line.row, col: line.col });
+  }
+  return boxes;
+}
+
+function boxesBoxLineIds(row, col) {
+  return [
+    boxesLineId("h", row, col),
+    boxesLineId("h", row + 1, col),
+    boxesLineId("v", row, col),
+    boxesLineId("v", row, col + 1),
+  ];
+}
+
+function makeMove(game, boardIndex, cellIndex, lineId = "") {
+  if (isBoxesGame(game)) return makeBoxesMove(game, lineId);
   if (isTacticalGame(game)) return makeTacticalMove(game, boardIndex, cellIndex);
   return makeClassicMove(game, boardIndex, cellIndex);
 }
@@ -1552,6 +2315,12 @@ function roomResultForStats(room) {
 }
 
 function scoreByMarkForRoom(room) {
+  if (isBoxesGame(room.game)) {
+    return {
+      X: Number(room.game.scores && room.game.scores.X || 0),
+      O: Number(room.game.scores && room.game.scores.O || 0),
+    };
+  }
   if (isTacticalGame(room.game)) {
     return {
       X: Number(room.game.scores && room.game.scores.X || 0),

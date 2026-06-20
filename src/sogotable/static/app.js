@@ -8,9 +8,12 @@ import {
 } from "./color-utils.js";
 import { avatarHtml, escapeHtml } from "./html-utils.js";
 import { createRealtimeController } from "./realtime.js";
+import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import {
   isSoundEnabled,
   soundVolumeLevel,
+  playBattleshipHit,
+  playBattleshipMiss,
   playCancel,
   playClick,
   playConfirm,
@@ -49,6 +52,45 @@ const paletteColors = [
 const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
 const CLASSIC_GAME_ID = "a3f19c6e42b8";
 const TACTICAL_GAME_ID = "d7e4a91f0c23";
+const BOXES_GAME_ID = "4b7e2d9a6c10";
+const BATTLESHIP_GAME_ID = "9c2f7a81d4e6";
+const BATTLESHIP_ATTACK_PHRASES = [
+  "Incoming!",
+  "Fire!",
+  "Taking the shot.",
+  "Attack launched.",
+  "Target acquired.",
+  "Weapons hot.",
+  "Locked and loaded.",
+  "Let it fly.",
+];
+const BATTLESHIP_HIT_PHRASES = [
+  "Direct hit!",
+  "Boom. Contact.",
+  "Target damaged.",
+  "That one landed.",
+  "Good hit.",
+  "Impact confirmed.",
+  "That hurt.",
+];
+const BATTLESHIP_MISS_PHRASES = [
+  "Splash... nothing.",
+  "Empty water.",
+  "No contact.",
+  "Shot went wide.",
+  "Just waves.",
+  "Clean miss.",
+  "Ghost target.",
+];
+const BATTLESHIP_SUNK_PHRASES = [
+  "Target sunk!",
+  "One less problem.",
+  "Enemy down.",
+  "They're going under.",
+  "Scratch one.",
+  "Sent to the deep.",
+  "Confirmed kill.",
+];
 const fallbackGames = [
   {
     id: CLASSIC_GAME_ID,
@@ -68,18 +110,26 @@ const fallbackGames = [
     status: "Ready",
     availability: "ready",
   },
+  {
+    id: BOXES_GAME_ID,
+    aliases: ["boxes", "dots_and_boxes", "dots_and_dashes"],
+    name: "Dots and Boxes",
+    summary: "Claim edges between dots, complete boxes, and keep the turn when you score.",
+    players: "2 players",
+    status: "Ready",
+    availability: "ready",
+  },
+  {
+    id: BATTLESHIP_GAME_ID,
+    aliases: ["battleship", "battle_ship"],
+    name: "Battleship",
+    summary: "Place your fleet, switch between defence and offence, and sink the enemy ships.",
+    players: "2 players",
+    status: "Ready",
+    availability: "ready",
+  },
 ];
 let games = [...fallbackGames];
-const winLines = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6],
-];
 
 migrateStorageNamespace();
 
@@ -117,9 +167,19 @@ let selectedPlayerStatsRequestId = 0;
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
 let lastLegalBoardsKey = "";
+let battleshipViewMode = "auto";
+let battleshipSelectedShipId = "carrier";
+let battleshipDrafts = {};
+let battleshipResultReveal = null;
+let battleshipResultTimer = null;
+let battleshipQueuedReveal = null;
+let battleshipPendingDefence = null;
+let battleshipPendingDefenceTimer = null;
+let battleshipReviewMark = "";
 let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
 let pendingMove = null;
+const BATTLESHIP_RESULT_REVEAL_DELAY_MS = 1000;
 let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let pendingConfirmAction = null;
@@ -663,7 +723,7 @@ function renderGameStats() {
   if (nextKey === lastGameStatsKey) return;
   lastGameStatsKey = nextKey;
   host.innerHTML = "";
-  if (gameId === TACTICAL_GAME_ID) {
+  if (gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID) {
     host.appendChild(lobbyStatsTable("High Scores", currentGameStats.high_scores || [], "Score", "score", "No scores yet."));
   } else {
     host.appendChild(lobbyStatsTable("ELO Ratings", currentGameStats.ratings || [], "ELO", "rating", "No ratings yet."));
@@ -673,7 +733,8 @@ function renderGameStats() {
 function renderGameStatsLink() {
   const button = document.getElementById("openGameStats");
   const title = document.getElementById("gameStatsTitle");
-  const label = canonicalGameId(selectedGame().id) === TACTICAL_GAME_ID ? "High Scores" : "ELO";
+  const gameId = canonicalGameId(selectedGame().id);
+  const label = gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID ? "High Scores" : "ELO";
   if (button) button.textContent = label;
   if (title) title.textContent = label;
 }
@@ -1384,12 +1445,12 @@ async function resetGame() {
   if (response.reset === "pending") showTurnStatus(null, "Waiting for the other player to agree.");
 }
 
-async function makeMove(board, cell) {
+async function makeMove(board, cell, lineId = "") {
   const player = selectedPlayer();
   if (!player || !currentRoom) return;
   const selectedSeat = currentRoom.players.find((seat) => seat.id === player.id);
   if (!canRoomSeatMove(selectedSeat, currentRoom.game)) return;
-  const moveKey = moveIntentKey(currentRoom, player.id, board, cell);
+  const moveKey = moveIntentKey(currentRoom, player.id, board, cell, lineId);
   if (pendingMove) return;
   playClick();
   pendingMove = {
@@ -1404,6 +1465,7 @@ async function makeMove(board, cell) {
       player_id: player.id,
       board,
       cell,
+      line_id: lineId,
     });
     pendingMove = null;
     setRoom(response.room);
@@ -1415,8 +1477,121 @@ async function makeMove(board, cell) {
   }
 }
 
+async function makeBattleshipAction(action) {
+  const player = selectedPlayer();
+  if (!player || !currentRoom || !isBattleshipGameState(currentRoom.game)) return;
+  const selectedSeat = currentRoom.players.find((seat) => seat.id === player.id);
+  if (!selectedSeat || isBotPlayer(selectedSeat)) return;
+  if (currentRoom.game.status === "playing" && selectedSeat.mark !== currentRoom.game.current_player) return;
+  const moveKey = moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action));
+  if (pendingMove) return;
+  playClick();
+  const attackPreview = action.type === "attack" ? battleshipAttackPreview(currentRoom.game, selectedSeat.mark, Number(action.row), Number(action.col)) : null;
+  if (attackPreview) {
+    showBattleshipResultReveal({
+      code: currentRoom.code,
+      player: selectedSeat.mark,
+      view: "offence",
+      row: Number(action.row),
+      col: Number(action.col),
+      hit: attackPreview.hit,
+      sunk: Boolean(attackPreview.sunk),
+      attackText: randomBattleshipPhrase(BATTLESHIP_ATTACK_PHRASES),
+      resultText: randomBattleshipResultPhrase(attackPreview.hit, attackPreview.sunk),
+      durationMs: 2000,
+      radarMs: BATTLESHIP_RESULT_REVEAL_DELAY_MS,
+    });
+    scheduleBattleshipPendingDefence(currentRoom.code, selectedSeat.mark);
+    if (attackPreview.sunk && attackPreview.shipName) {
+      window.setTimeout(() => {
+        showInfoPrompt("Battleship", `You sunk my ${attackPreview.shipName}!`);
+      }, BATTLESHIP_RESULT_REVEAL_DELAY_MS + 150);
+    }
+  }
+  pendingMove = {
+    key: moveKey,
+    roomCode: currentRoom.code,
+    moveCount: currentRoom.game.move_count,
+  };
+  renderGame();
+  try {
+    const response = await api("/api/room/move", {
+      code: currentRoom.code,
+      player_id: player.id,
+      action,
+    });
+    pendingMove = null;
+    clearBattleshipPendingDefence();
+    if (action.type === "place_fleet" || action.type === "auto_place") {
+      const selectedSeatAfterMove = currentRoom.players.find((seat) => seat.id === player.id);
+      clearBattleshipDraft(currentRoom.code, selectedSeatAfterMove && selectedSeatAfterMove.mark);
+    }
+    setRoom(response.room);
+  } catch (error) {
+    pendingMove = null;
+    clearBattleshipPendingDefence();
+    renderGame();
+    showTurnStatus(null, error.message);
+    playInvalidMove();
+  }
+}
+
+function showBattleshipResultReveal(result) {
+  const durationMs = Math.max(1000, Number(result.durationMs || 1000));
+  const radarMs = Math.max(0, Number(result.radarMs || 0));
+  const now = Date.now();
+  battleshipResultReveal = {
+    ...result,
+    radarUntil: radarMs ? now + radarMs : 0,
+    until: now + durationMs,
+  };
+  if (radarMs) {
+    window.setTimeout(() => {
+      if (battleshipResultReveal && battleshipResultReveal.code === result.code && battleshipResultReveal.row === result.row && battleshipResultReveal.col === result.col) {
+        if (result.hit) playBattleshipHit();
+        else playBattleshipMiss();
+        renderGame();
+      }
+    }, radarMs);
+  } else if (result.hit) playBattleshipHit();
+  else playBattleshipMiss();
+  renderGame();
+  window.clearTimeout(battleshipResultTimer);
+  battleshipResultTimer = window.setTimeout(() => {
+    battleshipResultReveal = null;
+    const queued = battleshipQueuedReveal;
+    battleshipQueuedReveal = null;
+    if (queued) {
+      showBattleshipResultReveal(queued);
+      return;
+    }
+    renderGame();
+  }, durationMs + 50);
+}
+
+function scheduleBattleshipPendingDefence(code, playerMark) {
+  clearBattleshipPendingDefence();
+  if (battleshipViewMode !== "auto") return;
+  battleshipPendingDefenceTimer = window.setTimeout(() => {
+    if (!pendingMove || !currentRoom || currentRoom.code !== code) return;
+    battleshipPendingDefence = {
+      code,
+      player: playerMark,
+    };
+    renderGame();
+  }, 2000);
+}
+
+function clearBattleshipPendingDefence() {
+  window.clearTimeout(battleshipPendingDefenceTimer);
+  battleshipPendingDefenceTimer = null;
+  battleshipPendingDefence = null;
+}
+
 function confirmAction(title, message) {
   const prompt = document.getElementById("confirmPrompt");
+  prompt.classList.remove("info-prompt");
+  configureConfirmPromptButtons("Yes", "No", false);
   document.getElementById("confirmPromptTitle").textContent = title;
   document.getElementById("confirmPromptText").textContent = message;
   prompt.classList.remove("hidden");
@@ -1425,8 +1600,30 @@ function confirmAction(title, message) {
   });
 }
 
+function showInfoPrompt(title, message) {
+  const prompt = document.getElementById("confirmPrompt");
+  prompt.classList.add("info-prompt");
+  configureConfirmPromptButtons("OK", "", true);
+  document.getElementById("confirmPromptTitle").textContent = title;
+  document.getElementById("confirmPromptText").textContent = message;
+  prompt.classList.remove("hidden");
+  return new Promise((resolve) => {
+    pendingConfirmAction = resolve;
+  });
+}
+
+function configureConfirmPromptButtons(yesText, noText, hideNo) {
+  const yes = document.getElementById("confirmYes");
+  const no = document.getElementById("confirmNo");
+  yes.textContent = yesText;
+  no.textContent = noText;
+  no.classList.toggle("hidden", Boolean(hideNo));
+}
+
 function resolveConfirmPrompt(confirmed) {
-  document.getElementById("confirmPrompt").classList.add("hidden");
+  const prompt = document.getElementById("confirmPrompt");
+  prompt.classList.add("hidden");
+  prompt.classList.remove("info-prompt");
   if (confirmed) playConfirm();
   else playCancel();
   if (!pendingConfirmAction) return;
@@ -1450,6 +1647,7 @@ function setRoom(room) {
   syncHostInviteStatusFromRoom(room);
   syncSelectedPlayerForLocalRoom();
   playRoomStateSounds(previousRoom, room);
+  showIncomingBattleshipAttackReveal(previousRoom, room);
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
   renderGame();
@@ -1489,6 +1687,7 @@ function playRoomStateSounds(previousRoom, room) {
   playPlayerJoinedSound(previousRoom, room);
   playTurnChangedSound(previousRoom, room);
   playTacticalEventSound(previousRoom, room);
+  playBoxesEventSound(previousRoom, room);
   playGameOverSound(previousRoom, room);
 }
 
@@ -1522,6 +1721,59 @@ function playTacticalEventSound(previousRoom, room) {
   playConfirm();
 }
 
+function playBoxesEventSound(previousRoom, room) {
+  if (!isBoxesGameState(room.game) || !room.game.last_move || room.game.status !== "playing") return;
+  const previousMoveKey = boxesSoundMoveKey(previousRoom.game && previousRoom.game.last_move);
+  const nextMoveKey = boxesSoundMoveKey(room.game.last_move);
+  if (!nextMoveKey || previousMoveKey === nextMoveKey || nextMoveKey === lastGameEventSoundKey) return;
+  if (!Array.isArray(room.game.last_move.captured) || !room.game.last_move.captured.length) return;
+  lastGameEventSoundKey = nextMoveKey;
+  playConfirm();
+}
+
+function showIncomingBattleshipAttackReveal(previousRoom, room) {
+  if (battleshipViewMode !== "auto") return;
+  if (!isBattleshipGameState(room.game) || !room.game.last_move || room.game.last_move.type !== "attack") return;
+  if (!previousRoom || !previousRoom.game) return;
+  const previousMoveKey = battleshipSoundMoveKey(previousRoom.game.last_move);
+  const nextMoveKey = battleshipSoundMoveKey(room.game.last_move);
+  if (!nextMoveKey || previousMoveKey === nextMoveKey) return;
+  const selectedSeat = room.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+  if (!selectedSeat || room.game.last_move.player === selectedSeat.mark) return;
+  clearBattleshipPendingDefence();
+  const reveal = {
+    code: room.code,
+    player: selectedSeat.mark,
+    view: "defence",
+    row: Number(room.game.last_move.row),
+    col: Number(room.game.last_move.col),
+    hit: Boolean(room.game.last_move.hit),
+    sunk: Boolean(room.game.last_move.sunk),
+    attackText: randomBattleshipPhrase(BATTLESHIP_ATTACK_PHRASES),
+    resultText: randomBattleshipResultPhrase(Boolean(room.game.last_move.hit), Boolean(room.game.last_move.sunk)),
+    durationMs: 3000,
+    radarMs: BATTLESHIP_RESULT_REVEAL_DELAY_MS,
+  };
+  if (battleshipResultReveal && battleshipResultReveal.view === "offence") {
+    battleshipQueuedReveal = reveal;
+    return;
+  }
+  showBattleshipResultReveal(reveal);
+}
+
+function battleshipSoundMoveKey(move) {
+  if (!move || move.type !== "attack") return "";
+  return JSON.stringify({
+    type: "battleshipAttack",
+    player: move.player,
+    row: move.row,
+    col: move.col,
+    hit: Boolean(move.hit),
+    sunk: Boolean(move.sunk),
+    ship: move.ship_id || "",
+  });
+}
+
 function playGameOverSound(previousRoom, room) {
   if (!room.game || room.game.status === "playing") return;
   if (previousRoom.game && previousRoom.game.status !== "playing") return;
@@ -1547,6 +1799,18 @@ function tacticalSoundEventKey(event) {
     sector: event.sector,
     points: event.points,
     pickup_type: event.pickup_type,
+  });
+}
+
+function boxesSoundMoveKey(move) {
+  if (!move || !move.line_id) return "";
+  const capturedCount = Array.isArray(move.captured) ? move.captured.length : 0;
+  if (!capturedCount) return "";
+  return JSON.stringify({
+    type: "boxesCaptured",
+    player: move.player,
+    line: move.line_id,
+    capturedCount,
   });
 }
 
@@ -1650,7 +1914,12 @@ function renderGame() {
   }
   document.getElementById("gamePlayersPanel").classList.toggle("hidden", currentRoom.started);
   setGameBoardVisible(true);
+  syncBattleshipReviewMark(game);
   renderGamePlayerSwitch();
+  if (isBattleshipGameState(game)) {
+    renderBattleshipGame(game);
+    return;
+  }
   if (!currentRoom.started) {
     showTurnStatus(null, "Waiting for opponent.");
     lastLegalBoardsKey = "";
@@ -1668,65 +1937,553 @@ function renderGame() {
     showTurnStatus(null, `${currentRoom.reset_request.requester_name} requested reset. Waiting for agreement.`);
   }
 
-  const host = document.getElementById("macroBoard");
-  host.innerHTML = "";
-  const currentTurnPlayer = currentRoom.players.find((player) => player.mark === game.current_player);
-  setTurnColorVariables(host, currentTurnPlayer ? currentTurnPlayer.color : "#1f7a5f");
-  const legalBoardsKey = game.legal_boards.join(",");
-  const shouldFlashLegalBoards = legalBoardsKey !== lastLegalBoardsKey;
-  const macroWinLine = winningLineFor(game.small_winners, game.line_winner || game.winner);
-  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
-  const canSelectedPlayerMove = canRoomSeatMove(selectedSeat, game);
-  host.classList.toggle("your-turn", canSelectedPlayerMove && game.status === "playing");
-  host.classList.toggle("waiting", game.status === "playing" && !canSelectedPlayerMove);
-  game.boards.forEach((board, boardIndex) => {
-    const small = document.createElement("div");
-    const legal = currentRoom.started && game.legal_boards.includes(boardIndex);
-    const result = game.small_winners[boardIndex];
-    const smallWinLine = winningLineFor(board, result);
-    const macroWinner = macroWinLine.includes(boardIndex);
-    small.className = `small-board ${legal ? "legal" : ""} ${legal && shouldFlashLegalBoards ? "flash" : ""} ${result ? "done" : ""} ${macroWinner ? "macro-win-cell" : ""}`;
-    applyBoardResultColor(small, result);
-    board.forEach((value, cellIndex) => {
-      const pickup = value ? null : pickupAtCell(game, boardIndex, cellIndex);
-      const cell = document.createElement("button");
-      cell.type = "button";
-      const smallWinner = smallWinLine.includes(cellIndex);
-      cell.className = `cell ${value ? value.toLowerCase() : ""} ${pickup ? `pickup ${pickup.type}` : ""} ${smallWinner ? "small-win-cell" : ""}`;
-      cell.textContent = value || (pickup ? pickup.emoji : "");
-      if (pickup && !value) cell.title = `${pickup.label || pickup.type} +${pickup.points}`;
-      applyMarkColor(cell, value);
-      const moveKey = moveIntentKey(currentRoom, selectedPlayerId, boardIndex, cellIndex);
-      const isPendingMove = Boolean(pendingMove && pendingMove.key === moveKey);
-      cell.disabled = Boolean(value || result || !legal || game.status !== "playing" || !canSelectedPlayerMove || pendingMove);
-      cell.classList.toggle("pending", isPendingMove);
-      cell.addEventListener("click", () => makeMove(boardIndex, cellIndex));
-      cell.addEventListener("pointerdown", (event) => {
-        if (event.pointerType === "mouse") return;
-        event.preventDefault();
-        makeMove(boardIndex, cellIndex);
-      });
-      small.appendChild(cell);
-    });
-    if (result) {
-      const winner = document.createElement("div");
-      winner.className = `board-winner ${result.toLowerCase()}`;
-      winner.textContent = result;
-      applyMarkColor(winner, result, 0.34);
-      small.appendChild(winner);
-    }
-    host.appendChild(small);
-  });
-  if (macroWinLine.length) {
-    const line = document.createElement("div");
-    line.className = `macro-win-line ${winLineClass(macroWinLine)}`;
-    host.appendChild(line);
+  if (isBoxesGameState(game)) {
+    renderBoxesGame(game);
+    return;
   }
-  lastLegalBoardsKey = legalBoardsKey;
+
+  lastLegalBoardsKey = renderSuperTicTacToeBoard({
+    host: document.getElementById("macroBoard"),
+    room: currentRoom,
+    selectedPlayerId,
+    pendingMove,
+    lastLegalBoardsKey,
+    setTurnColorVariables,
+    canRoomSeatMove,
+    applyBoardResultColor,
+    applyMarkColor,
+    pickupAtCell,
+    moveIntentKey,
+    makeMove,
+  });
+}
+
+function syncBattleshipReviewMark(game) {
+  if (!isBattleshipGameState(game) || game.phase !== "complete") return;
+  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId && player.mark);
+  const currentReviewSeat = currentRoom.players.find((player) => player.mark === battleshipReviewMark);
+  if (currentReviewSeat) return;
+  battleshipReviewMark = selectedSeat && selectedSeat.mark || (currentRoom.players.find((player) => player.mark) || {}).mark || "";
 }
 
 function isCompletedRoom(room) {
   return Boolean(room && (room.status === "completed" || ["x_won", "o_won", "draw"].includes(room.game.status)));
+}
+
+function renderBattleshipGame(game) {
+  const host = document.getElementById("macroBoard");
+  host.className = "macro-board battleship-room-board";
+  host.innerHTML = "";
+  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
+  const currentTurnPlayer = currentRoom.players.find((player) => player.mark === game.current_player);
+  setTurnColorVariables(host, currentTurnPlayer ? currentTurnPlayer.color : selectedSeat ? selectedSeat.color : "#1f7a5f");
+  if (!currentRoom.started) {
+    showTurnStatus(null, "Waiting for opponent.");
+    return;
+  }
+  const phase = game.status === "setup" ? "setup" : game.status === "playing" ? "playing" : "complete";
+  const playerState = selectedSeat ? game.players && game.players[selectedSeat.mark] : null;
+  const opponent = selectedSeat ? currentRoom.players.find((player) => player.mark && player.mark !== selectedSeat.mark) : null;
+  const opponentState = opponent ? game.players && game.players[opponent.mark] : null;
+  if (phase === "setup") {
+    showTurnStatus(selectedSeat, playerState && playerState.ready ? "Fleet ready. Waiting for opponent." : "Place your fleet.");
+    renderBattleshipSetup(host, game, selectedSeat, playerState);
+    return;
+  }
+  if (phase === "complete") {
+    const winner = currentRoom.players.find((player) => player.mark === game.winner);
+    showTurnStatus(winner, `${winner ? winner.name : game.winner} won.`);
+    const reviewSeat = currentRoom.players.find((player) => player.mark === battleshipReviewMark)
+      || selectedSeat
+      || currentRoom.players.find((player) => player.mark);
+    battleshipReviewMark = reviewSeat && reviewSeat.mark || "";
+    const reviewState = reviewSeat ? game.players && game.players[reviewSeat.mark] : null;
+    const reviewOpponent = reviewSeat ? currentRoom.players.find((player) => player.mark && player.mark !== reviewSeat.mark) : null;
+    const reviewOpponentState = reviewOpponent ? game.players && game.players[reviewOpponent.mark] : null;
+    const activeView = battleshipViewMode === "defence" ? "defence" : "offence";
+    renderBattleshipPlay(host, game, reviewSeat, reviewState, reviewOpponent, reviewOpponentState, activeView);
+    scheduleWinOverlay(winner, game.winner);
+    return;
+  }
+  const yourTurn = selectedSeat && selectedSeat.mark === game.current_player;
+  host.classList.toggle("your-turn", Boolean(yourTurn));
+  host.classList.toggle("waiting", Boolean(!yourTurn));
+  const reveal = activeBattleshipResultReveal(currentRoom, selectedSeat);
+  const pendingDefence = activeBattleshipPendingDefence(currentRoom, selectedSeat);
+  const activeView = reveal && reveal.view ? reveal.view : pendingDefence ? "defence" : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+  const boardPlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
+  setTurnColorVariables(host, boardPlayer ? boardPlayer.color : selectedSeat ? selectedSeat.color : "#1f7a5f");
+  showBattleshipTurnStatus(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
+  renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, opponentState, activeView, reveal);
+}
+
+function battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer) {
+  if (reveal && reveal.view === "offence") return selectedSeat;
+  if (reveal && reveal.view === "defence") return opponent;
+  if (activeView === "offence") return selectedSeat || currentTurnPlayer;
+  if (activeView === "defence") return opponent || currentTurnPlayer;
+  return currentTurnPlayer || selectedSeat;
+}
+
+function showBattleshipTurnStatus(activeView, reveal, selectedSeat, opponent, currentTurnPlayer) {
+  const host = document.getElementById("turnStatus");
+  if (!host) return;
+  host.classList.remove("your-turn", "waiting");
+  setTurnColorVariables(host, selectedSeat ? selectedSeat.color : "#1f7a5f");
+  if (!selectedSeat) {
+    host.textContent = "Select your player.";
+    host.classList.add("waiting");
+    return;
+  }
+  if (reveal && reveal.view === "offence") {
+    const phase = battleshipRevealPhase(reveal);
+    setTurnStatusText(host, phase === "radar" ? reveal.attackText || "Taking the shot." : reveal.resultText || battleshipDefaultResultText(reveal));
+    host.classList.add("your-turn");
+    return;
+  }
+  if (reveal && reveal.view === "defence") {
+    const phase = battleshipRevealPhase(reveal);
+    setTurnStatusText(host, phase === "radar" ? reveal.attackText || "Incoming!" : reveal.resultText || battleshipDefaultResultText(reveal));
+    host.classList.add("waiting");
+    return;
+  }
+  if (activeView === "offence" && selectedSeat.mark === currentRoom.game.current_player) {
+    setTurnStatusText(host, `It's your turn, ${selectedSeat.name}.`);
+    host.classList.add("your-turn");
+    return;
+  }
+  if (activeView === "defence") {
+    setTurnStatusText(host, `Waiting for ${opponent ? opponent.name : "Player2"}`);
+    host.classList.add("waiting");
+    return;
+  }
+  showTurnStatus(currentTurnPlayer);
+}
+
+function battleshipRevealPhase(reveal) {
+  if (!reveal) return "";
+  if (reveal.radarUntil && Date.now() < reveal.radarUntil) return "radar";
+  return "result";
+}
+
+function randomBattleshipPhrase(phrases) {
+  return phrases[Math.floor(Math.random() * phrases.length)] || "";
+}
+
+function randomBattleshipResultPhrase(hit, sunk) {
+  if (sunk) return randomBattleshipPhrase(BATTLESHIP_SUNK_PHRASES);
+  return randomBattleshipPhrase(hit ? BATTLESHIP_HIT_PHRASES : BATTLESHIP_MISS_PHRASES);
+}
+
+function battleshipDefaultResultText(reveal) {
+  if (reveal && reveal.sunk) return "Target sunk!";
+  return reveal && reveal.hit ? "HIT!" : "MISS!";
+}
+
+function renderBattleshipSetup(host, game, selectedSeat, playerState) {
+  const draft = battleshipDraftFor(game, selectedSeat, playerState);
+  const complete = battleshipFleetComplete(draft, game.fleet);
+  const panel = document.createElement("section");
+  panel.className = "battleship-panel";
+  panel.innerHTML = `
+    <div class="battleship-toolbar">
+      <button type="button" data-battle-action="auto">Auto Place</button>
+      <button type="button" data-battle-action="ready" ${complete && !(playerState && playerState.ready) ? "" : "disabled"}>Ready Fleet</button>
+    </div>
+    <div class="battleship-ship-list"></div>
+    <div class="battleship-grid" role="grid" aria-label="Battleship setup board"></div>
+  `;
+  const shipList = panel.querySelector(".battleship-ship-list");
+  (game.fleet || []).forEach((ship) => {
+    const placed = draft.some((item) => item.id === ship.id);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `battleship-ship ${battleshipSelectedShipId === ship.id ? "selected" : ""} ${placed ? "placed" : ""}`;
+    button.textContent = `${ship.name} ${ship.size}`;
+    button.disabled = Boolean(playerState && playerState.ready);
+    button.addEventListener("click", () => {
+      battleshipSelectedShipId = ship.id;
+      renderGame();
+    });
+    shipList.appendChild(button);
+  });
+  panel.querySelector('[data-battle-action="auto"]').addEventListener("click", () => {
+    if (!selectedSeat || playerState && playerState.ready) return;
+    battleshipDrafts[battleshipDraftKey(currentRoom.code, selectedSeat.mark)] = randomBattleshipDraft(game);
+    renderGame();
+  });
+  panel.querySelector('[data-battle-action="ready"]').addEventListener("click", () => makeBattleshipAction({ type: "place_fleet", ships: draft }));
+  renderBattleshipGrid(panel.querySelector(".battleship-grid"), game, {
+    ships: draft,
+    shots: [],
+    mode: "setup",
+    owner: selectedSeat,
+    shooter: null,
+    selectedShipId: battleshipSelectedShipId,
+    disabled: Boolean(!selectedSeat || playerState && playerState.ready),
+    onCell: (row, col) => {
+      if (!selectedSeat || playerState && playerState.ready) return;
+      placeBattleshipDraftShip(game, selectedSeat.mark, battleshipSelectedShipId, row, col);
+      renderGame();
+    },
+  });
+  host.appendChild(panel);
+}
+
+function renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, opponentState, activeView, reveal = null) {
+  const panel = document.createElement("section");
+  panel.className = "battleship-panel";
+  panel.innerHTML = `
+    <div class="battleship-toolbar segmented">
+      <button type="button" data-view="auto" class="${battleshipViewMode === "auto" ? "selected" : ""}">Auto</button>
+      <button type="button" data-view="offence" class="${activeView === "offence" ? "active-mode" : ""} ${activeView === "offence" && battleshipViewMode !== "auto" ? "selected" : ""}">Offence</button>
+      <button type="button" data-view="defence" class="${activeView === "defence" ? "active-mode" : ""} ${activeView === "defence" && battleshipViewMode !== "auto" ? "selected" : ""}">Defence</button>
+    </div>
+    <div class="battleship-board-title"></div>
+    <div class="battleship-grid" role="grid"></div>
+  `;
+  panel.querySelectorAll("[data-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      battleshipViewMode = button.dataset.view;
+      renderGame();
+    });
+  });
+  const title = panel.querySelector(".battleship-board-title");
+  const grid = panel.querySelector(".battleship-grid");
+  if (!selectedSeat || !playerState || !opponentState) {
+    title.textContent = "Waiting for player view.";
+  } else if (activeView === "offence") {
+    title.textContent = `Offence: target ${opponent ? opponent.name : "opponent"}`;
+    renderBattleshipGrid(grid, game, {
+      shots: playerState.shots || [],
+      targetShips: opponentState.ships || [],
+      mode: "offence",
+      shooter: opponent,
+      reveal,
+      disabled: game.status !== "playing" || selectedSeat.mark !== game.current_player || pendingMove || reveal,
+      onCell: (row, col) => makeBattleshipAction({ type: "attack", row, col }),
+    });
+  } else {
+    title.textContent = "Defence: your fleet";
+    renderBattleshipGrid(grid, game, {
+      ships: playerState.ships || [],
+      shots: opponentState.shots || [],
+      targetShips: playerState.ships || [],
+      mode: "defence",
+      owner: selectedSeat,
+      shooter: opponent,
+      reveal,
+      disabled: true,
+    });
+  }
+  host.appendChild(panel);
+}
+
+function renderBattleshipGrid(grid, game, options = {}) {
+  const size = Number(game.board_size || 10);
+  const ships = Array.isArray(options.ships) ? options.ships : [];
+  const shots = Array.isArray(options.shots) ? options.shots : [];
+  const targetShips = Array.isArray(options.targetShips) ? options.targetShips : ships;
+  const ownerIcon = options.owner && options.owner.icon ? options.owner.icon : "#";
+  const shooterIcon = options.shooter && options.shooter.icon ? options.shooter.icon : ownerIcon;
+  const ownerColor = isHexColor(options.owner && options.owner.color || "") ? options.owner.color : "#1f7a5f";
+  const revealColor = isHexColor(options.shooter && options.shooter.color || "") ? options.shooter.color : ownerColor;
+  grid.style.setProperty("--battle-size", String(size));
+  grid.style.setProperty("--battle-owner-color", ownerColor);
+  grid.style.setProperty("--battle-owner-soft", mixColorWithWhite(ownerColor, 0.24));
+  grid.style.setProperty("--battle-owner-glow", colorWithAlpha(ownerColor, 0.42));
+  grid.style.setProperty("--battle-reveal-color", revealColor);
+  grid.style.setProperty("--battle-reveal-soft", mixColorWithWhite(revealColor, 0.24));
+  grid.style.setProperty("--battle-reveal-glow", colorWithAlpha(revealColor, 0.42));
+  grid.innerHTML = "";
+  const revealPhase = battleshipRevealPhase(options.reveal);
+  for (let row = 0; row < size; row += 1) {
+    for (let col = 0; col < size; col += 1) {
+      const ship = ships.find((item) => battleshipShipCells(item, battleshipShipSize(game, item.id)).some((cell) => cell.row === row && cell.col === col));
+      const rawShot = shots.find((item) => item.row === row && item.col === col);
+      const radarTarget = options.reveal && revealPhase === "radar" && options.reveal.row === row && options.reveal.col === col;
+      const attackLock = Boolean(radarTarget && options.reveal.view === "offence");
+      const radarScan = Boolean(options.reveal && revealPhase === "radar" && options.reveal.view !== "offence" && (options.reveal.row === row || options.reveal.col === col));
+      const shot = radarTarget ? null : rawShot;
+      const reveal = options.reveal && revealPhase !== "radar" && options.reveal.row === row && options.reveal.col === col ? options.reveal : null;
+      const selectedShip = ship && options.mode === "setup" && ship.id === options.selectedShipId;
+      const hitShip = shot && shot.hit && shot.ship_id ? targetShips.find((item) => item.id === shot.ship_id) : null;
+      const sunkHit = hitShip ? battleshipShipSunk(hitShip, game, shots) : false;
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = `battle-cell ${ship ? "ship" : ""} ${selectedShip ? "selected-ship" : ""} ${shot ? shot.hit ? "hit" : "miss" : ""} ${shot && shot.hit ? sunkHit ? "sunk-hit" : "damaged-hit" : ""} ${radarScan ? "battle-radar-scan" : ""} ${radarTarget ? "battle-radar-target" : ""} ${attackLock ? "battle-attack-lock" : ""} ${reveal ? "battle-result-reveal" : ""} ${reveal && reveal.hit ? "reveal-hit" : ""} ${reveal && !reveal.hit ? "reveal-miss" : ""}`;
+      cell.textContent = reveal ? reveal.hit ? "💥" : "•" : shot ? shot.hit ? "💥" : "•" : ship ? ownerIcon : "";
+      cell.disabled = Boolean(options.disabled || shot);
+      cell.setAttribute("aria-label", `Row ${row + 1}, Column ${col + 1}`);
+      cell.addEventListener("click", () => options.onCell && options.onCell(row, col));
+      grid.appendChild(cell);
+    }
+  }
+}
+function battleshipDraftFor(game, seat, playerState) {
+  if (!seat) return [];
+  if (playerState && Array.isArray(playerState.ships) && playerState.ships.length) return playerState.ships.map((ship) => ({ ...ship }));
+  const key = battleshipDraftKey(currentRoom.code, seat.mark);
+  if (!battleshipDrafts[key]) battleshipDrafts[key] = [];
+  return battleshipDrafts[key];
+}
+
+function randomBattleshipDraft(game) {
+  const size = Number(game.board_size || 10);
+  const fleet = Array.isArray(game.fleet) ? game.fleet : [];
+  for (let fullAttempt = 0; fullAttempt < 80; fullAttempt += 1) {
+    const placed = [];
+    const occupied = new Set();
+    const order = fleet.slice().sort(() => Math.random() - 0.5);
+    for (const ship of order) {
+      let placedShip = null;
+      for (let attempt = 0; attempt < 120 && !placedShip; attempt += 1) {
+        const orientation = Math.random() < 0.5 ? "h" : "v";
+        const shipSize = Number(ship.size || battleshipShipSize(game, ship.id));
+        const rowMax = orientation === "v" ? size - shipSize : size - 1;
+        const colMax = orientation === "h" ? size - shipSize : size - 1;
+        if (rowMax < 0 || colMax < 0) break;
+        const candidate = {
+          id: ship.id,
+          row: Math.floor(Math.random() * (rowMax + 1)),
+          col: Math.floor(Math.random() * (colMax + 1)),
+          orientation,
+        };
+        const cells = battleshipShipCells(candidate, shipSize);
+        if (cells.every((cell) => !occupied.has(`${cell.row}:${cell.col}`))) placedShip = candidate;
+      }
+      if (!placedShip) break;
+      battleshipShipCells(placedShip, battleshipShipSize(game, placedShip.id)).forEach((cell) => occupied.add(`${cell.row}:${cell.col}`));
+      placed.push(placedShip);
+    }
+    if (placed.length === fleet.length) return fleet.map((ship) => placed.find((item) => item.id === ship.id));
+  }
+  return [];
+}
+
+function battleshipAttackPreview(game, attackerMark, row, col) {
+  if (!game || !game.players || !["X", "O"].includes(attackerMark)) return null;
+  const attackerState = game.players[attackerMark];
+  const defenderMark = attackerMark === "X" ? "O" : "X";
+  const defenderState = game.players[defenderMark];
+  if (!attackerState || !defenderState || !Array.isArray(attackerState.shots) || !Array.isArray(defenderState.ships)) return null;
+  const target = battleshipShipAt(defenderState.ships, game, row, col);
+  if (!target) return { hit: false, sunk: false, shipName: "" };
+  const nextShots = [...attackerState.shots, { row, col, hit: true, ship_id: target.id }];
+  const shipName = ((game.fleet || []).find((ship) => ship.id === target.id) || target).name || target.id;
+  return {
+    hit: true,
+    sunk: battleshipShipSunk(target, game, nextShots),
+    shipName,
+  };
+}
+
+function battleshipShipAt(ships, game, row, col) {
+  return ships.find((ship) => battleshipShipCells(ship, battleshipShipSize(game, ship.id)).some((cell) => cell.row === row && cell.col === col)) || null;
+}
+
+function battleshipShipSunk(ship, game, shots) {
+  const hits = new Set((shots || []).filter((shot) => shot.hit).map((shot) => `${shot.row}:${shot.col}`));
+  return battleshipShipCells(ship, battleshipShipSize(game, ship.id)).every((cell) => hits.has(`${cell.row}:${cell.col}`));
+}
+
+function placeBattleshipDraftShip(game, mark, shipId, row, col) {
+  const ship = (game.fleet || []).find((item) => item.id === shipId) || (game.fleet || [])[0];
+  if (!ship) return;
+  const key = battleshipDraftKey(currentRoom.code, mark);
+  const existing = (battleshipDrafts[key] || []).find((item) => item.id === ship.id);
+  const draft = (battleshipDrafts[key] || []).filter((item) => item.id !== ship.id);
+  const orientation = existing ? (existing.orientation === "h" ? "v" : "h") : "h";
+  const next = coerceBattleshipPlacement(game, ship.id, row, col, orientation);
+  if (battleshipPlacementValid([...draft, next], game)) battleshipDrafts[key] = [...draft, next];
+}
+
+function coerceBattleshipPlacement(game, shipId, row, col, orientation) {
+  const size = Number(game.board_size || 10);
+  const shipSize = battleshipShipSize(game, shipId);
+  const centerOffset = Math.floor((shipSize - 1) / 2);
+  const maxStart = Math.max(0, size - shipSize);
+  const clampedRow = clampNumber(row, 0, size - 1);
+  const clampedCol = clampNumber(col, 0, size - 1);
+  return {
+    id: shipId,
+    row: orientation === "v" ? clampNumber(clampedRow - centerOffset, 0, maxStart) : clampedRow,
+    col: orientation === "h" ? clampNumber(clampedCol - centerOffset, 0, maxStart) : clampedCol,
+    orientation,
+  };
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, Math.round(Number(value) || 0)));
+}
+
+function battleshipPlacementValid(ships, game) {
+  const size = Number(game.board_size || 10);
+  const occupied = new Set();
+  return ships.every((ship) => battleshipShipCells(ship, battleshipShipSize(game, ship.id)).every((cell) => {
+    if (cell.row < 0 || cell.col < 0 || cell.row >= size || cell.col >= size) return false;
+    const key = `${cell.row}:${cell.col}`;
+    if (occupied.has(key)) return false;
+    occupied.add(key);
+    return true;
+  }));
+}
+
+function battleshipFleetComplete(ships, fleet) {
+  return Array.isArray(fleet) && fleet.length > 0 && fleet.every((ship) => ships.some((item) => item.id === ship.id));
+}
+
+function battleshipShipSize(game, shipId) {
+  return ((game.fleet || []).find((ship) => ship.id === shipId) || {}).size || 0;
+}
+
+function battleshipShipCells(ship, size) {
+  return Array.from({ length: size }, (_, index) => ({
+    row: Number(ship.row) + (ship.orientation === "v" ? index : 0),
+    col: Number(ship.col) + (ship.orientation === "h" ? index : 0),
+  }));
+}
+
+function battleshipDraftKey(code, mark) {
+  return `${code || ""}:${mark || ""}`;
+}
+
+function clearBattleshipDraft(code, mark) {
+  if (!code || !mark) return;
+  delete battleshipDrafts[battleshipDraftKey(code, mark)];
+}
+
+function activeBattleshipResultReveal(room, selectedSeat) {
+  if (!room || !selectedSeat || !battleshipResultReveal) return null;
+  if (battleshipResultReveal.code !== room.code || battleshipResultReveal.player !== selectedSeat.mark) return null;
+  if (Date.now() > battleshipResultReveal.until) {
+    battleshipResultReveal = null;
+    return null;
+  }
+  return battleshipResultReveal;
+}
+
+function activeBattleshipPendingDefence(room, selectedSeat) {
+  if (battleshipViewMode !== "auto" || !room || !selectedSeat || !battleshipPendingDefence) return null;
+  if (battleshipPendingDefence.code !== room.code || battleshipPendingDefence.player !== selectedSeat.mark) return null;
+  return battleshipPendingDefence;
+}
+
+function renderBoxesGame(game) {
+  const host = document.getElementById("macroBoard");
+  host.className = "macro-board";
+  host.innerHTML = "";
+  host.className = "macro-board boxes-room-board";
+  const currentTurnPlayer = currentRoom.players.find((player) => player.mark === game.current_player);
+  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
+  const canSelectedPlayerMove = canRoomSeatMove(selectedSeat, game);
+  setTurnColorVariables(host, currentTurnPlayer ? currentTurnPlayer.color : "#1f7a5f");
+  host.classList.toggle("your-turn", canSelectedPlayerMove && game.status === "playing");
+  host.classList.toggle("waiting", game.status === "playing" && !canSelectedPlayerMove);
+
+  const lines = new Set(game.lines || []);
+  const rows = Number(game.rows || 4);
+  const cols = Number(game.cols || 4);
+  const table = document.createElement("section");
+  table.className = "boxes-room-table";
+  table.style.setProperty("--boxes-grid-cols", String(cols * 2 + 1));
+  table.style.setProperty("--boxes-grid-rows", String(rows * 2 + 1));
+  table.innerHTML = `
+    <div class="boxes-room-score-row">
+      ${currentRoom.players.map((player) => boxesScoreHtml(player, game)).join("")}
+    </div>
+    <div class="boxes-room-grid" role="grid" aria-label="Dots and Boxes board"></div>
+  `;
+  const grid = table.querySelector(".boxes-room-grid");
+  for (let visualRow = 0; visualRow <= rows * 2; visualRow += 1) {
+    for (let visualCol = 0; visualCol <= cols * 2; visualCol += 1) {
+      if (visualRow % 2 === 0 && visualCol % 2 === 0) {
+        const dot = document.createElement("span");
+        dot.className = "boxes-dot";
+        dot.setAttribute("aria-hidden", "true");
+        grid.appendChild(dot);
+      } else if (visualRow % 2 === 0) {
+        const lineId = boxesLineId("h", visualRow / 2, Math.floor(visualCol / 2));
+        grid.appendChild(boxesLineButton(lineId, "horizontal", game, lines, canSelectedPlayerMove));
+      } else if (visualCol % 2 === 0) {
+        const lineId = boxesLineId("v", Math.floor(visualRow / 2), visualCol / 2);
+        grid.appendChild(boxesLineButton(lineId, "vertical", game, lines, canSelectedPlayerMove));
+      } else {
+        grid.appendChild(boxesCell(game, Math.floor(visualRow / 2), Math.floor(visualCol / 2), lines));
+      }
+    }
+  }
+  host.appendChild(table);
+}
+
+function boxesScoreHtml(player, game) {
+  const active = game.status === "playing" && player.mark === game.current_player;
+  const score = Number(game.scores && game.scores[player.mark] || 0);
+  const color = safePlayerColor(player);
+  return `
+    <div class="boxes-room-score ${active ? "active" : ""}" style="--player-color:${escapeHtml(color)}">
+      ${avatarHtml(player)}
+      <strong>${escapeHtml(player.name)}</strong>
+      <b>${escapeHtml(String(score))}</b>
+    </div>
+  `;
+}
+
+function boxesLineButton(lineId, orientation, game, lines, canSelectedPlayerMove) {
+  const claimed = lines.has(lineId);
+  const owner = claimed ? boxesLineOwner(game, lineId) : null;
+  const ownerPlayer = owner ? currentRoom.players.find((player) => player.mark === owner) : null;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `boxes-edge boxes-edge-${orientation} ${claimed ? "claimed" : ""} ${game.last_move && game.last_move.line_id === lineId ? "last-move" : ""}`;
+  button.dataset.lineId = lineId;
+  button.setAttribute("aria-label", claimed ? `Claimed edge ${lineId}` : `Claim edge ${lineId}`);
+  if (ownerPlayer) button.style.setProperty("--owner-color", safePlayerColor(ownerPlayer));
+  const moveKey = moveIntentKey(currentRoom, selectedPlayerId, null, null, lineId);
+  button.classList.toggle("pending", Boolean(pendingMove && pendingMove.key === moveKey));
+  button.disabled = Boolean(claimed || game.status !== "playing" || !canSelectedPlayerMove || pendingMove);
+  button.addEventListener("click", () => makeMove(null, null, lineId));
+  button.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse") return;
+    event.preventDefault();
+    makeMove(null, null, lineId);
+  });
+  return button;
+}
+
+function boxesCell(game, row, col, lines) {
+  const owner = game.boxes && game.boxes[row] && game.boxes[row][col];
+  const ownerPlayer = owner ? currentRoom.players.find((player) => player.mark === owner) : null;
+  const sides = boxesBoxLineIds(row, col).filter((lineId) => lines.has(lineId)).length;
+  const cell = document.createElement("div");
+  cell.className = `boxes-cell ${owner ? "owned" : ""} ${!owner && sides === 3 ? "danger" : ""}`;
+  if (ownerPlayer) {
+    cell.style.setProperty("--owner-color", safePlayerColor(ownerPlayer));
+    const ownerIndex = currentRoom.players.indexOf(ownerPlayer);
+    const mark = document.createElement("span");
+    mark.textContent = ownerPlayer.icon || (ownerIndex === 1 ? "😎" : "🙂");
+    mark.setAttribute("aria-label", `${ownerPlayer.name || "Player"} claimed this box`);
+    cell.appendChild(mark);
+  }
+  return cell;
+}
+
+function boxesLineOwner(game, lineId) {
+  const entry = (game.events || []).slice().reverse().find((event) => event.line_id === lineId);
+  return entry ? entry.player : game.last_move && game.last_move.line_id === lineId ? game.last_move.player : null;
+}
+
+function boxesLineId(orientation, row, col) {
+  return `${orientation === "v" ? "v" : "h"}-${Number(row)}-${Number(col)}`;
+}
+
+function boxesBoxLineIds(row, col) {
+  return [
+    boxesLineId("h", row, col),
+    boxesLineId("h", row + 1, col),
+    boxesLineId("v", row, col),
+    boxesLineId("v", row, col + 1),
+  ];
 }
 
 function canRoomSeatMove(seat, game) {
@@ -1784,17 +2541,43 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
+  const isBattleship = isBattleshipGameState(currentRoom.game);
+  const isBattleshipReview = isBattleship && currentRoom.game && currentRoom.game.phase === "complete";
+  const battleshipActiveMark = isBattleship && !isBattleshipReview ? visibleBattleshipPlayerMark(currentRoom) : "";
 
   currentRoom.players.forEach((roomPlayer) => {
     const isCurrentTurn = roomPlayer.mark === currentRoom.game.current_player && currentRoom.game.status === "playing";
+    const isVisibleBattleshipPlayer = Boolean(battleshipActiveMark && roomPlayer.mark === battleshipActiveMark);
+    const highlighted = isBattleship && !isBattleshipReview ? isVisibleBattleshipPlayer : isCurrentTurn;
     const scoreText = tacticalScoreText(roomPlayer);
-    const label = document.createElement("div");
-    label.className = `player-switch-button ${isCurrentTurn ? "current-turn" : ""}`;
-    label.setAttribute("aria-current", isCurrentTurn ? "true" : "false");
-    if (isCurrentTurn) applyPlayerLabelTurnColor(label, roomPlayer);
-    label.innerHTML = `${avatarHtml(roomPlayer)}<span><strong>${escapeHtml(roomPlayer.mark)}</strong> ${escapeHtml(roomPlayer.name)}${scoreText}</span>`;
+    const label = document.createElement(isBattleshipReview ? "button" : "div");
+    if (isBattleshipReview) label.type = "button";
+    const selectedReview = isBattleshipReview && roomPlayer.mark === (battleshipReviewMark || currentRoom.players[0].mark);
+    label.className = `player-switch-button ${highlighted ? "current-turn" : ""} ${selectedReview ? "current-turn" : ""}`;
+    label.setAttribute("aria-current", highlighted ? "true" : "false");
+    if (highlighted || selectedReview) applyPlayerLabelTurnColor(label, roomPlayer);
+    label.innerHTML = `${avatarHtml(roomPlayer)}<span>${escapeHtml(roomPlayer.name)}${scoreText}</span>`;
+    if (isBattleshipReview) {
+      label.setAttribute("aria-pressed", selectedReview ? "true" : "false");
+      label.addEventListener("click", () => {
+        battleshipReviewMark = roomPlayer.mark;
+        renderGame();
+      });
+    }
     host.appendChild(label);
   });
+}
+
+function visibleBattleshipPlayerMark(room) {
+  const selectedSeat = room.players.find((player) => player.id === selectedPlayerId);
+  const opponent = selectedSeat ? room.players.find((player) => player.mark && player.mark !== selectedSeat.mark) : null;
+  const currentTurnPlayer = room.players.find((player) => player.mark === room.game.current_player);
+  const reveal = activeBattleshipResultReveal(room, selectedSeat);
+  const pendingDefence = activeBattleshipPendingDefence(room, selectedSeat);
+  const yourTurn = selectedSeat && selectedSeat.mark === room.game.current_player;
+  const activeView = reveal && reveal.view ? reveal.view : pendingDefence ? "defence" : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+  const visiblePlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
+  return visiblePlayer && visiblePlayer.mark || "";
 }
 
 function applyPlayerLabelTurnColor(element, player) {
@@ -1824,13 +2607,16 @@ function showTurnStatus(currentPlayer, overrideText = "") {
   }
   if (selectedSeat.mark === currentRoom.game.current_player) {
     setTurnColorVariables(host, selectedSeat.color);
-    setTurnStatusText(host, pendingMove ? "Placing move..." : `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`);
+    const moveText = isBattleshipGameState(currentRoom.game)
+      ? `It's your turn, ${selectedSeat.name}.`
+      : `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`;
+    setTurnStatusText(host, pendingMove ? "Placing move..." : moveText);
     host.classList.add("your-turn");
     return;
   }
   const waitingText = isBotPlayer(currentPlayer)
     ? `${currentPlayer.name} is thinking...`
-    : `Waiting for ${currentPlayer ? currentPlayer.name : currentRoom.game.current_player}.`;
+    : `Waiting for ${currentPlayer ? currentPlayer.name : isBattleshipGameState(currentRoom.game) ? "the other player" : currentRoom.game.current_player}.`;
   setTurnStatusText(host, waitingText);
   host.classList.add("waiting");
 }
@@ -1871,6 +2657,14 @@ function pickupAtCell(game, boardIndex, cellIndex) {
 
 function isTacticalGameState(game) {
   return Boolean(game && (canonicalGameId(game.game_id) === "d7e4a91f0c23" || Array.isArray(game.pickups)));
+}
+
+function isBoxesGameState(game) {
+  return Boolean(game && (canonicalGameId(game.game_id) === BOXES_GAME_ID || Array.isArray(game.lines) && Array.isArray(game.boxes)));
+}
+
+function isBattleshipGameState(game) {
+  return Boolean(game && (canonicalGameId(game.game_id) === BATTLESHIP_GAME_ID || game.phase === "setup" && game.players && game.fleet));
 }
 
 function scheduleWinOverlay(player, mark) {
@@ -2062,8 +2856,13 @@ function setDeviceSelectedPlayer(playerId) {
 function syncSelectedPlayerForLocalRoom() {
   if (!isLocalModeRoom(currentRoom)) return;
   const currentTurnPlayer = currentRoom.players.find((player) => player.mark === currentRoom.game.current_player);
+  const setupPlayer = isBattleshipGameState(currentRoom.game) && currentRoom.game.status === "setup"
+    ? currentRoom.players.find((player) => player.mark && !(currentRoom.game.players && currentRoom.game.players[player.mark] && currentRoom.game.players[player.mark].ready))
+    : null;
   const homePlayerId = localGameHomePlayerId(currentRoom);
-  const targetPlayerId = currentRoom.started && currentRoom.game.status === "playing" && currentTurnPlayer
+  const targetPlayerId = setupPlayer
+    ? setupPlayer.id
+    : currentRoom.started && currentRoom.game.status === "playing" && currentTurnPlayer
     ? currentTurnPlayer.id
     : homePlayerId;
   if (!targetPlayerId || selectedPlayerId === targetPlayerId) return;
@@ -2147,12 +2946,6 @@ function gameAvailabilityText(game) {
   return "Game unavailable.";
 }
 
-function winningLineFor(values, winner) {
-  if (!winner || winner === "D") return [];
-  const line = winLines.find(([a, b, c]) => values[a] === winner && values[b] === winner && values[c] === winner);
-  return line || [];
-}
-
 function roomRenderKey(room) {
   if (!room) return "";
   return JSON.stringify({
@@ -2178,8 +2971,17 @@ function roomRenderKey(room) {
       line_winner: room.game.line_winner,
       move_count: room.game.move_count,
       legal_boards: room.game.legal_boards,
-      pickups: room.game.pickups,
+      lines: room.game.lines,
+      boxes: room.game.boxes,
       scores: room.game.scores,
+      legal_lines: room.game.legal_lines,
+      last_move: room.game.last_move,
+      events: room.game.events,
+      phase: room.game.phase,
+      board_size: room.game.board_size,
+      fleet: room.game.fleet,
+      players_state: room.game.players,
+      pickups: room.game.pickups,
       last_event: room.game.last_event,
     },
     latest_invite: room.latest_invite ? {
@@ -2191,9 +2993,9 @@ function roomRenderKey(room) {
   });
 }
 
-function moveIntentKey(room, playerId, board, cell) {
+function moveIntentKey(room, playerId, board, cell, lineId = "") {
   if (!room) return "";
-  return `${room.code}:${room.game.move_count}:${playerId}:${board}:${cell}`;
+  return `${room.code}:${room.game.move_count}:${playerId}:${lineId || `${board}:${cell}`}`;
 }
 
 function clearResolvedPendingMove(room) {
@@ -2202,21 +3004,6 @@ function clearResolvedPendingMove(room) {
     return;
   }
   if (room.game.move_count > pendingMove.moveCount || room.game.status !== "playing") pendingMove = null;
-}
-
-function winLineClass(line) {
-  const key = line.join("-");
-  const classes = {
-    "0-1-2": "row-0",
-    "3-4-5": "row-1",
-    "6-7-8": "row-2",
-    "0-3-6": "col-0",
-    "1-4-7": "col-1",
-    "2-5-8": "col-2",
-    "0-4-8": "diag-down",
-    "2-4-6": "diag-up",
-  };
-  return classes[key] || "";
 }
 
 async function refreshPlayers() {

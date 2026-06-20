@@ -28,6 +28,7 @@ doctrine index points back to it.
 
 - [Project Memory](project-memory.md): durable product context, adopted decisions, and long-lived preferences.
 - [Wu Wei Method](wu-wei-method.md): the flow doctrine for shaping the app so correct play is the natural path.
+- [Modularity](modularity.md): the structure doctrine for module ownership, no god files, and growing code by extracting seams.
 - [AREC](AREC.md): the idea-pressure test used before new concepts become doctrine or architecture.
 - [Architecture](architecture.md): the current system shape and runtime ownership model.
 - [State Machine](state-machine.md): screen, room, and navigation truth.
@@ -49,6 +50,7 @@ If the idea is still fuzzy or architecture-shaping, run AREC before implementati
 
 - Product direction or durable preferences -> `docs/project-memory.md`
 - Flow, event-driven behavior, or explicit refresh doctrine -> `docs/wu-wei-method.md`
+- Module ownership, no-god-file discipline, or adding a game as a module -> `docs/modularity.md`
 - Screen states, room flow, and modal behavior -> `docs/state-machine.md`
 - Runtime ownership, browser vs Worker boundaries, or system shape -> `docs/architecture.md`
 - Polling, WebSockets, Durable Objects, or quota-sensitive behavior -> `docs/cloudflare-quota.md`

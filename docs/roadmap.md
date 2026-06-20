@@ -45,7 +45,6 @@ Candidate games:
 
 - Sorry, Not Sorry as the first `liveRound` or `liveRoundRegroup` candidate.
 - Connect Four
-- Dots and Boxes
 - Word/guessing games
 - Simple card/table games
 

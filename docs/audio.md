@@ -31,6 +31,7 @@ Adopt with constraints: procedural Web Audio only, global mute toggle, no backgr
 - [x] Wire core UI action sounds.
 - [x] Wire room and game event sounds through room-state transitions.
 - [x] Dedupe invite, join, turn, tactical-event, and game-over sounds so fallback refreshes do not replay old events.
+- [x] Wire Dots and Boxes to the same shared sound vocabulary.
 - [x] Keep all audio browser-only; no Worker, D1, or rules-engine changes.
 
 ## Progress
