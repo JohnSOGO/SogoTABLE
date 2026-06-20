@@ -2246,7 +2246,7 @@ button.player-switch-button {
 
 .ten-thousand-standings th,
 .ten-thousand-standings td {
-  padding: 7px 10px;
+  padding: 4px 10px;
   text-align: left;
 }
 
@@ -2268,10 +2268,6 @@ button.player-switch-button {
 .ten-thousand-standings th:nth-child(3),
 .ten-thousand-standings td:nth-child(3) {
   text-align: center;
-}
-
-.ten-thousand-standings tr.tt-standing td {
-  border-bottom: 1px solid #eef1f5;
 }
 
 .ten-thousand-standings tr.is-resolved td {
@@ -2315,12 +2311,7 @@ button.player-switch-button {
 }
 
 .tt-standing-status {
-  width: auto;
-  min-width: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
+  text-align: center;
   white-space: nowrap;
 }
 

@@ -88,9 +88,6 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
   // is pending advance, so "Roll to start the next round" works.
   const canRoll = game.status === "playing" && !pendingMove && Boolean(seat.can_roll);
   const dice = Array.isArray(seat.dice) ? seat.dice : [];
-  const displayDice = farkled
-    ? dice.map((die) => ({ ...die, selected: false, scored: false }))
-    : dice;
   const lastMove = game.last_move || {};
   const moveCount = Number(game.move_count || 0);
   const animate = !pendingMove
@@ -102,8 +99,10 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
     : new Set();
   if (animate) lastAnimatedMoveCount = moveCount;
 
-  const diceHtml = displayDice
-    .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: farkled }))
+  // On a farkle, only the just-rolled dice that failed to score (the unscored
+  // ones) are red; dice already set aside this turn stay as they were.
+  const diceHtml = dice
+    .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: farkled && !die.scored }))
     .join("");
   const actionsHtml = farkled && !resolved
     ? `<button class="primary" type="button" data-action="ack">OK - Continue</button>`
