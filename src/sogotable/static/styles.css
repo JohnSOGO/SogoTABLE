@@ -2246,12 +2246,15 @@ button.player-switch-button {
   text-align: right;
 }
 
-.ten-thousand-standings tr.tt-standing td {
-  border-bottom: 1px solid #eef1f5;
+.ten-thousand-standings th:nth-child(2),
+.ten-thousand-standings td:nth-child(2),
+.ten-thousand-standings th:nth-child(3),
+.ten-thousand-standings td:nth-child(3) {
+  text-align: center;
 }
 
-.ten-thousand-standings tr.is-local td {
-  background: rgba(31, 122, 95, 0.10);
+.ten-thousand-standings tr.tt-standing td {
+  border-bottom: 1px solid #eef1f5;
 }
 
 .ten-thousand-standings tr.is-resolved td {
@@ -2261,6 +2264,41 @@ button.player-switch-button {
 .ten-thousand-standings tr.is-farkle td:nth-child(2) {
   color: #d24040;
   font-weight: 600;
+}
+
+.tt-standing-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 42px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tt-standing-player-icon {
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+.tt-standing-player-name {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-standing-player.is-expanded .tt-standing-player-name {
+  display: inline;
+}
+
+.tt-standing-status {
+  width: 2.25rem;
 }
 
 @keyframes dice-tumble {

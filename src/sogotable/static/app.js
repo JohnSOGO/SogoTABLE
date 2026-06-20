@@ -1776,6 +1776,18 @@ function maybeShowTenThousandFarklePrompt(previousRoom, room) {
   showInfoPrompt("You Farkled!", "Your turn score is lost. Tap OK to continue.");
 }
 
+function tenThousandStatusText(room, game, localSeat, seatState) {
+  if (!room || !game) return "";
+  if (!room.started) return room.host_id === deviceSelectedPlayerId ? "Add players and bots, then start." : "Waiting for the host to start.";
+  if (game.status === "complete") return "Game over.";
+  if (!localSeat || !seatState) return "Waiting for your seat to be ready.";
+  if (seatState.phase === "farkled") return "You Farkled! Tap OK to continue.";
+  if (seatState.resolved) return "Waiting for the other players to finish the round.";
+  if (seatState.phase === "rolled") return "Select scoring dice, then bank or press.";
+  if (seatState.phase === "selected") return "Bank your turn score or press your luck.";
+  return "Roll the dice to start your turn.";
+}
+
 function isStaleRoomSnapshot(current, next) {
   if (!current || !next || current.code !== next.code) return false;
   const currentRevision = Number(current.revision || 0);
@@ -2055,6 +2067,7 @@ function renderGame() {
   if (isTenThousandGameState(game)) {
     document.getElementById("gamePlayersPanel").classList.add("hidden");
     const localSeat = currentRoom.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+    const tenThousandSeat = localSeat ? (game.players || []).find((seat) => seat.mark === localSeat.mark) : null;
     renderTenThousandGame({
       host: document.getElementById("macroBoard"),
       game,
@@ -2076,7 +2089,8 @@ function renderGame() {
       showTurnStatus(winner, `${winner ? winner.name : "Player"} wins!`);
       scheduleWinOverlay(winner, game.winner);
     } else {
-      showTurnStatus(selectedPlayer(), `Round ${game.round}`);
+      const turnText = tenThousandStatusText(currentRoom, game, localSeat, tenThousandSeat);
+      showTurnStatus(localSeat || selectedPlayer(), turnText);
     }
     return;
   }

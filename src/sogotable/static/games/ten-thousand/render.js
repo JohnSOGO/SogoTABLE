@@ -55,7 +55,9 @@ function renderTenThousandLobby(host, ctx) {
   if (!isHost) return;
   const wire = (key, fn) => {
     const button = host.querySelector(`[data-lobby="${key}"]`);
-    if (button && fn) button.addEventListener("click", () => { if (!button.disabled) fn(); });
+    if (button && fn) button.addEventListener("click", () => {
+      if (!button.disabled) fn();
+    });
   };
   wire("invite", ctx.invitePlayer);
   wire("bot", ctx.addBot);
@@ -63,23 +65,19 @@ function renderTenThousandLobby(host, ctx) {
 }
 
 function renderTenThousandPlay(host, ctx) {
-  const { room, game, pendingMove, escapeHtml } = ctx;
+  const { room, game, pendingMove } = ctx;
   const seats = Array.isArray(game.players) ? game.players : [];
   const localMark = markForPlayer(room, ctx.localPlayerId);
   const localSeat = seats.find((seat) => seat.mark === localMark) || null;
   const complete = game.status === "complete";
 
-  const roundLabel = complete
-    ? "Game over"
-    : `Round ${game.round}${game.final_round ? " - final round" : ""}`;
-
   host.innerHTML = `
-    <section class="ten-thousand-roundbar">${escapeHtml(roundLabel)}</section>
     ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove) : ""}
-    ${standingsHtml(seats, room, game, localMark)}
+    ${standingsHtml(seats, room, game)}
   `;
 
   if (localSeat && !complete) wireTray(host, localSeat, game, ctx);
+  wireStandings(host);
 }
 
 function trayHtml(seat, game, pendingMove) {
@@ -94,7 +92,7 @@ function trayHtml(seat, game, pendingMove) {
     && ROLL_MOVE_TYPES.has(lastMove.type)
     && moveCount !== lastAnimatedMoveCount;
   const rolledIds = animate
-    ? new Set((Array.isArray(lastMove.dice) ? lastMove.dice : []).map((die) => die.id))
+    ? new Set((Array.isArray(lastMove.dice) ? lastMove.dice : []).filter((die) => !die.scored).map((die) => die.id))
     : new Set();
   if (animate) lastAnimatedMoveCount = moveCount;
 
@@ -116,18 +114,18 @@ function trayHtml(seat, game, pendingMove) {
         <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
         <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>
       </div>
-      <p class="ten-thousand-message">${trayMessage(seat, game)}</p>
+      <p class="ten-thousand-message">${trayMessage(seat)}</p>
     </section>`;
 }
 
-function trayMessage(seat, game) {
+function trayMessage(seat) {
   if (seat.resolved) {
     if (seat.phase === "farkled") return "You Farkled! Tap OK to continue.";
-    return `Banked ${fmt(seat.round_score)} this round. Waiting for the other players...`;
+    return "Waiting for the other players to finish the round.";
   }
-  if (seat.phase === "rolled") return "Select the dice you want to score.";
+  if (seat.phase === "rolled") return "Select scoring dice, then bank or press.";
   if (seat.phase === "selected") return "Bank your turn score or press your luck.";
-  return "Roll the dice.";
+  return "Roll the dice to start your turn.";
 }
 
 function wireTray(host, seat, game, ctx) {
@@ -167,7 +165,9 @@ function wireTray(host, seat, game, ctx) {
 
   const action = (selector, build) => {
     const button = host.querySelector(selector);
-    if (button) button.addEventListener("click", () => { if (!button.disabled) makeMove(build()); });
+    if (button) button.addEventListener("click", () => {
+      if (!button.disabled) makeMove(build());
+    });
   };
   action('[data-action="roll"]', () => ({ type: "roll" }));
   action('[data-action="reroll"]', () => ({ type: "reroll" }));
@@ -179,44 +179,60 @@ function wireTray(host, seat, game, ctx) {
   refreshSelection();
 }
 
-function standingsHtml(seats, room, game, localMark) {
-  const leader = seats.reduce((best, seat) => (seat.score > (best ? best.score : -1) ? seat : best), null);
+function standingsHtml(seats, room, game) {
   const rows = seats
     .slice()
     .sort((left, right) => right.score - left.score)
-    .map((seat) => standingsRow(seat, room, game, leader, localMark))
+    .map((seat) => standingsRow(seat, room, game))
     .join("");
   return `
     <section class="ten-thousand-standings" aria-label="Standings">
       <table>
-        <thead><tr><th>Player</th><th>Round</th><th>Score</th></tr></thead>
+        <thead><tr><th>Player</th><th aria-label="Status"></th><th>Farkle</th><th>Score</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </section>`;
 }
 
-function standingsRow(seat, room, game, leader, localMark) {
+function standingsRow(seat, room, game) {
   const name = seatName(room, seat.mark);
-  const isLocal = seat.mark === localMark;
-  const isLeader = leader && seat.mark === leader.mark && seat.score > 0;
   const classes = [
     "tt-standing",
-    isLocal ? "is-local" : "",
     seat.resolved ? "is-resolved" : "",
     seat.phase === "farkled" ? "is-farkle" : "",
   ].filter(Boolean).join(" ");
-  let status;
-  if (game.status === "complete") status = game.winner === seat.mark ? "Winner" : "-";
-  else if (seat.phase === "farkled") status = "Farkle";
-  else if (seat.resolved) status = `+${fmt(seat.round_score)} OK`;
-  else if (seat.turn_score > 0) status = `${fmt(seat.turn_score)}...`;
-  else status = seat.is_bot ? "Bot" : "Rolling...";
+  const status = standingStatusIcon(seat, game);
   return `
     <tr class="${classes}">
-      <td>${isLeader ? "Leader " : ""}${escapeName(name)}${seat.is_bot ? " Bot" : ""}</td>
-      <td>${status}</td>
+      <td>
+        <button class="tt-standing-player" type="button" data-standing-player="${seat.mark}" title="Tap to show name">
+          <span class="tt-standing-player-icon">${seat.icon || "🙂"}</span>
+          <span class="tt-standing-player-name">${escapeName(name)}</span>
+        </button>
+      </td>
+      <td class="tt-standing-status" title="${status.title}">${status.symbol}</td>
+      <td>${fmt(seat.farkles)}</td>
       <td><strong>${fmt(seat.score)}</strong></td>
     </tr>`;
+}
+
+function standingStatusIcon(seat, game) {
+  if (game.status === "complete") {
+    return seat.mark === game.winner
+      ? { symbol: "✅", title: "Winner" }
+      : { symbol: "—", title: "Finished" };
+  }
+  if (seat.phase === "farkled") return { symbol: "❌", title: "Farkled this round" };
+  if (seat.resolved) return { symbol: "✅", title: "Banked this round" };
+  return { symbol: "⏳", title: "Waiting for this player to finish" };
+}
+
+function wireStandings(host) {
+  [...host.querySelectorAll("[data-standing-player]")].forEach((button) => {
+    button.addEventListener("click", () => {
+      button.classList.toggle("is-expanded");
+    });
+  });
 }
 
 function dieHtml(die, { rolling = false, bust = false } = {}) {
