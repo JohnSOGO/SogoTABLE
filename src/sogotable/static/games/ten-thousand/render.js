@@ -83,10 +83,12 @@ function renderTenThousandPlay(host, ctx) {
 function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeText) {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
-  // Keep the busted roll red for the whole farkle state — pending ack AND after
-  // it's acknowledged — so the red dice stay visible once the popup is dismissed,
-  // until the next round resets the dice.
-  const showBust = seat.finish_state === "farkled_pending_ack" || seat.finish_state === "farkled_acked";
+  // Keep the busted roll red for the whole farkle state. Drive it off the phase
+  // (reliably "farkled" while busted) AND the finish_state (so it persists after
+  // acknowledging), until the next round resets the dice.
+  const showBust = farkled
+    || seat.finish_state === "farkled_pending_ack"
+    || seat.finish_state === "farkled_acked";
   const canAct = game.status === "playing" && !resolved && !pendingMove;
   // Roll has its own gate: it stays available to a resolved seat while the round
   // is pending advance, so "Roll to start the next round" works.
@@ -116,6 +118,8 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
       <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
       <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>`;
 
+  const message = statusText || trayMessage(seat, game);
+
   return `
     <section class="ten-thousand-tray">
       <div class="ten-thousand-scoreboard">
@@ -125,7 +129,7 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
       </div>
       <div class="ten-thousand-dice" aria-label="Dice">${diceHtml}</div>
       <div class="ten-thousand-actions" aria-label="Dice actions">${actionsHtml}</div>
-      <p class="ten-thousand-message">${escapeHtml(statusText || trayMessage(seat, game))}</p>
+      ${message ? `<p class="ten-thousand-message">${escapeHtml(message)}</p>` : ""}
     </section>`;
 }
 
@@ -139,9 +143,8 @@ function trayMessage(seat, game = null) {
     return "Waiting for the other players to finish the round.";
   }
   if (game && game.round_pending_advance) return "Round complete. Roll to start the next round.";
-  if (seat.phase === "rolled") return "Select scoring dice, then bank or press.";
-  if (seat.phase === "selected") return "Bank your turn score or press your luck.";
-  return "Tap Roll to begin.";
+  // Roll/score/bank states need no instructional text — the buttons are clear.
+  return "";
 }
 
 function wireTray(host, seat, game, ctx) {

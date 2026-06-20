@@ -1971,10 +1971,16 @@ button.player-switch-button {
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: none;
-  gap: 14px;
+  gap: 10px;
   width: min(100%, 620px);
   aspect-ratio: auto;
-  padding: 4px 0 18px;
+  padding: 0 0 18px;
+}
+
+/* Collapse the player-switch row when it has no buttons (e.g. 10,000) so the
+   board sits higher. */
+#gamePlayerSwitch:empty {
+  display: none;
 }
 
 .ten-thousand-scoreboard {

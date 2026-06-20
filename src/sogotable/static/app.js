@@ -1815,11 +1815,10 @@ function tenThousandStatusText(room, game, localSeat, seatState) {
     if (seatState.finish_state === "farkled_pending_ack") return "You Farkled! Round complete. Roll to start the next round.";
     return "Round complete. Roll to start the next round.";
   }
-  if (seatState.finish_state === "farkled_pending_ack") return "You Farkled! Tap OK to continue.";
+  if (seatState.finish_state === "farkled_pending_ack") return "You Farkled! Press to continue.";
   if (seatState.finish_state === "farkled_acked" || seatState.finish_state === "banked") return "Waiting for the other players to finish the round.";
-  if (seatState.phase === "rolled") return "Select scoring dice, then bank or press.";
-  if (seatState.phase === "selected") return "Bank your turn score or press your luck.";
-  return "Tap Roll to begin.";
+  // Roll/score/bank are self-evident from the buttons — no instructional text.
+  return "";
 }
 
 function isStaleRoomSnapshot(current, next) {
