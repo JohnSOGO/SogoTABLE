@@ -2450,7 +2450,7 @@ function renderQuoridorGame(game) {
   table.querySelectorAll("[data-quoridor-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       quoridorMode = button.dataset.quoridorMode;
-      renderGame();
+      if (currentRoom && isQuoridorGameState(currentRoom.game)) renderQuoridorGame(currentRoom.game);
     });
   });
   renderQuoridorBoard(table.querySelector(".quoridor-board"), game, selectedSeat, canSelectedPlayerMove);
@@ -2485,8 +2485,9 @@ function renderQuoridorBoard(grid, game, selectedSeat, canSelectedPlayerMove) {
   }
   for (let row = 0; row < size - 1; row += 1) {
     for (let col = 0; col < size - 1; col += 1) {
-      grid.appendChild(quoridorWallButton("h", row, col, walls, legalWalls, canSelectedPlayerMove));
-      grid.appendChild(quoridorWallButton("v", row, col, walls, legalWalls, canSelectedPlayerMove));
+      grid.appendChild(quoridorWallVisual("h", row, col, walls));
+      grid.appendChild(quoridorWallVisual("v", row, col, walls));
+      grid.appendChild(quoridorWallDot(row, col, legalWalls, canSelectedPlayerMove));
     }
   }
 }
@@ -2515,18 +2516,29 @@ function quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMov
   return button;
 }
 
-function quoridorWallButton(orientation, row, col, walls, legalWalls, canSelectedPlayerMove) {
-  const button = document.createElement("button");
-  button.type = "button";
+function quoridorWallVisual(orientation, row, col, walls) {
+  const wall = document.createElement("div");
   const id = quoridorWallId(orientation, row, col);
   const placed = walls.has(id);
-  const legal = canSelectedPlayerMove && quoridorMode === orientation && legalWalls.has(id);
-  button.className = `quoridor-wall quoridor-wall-${orientation} ${placed ? "placed" : ""} ${legal ? "legal" : ""}`;
-  button.style.gridRow = orientation === "h" ? String(row * 2 + 2) : `${row * 2 + 1} / span 3`;
-  button.style.gridColumn = orientation === "h" ? `${col * 2 + 1} / span 3` : String(col * 2 + 2);
-  button.setAttribute("aria-label", `${orientation === "h" ? "Horizontal" : "Vertical"} wall ${row + 1}, ${col + 1}`);
-  button.disabled = !legal || placed || Boolean(pendingMove);
-  if (legal) button.addEventListener("click", () => makeQuoridorAction({ type: "place_wall", orientation, row, col }));
+  wall.className = `quoridor-wall quoridor-wall-${orientation} ${placed ? "placed" : ""}`;
+  wall.style.gridRow = orientation === "h" ? String(row * 2 + 2) : `${row * 2 + 1} / span 3`;
+  wall.style.gridColumn = orientation === "h" ? `${col * 2 + 1} / span 3` : String(col * 2 + 2);
+  wall.setAttribute("aria-hidden", "true");
+  return wall;
+}
+
+function quoridorWallDot(row, col, legalWalls, canSelectedPlayerMove) {
+  const button = document.createElement("button");
+  button.type = "button";
+  const id = quoridorWallId(quoridorMode, row, col);
+  const wallMode = quoridorMode === "h" || quoridorMode === "v";
+  const legal = canSelectedPlayerMove && wallMode && legalWalls.has(id);
+  button.className = `quoridor-wall-dot ${wallMode ? `mode-${quoridorMode}` : ""}`;
+  button.style.gridRow = String(row * 2 + 2);
+  button.style.gridColumn = String(col * 2 + 2);
+  button.setAttribute("aria-label", `Wall anchor ${row + 1}, ${col + 1}`);
+  button.disabled = !legal || Boolean(pendingMove);
+  if (legal) button.addEventListener("click", () => makeQuoridorAction({ type: "place_wall", orientation: quoridorMode, row, col }));
   return button;
 }
 
