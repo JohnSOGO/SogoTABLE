@@ -604,6 +604,10 @@ Quoridor moves use an action object for pawn moves and wall placement:
 { "code": "ABCD", "player_id": "player-id", "action": { "type": "bank" } }
 ```
 
+```json
+{ "code": "ABCD", "player_id": "player-id", "action": { "type": "ack_farkle" } }
+```
+
 Response:
 
 ```json
@@ -637,7 +641,8 @@ moves the game to `complete`.
 For 10,000, a valid roll updates `game.dice` with Worker-owned face values.
 Selecting dice adds to `game.turn_score`, rerolling rolls remaining unscored
 dice or all six hot dice, banking adds `turn_score` to `game.score`, and a
-roll with no scoring dice records a farkle and clears the turn score.
+roll with no scoring dice records a farkle, preserves the final rolled dice
+values, and waits for `ack_farkle` before the room advances.
 
 ## Reset
 

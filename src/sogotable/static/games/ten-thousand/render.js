@@ -240,18 +240,21 @@ function wireStandings(host) {
 }
 
 function dieHtml(die, { rolling = false, bust = false } = {}) {
-  const value = Number(die.value || 1);
-  const blank = !die.value;
+  const rawValue = Number(die.value);
+  const hasValue = Number.isInteger(rawValue) && rawValue >= 1 && rawValue <= 6;
+  if (bust && !hasValue) throw new Error("Ten Thousand farkle dice must preserve their rolled values.");
+  const value = hasValue ? rawValue : 1;
+  const blank = !hasValue;
   const disabled = die.scored || blank || bust;
   const classes = [
     "ten-thousand-die",
     die.scored ? "scored" : "",
     bust ? "select-bust pending" : "",
-    die.value ? "landed" : "blank",
+    hasValue ? "landed" : "blank",
   ].filter(Boolean).join(" ");
   const cubeClasses = ["die-cube", `die-face-${value}`, rolling ? "rolling" : ""].filter(Boolean).join(" ");
   return `
-    <button class="${classes}" type="button" data-die-id="${die.id}" ${disabled ? "disabled" : ""} aria-label="Die ${die.id}, ${die.value || "not rolled"}">
+    <button class="${classes}" type="button" data-die-id="${die.id}" ${disabled ? "disabled" : ""} aria-label="Die ${die.id}, ${hasValue ? value : "not rolled"}">
       <span class="${cubeClasses}">
         ${[1, 2, 3, 4, 5, 6].map((face) => faceHtml(face)).join("")}
       </span>

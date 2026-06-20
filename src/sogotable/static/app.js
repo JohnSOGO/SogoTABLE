@@ -1755,7 +1755,9 @@ function resolveConfirmPrompt(confirmed) {
 }
 
 function closeConfirmPromptOnBackdrop(event) {
-  if (event.target.id === "confirmPrompt") resolveConfirmPrompt(false);
+  if (event.target.id !== "confirmPrompt") return;
+  if (event.currentTarget && event.currentTarget.classList.contains("info-prompt")) return;
+  resolveConfirmPrompt(false);
 }
 
 function setRoom(room) {
@@ -1789,7 +1791,11 @@ function maybeShowTenThousandFarklePrompt(previousRoom, room) {
   lastTenThousandFarkleNoticeKey = nextKey;
   const justFarkled = !previousRoom || previousRoom.code !== room.code || Number(previousRoom.game && previousRoom.game.move_count || 0) !== moveCount;
   if (!justFarkled) return;
-  showInfoPrompt("You Farkled!", "Your turn score is lost. Tap OK to continue.");
+  showInfoPrompt("You Farkled!", "Your turn score is lost. Tap OK to continue.")
+    .then(async (confirmed) => {
+      if (!confirmed) return;
+      await makeTenThousandAction({ type: "ack_farkle" });
+    });
 }
 
 function tenThousandStatusText(room, game, localSeat, seatState) {

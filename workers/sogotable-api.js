@@ -1631,10 +1631,12 @@ function makeTenThousandMove(game, mark, action) {
   if (seat.is_bot) throw new Error("Bot seats are resolved automatically.");
   if (seat.resolved) throw new Error("You already finished this round. Wait for the next round.");
   const type = String(action && action.type || "").trim();
+  if (seat.phase === "farkled" && type !== "ack_farkle") throw new Error("Acknowledge the farkle to continue.");
   if (type === "roll") rollTenThousandDice(seat);
   else if (type === "select") selectTenThousandDice(seat, action.dice_ids || action.diceIds || []);
   else if (type === "reroll") rerollTenThousandDice(seat);
   else if (type === "bank") bankTenThousandScore(game, mark, seat);
+  else if (type === "ack_farkle") acknowledgeTenThousandFarkle(game, seat);
   else throw new Error("10,000 action is required.");
   game.move_count += 1;
   const farkled = seat.phase === "farkled";
@@ -1681,7 +1683,8 @@ function tenThousandRollDiceByIds(seat, ids) {
 }
 
 // A farkle (no scoring dice in the rolled set) ends this seat's round: the
-// turn score is lost and the seat is resolved.
+// turn score is lost but the busted roll stays visible until the player
+// acknowledges it.
 function finishTenThousandRoll(seat) {
   const rolledDice = seat.dice.filter((die) => die.rolling);
   seat.dice.forEach((die) => { die.rolling = false; });
@@ -1690,10 +1693,16 @@ function finishTenThousandRoll(seat) {
     seat.round_score = 0;
     seat.farkles += 1;
     seat.phase = "farkled";
-    seat.resolved = true;
+    seat.resolved = false;
     return;
   }
   seat.phase = "rolled";
+}
+
+function acknowledgeTenThousandFarkle(game, seat) {
+  if (seat.phase !== "farkled") throw new Error("There is no farkle to acknowledge.");
+  seat.resolved = true;
+  seat.phase = "done";
 }
 
 function selectTenThousandDice(seat, diceIds) {
@@ -1726,7 +1735,8 @@ function bankTenThousandScore(game, mark, seat) {
   }
 }
 
-// Barrier: a round ends only once every seat has resolved (banked or farkled).
+// Barrier: a round ends only once every seat has resolved (banked or farkled
+// and acknowledged).
 // If anyone has reached the target the game ends (highest score wins, since
 // simultaneous play guarantees equal rounds); otherwise advance to the next
 // round and resolve bots for it.

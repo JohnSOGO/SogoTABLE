@@ -346,22 +346,25 @@ test("10,000 rolls, selects scoring dice, presses, and banks (per seat)", async 
   assert.equal(seatByMark(banked, "P1").phase, "ready");
 }));
 
-test("10,000 farkle ends the seat's round and is reported via last_move", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
+test("10,000 farkle preserves the final dice until acknowledged", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
   const env = makeEnv();
   const host = player("farkle", "Farkle");
   await post(env, "/api/room/create", { game_id: TEN_THOUSAND_GAME_ID, player: host, code: "BUST" });
   await post(env, "/api/room/start", { code: "BUST", host_id: host.id });
   const rolled = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "roll" } });
-  const selected = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "select", dice_ids: ["d1"] } });
+  const acked = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "ack_farkle" } });
 
   assert.equal(rolled.room.game.last_move.type, "farkle");
+  assert.deepEqual(rolled.room.game.last_move.dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
   assert.equal(seatByMark(rolled, "P1").farkles, 1);
   assert.equal(seatByMark(rolled, "P1").turn_score, 0);
-  // Solo: the farkle resolves the seat, so the round advances and the seat resets.
-  assert.equal(rolled.room.game.round, 2);
-  assert.equal(seatByMark(rolled, "P1").phase, "ready");
-  assert.equal(selected.ok, false);
-  assert.equal(selected.error, "Roll before selecting dice.");
+  assert.equal(seatByMark(rolled, "P1").phase, "farkled");
+  assert.equal(seatByMark(rolled, "P1").resolved, false);
+  assert.deepEqual(seatByMark(rolled, "P1").dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
+  assert.equal(acked.room.game.last_move.type, "ack_farkle");
+  assert.equal(acked.room.game.round, 2);
+  assert.equal(seatByMark(acked, "P1").phase, "ready");
+  assert.equal(seatByMark(acked, "P1").resolved, false);
 }));
 
 test("10,000 multiplayer: barrier waits for all humans before advancing", async () => withMockRandom([0], async () => {
