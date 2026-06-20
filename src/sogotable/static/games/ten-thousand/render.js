@@ -83,6 +83,10 @@ function renderTenThousandPlay(host, ctx) {
 function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeText) {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
+  // Keep the busted roll red for the whole farkle state — pending ack AND after
+  // it's acknowledged — so the red dice stay visible once the popup is dismissed,
+  // until the next round resets the dice.
+  const showBust = seat.finish_state === "farkled_pending_ack" || seat.finish_state === "farkled_acked";
   const canAct = game.status === "playing" && !resolved && !pendingMove;
   // Roll has its own gate: it stays available to a resolved seat while the round
   // is pending advance, so "Roll to start the next round" works.
@@ -102,7 +106,7 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
   // On a farkle, only the just-rolled dice that failed to score (the unscored
   // ones) are red; dice already set aside this turn stay as they were.
   const diceHtml = dice
-    .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: farkled && !die.scored }))
+    .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: showBust && !die.scored }))
     .join("");
   const actionsHtml = farkled && !resolved
     ? `<button class="primary" type="button" data-action="ack">OK - Continue</button>`

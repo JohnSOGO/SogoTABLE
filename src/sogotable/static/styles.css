@@ -2246,7 +2246,8 @@ button.player-switch-button {
 
 .ten-thousand-standings th,
 .ten-thousand-standings td {
-  padding: 4px 10px;
+  padding: 2px 10px;
+  line-height: 1.25;
   text-align: left;
 }
 
