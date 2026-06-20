@@ -1869,7 +1869,10 @@ function bestTenThousandKeep(dice) {
 }
 
 function tenThousandCanRoll(game, seat) {
-  return game.status === "playing" && !seat.resolved && seat.phase === "ready";
+  if (game.status !== "playing") return false;
+  // When the round is complete, any resolved seat may roll to start the next one.
+  if (game.round_pending_advance) return true;
+  return !seat.resolved && seat.phase === "ready";
 }
 
 function tenThousandCanReroll(game, seat) {

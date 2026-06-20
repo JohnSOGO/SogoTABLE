@@ -84,6 +84,9 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
   const canAct = game.status === "playing" && !resolved && !pendingMove;
+  // Roll has its own gate: it stays available to a resolved seat while the round
+  // is pending advance, so "Roll to start the next round" works.
+  const canRoll = game.status === "playing" && !pendingMove && Boolean(seat.can_roll);
   const dice = Array.isArray(seat.dice) ? seat.dice : [];
   const displayDice = farkled
     ? dice.map((die) => ({ ...die, selected: false, scored: false }))
@@ -105,7 +108,7 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
   const actionsHtml = farkled && !resolved
     ? `<button class="primary" type="button" data-action="ack">OK - Continue</button>`
     : `
-      <button class="primary" type="button" data-action="roll" ${canAct && seat.can_roll ? "" : "disabled"}>Roll</button>
+      <button class="primary" type="button" data-action="roll" ${canRoll ? "" : "disabled"}>Roll</button>
       <button class="secondary" type="button" data-action="select" disabled>Score Selected</button>
       <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
       <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>`;

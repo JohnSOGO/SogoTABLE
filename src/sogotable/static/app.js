@@ -1622,7 +1622,9 @@ async function makeTenThousandAction(action) {
   // is unresolved. The server is authoritative; no shared current_player.
   if (!selectedSeat) return;
   const seatState = (currentRoom.game.players || []).find((seat) => seat.mark === selectedSeat.mark);
-  if (seatState && seatState.resolved) return;
+  // A resolved seat may still roll once the round is complete, to start the next round.
+  const rollingNextRound = action && action.type === "roll" && currentRoom.game.round_pending_advance;
+  if (seatState && seatState.resolved && !rollingNextRound) return;
   playClick();
   pendingMove = {
     key: moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action)),
