@@ -1,16 +1,14 @@
-# Dots And Boxes Work Surface
+# Dots and Boxes Module
 
-This folder is the local build surface for Dots and Boxes.
+This folder contains the standalone Dots and Boxes lab plus reusable module
+exports. Hosted SogoTable room play is integrated through the Worker and the
+main shell.
 
-Current scope:
+Kept files:
 
-- pure Dots and Boxes state creation
-- legal edge validation
-- box capture and extra-turn rules
-- local two-player hot-seat play
-- local vs-bot play
-- standalone browser preview
-
-Hosted SogoTable promotion still needs Worker and main-shell integration. The
-full implementation plan is in `PLAN.md`.
+- `index.html`, `app.js`, and `styles.css` run the standalone local preview.
+- `state.js`, `rules.js`, and `render.js` keep the lab logic testable and
+  reusable.
+- `manifest.js` and `index.js` preserve the shared game-module shape used by
+  the other games.
 
