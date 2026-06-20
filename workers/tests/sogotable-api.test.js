@@ -296,58 +296,124 @@ test("lists ready games from the hosted game registry", async () => {
   assert.equal(listed.games[3].name, "Battleship");
   assert.equal(listed.games[4].name, "Quoridor");
   assert.equal(listed.games[5].name, "10,000");
-  assert.equal(listed.games[5].player_count, 1);
+  assert.equal(listed.games[5].player_count, 6);
   assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
 });
 
-test("10,000 creates an active solo room", async () => {
+const seatByMark = (res, mark) => res.room.game.players.find((seat) => seat.mark === mark);
+
+test("10,000 creates a waiting room the host starts with indexed seats", async () => {
   const env = makeEnv();
   const host = player("solo", "Solo Player");
   const created = await post(env, "/api/room/create", { game_id: "ten_thousand", player: host, code: "DICE" });
-  const rooms = await get(env, `/api/rooms?game_id=${TEN_THOUSAND_GAME_ID}`);
-
   assert.equal(created.ok, true);
-  assert.equal(created.room.started, true);
+  assert.equal(created.room.started, false);
   assert.equal(created.room.players.length, 1);
-  assert.equal(created.room.players[0].mark, "X");
-  assert.equal(created.room.open_seats, undefined);
-  assert.equal(created.room.game.game_id, TEN_THOUSAND_GAME_ID);
-  assert.equal(created.room.game.phase, "ready");
-  assert.equal(rooms.rooms[0].open_seats, 0);
+  assert.equal(created.room.players[0].mark, "P1");
+
+  const started = await post(env, "/api/room/start", { code: "DICE", host_id: host.id });
+  assert.equal(started.room.started, true);
+  assert.equal(started.room.game.game_id, TEN_THOUSAND_GAME_ID);
+  assert.equal(started.room.game.round, 1);
+  assert.equal(started.room.game.players.length, 1);
+  assert.equal(started.room.game.players[0].mark, "P1");
+  assert.equal(started.room.game.players[0].phase, "ready");
+
+  const rooms = await get(env, `/api/rooms?game_id=${TEN_THOUSAND_GAME_ID}`);
+  assert.equal(rooms.rooms[0].open_seats, 5);
 });
 
-test("10,000 rolls, selects scoring dice, rerolls, and banks", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51, 0.68, 0.85, 0.17], async () => {
+test("10,000 rolls, selects scoring dice, presses, and banks (per seat)", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51, 0.68, 0.85, 0.17], async () => {
   const env = makeEnv();
   const host = player("roller", "Roller");
   await post(env, "/api/room/create", { game_id: "10000", player: host, code: "ROLL" });
+  await post(env, "/api/room/start", { code: "ROLL", host_id: host.id });
   const rolled = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "roll" } });
   const selected = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "select", dice_ids: ["d1", "d2", "d3"] } });
   const rerolled = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "reroll" } });
   const scoredAgain = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "select", dice_ids: ["d4"] } });
   const banked = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "bank" } });
 
-  assert.deepEqual(rolled.room.game.dice.map((die) => die.value), [1, 1, 1, 2, 3, 4]);
-  assert.equal(selected.room.game.turn_score, 1000);
-  assert.equal(rerolled.room.game.phase, "rolled");
-  assert.deepEqual(rerolled.room.game.dice.slice(3).map((die) => die.value), [5, 6, 2]);
-  assert.equal(scoredAgain.room.game.turn_score, 1050);
-  assert.equal(banked.room.game.score, 1050);
-  assert.equal(banked.room.game.phase, "ready");
+  assert.deepEqual(seatByMark(rolled, "P1").dice.map((die) => die.value), [1, 1, 1, 2, 3, 4]);
+  assert.equal(seatByMark(selected, "P1").turn_score, 1000);
+  assert.equal(seatByMark(rerolled, "P1").phase, "rolled");
+  assert.deepEqual(seatByMark(rerolled, "P1").dice.slice(3).map((die) => die.value), [5, 6, 2]);
+  assert.equal(seatByMark(scoredAgain, "P1").turn_score, 1050);
+  // A solo bank resolves the only seat, so the round barrier advances immediately.
+  assert.equal(seatByMark(banked, "P1").score, 1050);
+  assert.equal(banked.room.game.round, 2);
+  assert.equal(seatByMark(banked, "P1").phase, "ready");
 }));
 
-test("10,000 rejects non-scoring selections and records farkles", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
+test("10,000 farkle ends the seat's round and is reported via last_move", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
   const env = makeEnv();
   const host = player("farkle", "Farkle");
   await post(env, "/api/room/create", { game_id: TEN_THOUSAND_GAME_ID, player: host, code: "BUST" });
+  await post(env, "/api/room/start", { code: "BUST", host_id: host.id });
   const rolled = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "roll" } });
   const selected = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "select", dice_ids: ["d1"] } });
 
-  assert.equal(rolled.room.game.phase, "farkled");
-  assert.equal(rolled.room.game.farkles, 1);
-  assert.equal(rolled.room.game.turn_score, 0);
+  assert.equal(rolled.room.game.last_move.type, "farkle");
+  assert.equal(seatByMark(rolled, "P1").farkles, 1);
+  assert.equal(seatByMark(rolled, "P1").turn_score, 0);
+  // Solo: the farkle resolves the seat, so the round advances and the seat resets.
+  assert.equal(rolled.room.game.round, 2);
+  assert.equal(seatByMark(rolled, "P1").phase, "ready");
   assert.equal(selected.ok, false);
   assert.equal(selected.error, "Roll before selecting dice.");
+}));
+
+test("10,000 multiplayer: barrier waits for all humans before advancing", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "DUOS" });
+  await post(env, "/api/room/join", { code: "DUOS", player: guest });
+  await post(env, "/api/room/start", { code: "DUOS", host_id: host.id });
+
+  const play = async (pid) => {
+    await post(env, "/api/room/move", { code: "DUOS", player_id: pid, action: { type: "roll" } });
+    await post(env, "/api/room/move", { code: "DUOS", player_id: pid, action: { type: "select", dice_ids: ["d1", "d2", "d3"] } });
+    return post(env, "/api/room/move", { code: "DUOS", player_id: pid, action: { type: "bank" } });
+  };
+
+  const afterHost = await play(host.id);
+  assert.equal(afterHost.room.game.round, 1);
+  assert.equal(seatByMark(afterHost, "P1").resolved, true);
+  assert.equal(seatByMark(afterHost, "P2").resolved, false);
+
+  const afterGuest = await play(guest.id);
+  assert.equal(afterGuest.room.game.round, 2);
+  assert.equal(seatByMark(afterGuest, "P1").resolved, false);
+  assert.equal(seatByMark(afterGuest, "P1").score, 1000);
+  assert.equal(seatByMark(afterGuest, "P2").score, 1000);
+}));
+
+test("10,000 multiplayer: bots resolve each round automatically", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "PRTY" });
+  await post(env, "/api/room/join-bot", { code: "PRTY", host_id: host.id, bot_id: "7c91a4e2b6d0" });
+  const started = await post(env, "/api/room/start", { code: "PRTY", host_id: host.id });
+
+  // Bot (P2) resolves immediately for round 1; host (P1) still to act.
+  assert.equal(seatByMark(started, "P2").is_bot, true);
+  assert.equal(seatByMark(started, "P2").resolved, true);
+  assert.equal(seatByMark(started, "P2").score, 1300);
+  assert.equal(seatByMark(started, "P1").resolved, false);
+  assert.equal(started.room.game.round, 1);
+
+  await post(env, "/api/room/move", { code: "PRTY", player_id: host.id, action: { type: "roll" } });
+  await post(env, "/api/room/move", { code: "PRTY", player_id: host.id, action: { type: "select", dice_ids: ["d1", "d2", "d3"] } });
+  const banked = await post(env, "/api/room/move", { code: "PRTY", player_id: host.id, action: { type: "bank" } });
+
+  // Host's bank fires the barrier -> round 2, bot auto-resolves again.
+  assert.equal(banked.room.game.round, 2);
+  assert.equal(seatByMark(banked, "P1").score, 1000);
+  assert.equal(seatByMark(banked, "P1").resolved, false);
+  assert.equal(seatByMark(banked, "P2").score, 2600);
+  assert.equal(seatByMark(banked, "P2").resolved, true);
 }));
 
 test("10,000 completion records a high score", async () => withMockRandom([0, 0, 0, 0, 0, 0], async () => {
@@ -355,6 +421,7 @@ test("10,000 completion records a high score", async () => withMockRandom([0, 0,
   const host = player("winner", "Winner");
   await post(env, "/api/players/create", { player: host });
   await post(env, "/api/room/create", { game_id: TEN_THOUSAND_GAME_ID, player: host, code: "WINS" });
+  await post(env, "/api/room/start", { code: "WINS", host_id: host.id });
   for (let turn = 0; turn < 10; turn += 1) {
     await post(env, "/api/room/move", { code: "WINS", player_id: host.id, action: { type: "roll" } });
     await post(env, "/api/room/move", { code: "WINS", player_id: host.id, action: { type: "select", dice_ids: ["d1", "d2", "d3"] } });
@@ -364,7 +431,8 @@ test("10,000 completion records a high score", async () => withMockRandom([0, 0,
   const stats = await get(env, `/api/stats?game_id=${TEN_THOUSAND_GAME_ID}`);
 
   assert.equal(room.room.status, "completed");
-  assert.equal(room.room.game.score, 10000);
+  assert.equal(room.room.game.players[0].score, 10000);
+  assert.equal(room.room.game.winner, "P1");
   assert.equal(stats.stats.high_scores[0].player_id, host.id);
   assert.equal(stats.stats.high_scores[0].score, 10000);
   assert.equal(stats.stats.ratings.length, 0);

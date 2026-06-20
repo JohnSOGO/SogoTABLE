@@ -78,8 +78,9 @@ const GAME_DEFINITIONS = [
     id: "6d10f4a2c8b3",
     name: "10,000",
     summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
-    players: "1 player",
-    player_count: 1,
+    players: "1-6 players",
+    player_count: 6,
+    host_start: true,
     status: "Ready",
     availability: "ready",
     aliases: ["ten_thousand", "10000", "dice_10000"],
@@ -508,7 +509,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use bot opponents.");
       if (hostId !== room.host_id) throw new Error("Only the host can invite a bot.");
       if (roomStatus(room) !== "waiting_for_player") throw new Error("Bot can only join a waiting room.");
-      if (room.players.length >= 2) throw new Error("Room already has two players.");
+      if (room.players.length >= playerCountForGame(room.game_id)) throw new Error("Room is full.");
       const bot = botPlayerFromId(payload.bot_id);
       addPlayerToRoom(room, bot);
       activateRoomIfReady(room);
@@ -516,6 +517,16 @@ async function routeRequest(method, url, payload, data, options = {}) {
       bumpRoomRevision(room);
       if (autoBotMoves) runBotTurns(data, room);
       return { ok: true, room: roomToDict(data, room), bot };
+    }
+    if (method === "POST" && url.pathname === "/api/room/start") {
+      const room = roomFromPayload(data, payload);
+      const hostId = String(payload.host_id || "").trim();
+      if (hostId !== room.host_id) throw new Error("Only the host can start the game.");
+      if (room.started) throw new Error("Game already started.");
+      if (!room.players.length) throw new Error("Add at least one player.");
+      startRoom(room);
+      bumpRoomRevision(room);
+      return { ok: true, room: roomToDict(data, room) };
     }
     if (method === "POST" && (url.pathname === "/api/room/leave" || url.pathname === "/api/room/close")) {
       const code = cleanRoomCode(payload.code || "");
@@ -582,7 +593,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use invites.");
       const hostId = String(payload.host_id || "").trim();
       if (hostId !== room.host_id) throw new Error("Only the host can invite a player.");
-      if (room.players.length >= 2) throw new Error("Room already has two players.");
+      if (room.players.length >= playerCountForGame(room.game_id)) throw new Error("Room is full.");
       const target = playerFromPayload(payload.player || {});
       if (target.id === hostId) throw new Error("Host is already in the room.");
       const host = room.players.find((player) => player.id === room.host_id);
@@ -920,6 +931,14 @@ function isSoloGameId(gameId) {
   return playerCountForGame(gameId) === 1;
 }
 
+// Host-start games (10,000) seat a variable number of players (1..player_count)
+// and do not auto-activate; the host starts them explicitly. Seats get indexed
+// marks (P1..PN) rather than the binary X/O the two-player games use.
+function gameUsesHostStart(gameId) {
+  const game = GAME_DEFINITIONS.find((item) => item.id === cleanGameId(gameId));
+  return Boolean(game && game.host_start);
+}
+
 function playerFromPayload(payload) {
   const player = payload.player || payload;
   const rawId = String(player.id || "").trim().slice(0, 80);
@@ -1051,7 +1070,7 @@ function roomFromPayload(data, payload) {
 }
 
 function roomStatus(room) {
-  if (["x_won", "o_won", "draw"].includes(room.game.status)) return "completed";
+  if (["x_won", "o_won", "draw", "complete"].includes(room.game.status)) return "completed";
   if (room.started) return "active";
   return "waiting_for_player";
 }
@@ -1140,14 +1159,18 @@ function playerHasUnfinishedRoom(data, playerId) {
 function addPlayerToRoom(room, player) {
   if (room.players.some((seat) => seat.id === player.id)) return;
   const playerCount = playerCountForGame(room.game_id);
-  if (room.players.length >= playerCount) throw new Error(playerCount === 2 ? "Room already has two players." : "Room already has enough players.");
-  const seatedPlayer = { ...player, mark: playerCount === 1 ? "X" : room.players.length ? ("X") : "" };
+  if (room.players.length >= playerCount) throw new Error(playerCount === 2 ? "Room already has two players." : "Room is full.");
+  const mark = gameUsesHostStart(room.game_id)
+    ? `P${room.players.length + 1}`
+    : (playerCount === 1 ? "X" : room.players.length ? "X" : "");
+  const seatedPlayer = { ...player, mark };
   if (room.players.length) seatedPlayer.color = nonConflictingRoomColor(seatedPlayer.color, room.players.map((seat) => seat.color));
   room.players.push(seatedPlayer);
   ensureRoomSeatColors(room);
 }
 
 function activateRoomIfReady(room) {
+  if (gameUsesHostStart(room.game_id)) return; // host starts explicitly via /api/room/start
   const playerCount = playerCountForGame(room.game_id);
   if (room.started || room.players.length < playerCount) return;
   if (playerCount === 1) {
@@ -1160,6 +1183,14 @@ function activateRoomIfReady(room) {
     seat.mark = marks[index];
   });
   room.started = true;
+}
+
+// Explicit start for host-start games. Seats already carry P1..PN marks from
+// addPlayerToRoom; this flips the room live and initialises per-seat game state.
+function startRoom(room) {
+  if (room.started) return;
+  room.started = true;
+  if (isTenThousandGame(room.game)) initTenThousandSeats(room.game, room.players);
 }
 
 function playerMark(room, playerId) {
@@ -1348,6 +1379,7 @@ function scorePickup(game, move) {
 }
 
 function legalMoves(game) {
+  if (isTenThousandGame(game)) return []; // dice game; bots resolve via their own engine
   if (isBattleshipGame(game)) return battleshipLegalMoves(game);
   if (isQuoridorGame(game)) return quoridorLegalMoves(game);
   if (isBoxesGame(game)) return boxesLegalMoves(game);
@@ -1433,20 +1465,22 @@ function gameToDict(game) {
 
 const TEN_THOUSAND_TARGET_SCORE = 10000;
 const TEN_THOUSAND_DICE_COUNT = 6;
+const TEN_THOUSAND_PHASES = ["ready", "rolled", "selected", "farkled", "done"];
+// Level 2 (Kitchen Table) bank thresholds by dice remaining, per
+// farkle_ai_players_4_levels.md. Used to resolve bot rounds server-side.
+const TEN_THOUSAND_BOT_BANK = { 6: 1000, 5: 750, 4: 600, 3: 450, 2: 350, 1: 250 };
 
 function newTenThousandGame() {
   return {
     game_id: TEN_THOUSAND_GAME_ID,
     target_score: TEN_THOUSAND_TARGET_SCORE,
     status: "playing",
-    current_player: "X",
+    round: 1,
+    final_round: false,
+    final_trigger: null,
     winner: null,
-    score: 0,
-    turn_score: 0,
-    farkles: 0,
-    phase: "ready",
-    dice: tenThousandBlankDice(),
-    roll_count: 0,
+    seat_order: [],
+    players: {},
     move_count: 0,
     last_move: null,
   };
@@ -1456,32 +1490,106 @@ function isTenThousandGame(game) {
   return Boolean(game && cleanGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
 }
 
+// Populate the per-seat sub-games once the room starts. `seats` is the ordered
+// room.players list; each seat plays an independent 10,000 and resolves its own
+// round. Bot seats are resolved immediately for round 1.
+function initTenThousandSeats(game, seats) {
+  game.seat_order = [];
+  game.players = {};
+  (Array.isArray(seats) ? seats : []).forEach((seat) => {
+    const mark = String(seat && seat.mark || "").trim();
+    if (!mark) return;
+    game.seat_order.push(mark);
+    game.players[mark] = newTenThousandSeat(seat);
+  });
+  game.round = 1;
+  game.final_round = false;
+  game.final_trigger = null;
+  game.winner = null;
+  game.status = "playing";
+  game.move_count = 0;
+  game.last_move = null;
+  resolveTenThousandBots(game);
+}
+
+function newTenThousandSeat(seat) {
+  return {
+    score: 0,
+    turn_score: 0,
+    round_score: 0,
+    farkles: 0,
+    dice: tenThousandBlankDice(),
+    phase: "ready",
+    resolved: false,
+    is_bot: Boolean(seat && seat.kind === "bot"),
+    level: tenThousandBotLevel(seat),
+  };
+}
+
+function tenThousandBotLevel(seat) {
+  if (!seat || seat.kind !== "bot") return 0;
+  const level = Number(seat.bot_level !== undefined ? seat.bot_level : seat.level);
+  if (Number.isInteger(level) && level >= 1 && level <= 4) return level;
+  return 2; // Kitchen Table default
+}
+
 function tenThousandGameToDict(game) {
   normalizeTenThousandGame(game);
+  const players = game.seat_order.map((mark) => {
+    const seat = game.players[mark];
+    return {
+      mark,
+      score: seat.score,
+      turn_score: seat.turn_score,
+      round_score: seat.round_score,
+      farkles: seat.farkles,
+      phase: seat.phase,
+      resolved: seat.resolved,
+      is_bot: seat.is_bot,
+      dice: seat.dice,
+      scoring_options: tenThousandScoringOptions(seat),
+      can_roll: tenThousandCanRoll(game, seat),
+      can_reroll: tenThousandCanReroll(game, seat),
+      can_bank: tenThousandCanBank(game, seat),
+    };
+  });
   return {
     ...game,
     game_id: TEN_THOUSAND_GAME_ID,
-    scoring_options: tenThousandScoringOptions(game),
-    can_roll: tenThousandCanRoll(game),
-    can_reroll: tenThousandCanReroll(game),
-    can_bank: tenThousandCanBank(game),
+    players,
   };
 }
 
 function normalizeTenThousandGame(game) {
   game.game_id = TEN_THOUSAND_GAME_ID;
   game.target_score = TEN_THOUSAND_TARGET_SCORE;
-  game.status = game.status || "playing";
-  game.current_player = "X";
-  game.winner = game.winner === "X" ? "X" : null;
-  game.score = clampInteger(game.score, 0, 999999, 0);
-  game.turn_score = clampInteger(game.turn_score, 0, 999999, 0);
-  game.farkles = clampInteger(game.farkles, 0, 999999, 0);
-  game.phase = ["ready", "rolled", "selected", "farkled", "complete"].includes(game.phase) ? game.phase : "ready";
-  game.roll_count = clampInteger(game.roll_count, 0, 999999, 0);
+  game.status = game.status === "complete" ? "complete" : "playing";
+  game.round = clampInteger(game.round, 1, 999999, 1);
+  game.final_round = Boolean(game.final_round);
+  game.final_trigger = game.final_trigger || null;
+  game.seat_order = Array.isArray(game.seat_order) ? game.seat_order.map(String) : [];
+  if (!game.players || typeof game.players !== "object") game.players = {};
+  game.seat_order.forEach((mark) => {
+    game.players[mark] = normalizeTenThousandSeat(game.players[mark]);
+  });
+  game.winner = game.seat_order.includes(game.winner) ? game.winner : null;
   game.move_count = clampInteger(game.move_count, 0, 999999, 0);
-  game.dice = normalizeTenThousandDice(game.dice);
   game.last_move = game.last_move || null;
+}
+
+function normalizeTenThousandSeat(seat) {
+  const source = seat || {};
+  return {
+    score: clampInteger(source.score, 0, 9999999, 0),
+    turn_score: clampInteger(source.turn_score, 0, 9999999, 0),
+    round_score: clampInteger(source.round_score, 0, 9999999, 0),
+    farkles: clampInteger(source.farkles, 0, 999999, 0),
+    dice: normalizeTenThousandDice(source.dice),
+    phase: TEN_THOUSAND_PHASES.includes(source.phase) ? source.phase : "ready",
+    resolved: Boolean(source.resolved),
+    is_bot: Boolean(source.is_bot),
+    level: Number.isInteger(source.level) ? source.level : (source.is_bot ? 2 : 0),
+  };
 }
 
 function tenThousandBlankDice() {
@@ -1511,39 +1619,53 @@ function normalizeTenThousandDice(dice) {
 
 function makeTenThousandMove(game, mark, action) {
   normalizeTenThousandGame(game);
-  if (mark !== "X") throw new Error("10,000 is a solo game.");
-  if (game.status !== "playing") throw new Error("Game is complete.");
-  const type = String(action.type || "").trim();
-  if (type === "roll") return rollTenThousandDice(game);
-  if (type === "select") return selectTenThousandDice(game, action.dice_ids || action.diceIds || []);
-  if (type === "reroll") return rerollTenThousandDice(game);
-  if (type === "bank") return bankTenThousandScore(game);
-  throw new Error("10,000 action is required.");
+  if (game.status === "complete") throw new Error("Game is complete.");
+  const seat = game.players[mark];
+  if (!seat) throw new Error("You are not seated in this game.");
+  if (seat.is_bot) throw new Error("Bot seats are resolved automatically.");
+  if (seat.resolved) throw new Error("You already finished this round. Wait for the next round.");
+  const type = String(action && action.type || "").trim();
+  if (type === "roll") rollTenThousandDice(seat);
+  else if (type === "select") selectTenThousandDice(seat, action.dice_ids || action.diceIds || []);
+  else if (type === "reroll") rerollTenThousandDice(seat);
+  else if (type === "bank") bankTenThousandScore(game, mark, seat);
+  else throw new Error("10,000 action is required.");
+  game.move_count += 1;
+  const farkled = seat.phase === "farkled";
+  game.last_move = {
+    type: farkled ? "farkle" : type,
+    mark,
+    round: game.round,
+    move_count: game.move_count,
+    dice: (farkled || type === "roll" || type === "reroll")
+      ? seat.dice.map((die) => ({ id: die.id, value: die.value, scored: die.scored }))
+      : undefined,
+  };
+  maybeAdvanceTenThousandRound(game);
 }
 
-function rollTenThousandDice(game) {
-  if (!tenThousandCanRoll(game)) throw new Error("Roll is not available.");
-  game.dice = tenThousandBlankDice();
-  rollDiceByIds(game, game.dice.map((die) => die.id));
-  finishTenThousandRoll(game, "roll");
+function rollTenThousandDice(seat) {
+  if (seat.phase !== "ready") throw new Error("Roll is not available.");
+  seat.dice = tenThousandBlankDice();
+  tenThousandRollDiceByIds(seat, seat.dice.map((die) => die.id));
+  finishTenThousandRoll(seat);
 }
 
-function rerollTenThousandDice(game) {
-  if (!tenThousandCanReroll(game)) throw new Error("Reroll is not available.");
-  const hotDice = game.dice.every((die) => die.scored);
+function rerollTenThousandDice(seat) {
+  if (seat.phase !== "selected") throw new Error("Reroll is not available.");
+  const hotDice = seat.dice.every((die) => die.scored);
   if (hotDice) {
-    game.dice = tenThousandBlankDice();
-    rollDiceByIds(game, game.dice.map((die) => die.id));
+    seat.dice = tenThousandBlankDice();
+    tenThousandRollDiceByIds(seat, seat.dice.map((die) => die.id));
   } else {
-    const ids = game.dice.filter((die) => !die.scored).map((die) => die.id);
-    rollDiceByIds(game, ids);
+    tenThousandRollDiceByIds(seat, seat.dice.filter((die) => !die.scored).map((die) => die.id));
   }
-  finishTenThousandRoll(game, "reroll");
+  finishTenThousandRoll(seat);
 }
 
-function rollDiceByIds(game, ids) {
+function tenThousandRollDiceByIds(seat, ids) {
   const rollingIds = new Set(ids);
-  game.dice.forEach((die) => {
+  seat.dice.forEach((die) => {
     if (!rollingIds.has(die.id)) return;
     die.value = 1 + Math.floor(Math.random() * 6);
     die.selected = false;
@@ -1552,38 +1674,27 @@ function rollDiceByIds(game, ids) {
   });
 }
 
-function finishTenThousandRoll(game, type) {
-  game.roll_count += 1;
-  game.move_count += 1;
-  const rolledDice = game.dice.filter((die) => die.rolling);
-  game.dice.forEach((die) => {
-    die.rolling = false;
-  });
-  const hasScore = tenThousandHasAnyScoringSet(rolledDice.map((die) => die.value));
-  if (!hasScore) {
-    game.turn_score = 0;
-    game.farkles += 1;
-    game.phase = "farkled";
-    game.last_move = {
-      type: "farkle",
-      dice: rolledDice.map((die) => ({ id: die.id, value: die.value })),
-      move_count: game.move_count,
-    };
+// A farkle (no scoring dice in the rolled set) ends this seat's round: the
+// turn score is lost and the seat is resolved.
+function finishTenThousandRoll(seat) {
+  const rolledDice = seat.dice.filter((die) => die.rolling);
+  seat.dice.forEach((die) => { die.rolling = false; });
+  if (!tenThousandHasAnyScoringSet(rolledDice.map((die) => die.value))) {
+    seat.turn_score = 0;
+    seat.round_score = 0;
+    seat.farkles += 1;
+    seat.phase = "farkled";
+    seat.resolved = true;
     return;
   }
-  game.phase = "rolled";
-  game.last_move = {
-    type,
-    dice: rolledDice.map((die) => ({ id: die.id, value: die.value })),
-    move_count: game.move_count,
-  };
+  seat.phase = "rolled";
 }
 
-function selectTenThousandDice(game, diceIds) {
-  if (game.phase !== "rolled" && game.phase !== "selected") throw new Error("Roll before selecting dice.");
+function selectTenThousandDice(seat, diceIds) {
+  if (seat.phase !== "rolled" && seat.phase !== "selected") throw new Error("Roll before selecting dice.");
   const ids = new Set((Array.isArray(diceIds) ? diceIds : []).map((id) => String(id)));
   if (!ids.size) throw new Error("Select at least one die.");
-  const dice = game.dice.filter((die) => ids.has(die.id));
+  const dice = seat.dice.filter((die) => ids.has(die.id));
   if (dice.length !== ids.size || dice.some((die) => die.scored || !die.value)) throw new Error("Selected dice are not available.");
   const score = tenThousandScoreValues(dice.map((die) => die.value));
   if (!score.valid || score.score <= 0) throw new Error("Selected dice must all score.");
@@ -1591,51 +1702,142 @@ function selectTenThousandDice(game, diceIds) {
     die.selected = true;
     die.scored = true;
   });
-  game.turn_score += score.score;
-  game.phase = "selected";
-  game.move_count += 1;
-  game.last_move = {
-    type: "select",
-    dice_ids: [...ids],
-    score: score.score,
-    turn_score: game.turn_score,
-    hot_dice: game.dice.every((die) => die.scored),
-    move_count: game.move_count,
-  };
+  seat.turn_score += score.score;
+  seat.phase = "selected";
 }
 
-function bankTenThousandScore(game) {
-  if (!tenThousandCanBank(game)) throw new Error("Select scoring dice before banking.");
-  game.score += game.turn_score;
-  game.turn_score = 0;
-  game.dice = tenThousandBlankDice();
-  game.move_count += 1;
-  if (game.score >= TEN_THOUSAND_TARGET_SCORE) {
-    game.status = "x_won";
-    game.winner = "X";
-    game.phase = "complete";
-    game.last_move = { type: "complete", score: game.score, move_count: game.move_count };
+function bankTenThousandScore(game, mark, seat) {
+  if (seat.phase !== "selected" || seat.turn_score <= 0) throw new Error("Select scoring dice before banking.");
+  seat.score += seat.turn_score;
+  seat.round_score = seat.turn_score;
+  seat.turn_score = 0;
+  seat.dice = tenThousandBlankDice();
+  seat.phase = "done";
+  seat.resolved = true;
+  if (seat.score >= game.target_score && !game.final_round) {
+    game.final_round = true;
+    game.final_trigger = mark;
+  }
+}
+
+// Barrier: a round ends only once every seat has resolved (banked or farkled).
+// If anyone has reached the target the game ends (highest score wins, since
+// simultaneous play guarantees equal rounds); otherwise advance to the next
+// round and resolve bots for it.
+function maybeAdvanceTenThousandRound(game) {
+  const marks = game.seat_order;
+  if (!marks.length) return;
+  if (!marks.every((mark) => game.players[mark].resolved)) return;
+  if (marks.some((mark) => game.players[mark].score >= game.target_score)) {
+    game.status = "complete";
+    game.winner = tenThousandLeader(game);
+    marks.forEach((mark) => { game.players[mark].phase = "done"; });
+    game.last_move = { type: "complete", round: game.round, winner: game.winner };
     return;
   }
-  game.phase = "ready";
-  game.last_move = { type: "bank", score: game.score, move_count: game.move_count };
+  game.round += 1;
+  marks.forEach((mark) => {
+    const seat = game.players[mark];
+    seat.turn_score = 0;
+    seat.round_score = 0;
+    seat.dice = tenThousandBlankDice();
+    seat.phase = "ready";
+    seat.resolved = false;
+  });
+  resolveTenThousandBots(game);
 }
 
-function tenThousandCanRoll(game) {
-  return game.status === "playing" && (game.phase === "ready" || game.phase === "farkled");
+function tenThousandLeader(game) {
+  let leader = null;
+  let best = -1;
+  game.seat_order.forEach((mark) => {
+    const score = game.players[mark].score;
+    if (score > best) { best = score; leader = mark; }
+  });
+  return leader;
 }
 
-function tenThousandCanReroll(game) {
-  return game.status === "playing" && game.phase === "selected";
+function resolveTenThousandBots(game) {
+  game.seat_order.forEach((mark) => {
+    const seat = game.players[mark];
+    if (seat.is_bot && !seat.resolved) playTenThousandBotRound(game, mark, seat);
+  });
 }
 
-function tenThousandCanBank(game) {
-  return game.status === "playing" && game.phase === "selected" && game.turn_score > 0;
+// Plays a bot's entire round in one shot (Level 2 policy by default).
+function playTenThousandBotRound(game, mark, seat) {
+  for (let guard = 0; guard < 50; guard += 1) {
+    if (seat.phase === "ready") rollTenThousandDice(seat);
+    else if (seat.phase === "selected") rerollTenThousandDice(seat);
+    if (seat.resolved) return; // farkled
+    const keep = bestTenThousandKeep(seat.dice);
+    if (!keep.ids.length) { seat.phase = "farkled"; seat.turn_score = 0; seat.resolved = true; return; }
+    selectTenThousandDice(seat, keep.ids);
+    if (tenThousandBotShouldBank(game, seat)) {
+      bankTenThousandScore(game, mark, seat);
+      return;
+    }
+  }
+  // Safety: never loop forever — bank whatever is on the table.
+  if (seat.phase === "selected" && seat.turn_score > 0) bankTenThousandScore(game, mark, seat);
+  else { seat.phase = "farkled"; seat.turn_score = 0; seat.resolved = true; }
 }
 
-function tenThousandScoringOptions(game) {
-  if (game.phase !== "rolled" && game.phase !== "selected") return [];
-  return game.dice
+function tenThousandBotShouldBank(game, seat) {
+  if (seat.score + seat.turn_score >= game.target_score) return true;
+  const remaining = tenThousandRemainingDice(seat);
+  const level = seat.level || 2;
+  const threshold = TEN_THOUSAND_BOT_BANK[remaining] || 350;
+  // Higher levels are a touch greedier with many dice left; Level 1 banks loose.
+  const adjust = level >= 3 ? -50 : (level <= 1 ? 100 : 0);
+  return seat.turn_score >= Math.max(50, threshold + adjust);
+}
+
+function tenThousandRemainingDice(seat) {
+  const unscored = seat.dice.filter((die) => !die.scored).length;
+  return unscored === 0 ? TEN_THOUSAND_DICE_COUNT : unscored;
+}
+
+// Maximal scoring subset of the seat's still-rollable dice (used by bots and as
+// the canonical "take everything that scores" keep).
+function bestTenThousandKeep(dice) {
+  const avail = dice.filter((die) => !die.scored && die.value);
+  if (avail.length === TEN_THOUSAND_DICE_COUNT) {
+    const counts = tenThousandCounts(avail.map((die) => die.value));
+    if (counts.every((count) => count === 1) || counts.filter((count) => count === 2).length === 3) {
+      return { ids: avail.map((die) => die.id), score: 1500 };
+    }
+  }
+  const byFace = new Map();
+  avail.forEach((die) => {
+    if (!byFace.has(die.value)) byFace.set(die.value, []);
+    byFace.get(die.value).push(die);
+  });
+  const ids = [];
+  byFace.forEach((list, face) => {
+    if (face === 1 || face === 5) list.forEach((die) => ids.push(die.id));
+    else if (list.length >= 3) list.slice(0, 3).forEach((die) => ids.push(die.id));
+  });
+  const keepValues = avail.filter((die) => ids.includes(die.id)).map((die) => die.value);
+  const score = keepValues.length ? tenThousandScoreValues(keepValues).score : 0;
+  return { ids, score };
+}
+
+function tenThousandCanRoll(game, seat) {
+  return game.status === "playing" && !seat.resolved && seat.phase === "ready";
+}
+
+function tenThousandCanReroll(game, seat) {
+  return game.status === "playing" && !seat.resolved && seat.phase === "selected";
+}
+
+function tenThousandCanBank(game, seat) {
+  return game.status === "playing" && !seat.resolved && seat.phase === "selected" && seat.turn_score > 0;
+}
+
+function tenThousandScoringOptions(seat) {
+  if (seat.phase !== "rolled" && seat.phase !== "selected") return [];
+  return seat.dice
     .filter((die) => !die.scored && die.value)
     .filter((die) => tenThousandScoreValues([die.value]).valid)
     .map((die) => die.id);
@@ -3128,10 +3330,12 @@ function roomResultForStats(room) {
 
 function scoreByMarkForRoom(room) {
   if (isTenThousandGame(room.game)) {
-    return {
-      X: Number(room.game.score || 0),
-      O: 0,
-    };
+    const scores = {};
+    (room.game.seat_order || []).forEach((mark) => {
+      const seat = room.game.players && room.game.players[mark];
+      scores[mark] = Number(seat && seat.score || 0);
+    });
+    return scores;
   }
   if (isBoxesGame(room.game)) {
     return {
