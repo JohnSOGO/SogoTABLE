@@ -142,8 +142,8 @@ Returns the hosted game registry used by the browser game menu.
       "id": "6d10f4a2c8b3",
       "name": "10,000",
       "summary": "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
-      "players": "1 player",
-      "player_count": 1,
+      "players": "1+ players",
+      "player_count": null,
       "status": "Ready",
       "availability": "ready",
       "aliases": ["ten_thousand", "10000", "dice_10000"]
@@ -152,7 +152,7 @@ Returns the hosted game registry used by the browser game menu.
 }
 ```
 
-The browser keeps a local fallback registry for startup resilience, but the hosted `/api/games` response is the preferred source for ready-game metadata. `player_count` controls whether a room waits for an opponent or starts immediately as a solo room.
+The browser keeps a local fallback registry for startup resilience, but the hosted `/api/games` response is the preferred source for ready-game metadata. `player_count` controls whether a room waits for an opponent or starts immediately as a solo room. A null `player_count` means the room accepts a flexible guest list.
 
 ## Lobby Presence
 
@@ -208,6 +208,8 @@ Room summary shape:
   "open_seats": 1
 }
 ```
+
+For unlimited guest-list games such as 10,000, `open_seats` may be `null`.
 
 Full room responses also include `game`, `latest_invite`, and `reset_request`. `revision` is a room-level monotonic freshness marker. `game_epoch` increments when reset/play-again starts a fresh board, so `game.move_count` can safely reset to zero without looking stale.
 

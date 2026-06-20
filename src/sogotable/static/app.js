@@ -145,8 +145,8 @@ const fallbackGames = [
     aliases: ["ten_thousand", "10000", "dice_10000"],
     name: "10,000",
     summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
-    players: "1-6 players",
-    player_count: 6,
+    players: "1+ players",
+    player_count: null,
     host_start: true,
     status: "Ready",
     availability: "ready",
@@ -203,6 +203,7 @@ let quoridorMode = "pawn";
 let quoridorDraftWall = null;
 let quoridorWallHoldTimer = null;
 let quoridorWallHoldButton = null;
+let lastTenThousandFarkleNoticeKey = "";
 let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
 let pendingMove = null;
@@ -485,6 +486,8 @@ function normalizeGameDefinitions(definitions) {
     name: String(game.name || "Game").trim() || "Game",
     summary: String(game.summary || "").trim(),
     players: String(game.players || "2 players").trim(),
+    player_count: game.player_count === null || game.player_count === undefined ? null : Number(game.player_count),
+    host_start: Boolean(game.host_start),
     status: String(game.status || "Ready").trim(),
     availability: String(game.availability || "ready").trim(),
   })).filter((game) => game.id);
@@ -630,7 +633,7 @@ function renderRoomSummaryList(host, rooms, emptyText) {
     const hostPlayer = room.players.find((player) => player.id === room.host_id);
     const selectedSeat = room.players.find((player) => player.id === deviceSelectedPlayerId);
     const isOpen = room.status === "waiting_for_player";
-    const canJoin = Boolean(deviceSelectedPlayer() && isOpen && !selectedSeat && room.open_seats > 0);
+    const canJoin = Boolean(deviceSelectedPlayer() && isOpen && !selectedSeat && (room.open_seats == null || room.open_seats > 0));
     const canReenter = Boolean(selectedSeat);
     const actionText = canReenter ? "Re-enter Game" : canJoin ? "Join Game" : room.status === "active" ? "In Progress" : "Join Game";
     card.innerHTML = `
@@ -681,7 +684,7 @@ async function enterRoomSummary(summary) {
     showScreen("game");
     return;
   }
-  if (freshSummary.status !== "waiting_for_player" || freshSummary.open_seats <= 0) {
+  if (freshSummary.status !== "waiting_for_player" || (freshSummary.open_seats !== null && freshSummary.open_seats !== undefined && freshSummary.open_seats <= 0)) {
     alert("That game is no longer open.");
     refreshGameRooms();
     return;
@@ -1754,7 +1757,23 @@ function setRoom(room) {
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
   renderGame();
+  maybeShowTenThousandFarklePrompt(previousRoom, room);
   handleIncomingResetRequest();
+}
+
+function maybeShowTenThousandFarklePrompt(previousRoom, room) {
+  if (!room || !isTenThousandGameState(room.game)) return;
+  const localSeat = room.players.find((player) => player.id === deviceSelectedPlayerId || player.id === selectedPlayerId);
+  if (!localSeat) return;
+  const seatState = (room.game.players || []).find((seat) => seat.mark === localSeat.mark);
+  if (!seatState || seatState.phase !== "farkled") return;
+  const moveCount = Number(room.game.move_count || 0);
+  const nextKey = `${room.code}:${localSeat.mark}:${moveCount}`;
+  if (nextKey === lastTenThousandFarkleNoticeKey) return;
+  lastTenThousandFarkleNoticeKey = nextKey;
+  const justFarkled = !previousRoom || previousRoom.code !== room.code || Number(previousRoom.game && previousRoom.game.move_count || 0) !== moveCount;
+  if (!justFarkled) return;
+  showInfoPrompt("You Farkled!", "Your turn score is lost. Tap OK to continue.");
 }
 
 function isStaleRoomSnapshot(current, next) {
@@ -2048,7 +2067,6 @@ function renderGame() {
       startGame: startTenThousandGame,
       addBot: openBotOpponentModal,
       invitePlayer: openInvitePlayerModal,
-      addLocal: openLocalOpponentModal,
       escapeHtml,
     });
     if (!currentRoom.started) {
@@ -3338,7 +3356,9 @@ function gameIsReady(game) {
 }
 
 function playerCountForGame(game) {
-  return Number(game && game.player_count || 2);
+  const count = Number(game && game.player_count);
+  if (Number.isFinite(count) && count > 0) return count;
+  return Boolean(game && game.host_start) ? Number.POSITIVE_INFINITY : 2;
 }
 
 function selectedGameIsSolo() {

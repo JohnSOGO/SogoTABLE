@@ -78,8 +78,8 @@ const GAME_DEFINITIONS = [
     id: "6d10f4a2c8b3",
     name: "10,000",
     summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
-    players: "1-6 players",
-    player_count: 6,
+    players: "1+ players",
+    player_count: null,
     host_start: true,
     status: "Ready",
     availability: "ready",
@@ -509,7 +509,8 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use bot opponents.");
       if (hostId !== room.host_id) throw new Error("Only the host can invite a bot.");
       if (roomStatus(room) !== "waiting_for_player") throw new Error("Bot can only join a waiting room.");
-      if (room.players.length >= playerCountForGame(room.game_id)) throw new Error("Room is full.");
+      const playerCount = playerCountForGame(room.game_id);
+      if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error("Room is full.");
       const bot = botPlayerFromId(payload.bot_id);
       addPlayerToRoom(room, bot);
       activateRoomIfReady(room);
@@ -593,7 +594,8 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use invites.");
       const hostId = String(payload.host_id || "").trim();
       if (hostId !== room.host_id) throw new Error("Only the host can invite a player.");
-      if (room.players.length >= playerCountForGame(room.game_id)) throw new Error("Room is full.");
+      const playerCount = playerCountForGame(room.game_id);
+      if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error("Room is full.");
       const target = playerFromPayload(payload.player || {});
       if (target.id === hostId) throw new Error("Host is already in the room.");
       const host = room.players.find((player) => player.id === room.host_id);
@@ -901,12 +903,13 @@ function gameDefinitionFor(gameId) {
 }
 
 function publicGameDefinition(game) {
+  const playerCount = playerCountForGame(game.id);
   return {
     id: game.id,
     name: game.name,
     summary: game.summary,
     players: game.players,
-    player_count: playerCountForGame(game.id),
+    player_count: Number.isFinite(playerCount) ? playerCount : null,
     status: game.status,
     availability: game.availability,
     aliases: [...(game.aliases || [])],
@@ -924,16 +927,18 @@ function gameIdMatches(candidate, gameId) {
 
 function playerCountForGame(gameId) {
   const game = GAME_DEFINITIONS.find((item) => item.id === cleanGameId(gameId));
-  return Number(game && game.player_count || 2);
+  const count = Number(game && game.player_count);
+  if (Number.isFinite(count) && count > 0) return count;
+  return game && game.host_start ? Number.POSITIVE_INFINITY : 2;
 }
 
 function isSoloGameId(gameId) {
   return playerCountForGame(gameId) === 1;
 }
 
-// Host-start games (10,000) seat a variable number of players (1..player_count)
-// and do not auto-activate; the host starts them explicitly. Seats get indexed
-// marks (P1..PN) rather than the binary X/O the two-player games use.
+// Host-start games seat a variable number of players and do not auto-activate;
+// the host starts them explicitly. Seats get indexed marks (P1..PN) rather
+// than the binary X/O the two-player games use.
 function gameUsesHostStart(gameId) {
   const game = GAME_DEFINITIONS.find((item) => item.id === cleanGameId(gameId));
   return Boolean(game && game.host_start);
@@ -1096,6 +1101,7 @@ function roomToDict(data, room) {
 
 function roomSummary(room) {
   ensureRoomFreshness(room);
+  const playerCount = playerCountForGame(room.game_id);
   return {
     code: room.code,
     host_id: room.host_id,
@@ -1106,7 +1112,7 @@ function roomSummary(room) {
     local_mode: room.local_mode,
     status: roomStatus(room),
     players: room.players,
-    open_seats: Math.max(0, playerCountForGame(room.game_id) - room.players.length),
+    open_seats: Number.isFinite(playerCount) ? Math.max(0, playerCount - room.players.length) : null,
   };
 }
 
@@ -1159,7 +1165,7 @@ function playerHasUnfinishedRoom(data, playerId) {
 function addPlayerToRoom(room, player) {
   if (room.players.some((seat) => seat.id === player.id)) return;
   const playerCount = playerCountForGame(room.game_id);
-  if (room.players.length >= playerCount) throw new Error(playerCount === 2 ? "Room already has two players." : "Room is full.");
+  if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error(playerCount === 2 ? "Room already has two players." : "Room is full.");
   const mark = gameUsesHostStart(room.game_id)
     ? `P${room.players.length + 1}`
     : (playerCount === 1 ? "X" : room.players.length ? "X" : "");

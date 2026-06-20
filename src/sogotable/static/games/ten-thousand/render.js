@@ -8,8 +8,6 @@ const FACE_PIPS = {
 };
 
 const ROLL_MOVE_TYPES = new Set(["roll", "reroll", "farkle"]);
-// Tracks the move_count we last animated, so a roll tumbles once and other
-// re-renders (selecting, socket echoes, the pending render) stay still.
 let lastAnimatedMoveCount = -1;
 
 export function renderTenThousandGame(ctx) {
@@ -23,37 +21,34 @@ export function renderTenThousandGame(ctx) {
   renderTenThousandPlay(host, ctx);
 }
 
-// ---------------------------------------------------------------------------
-// Lobby (host assembles the table, then starts)
-// ---------------------------------------------------------------------------
-
 function renderTenThousandLobby(host, ctx) {
   const { room, isHost, escapeHtml } = ctx;
   const seats = Array.isArray(room.players) ? room.players : [];
-  const max = 6;
-  const seatRows = seats
-    .map((seat, index) => `
-      <li class="tt-lobby-seat">
-        <span class="tt-seat-no">${index + 1}</span>
-        <span class="tt-seat-name">${escapeHtml(seat.name)}</span>
-        <span class="tt-seat-tag">${seat.kind === "bot" ? "🤖 Bot" : "🧑 Player"}</span>
-      </li>`)
-    .join("");
-  const openSeats = Math.max(0, max - seats.length);
+  const roster = seats.length
+    ? seats.map((seat, index) => `
+      <li class="tt-lobby-player">
+        <span class="tt-lobby-player-no">${index + 1}</span>
+        <div class="tt-lobby-player-body">
+          <strong>${escapeHtml(seat.name)}</strong>
+          <span>${escapeHtml(seat.kind === "bot" ? "Bot" : "Player")} ${escapeHtml(seat.mark || "")}</span>
+        </div>
+      </li>`).join("")
+    : `<li class="tt-lobby-empty">No players yet.</li>`;
+
   const hostControls = isHost
     ? `
       <div class="tt-lobby-actions">
-        <button class="secondary" type="button" data-lobby="bot" ${openSeats ? "" : "disabled"}>Add Bot</button>
-        <button class="secondary" type="button" data-lobby="invite" ${openSeats ? "" : "disabled"}>Invite Player</button>
-        <button class="secondary" type="button" data-lobby="local" ${openSeats ? "" : "disabled"}>Add Local</button>
+        <button class="secondary" type="button" data-lobby="invite">Invite Remote Opponent</button>
+        <button class="secondary" type="button" data-lobby="bot">Invite Bot</button>
         <button class="primary" type="button" data-lobby="start" ${seats.length ? "" : "disabled"}>Start Game</button>
       </div>`
-    : `<p class="ten-thousand-message">Waiting for the host to start…</p>`;
+    : `<p class="ten-thousand-message">Waiting for the host to start...</p>`;
 
   host.innerHTML = `
     <section class="ten-thousand-lobby">
-      <h3>Table (${seats.length}/${max})</h3>
-      <ul class="tt-lobby-seats">${seatRows}</ul>
+      <h3>Hosts</h3>
+      <ul class="tt-lobby-roster">${roster}</ul>
+      <p class="ten-thousand-message">Invite remote opponents or bots, then start whenever you're ready.</p>
       ${hostControls}
     </section>`;
 
@@ -62,15 +57,10 @@ function renderTenThousandLobby(host, ctx) {
     const button = host.querySelector(`[data-lobby="${key}"]`);
     if (button && fn) button.addEventListener("click", () => { if (!button.disabled) fn(); });
   };
-  wire("bot", ctx.addBot);
   wire("invite", ctx.invitePlayer);
-  wire("local", ctx.addLocal);
+  wire("bot", ctx.addBot);
   wire("start", ctx.startGame);
 }
-
-// ---------------------------------------------------------------------------
-// Active play (local player's tray + live standings)
-// ---------------------------------------------------------------------------
 
 function renderTenThousandPlay(host, ctx) {
   const { room, game, pendingMove, escapeHtml } = ctx;
@@ -81,7 +71,7 @@ function renderTenThousandPlay(host, ctx) {
 
   const roundLabel = complete
     ? "Game over"
-    : `Round ${game.round}${game.final_round ? " · Final round!" : ""}`;
+    : `Round ${game.round}${game.final_round ? " - final round" : ""}`;
 
   host.innerHTML = `
     <section class="ten-thousand-roundbar">${escapeHtml(roundLabel)}</section>
@@ -116,7 +106,7 @@ function trayHtml(seat, game, pendingMove) {
     <section class="ten-thousand-tray">
       <div class="ten-thousand-scoreboard">
         <div><span class="label">Banked</span><strong>${fmt(seat.score)}</strong></div>
-        <div><span class="label">This turn</span><strong>${fmt(seat.turn_score)}</strong></div>
+        <div><span class="label">This turn</span><strong data-turn-score>${fmt(seat.turn_score)}</strong></div>
         <div><span class="label">Farkles</span><strong>${fmt(seat.farkles)}</strong></div>
       </div>
       <div class="ten-thousand-dice" aria-label="Dice">${diceHtml}</div>
@@ -132,8 +122,8 @@ function trayHtml(seat, game, pendingMove) {
 
 function trayMessage(seat, game) {
   if (seat.resolved) {
-    if (seat.phase === "farkled") return "Farkle! Waiting for the other players…";
-    return `Banked ${fmt(seat.round_score)} this round. Waiting for the other players…`;
+    if (seat.phase === "farkled") return "You Farkled! Tap OK to continue.";
+    return `Banked ${fmt(seat.round_score)} this round. Waiting for the other players...`;
   }
   if (seat.phase === "rolled") return "Select the dice you want to score.";
   if (seat.phase === "selected") return "Bank your turn score or press your luck.";
@@ -144,6 +134,7 @@ function wireTray(host, seat, game, ctx) {
   const { makeMove } = ctx;
   const selectedDice = new Set();
   const selectButton = host.querySelector('[data-action="select"]');
+  const turnScoreNode = host.querySelector("[data-turn-score]");
   const dice = Array.isArray(seat.dice) ? seat.dice : [];
   const valueById = new Map(dice.map((die) => [die.id, Number(die.value) || 0]));
   const dieButtons = [...host.querySelectorAll(".ten-thousand-die")];
@@ -151,16 +142,17 @@ function wireTray(host, seat, game, ctx) {
 
   function refreshSelection() {
     const selected = [...selectedDice].map((id) => ({ id, value: valueById.get(id) }));
-    const scoringIds = tenThousandScoringIds(selected);
+    const scoring = tenThousandSelectionScore(selected);
     dieButtons.forEach((button) => {
       const id = button.dataset.dieId;
       const isSelected = selectedDice.has(id);
-      const scores = isSelected && scoringIds.has(id);
+      const scores = isSelected && scoring.scoringIds.has(id);
       button.classList.toggle("pending", isSelected);
       button.classList.toggle("select-score", scores);
       button.classList.toggle("select-bust", isSelected && !scores);
     });
-    if (selectButton) selectButton.disabled = !selected.length || selected.some((die) => !scoringIds.has(die.id));
+    if (turnScoreNode) turnScoreNode.textContent = fmt(Number(seat.turn_score || 0) + scoring.score);
+    if (selectButton) selectButton.disabled = !selected.length || !scoring.valid || scoring.score <= 0;
   }
 
   dieButtons.forEach((button) => {
@@ -183,11 +175,9 @@ function wireTray(host, seat, game, ctx) {
   if (selectButton) selectButton.addEventListener("click", () => {
     if (!selectButton.disabled) makeMove({ type: "select", dice_ids: [...selectedDice] });
   });
-}
 
-// ---------------------------------------------------------------------------
-// Standings table
-// ---------------------------------------------------------------------------
+  refreshSelection();
+}
 
 function standingsHtml(seats, room, game, localMark) {
   const leader = seats.reduce((best, seat) => (seat.score > (best ? best.score : -1) ? seat : best), null);
@@ -216,22 +206,18 @@ function standingsRow(seat, room, game, leader, localMark) {
     seat.phase === "farkled" ? "is-farkle" : "",
   ].filter(Boolean).join(" ");
   let status;
-  if (game.status === "complete") status = game.winner === seat.mark ? "🏆 Winner" : "—";
+  if (game.status === "complete") status = game.winner === seat.mark ? "Winner" : "-";
   else if (seat.phase === "farkled") status = "Farkle";
-  else if (seat.resolved) status = `+${fmt(seat.round_score)} ✓`;
-  else if (seat.turn_score > 0) status = `${fmt(seat.turn_score)}…`;
-  else status = seat.is_bot ? "🤖" : "Rolling…";
+  else if (seat.resolved) status = `+${fmt(seat.round_score)} OK`;
+  else if (seat.turn_score > 0) status = `${fmt(seat.turn_score)}...`;
+  else status = seat.is_bot ? "Bot" : "Rolling...";
   return `
     <tr class="${classes}">
-      <td>${isLeader ? "👑 " : ""}${escapeName(name)}${seat.is_bot ? " 🤖" : ""}</td>
+      <td>${isLeader ? "Leader " : ""}${escapeName(name)}${seat.is_bot ? " Bot" : ""}</td>
       <td>${status}</td>
       <td><strong>${fmt(seat.score)}</strong></td>
     </tr>`;
 }
-
-// ---------------------------------------------------------------------------
-// Dice rendering
-// ---------------------------------------------------------------------------
 
 function dieHtml(die, { rolling = false, bust = false } = {}) {
   const value = Number(die.value || 1);
@@ -260,36 +246,46 @@ function faceHtml(face) {
     </span>`;
 }
 
-// Mirrors the worker's scoring so dice colour live as they are tapped: green
-// when a die contributes to a score, red when selected but non-scoring.
 function tenThousandScoringIds(selected) {
-  const scoring = new Set();
-  if (!selected.length) return scoring;
-  if (selected.length === 6) {
+  return tenThousandSelectionScore(selected).scoringIds;
+}
+
+function tenThousandSelectionScore(selected) {
+  const source = Array.isArray(selected) ? selected : [];
+  const scoringIds = new Set();
+  if (!source.length) return { scoringIds, score: 0, valid: false };
+  if (source.length === 6) {
     const counts = [0, 0, 0, 0, 0, 0];
-    selected.forEach((die) => { if (die.value >= 1 && die.value <= 6) counts[die.value - 1] += 1; });
+    source.forEach((die) => {
+      if (die.value >= 1 && die.value <= 6) counts[die.value - 1] += 1;
+    });
     const straight = counts.every((count) => count === 1);
     const threePairs = counts.filter((count) => count === 2).length === 3;
     if (straight || threePairs) {
-      selected.forEach((die) => scoring.add(die.id));
-      return scoring;
+      source.forEach((die) => scoringIds.add(die.id));
+      return { scoringIds, score: 1500, valid: true };
     }
   }
   const byFace = new Map();
-  selected.forEach((die) => {
+  source.forEach((die) => {
     if (!byFace.has(die.value)) byFace.set(die.value, []);
     byFace.get(die.value).push(die.id);
   });
+  let score = 0;
   byFace.forEach((ids, face) => {
-    if (face === 1 || face === 5) ids.forEach((id) => scoring.add(id));
-    else if (ids.length >= 3) ids.slice(0, 3).forEach((id) => scoring.add(id));
+    if (face === 1) {
+      ids.forEach((id) => scoringIds.add(id));
+      score += ids.length * 100;
+    } else if (face === 5) {
+      ids.forEach((id) => scoringIds.add(id));
+      score += ids.length * 50;
+    } else if (ids.length >= 3) {
+      ids.slice(0, 3).forEach((id) => scoringIds.add(id));
+      score += face * 100;
+    }
   });
-  return scoring;
+  return { scoringIds, score, valid: scoringIds.size === source.length };
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function markForPlayer(room, playerId) {
   const seat = (room.players || []).find((player) => player.id === playerId);

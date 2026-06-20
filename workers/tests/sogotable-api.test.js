@@ -296,7 +296,7 @@ test("lists ready games from the hosted game registry", async () => {
   assert.equal(listed.games[3].name, "Battleship");
   assert.equal(listed.games[4].name, "Quoridor");
   assert.equal(listed.games[5].name, "10,000");
-  assert.equal(listed.games[5].player_count, 6);
+  assert.equal(listed.games[5].player_count, null);
   assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
 });
@@ -321,7 +321,7 @@ test("10,000 creates a waiting room the host starts with indexed seats", async (
   assert.equal(started.room.game.players[0].phase, "ready");
 
   const rooms = await get(env, `/api/rooms?game_id=${TEN_THOUSAND_GAME_ID}`);
-  assert.equal(rooms.rooms[0].open_seats, 5);
+  assert.equal(rooms.rooms[0].open_seats, null);
 });
 
 test("10,000 rolls, selects scoring dice, presses, and banks (per seat)", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51, 0.68, 0.85, 0.17], async () => {
