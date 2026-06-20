@@ -34,6 +34,10 @@ The hosted Worker exposes ready-game metadata through `GET /api/games`. The brow
 
 Game definitions should eventually include timing metadata. Current ready games are `turnBased`. Future games may use `liveRound` or related timing modes from `docs/live-rounds.md` without changing the global player -> game -> room flow.
 
+Solo game definitions use `player_count: 1`. Creating a solo room starts the
+room immediately with the host as mark `X`; opponent slots, local opponent,
+remote invite, and bot invite controls are hidden for that room.
+
 Current ready game ids:
 
 - `a3f19c6e42b8`
@@ -41,6 +45,7 @@ Current ready game ids:
 - `4b7e2d9a6c10`
 - `9c2f7a81d4e6`
 - `8f5d2c7a1b90`
+- `6d10f4a2c8b3`
 
 Legacy game id aliases accepted by the hosted brain:
 
@@ -49,6 +54,9 @@ Legacy game id aliases accepted by the hosted brain:
 - `boxes`
 - `dots_and_boxes`
 - `dots_and_dashes`
+- `ten_thousand`
+- `10000`
+- `dice_10000`
 - `battleship`
 - `battle_ship`
 - `quoridor`

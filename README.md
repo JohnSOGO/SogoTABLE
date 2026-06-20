@@ -15,6 +15,7 @@ The product target is simple: family members sitting together at a restaurant ca
 - Progressive Web App shell: complete first pass.
 - Quiet generated UI/game sound: complete first pass.
 - Single-player bot opponent flow: complete first pass.
+- Hosted solo dice game flow: complete first pass with 10,000.
 - Active room history/statistics: future milestone.
 
 ## Stack
@@ -100,4 +101,5 @@ npm run test:worker
 - [Dots and Boxes](docs/game-dots-and-boxes.md)
 - [Battleship](docs/game-battleship.md)
 - [Quoridor](docs/game-quoridor.md)
+- [10,000](docs/game-ten-thousand.md)
 - [Roadmap](docs/roadmap.md)

@@ -9,6 +9,7 @@ import {
 import { avatarHtml, escapeHtml } from "./html-utils.js";
 import { createRealtimeController } from "./realtime.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
+import { renderTenThousandGame } from "./games/ten-thousand/render.js";
 import {
   isSoundEnabled,
   soundVolumeLevel,
@@ -55,6 +56,7 @@ const TACTICAL_GAME_ID = "d7e4a91f0c23";
 const BOXES_GAME_ID = "4b7e2d9a6c10";
 const BATTLESHIP_GAME_ID = "9c2f7a81d4e6";
 const QUORIDOR_GAME_ID = "8f5d2c7a1b90";
+const TEN_THOUSAND_GAME_ID = "6d10f4a2c8b3";
 const BATTLESHIP_ATTACK_PHRASES = [
   "Incoming!",
   "Fire!",
@@ -135,6 +137,16 @@ const fallbackGames = [
     name: "Quoridor",
     summary: "Race your pawn across the board while placing walls to slow your opponent.",
     players: "2 players",
+    status: "Ready",
+    availability: "ready",
+  },
+  {
+    id: TEN_THOUSAND_GAME_ID,
+    aliases: ["ten_thousand", "10000", "dice_10000"],
+    name: "10,000",
+    summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
+    players: "1 player",
+    player_count: 1,
     status: "Ready",
     availability: "ready",
   },
@@ -737,7 +749,7 @@ function renderGameStats() {
   if (nextKey === lastGameStatsKey) return;
   lastGameStatsKey = nextKey;
   host.innerHTML = "";
-  if (gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID) {
+  if (gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID || gameId === TEN_THOUSAND_GAME_ID) {
     host.appendChild(lobbyStatsTable("High Scores", currentGameStats.high_scores || [], "Score", "score", "No scores yet."));
   } else {
     host.appendChild(lobbyStatsTable("ELO Ratings", currentGameStats.ratings || [], "ELO", "rating", "No ratings yet."));
@@ -748,7 +760,7 @@ function renderGameStatsLink() {
   const button = document.getElementById("openGameStats");
   const title = document.getElementById("gameStatsTitle");
   const gameId = canonicalGameId(selectedGame().id);
-  const label = gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID ? "High Scores" : "ELO";
+  const label = gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID || gameId === TEN_THOUSAND_GAME_ID ? "High Scores" : "ELO";
   if (button) button.textContent = label;
   if (title) title.textContent = label;
 }
@@ -1580,6 +1592,34 @@ async function makeQuoridorAction(action) {
   }
 }
 
+async function makeTenThousandAction(action) {
+  const player = selectedPlayer();
+  if (!player || !currentRoom || !isTenThousandGameState(currentRoom.game) || pendingMove) return;
+  const selectedSeat = currentRoom.players.find((seat) => seat.id === player.id);
+  if (!selectedSeat || selectedSeat.mark !== currentRoom.game.current_player) return;
+  playClick();
+  pendingMove = {
+    key: moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action)),
+    roomCode: currentRoom.code,
+    moveCount: currentRoom.game.move_count,
+  };
+  renderGame();
+  try {
+    const response = await api("/api/room/move", {
+      code: currentRoom.code,
+      player_id: player.id,
+      action,
+    });
+    pendingMove = null;
+    setRoom(response.room);
+  } catch (error) {
+    pendingMove = null;
+    renderGame();
+    showTurnStatus(null, error.message);
+    playInvalidMove();
+  }
+}
+
 function showBattleshipResultReveal(result) {
   const durationMs = Math.max(1000, Number(result.durationMs || 1000));
   const radarMs = Math.max(0, Number(result.radarMs || 0));
@@ -1896,6 +1936,12 @@ function renderRoomSlots() {
   const opponent = currentRoom.players.find((player) => player.id !== currentRoom.host_id);
   hostSlot.innerHTML = hostPlayer ? roomPlayerHtml(hostPlayer) : "Host missing.";
   opponentSlot.classList.remove("status-only");
+  opponentSlot.parentElement.classList.toggle("hidden", isSoloRoom(currentRoom));
+  if (isSoloRoom(currentRoom)) {
+    hostInviteStatus = null;
+    renderRoomInviteStatus();
+    return;
+  }
   if (opponent) {
     opponentSlot.innerHTML = roomPlayerHtml(opponent);
     hostInviteStatus = null;
@@ -1968,6 +2014,24 @@ function renderGame() {
     renderQuoridorGame(game);
     return;
   }
+  if (isTenThousandGameState(game)) {
+    renderTenThousandGame({
+      host: document.getElementById("macroBoard"),
+      game,
+      room: currentRoom,
+      selectedPlayerId,
+      pendingMove,
+      makeMove: makeTenThousandAction,
+      escapeHtml,
+    });
+    if (game.status === "playing") showTurnStatus(selectedPlayer(), "Roll, score, reroll, or bank.");
+    else {
+      const winner = currentRoom.players.find((player) => player.mark === game.winner);
+      showTurnStatus(winner, `${winner ? winner.name : "Player"} banked ${game.score}.`);
+      scheduleWinOverlay(winner, game.winner);
+    }
+    return;
+  }
   if (!currentRoom.started) {
     showTurnStatus(null, "Waiting for opponent.");
     lastLegalBoardsKey = "";
@@ -1990,8 +2054,10 @@ function renderGame() {
     return;
   }
 
+  const macroBoard = document.getElementById("macroBoard");
+  macroBoard.className = "macro-board";
   lastLegalBoardsKey = renderSuperTicTacToeBoard({
-    host: document.getElementById("macroBoard"),
+    host: macroBoard,
     room: currentRoom,
     selectedPlayerId,
     pendingMove,
@@ -2965,6 +3031,10 @@ function isQuoridorGameState(game) {
   return Boolean(game && (canonicalGameId(game.game_id) === QUORIDOR_GAME_ID || game.pawns && game.walls_remaining && Array.isArray(game.walls)));
 }
 
+function isTenThousandGameState(game) {
+  return Boolean(game && canonicalGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
+}
+
 function scheduleWinOverlay(player, mark) {
   const winKey = `${currentRoom.code}:${currentRoom.game.move_count}:${mark}`;
   if (lastCelebratedWinKey === winKey) return;
@@ -3237,6 +3307,18 @@ function gameIsReady(game) {
   return Boolean(game && game.availability === "ready");
 }
 
+function playerCountForGame(game) {
+  return Number(game && game.player_count || 2);
+}
+
+function selectedGameIsSolo() {
+  return playerCountForGame(selectedGame()) === 1;
+}
+
+function isSoloRoom(room) {
+  return Boolean(room && playerCountForGame(games.find((game) => game.id === canonicalGameId(room.game_id))) === 1);
+}
+
 function gameAvailabilityText(game) {
   if (!game) return "Game unavailable.";
   if (game.availability === "ready") return "Ready";
@@ -3286,6 +3368,15 @@ function roomRenderKey(room) {
       legal_walls: room.game.legal_walls,
       pickups: room.game.pickups,
       last_event: room.game.last_event,
+      score: room.game.score,
+      turn_score: room.game.turn_score,
+      farkles: room.game.farkles,
+      dice: room.game.dice,
+      roll_count: room.game.roll_count,
+      scoring_options: room.game.scoring_options,
+      can_roll: room.game.can_roll,
+      can_reroll: room.game.can_reroll,
+      can_bank: room.game.can_bank,
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,

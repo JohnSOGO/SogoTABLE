@@ -8,6 +8,7 @@ const TACTICAL_GAME_ID = "d7e4a91f0c23";
 const BOXES_GAME_ID = "4b7e2d9a6c10";
 const BATTLESHIP_GAME_ID = "9c2f7a81d4e6";
 const QUORIDOR_GAME_ID = "8f5d2c7a1b90";
+const TEN_THOUSAND_GAME_ID = "6d10f4a2c8b3";
 const HEX_ID_PATTERN = /^[a-f0-9]{12}$/;
 
 class InMemoryD1 {
@@ -287,16 +288,87 @@ test("lists ready games from the hosted game registry", async () => {
   const listed = await get(env, "/api/games");
 
   assert.equal(listed.ok, true);
-  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID]);
-  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready"]);
+  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID]);
+  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready"]);
   assert.equal(listed.games[0].name, "Super Tic Tac Toe");
   assert.equal(listed.games[1].name, "Super Tic Tactical Toe");
   assert.equal(listed.games[2].name, "Dots and Boxes");
   assert.equal(listed.games[3].name, "Battleship");
   assert.equal(listed.games[4].name, "Quoridor");
+  assert.equal(listed.games[5].name, "10,000");
+  assert.equal(listed.games[5].player_count, 1);
   assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
 });
+
+test("10,000 creates an active solo room", async () => {
+  const env = makeEnv();
+  const host = player("solo", "Solo Player");
+  const created = await post(env, "/api/room/create", { game_id: "ten_thousand", player: host, code: "DICE" });
+  const rooms = await get(env, `/api/rooms?game_id=${TEN_THOUSAND_GAME_ID}`);
+
+  assert.equal(created.ok, true);
+  assert.equal(created.room.started, true);
+  assert.equal(created.room.players.length, 1);
+  assert.equal(created.room.players[0].mark, "X");
+  assert.equal(created.room.open_seats, undefined);
+  assert.equal(created.room.game.game_id, TEN_THOUSAND_GAME_ID);
+  assert.equal(created.room.game.phase, "ready");
+  assert.equal(rooms.rooms[0].open_seats, 0);
+});
+
+test("10,000 rolls, selects scoring dice, rerolls, and banks", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51, 0.68, 0.85, 0.17], async () => {
+  const env = makeEnv();
+  const host = player("roller", "Roller");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "ROLL" });
+  const rolled = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "roll" } });
+  const selected = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "select", dice_ids: ["d1", "d2", "d3"] } });
+  const rerolled = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "reroll" } });
+  const scoredAgain = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "select", dice_ids: ["d4"] } });
+  const banked = await post(env, "/api/room/move", { code: "ROLL", player_id: host.id, action: { type: "bank" } });
+
+  assert.deepEqual(rolled.room.game.dice.map((die) => die.value), [1, 1, 1, 2, 3, 4]);
+  assert.equal(selected.room.game.turn_score, 1000);
+  assert.equal(rerolled.room.game.phase, "rolled");
+  assert.deepEqual(rerolled.room.game.dice.slice(3).map((die) => die.value), [5, 6, 2]);
+  assert.equal(scoredAgain.room.game.turn_score, 1050);
+  assert.equal(banked.room.game.score, 1050);
+  assert.equal(banked.room.game.phase, "ready");
+}));
+
+test("10,000 rejects non-scoring selections and records farkles", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
+  const env = makeEnv();
+  const host = player("farkle", "Farkle");
+  await post(env, "/api/room/create", { game_id: TEN_THOUSAND_GAME_ID, player: host, code: "BUST" });
+  const rolled = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "roll" } });
+  const selected = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "select", dice_ids: ["d1"] } });
+
+  assert.equal(rolled.room.game.phase, "farkled");
+  assert.equal(rolled.room.game.farkles, 1);
+  assert.equal(rolled.room.game.turn_score, 0);
+  assert.equal(selected.ok, false);
+  assert.equal(selected.error, "Roll before selecting dice.");
+}));
+
+test("10,000 completion records a high score", async () => withMockRandom([0, 0, 0, 0, 0, 0], async () => {
+  const env = makeEnv();
+  const host = player("winner", "Winner");
+  await post(env, "/api/players/create", { player: host });
+  await post(env, "/api/room/create", { game_id: TEN_THOUSAND_GAME_ID, player: host, code: "WINS" });
+  for (let turn = 0; turn < 10; turn += 1) {
+    await post(env, "/api/room/move", { code: "WINS", player_id: host.id, action: { type: "roll" } });
+    await post(env, "/api/room/move", { code: "WINS", player_id: host.id, action: { type: "select", dice_ids: ["d1", "d2", "d3"] } });
+    await post(env, "/api/room/move", { code: "WINS", player_id: host.id, action: { type: "bank" } });
+  }
+  const room = await get(env, "/api/room?code=WINS");
+  const stats = await get(env, `/api/stats?game_id=${TEN_THOUSAND_GAME_ID}`);
+
+  assert.equal(room.room.status, "completed");
+  assert.equal(room.room.game.score, 10000);
+  assert.equal(stats.stats.high_scores[0].player_id, host.id);
+  assert.equal(stats.stats.high_scores[0].score, 10000);
+  assert.equal(stats.stats.ratings.length, 0);
+}));
 
 test("player delete is blocked while seated and cleans pending player state otherwise", async () => {
   const env = makeEnv();

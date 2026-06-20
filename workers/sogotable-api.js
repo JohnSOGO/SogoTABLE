@@ -74,12 +74,23 @@ const GAME_DEFINITIONS = [
     availability: "ready",
     aliases: ["quoridor"],
   },
+  {
+    id: "6d10f4a2c8b3",
+    name: "10,000",
+    summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
+    players: "1 player",
+    player_count: 1,
+    status: "Ready",
+    availability: "ready",
+    aliases: ["ten_thousand", "10000", "dice_10000"],
+  },
 ];
 const DEFAULT_GAME_ID = GAME_DEFINITIONS[0].id;
 const TACTICAL_GAME_ID = GAME_DEFINITIONS[1].id;
 const BOXES_GAME_ID = GAME_DEFINITIONS[2].id;
 const BATTLESHIP_GAME_ID = GAME_DEFINITIONS[3].id;
 const QUORIDOR_GAME_ID = GAME_DEFINITIONS[4].id;
+const TEN_THOUSAND_GAME_ID = GAME_DEFINITIONS[5].id;
 const GAME_ID_ALIASES = new Map();
 GAME_DEFINITIONS.forEach((game) => {
   GAME_ID_ALIASES.set(game.id, game.id);
@@ -478,6 +489,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
         reset_votes: [],
       };
       addPlayerToRoom(room, player);
+      activateRoomIfReady(room);
       data.rooms[code] = room;
       return { ok: true, room: roomToDict(data, room) };
     }
@@ -493,6 +505,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/join-bot") {
       const room = roomFromPayload(data, payload);
       const hostId = String(payload.host_id || "").trim();
+      if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use bot opponents.");
       if (hostId !== room.host_id) throw new Error("Only the host can invite a bot.");
       if (roomStatus(room) !== "waiting_for_player") throw new Error("Bot can only join a waiting room.");
       if (room.players.length >= 2) throw new Error("Room already has two players.");
@@ -515,6 +528,12 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (!room.started) throw new Error("Room is waiting for another player.");
       const mark = playerMark(room, String(payload.player_id || ""));
       if (!mark) throw new Error("Player is not in this room.");
+      if (isTenThousandGame(room.game)) {
+        makeTenThousandMove(room.game, mark, payload.action || payload);
+        bumpRoomRevision(room);
+        recordCompletedRoomStats(data, room);
+        return { ok: true, room: roomToDict(data, room) };
+      }
       if (isBattleshipGame(room.game)) {
         ensureBattleshipBotFleets(room);
         makeBattleshipMove(room.game, mark, payload.action || payload);
@@ -560,6 +579,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     }
     if (method === "POST" && url.pathname === "/api/invite/create") {
       const room = roomFromPayload(data, payload);
+      if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use invites.");
       const hostId = String(payload.host_id || "").trim();
       if (hostId !== room.host_id) throw new Error("Only the host can invite a player.");
       if (room.players.length >= 2) throw new Error("Room already has two players.");
@@ -875,6 +895,7 @@ function publicGameDefinition(game) {
     name: game.name,
     summary: game.summary,
     players: game.players,
+    player_count: playerCountForGame(game.id),
     status: game.status,
     availability: game.availability,
     aliases: [...(game.aliases || [])],
@@ -888,6 +909,15 @@ function gameIdsForLookup(gameId) {
 
 function gameIdMatches(candidate, gameId) {
   return cleanGameId(candidate) === cleanGameId(gameId);
+}
+
+function playerCountForGame(gameId) {
+  const game = GAME_DEFINITIONS.find((item) => item.id === cleanGameId(gameId));
+  return Number(game && game.player_count || 2);
+}
+
+function isSoloGameId(gameId) {
+  return playerCountForGame(gameId) === 1;
 }
 
 function playerFromPayload(payload) {
@@ -1057,7 +1087,7 @@ function roomSummary(room) {
     local_mode: room.local_mode,
     status: roomStatus(room),
     players: room.players,
-    open_seats: Math.max(0, 2 - room.players.length),
+    open_seats: Math.max(0, playerCountForGame(room.game_id) - room.players.length),
   };
 }
 
@@ -1109,15 +1139,22 @@ function playerHasUnfinishedRoom(data, playerId) {
 
 function addPlayerToRoom(room, player) {
   if (room.players.some((seat) => seat.id === player.id)) return;
-  if (room.players.length >= 2) throw new Error("Room already has two players.");
-  const seatedPlayer = { ...player, mark: room.players.length ? ("X") : "" };
+  const playerCount = playerCountForGame(room.game_id);
+  if (room.players.length >= playerCount) throw new Error(playerCount === 2 ? "Room already has two players." : "Room already has enough players.");
+  const seatedPlayer = { ...player, mark: playerCount === 1 ? "X" : room.players.length ? ("X") : "" };
   if (room.players.length) seatedPlayer.color = nonConflictingRoomColor(seatedPlayer.color, room.players.map((seat) => seat.color));
   room.players.push(seatedPlayer);
   ensureRoomSeatColors(room);
 }
 
 function activateRoomIfReady(room) {
-  if (room.started || room.players.length < 2) return;
+  const playerCount = playerCountForGame(room.game_id);
+  if (room.started || room.players.length < playerCount) return;
+  if (playerCount === 1) {
+    room.players[0].mark = "X";
+    room.started = true;
+    return;
+  }
   const marks = Math.random() < 0.5 ? ["X", "O"] : ["O", "X"];
   room.players.forEach((seat, index) => {
     seat.mark = marks[index];
@@ -1361,6 +1398,7 @@ function newGame(gameId = DEFAULT_GAME_ID) {
   if (canonicalGameId === BATTLESHIP_GAME_ID) return newBattleshipGame();
   if (canonicalGameId === QUORIDOR_GAME_ID) return newQuoridorGame();
   if (canonicalGameId === BOXES_GAME_ID) return newBoxesGame();
+  if (canonicalGameId === TEN_THOUSAND_GAME_ID) return newTenThousandGame();
   const game = {
     game_id: canonicalGameId,
     boards: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null)),
@@ -1386,10 +1424,259 @@ function newGame(gameId = DEFAULT_GAME_ID) {
 }
 
 function gameToDict(game) {
+  if (isTenThousandGame(game)) return tenThousandGameToDict(game);
   if (isBattleshipGame(game)) return battleshipGameToDict(game);
   if (isQuoridorGame(game)) return quoridorGameToDict(game);
   if (isBoxesGame(game)) return boxesGameToDict(game);
   return { ...game, game_id: cleanGameId(game.game_id), legal_boards: legalBoards(game) };
+}
+
+const TEN_THOUSAND_TARGET_SCORE = 10000;
+const TEN_THOUSAND_DICE_COUNT = 6;
+
+function newTenThousandGame() {
+  return {
+    game_id: TEN_THOUSAND_GAME_ID,
+    target_score: TEN_THOUSAND_TARGET_SCORE,
+    status: "playing",
+    current_player: "X",
+    winner: null,
+    score: 0,
+    turn_score: 0,
+    farkles: 0,
+    phase: "ready",
+    dice: tenThousandBlankDice(),
+    roll_count: 0,
+    move_count: 0,
+    last_move: null,
+  };
+}
+
+function isTenThousandGame(game) {
+  return Boolean(game && cleanGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
+}
+
+function tenThousandGameToDict(game) {
+  normalizeTenThousandGame(game);
+  return {
+    ...game,
+    game_id: TEN_THOUSAND_GAME_ID,
+    scoring_options: tenThousandScoringOptions(game),
+    can_roll: tenThousandCanRoll(game),
+    can_reroll: tenThousandCanReroll(game),
+    can_bank: tenThousandCanBank(game),
+  };
+}
+
+function normalizeTenThousandGame(game) {
+  game.game_id = TEN_THOUSAND_GAME_ID;
+  game.target_score = TEN_THOUSAND_TARGET_SCORE;
+  game.status = game.status || "playing";
+  game.current_player = "X";
+  game.winner = game.winner === "X" ? "X" : null;
+  game.score = clampInteger(game.score, 0, 999999, 0);
+  game.turn_score = clampInteger(game.turn_score, 0, 999999, 0);
+  game.farkles = clampInteger(game.farkles, 0, 999999, 0);
+  game.phase = ["ready", "rolled", "selected", "farkled", "complete"].includes(game.phase) ? game.phase : "ready";
+  game.roll_count = clampInteger(game.roll_count, 0, 999999, 0);
+  game.move_count = clampInteger(game.move_count, 0, 999999, 0);
+  game.dice = normalizeTenThousandDice(game.dice);
+  game.last_move = game.last_move || null;
+}
+
+function tenThousandBlankDice() {
+  return Array.from({ length: TEN_THOUSAND_DICE_COUNT }, (_, index) => ({
+    id: `d${index + 1}`,
+    value: null,
+    selected: false,
+    scored: false,
+    rolling: false,
+  }));
+}
+
+function normalizeTenThousandDice(dice) {
+  const source = Array.isArray(dice) ? dice : [];
+  return Array.from({ length: TEN_THOUSAND_DICE_COUNT }, (_, index) => {
+    const die = source[index] || {};
+    const value = Number(die.value);
+    return {
+      id: String(die.id || `d${index + 1}`).slice(0, 16),
+      value: Number.isInteger(value) && value >= 1 && value <= 6 ? value : null,
+      selected: Boolean(die.selected),
+      scored: Boolean(die.scored),
+      rolling: false,
+    };
+  });
+}
+
+function makeTenThousandMove(game, mark, action) {
+  normalizeTenThousandGame(game);
+  if (mark !== "X") throw new Error("10,000 is a solo game.");
+  if (game.status !== "playing") throw new Error("Game is complete.");
+  const type = String(action.type || "").trim();
+  if (type === "roll") return rollTenThousandDice(game);
+  if (type === "select") return selectTenThousandDice(game, action.dice_ids || action.diceIds || []);
+  if (type === "reroll") return rerollTenThousandDice(game);
+  if (type === "bank") return bankTenThousandScore(game);
+  throw new Error("10,000 action is required.");
+}
+
+function rollTenThousandDice(game) {
+  if (!tenThousandCanRoll(game)) throw new Error("Roll is not available.");
+  game.dice = tenThousandBlankDice();
+  rollDiceByIds(game, game.dice.map((die) => die.id));
+  finishTenThousandRoll(game, "roll");
+}
+
+function rerollTenThousandDice(game) {
+  if (!tenThousandCanReroll(game)) throw new Error("Reroll is not available.");
+  const hotDice = game.dice.every((die) => die.scored);
+  if (hotDice) {
+    game.dice = tenThousandBlankDice();
+    rollDiceByIds(game, game.dice.map((die) => die.id));
+  } else {
+    const ids = game.dice.filter((die) => !die.scored).map((die) => die.id);
+    rollDiceByIds(game, ids);
+  }
+  finishTenThousandRoll(game, "reroll");
+}
+
+function rollDiceByIds(game, ids) {
+  const rollingIds = new Set(ids);
+  game.dice.forEach((die) => {
+    if (!rollingIds.has(die.id)) return;
+    die.value = 1 + Math.floor(Math.random() * 6);
+    die.selected = false;
+    die.scored = false;
+    die.rolling = true;
+  });
+}
+
+function finishTenThousandRoll(game, type) {
+  game.roll_count += 1;
+  game.move_count += 1;
+  const rolledDice = game.dice.filter((die) => die.rolling);
+  game.dice.forEach((die) => {
+    die.rolling = false;
+  });
+  const hasScore = tenThousandHasAnyScoringSet(rolledDice.map((die) => die.value));
+  if (!hasScore) {
+    game.turn_score = 0;
+    game.farkles += 1;
+    game.phase = "farkled";
+    game.last_move = {
+      type: "farkle",
+      dice: rolledDice.map((die) => ({ id: die.id, value: die.value })),
+      move_count: game.move_count,
+    };
+    return;
+  }
+  game.phase = "rolled";
+  game.last_move = {
+    type,
+    dice: rolledDice.map((die) => ({ id: die.id, value: die.value })),
+    move_count: game.move_count,
+  };
+}
+
+function selectTenThousandDice(game, diceIds) {
+  if (game.phase !== "rolled" && game.phase !== "selected") throw new Error("Roll before selecting dice.");
+  const ids = new Set((Array.isArray(diceIds) ? diceIds : []).map((id) => String(id)));
+  if (!ids.size) throw new Error("Select at least one die.");
+  const dice = game.dice.filter((die) => ids.has(die.id));
+  if (dice.length !== ids.size || dice.some((die) => die.scored || !die.value)) throw new Error("Selected dice are not available.");
+  const score = tenThousandScoreValues(dice.map((die) => die.value));
+  if (!score.valid || score.score <= 0) throw new Error("Selected dice must all score.");
+  dice.forEach((die) => {
+    die.selected = true;
+    die.scored = true;
+  });
+  game.turn_score += score.score;
+  game.phase = "selected";
+  game.move_count += 1;
+  game.last_move = {
+    type: "select",
+    dice_ids: [...ids],
+    score: score.score,
+    turn_score: game.turn_score,
+    hot_dice: game.dice.every((die) => die.scored),
+    move_count: game.move_count,
+  };
+}
+
+function bankTenThousandScore(game) {
+  if (!tenThousandCanBank(game)) throw new Error("Select scoring dice before banking.");
+  game.score += game.turn_score;
+  game.turn_score = 0;
+  game.dice = tenThousandBlankDice();
+  game.move_count += 1;
+  if (game.score >= TEN_THOUSAND_TARGET_SCORE) {
+    game.status = "x_won";
+    game.winner = "X";
+    game.phase = "complete";
+    game.last_move = { type: "complete", score: game.score, move_count: game.move_count };
+    return;
+  }
+  game.phase = "ready";
+  game.last_move = { type: "bank", score: game.score, move_count: game.move_count };
+}
+
+function tenThousandCanRoll(game) {
+  return game.status === "playing" && (game.phase === "ready" || game.phase === "farkled");
+}
+
+function tenThousandCanReroll(game) {
+  return game.status === "playing" && game.phase === "selected";
+}
+
+function tenThousandCanBank(game) {
+  return game.status === "playing" && game.phase === "selected" && game.turn_score > 0;
+}
+
+function tenThousandScoringOptions(game) {
+  if (game.phase !== "rolled" && game.phase !== "selected") return [];
+  return game.dice
+    .filter((die) => !die.scored && die.value)
+    .filter((die) => tenThousandScoreValues([die.value]).valid)
+    .map((die) => die.id);
+}
+
+function tenThousandHasAnyScoringSet(values) {
+  const clean = values.filter((value) => Number.isInteger(value) && value >= 1 && value <= 6);
+  if (!clean.length) return false;
+  if (clean.some((value) => value === 1 || value === 5)) return true;
+  const counts = tenThousandCounts(clean);
+  return counts.some((count) => count >= 3);
+}
+
+function tenThousandScoreValues(values) {
+  const clean = values.map(Number).filter((value) => Number.isInteger(value) && value >= 1 && value <= 6);
+  if (clean.length !== values.length || !clean.length) return { valid: false, score: 0 };
+  const counts = tenThousandCounts(clean);
+  if (clean.length === 6 && counts.every((count) => count === 1)) return { valid: true, score: 1500 };
+  if (clean.length === 6 && counts.filter((count) => count === 2).length === 3) return { valid: true, score: 1500 };
+  let score = 0;
+  for (let index = 0; index < counts.length; index += 1) {
+    const face = index + 1;
+    if (counts[index] >= 3) {
+      score += face === 1 ? 1000 : face * 100;
+      counts[index] -= 3;
+    }
+  }
+  score += counts[0] * 100;
+  counts[0] = 0;
+  score += counts[4] * 50;
+  counts[4] = 0;
+  if (counts.some((count) => count > 0)) return { valid: false, score: 0 };
+  return { valid: score > 0, score };
+}
+
+function tenThousandCounts(values) {
+  const counts = [0, 0, 0, 0, 0, 0];
+  values.forEach((value) => {
+    counts[value - 1] += 1;
+  });
+  return counts;
 }
 
 const BATTLESHIP_SIZE = 10;
@@ -2840,6 +3127,12 @@ function roomResultForStats(room) {
 }
 
 function scoreByMarkForRoom(room) {
+  if (isTenThousandGame(room.game)) {
+    return {
+      X: Number(room.game.score || 0),
+      O: 0,
+    };
+  }
   if (isBoxesGame(room.game)) {
     return {
       X: Number(room.game.scores && room.game.scores.X || 0),

@@ -1962,6 +1962,149 @@ button.player-switch-button {
   color: var(--muted);
 }
 
+.ten-thousand-table {
+  align-self: center;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: none;
+  gap: 14px;
+  width: min(100%, 620px);
+  aspect-ratio: auto;
+  padding: 4px 0 18px;
+}
+
+.ten-thousand-scoreboard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ten-thousand-scoreboard > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  text-align: center;
+}
+
+.ten-thousand-scoreboard strong {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.ten-thousand-dice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(74px, 1fr));
+  gap: 14px;
+  justify-items: center;
+  overflow: hidden;
+  padding: 8px 0;
+  perspective: 900px;
+}
+
+.ten-thousand-die {
+  width: clamp(74px, 24vw, 112px);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  perspective: 700px;
+  cursor: pointer;
+}
+
+.ten-thousand-die:disabled {
+  cursor: default;
+}
+
+.die-cube {
+  --die-size: clamp(70px, 22vw, 104px);
+  --die-depth: calc(var(--die-size) / 2);
+  position: relative;
+  display: block;
+  width: var(--die-size);
+  height: var(--die-size);
+  transform-style: preserve-3d;
+  transition: transform 360ms ease, filter 180ms ease;
+  animation: dice-tumble 900ms cubic-bezier(.2, .8, .25, 1);
+}
+
+.ten-thousand-die.selected .die-cube,
+.ten-thousand-die.scored .die-cube {
+  filter: drop-shadow(0 8px 10px rgba(31, 122, 95, 0.22));
+  transform: translateY(-8px) rotateX(0deg) rotateY(0deg);
+}
+
+.ten-thousand-die.pending .die-cube {
+  filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0)) drop-shadow(0 0 10px rgba(202, 138, 4, 0.55));
+  transform: translateY(-10px) rotateX(12deg) rotateY(-12deg);
+}
+
+.die-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 7%;
+  padding: 17%;
+  border: 2px solid #d7dde5;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #ffffff, #e9eef5);
+  box-shadow: inset -6px -7px 12px rgba(15, 23, 42, 0.08), inset 4px 5px 10px rgba(255, 255, 255, 0.95);
+  backface-visibility: hidden;
+}
+
+.die-face .pip {
+  border-radius: 999px;
+  background: #172033;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.face-1 { transform: rotateY(0deg) translateZ(var(--die-depth)); }
+.face-2 { transform: rotateY(180deg) translateZ(var(--die-depth)); }
+.face-3 { transform: rotateY(90deg) translateZ(var(--die-depth)); }
+.face-4 { transform: rotateY(-90deg) translateZ(var(--die-depth)); }
+.face-5 { transform: rotateX(90deg) translateZ(var(--die-depth)); }
+.face-6 { transform: rotateX(-90deg) translateZ(var(--die-depth)); }
+
+.die-face-1 { transform: rotateX(0deg) rotateY(0deg); }
+.die-face-2 { transform: rotateX(0deg) rotateY(180deg); }
+.die-face-3 { transform: rotateX(0deg) rotateY(-90deg); }
+.die-face-4 { transform: rotateX(0deg) rotateY(90deg); }
+.die-face-5 { transform: rotateX(-90deg) rotateY(0deg); }
+.die-face-6 { transform: rotateX(90deg) rotateY(0deg); }
+
+.ten-thousand-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ten-thousand-actions button {
+  min-width: 0;
+  padding-inline: 8px;
+}
+
+.ten-thousand-message {
+  min-height: 24px;
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+@keyframes dice-tumble {
+  0% {
+    transform: translateY(-10px) rotateX(360deg) rotateY(270deg) rotateZ(40deg) scale(0.96);
+  }
+
+  70% {
+    transform: translateY(2px) rotateX(54deg) rotateY(92deg) rotateZ(8deg) scale(1.02);
+  }
+}
+
 @keyframes active-board-flash {
   0% {
     border-color: var(--turn-color, #1f7a5f);
@@ -2061,5 +2204,26 @@ button.player-switch-button {
 
   .notice button {
     width: 100%;
+  }
+
+  .ten-thousand-scoreboard {
+    gap: 6px;
+  }
+
+  .ten-thousand-scoreboard > div {
+    padding: 8px 4px;
+  }
+
+  .ten-thousand-dice {
+    grid-template-columns: repeat(2, minmax(86px, 1fr));
+    gap: 10px;
+  }
+
+  .die-cube {
+    --die-size: clamp(68px, 21vw, 84px);
+  }
+
+  .ten-thousand-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

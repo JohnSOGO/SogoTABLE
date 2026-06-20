@@ -4,7 +4,7 @@ This file is durable context for future Codex sessions. Read it with `AGENTS.md`
 
 ## Product Direction
 
-SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, Super Tic Tactical Toe is the second playable game, Dots and Boxes is the third ready two-player game, Battleship is the fourth ready two-player game, and Quoridor is the fifth ready two-player game. The app should grow through a games menu and clear game modules rather than becoming a single-game app.
+SogoTable is a mobile-first browser platform for simple family turn-based games. Super Tic Tac Toe is the first proof-of-concept, Super Tic Tactical Toe is the second playable game, Dots and Boxes is the third ready two-player game, Battleship is the fourth ready two-player game, Quoridor is the fifth ready two-player game, and 10,000 is the first ready solo dice game. The app should grow through a games menu and clear game modules rather than becoming a single-game app.
 
 Local workspace note: the canonical local repository directory is now `C:\Users\Public\git\SogoTable`. The former `C:\Users\Public\git\SogoGames` path was retired during the SogoTable naming cleanup; do not start new work from the old path.
 
@@ -101,7 +101,8 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - Reserved smoke-test player ids `codex-test-player-1` and `codex-test-player-2` are Worker-recognized hidden test seats. They can be used in API tests, but must remain filtered from the public roster, lobby presence, room lists, invite targets, and public stats so normal players cannot select them.
 - Open/current game cards are hints, not authority. When a user taps `Join Game` or `Re-enter Game`, fetch the room fresh from the shared brain before deciding whether the selected player is already seated, can join, or should see that the game is no longer open.
 - Hosted API read-only refresh calls must not write the whole D1 state row back to the database. Saving after `GET` requests can resurrect stale room/player snapshots when several browsers and phones are refreshing at once.
-- Games menu exists with Super Tic Tac Toe, Super Tic Tactical Toe, Dots and Boxes, Battleship, and Quoridor as ready games. The browser now loads ready-game metadata from the hosted `/api/games` registry, with a small local fallback only for startup resilience.
+- Games menu exists with Super Tic Tac Toe, Super Tic Tactical Toe, Dots and Boxes, Battleship, Quoridor, and 10,000 as ready games. The browser now loads ready-game metadata from the hosted `/api/games` registry, with a small local fallback only for startup resilience.
+- Game metadata may define `player_count`. Two-player games use the normal waiting room, invite, local opponent, and bot opponent flow. Solo games start immediately on room creation and must hide opponent-selection controls.
 - The player/game selection screen is titled `Player & Game Select`. It starts with the current player summary, separate `Change` and `Create` buttons positioned to the right of the player icon/name when space allows, then direct game buttons.
 - Current main menu shape is selected-player summary, separate player action buttons, and simple full-width game buttons showing only game names. There is no generic Continue button and no Create/Re-enter text on the menu.
 - Clicking a game now opens a selected-game screen for that game type. This screen shows the game description, current players actually viewing that selected-game lobby, current open games, current in-progress games, and a `Create Game`/`Re-enter Game` action.
@@ -152,6 +153,12 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - Quoridor uses a 9x9 board, ten walls per player, standard orthogonal move, jump, and diagonal side-jump rules, and Worker validation that wall placements never block every path to either goal edge.
 - Players use their selected emoji as pawn tokens. The browser offers Pawn, horizontal wall, and vertical wall modes while the Worker remains authoritative for legal moves and legal walls.
 - Quoridor bots use the four difficulty model from `src/sogotable/static/games/Quoridor/quoridor_ai_rules_four_difficulties.md`: Rookie, Scout, Tactician, and Master.
+
+## 10,000 UX Decisions
+
+- 10,000 is game #6 and the first hosted solo game. It uses the normal selected-game screen, room, reset, exit, room WebSocket, and high-score infrastructure, but no opponent, invite, local-opponent, or bot-opponent controls.
+- The Worker owns dice rolls, scoring validation, farkles, banking, and game completion. The browser renders CSS 3D dice animation as presentation only and must settle on the Worker-provided dice values.
+- Scoring uses the first classic rule set: single 1s and 5s, triples, 1-6 straight, and three pairs. The target score is 10,000.
 
 ## Super Tic Tac Toe UX Decisions
 

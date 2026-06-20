@@ -103,6 +103,7 @@ Returns the hosted game registry used by the browser game menu.
       "name": "Super Tic Tac Toe",
       "summary": "A nested tic tac toe duel where every move sends the next player to a target board.",
       "players": "2 players",
+      "player_count": 2,
       "status": "Ready",
       "availability": "ready",
       "aliases": ["super_tic_tac_toe"]
@@ -112,6 +113,7 @@ Returns the hosted game registry used by the browser game menu.
       "name": "Dots and Boxes",
       "summary": "Claim edges between dots, complete boxes, and keep the turn when you score.",
       "players": "2 players",
+      "player_count": 2,
       "status": "Ready",
       "availability": "ready",
       "aliases": ["boxes", "dots_and_boxes", "dots_and_dashes"]
@@ -121,6 +123,7 @@ Returns the hosted game registry used by the browser game menu.
       "name": "Battleship",
       "summary": "Place your fleet, switch between defence and offence, and sink the enemy ships.",
       "players": "2 players",
+      "player_count": 2,
       "status": "Ready",
       "availability": "ready",
       "aliases": ["battleship", "battle_ship"]
@@ -130,15 +133,26 @@ Returns the hosted game registry used by the browser game menu.
       "name": "Quoridor",
       "summary": "Race your pawn across the board while placing walls that slow your opponent without blocking every path.",
       "players": "2 players",
+      "player_count": 2,
       "status": "Ready",
       "availability": "ready",
       "aliases": ["quoridor"]
+    },
+    {
+      "id": "6d10f4a2c8b3",
+      "name": "10,000",
+      "summary": "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
+      "players": "1 player",
+      "player_count": 1,
+      "status": "Ready",
+      "availability": "ready",
+      "aliases": ["ten_thousand", "10000", "dice_10000"]
     }
   ]
 }
 ```
 
-The browser keeps a local fallback registry for startup resilience, but the hosted `/api/games` response is the preferred source for ready-game metadata.
+The browser keeps a local fallback registry for startup resilience, but the hosted `/api/games` response is the preferred source for ready-game metadata. `player_count` controls whether a room waits for an opponent or starts immediately as a solo room.
 
 ## Lobby Presence
 
@@ -566,6 +580,28 @@ Quoridor moves use an action object for pawn moves and wall placement:
 }
 ```
 
+10,000 moves use action objects for dice flow:
+
+```json
+{ "code": "ABCD", "player_id": "player-id", "action": { "type": "roll" } }
+```
+
+```json
+{
+  "code": "ABCD",
+  "player_id": "player-id",
+  "action": { "type": "select", "dice_ids": ["d1", "d4"] }
+}
+```
+
+```json
+{ "code": "ABCD", "player_id": "player-id", "action": { "type": "reroll" } }
+```
+
+```json
+{ "code": "ABCD", "player_id": "player-id", "action": { "type": "bank" } }
+```
+
 Response:
 
 ```json
@@ -595,6 +631,11 @@ placement spends one wall from `game.walls_remaining[mark]` and is rejected if
 it overlaps, crosses, or leaves either player with no path to their goal edge.
 Either valid action changes `current_player`, and reaching the opposite edge
 moves the game to `complete`.
+
+For 10,000, a valid roll updates `game.dice` with Worker-owned face values.
+Selecting dice adds to `game.turn_score`, rerolling rolls remaining unscored
+dice or all six hot dice, banking adds `turn_score` to `game.score`, and a
+roll with no scoring dice records a farkle and clears the turn score.
 
 ## Reset
 
