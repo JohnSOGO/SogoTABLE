@@ -2124,6 +2124,124 @@ button.player-switch-button {
   text-align: center;
 }
 
+/* Lobby */
+.ten-thousand-lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
+}
+
+.ten-thousand-lobby h3 {
+  margin: 0;
+  text-align: center;
+}
+
+.tt-lobby-seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tt-lobby-seat {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--turn-soft, #eef2f7);
+}
+
+.tt-seat-no {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.tt-seat-tag {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.tt-lobby-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tt-lobby-actions .primary {
+  grid-column: 1 / -1;
+}
+
+/* Round bar */
+.ten-thousand-roundbar {
+  text-align: center;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--turn-soft, #e6f3ef);
+  margin-bottom: 4px;
+}
+
+.ten-thousand-tray {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Standings table */
+.ten-thousand-standings {
+  margin-top: 12px;
+  width: 100%;
+}
+
+.ten-thousand-standings table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.ten-thousand-standings th,
+.ten-thousand-standings td {
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.ten-thousand-standings th {
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 1px solid #d7dde5;
+}
+
+.ten-thousand-standings td:last-child,
+.ten-thousand-standings th:last-child {
+  text-align: right;
+}
+
+.ten-thousand-standings tr.tt-standing td {
+  border-bottom: 1px solid #eef1f5;
+}
+
+.ten-thousand-standings tr.is-local td {
+  background: rgba(31, 122, 95, 0.10);
+}
+
+.ten-thousand-standings tr.is-resolved td {
+  color: var(--muted);
+}
+
+.ten-thousand-standings tr.is-farkle td:nth-child(2) {
+  color: #d24040;
+  font-weight: 600;
+}
+
 @keyframes dice-tumble {
   0% {
     transform: translateY(-10px) rotateX(360deg) rotateY(270deg) rotateZ(40deg) scale(0.96);

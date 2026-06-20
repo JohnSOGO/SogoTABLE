@@ -145,8 +145,9 @@ const fallbackGames = [
     aliases: ["ten_thousand", "10000", "dice_10000"],
     name: "10,000",
     summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
-    players: "1 player",
-    player_count: 1,
+    players: "1-6 players",
+    player_count: 6,
+    host_start: true,
     status: "Ready",
     availability: "ready",
   },
@@ -1596,7 +1597,11 @@ async function makeTenThousandAction(action) {
   const player = selectedPlayer();
   if (!player || !currentRoom || !isTenThousandGameState(currentRoom.game) || pendingMove) return;
   const selectedSeat = currentRoom.players.find((seat) => seat.id === player.id);
-  if (!selectedSeat || selectedSeat.mark !== currentRoom.game.current_player) return;
+  // Simultaneous play: any seated player may act on their own sub-game while it
+  // is unresolved. The server is authoritative; no shared current_player.
+  if (!selectedSeat) return;
+  const seatState = (currentRoom.game.players || []).find((seat) => seat.mark === selectedSeat.mark);
+  if (seatState && seatState.resolved) return;
   playClick();
   pendingMove = {
     key: moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action)),
@@ -1617,6 +1622,20 @@ async function makeTenThousandAction(action) {
     renderGame();
     showTurnStatus(null, error.message);
     playInvalidMove();
+  }
+}
+
+async function startTenThousandGame() {
+  if (!currentRoom || currentRoom.started) return;
+  try {
+    const response = await api("/api/room/start", {
+      code: currentRoom.code,
+      host_id: currentRoom.host_id,
+    });
+    setRoom(response.room);
+    playConfirm();
+  } catch (error) {
+    alert(error.message);
   }
 }
 
@@ -2015,20 +2034,31 @@ function renderGame() {
     return;
   }
   if (isTenThousandGameState(game)) {
+    document.getElementById("gamePlayersPanel").classList.add("hidden");
+    const localSeat = currentRoom.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
     renderTenThousandGame({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
-      selectedPlayerId,
+      started: currentRoom.started,
+      isHost: currentRoom.host_id === deviceSelectedPlayerId,
+      localPlayerId: localSeat ? localSeat.id : (selectedPlayerId || deviceSelectedPlayerId),
       pendingMove,
       makeMove: makeTenThousandAction,
+      startGame: startTenThousandGame,
+      addBot: openBotOpponentModal,
+      invitePlayer: openInvitePlayerModal,
+      addLocal: openLocalOpponentModal,
       escapeHtml,
     });
-    if (game.status === "playing") showTurnStatus(selectedPlayer(), "Roll, score, reroll, or bank.");
-    else {
+    if (!currentRoom.started) {
+      showTurnStatus(null, currentRoom.host_id === deviceSelectedPlayerId ? "Add players and bots, then start." : "Waiting for the host to start.");
+    } else if (game.status === "complete") {
       const winner = currentRoom.players.find((player) => player.mark === game.winner);
-      showTurnStatus(winner, `${winner ? winner.name : "Player"} banked ${game.score}.`);
+      showTurnStatus(winner, `${winner ? winner.name : "Player"} wins!`);
       scheduleWinOverlay(winner, game.winner);
+    } else {
+      showTurnStatus(selectedPlayer(), `Round ${game.round}`);
     }
     return;
   }
