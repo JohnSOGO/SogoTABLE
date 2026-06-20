@@ -1485,7 +1485,7 @@ button.player-switch-button {
 }
 
 .quoridor-toolbar {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .quoridor-toolbar button {
@@ -1539,8 +1539,8 @@ button.player-switch-button {
 }
 
 .quoridor-board {
-  --q-cell: clamp(26px, 8.3vw, 44px);
-  --q-gap: clamp(6px, 1.6vw, 9px);
+  --q-cell: clamp(30px, 9.5vw, 52px);
+  --q-gap: clamp(3px, 1vw, 5px);
   display: grid;
   grid-template-columns: repeat(8, var(--q-cell) var(--q-gap)) var(--q-cell);
   grid-template-rows: repeat(8, var(--q-cell) var(--q-gap)) var(--q-cell);
@@ -1607,18 +1607,23 @@ button.player-switch-button {
   box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.18);
 }
 
+.quoridor-wall.temporary {
+  background: #facc15;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.36);
+}
+
 .quoridor-wall-dot {
   z-index: 4;
   place-self: center;
-  width: clamp(10px, 2.8vw, 14px);
-  height: clamp(10px, 2.8vw, 14px);
+  width: clamp(3px, 0.8vw, 4px);
+  height: clamp(3px, 0.8vw, 4px);
   min-width: 0;
   min-height: 0;
   padding: 0;
-  border: 2px solid #94a3b8;
+  border: 1px solid #475569;
   border-radius: 999px;
   background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+  box-shadow: none;
   opacity: 1;
 }
 
@@ -1633,6 +1638,11 @@ button.player-switch-button {
   background: var(--quoridor-active-color, var(--accent));
   outline: 2px solid var(--quoridor-active-color, var(--accent));
   outline-offset: 3px;
+}
+
+.quoridor-wall-dot.selected {
+  border-color: #facc15;
+  background: #facc15;
 }
 
 .small-board {
