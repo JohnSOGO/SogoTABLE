@@ -109,7 +109,7 @@ function trayHtml(seat, game, pendingMove, statusText = "", escapeHtml = escapeT
     .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: showBust && !die.scored }))
     .join("");
   const actionsHtml = farkled && !resolved
-    ? `<button class="primary" type="button" data-action="ack">OK - Continue</button>`
+    ? `<button class="primary tt-ack" type="button" data-action="ack">You Farkled!</button>`
     : `
       <button class="primary" type="button" data-action="roll" ${canRoll ? "" : "disabled"}>Roll</button>
       <button class="secondary" type="button" data-action="select" disabled>Score Selected</button>

@@ -2129,6 +2129,12 @@ button.player-switch-button {
   padding-inline: 8px;
 }
 
+/* The farkle acknowledge button is the only control in its row — span the full
+   width so its "You Farkled!" label sits centered. */
+.ten-thousand-actions .tt-ack {
+  grid-column: 1 / -1;
+}
+
 .ten-thousand-message {
   min-height: 24px;
   margin: 0;

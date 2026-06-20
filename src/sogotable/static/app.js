@@ -1769,7 +1769,7 @@ function setRoom(room) {
   const previousRoom = currentRoom;
   currentRoom = room;
   clearResolvedPendingMove(room);
-  maybeShowTenThousandFarklePrompt(previousRoom, room);
+  // Farkle is shown inline in the tray (red dice + "You Farkled!" button); no popup.
   const roomKey = roomRenderKey(room);
   if (roomKey === lastRenderedRoomKey) return;
   lastRenderedRoomKey = roomKey;
