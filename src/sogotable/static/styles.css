@@ -1539,17 +1539,20 @@ button.player-switch-button {
 }
 
 .quoridor-board {
-  --q-cell: clamp(30px, 9.5vw, 52px);
+  --q-board-size: min(100%, 440px);
   --q-gap: clamp(3px, 1vw, 5px);
+  --q-cell: calc((var(--q-board-size) - (8 * var(--q-gap))) / 9);
   display: grid;
   grid-template-columns: repeat(8, var(--q-cell) var(--q-gap)) var(--q-cell);
   grid-template-rows: repeat(8, var(--q-cell) var(--q-gap)) var(--q-cell);
   gap: 0;
   justify-content: center;
   align-items: stretch;
+  width: var(--q-board-size);
   max-width: 100%;
-  overflow-x: auto;
-  padding: 8px 2px;
+  overflow: hidden;
+  padding: 8px 0;
+  margin-inline: auto;
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
@@ -1568,7 +1571,7 @@ button.player-switch-button {
   border-radius: 6px;
   background: #f8fafc;
   color: #111827;
-  font-size: clamp(1rem, 5vw, 1.65rem);
+  font-size: clamp(0.95rem, calc(var(--q-cell) * 0.48), 1.65rem);
   font-weight: 900;
   line-height: 1;
   user-select: none;
