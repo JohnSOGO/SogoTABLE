@@ -1833,10 +1833,11 @@ function playTenThousandBotRound(game, mark, seat) {
       return;
     }
     if (seat.resolved) return;
-    const keep = bestTenThousandKeep(seat.dice);
+    const level = tenThousandBotLevel(seat);
+    const keep = tenThousandBotKeep(level, seat.dice);
     if (!keep.ids.length) { resolveTenThousandFarkle(seat, true, false); return; }
     selectTenThousandDice(seat, keep.ids);
-    if (tenThousandBotShouldBank(game, seat)) {
+    if (tenThousandBotShouldBank(game, seat, level)) {
       bankTenThousandScore(game, mark, seat);
       return;
     }
@@ -1847,14 +1848,21 @@ function playTenThousandBotRound(game, mark, seat) {
   else resolveTenThousandFarkle(seat, true, false);
 }
 
-function tenThousandBotShouldBank(game, seat) {
+function tenThousandBotKeep(level, dice) {
+  if (level <= 1) return sproutTenThousandKeep(dice);
+  return bestTenThousandKeep(dice);
+}
+
+function tenThousandBotShouldBank(game, seat, level) {
   if (seat.score + seat.turn_score >= game.target_score) return true;
   const remaining = tenThousandRemainingDice(seat);
-  const level = seat.level || 2;
   const threshold = TEN_THOUSAND_BOT_BANK[remaining] || 350;
-  // Higher levels are a touch greedier with many dice left; Level 1 banks loose.
-  const adjust = level >= 3 ? -50 : (level <= 1 ? 100 : 0);
-  return seat.turn_score >= Math.max(50, threshold + adjust);
+  if (level <= 1) return seat.turn_score >= Math.max(50, threshold + 500);
+  if (level === 2) return seat.turn_score >= Math.max(50, threshold + 250);
+  if (level === 3) return seat.turn_score >= threshold;
+  if (remaining <= 2) return seat.turn_score >= Math.max(50, threshold - 200);
+  if (remaining >= 5) return seat.turn_score >= threshold - 25;
+  return seat.turn_score >= Math.max(50, threshold - 100);
 }
 
 function tenThousandRemainingDice(seat) {
@@ -1885,6 +1893,34 @@ function bestTenThousandKeep(dice) {
   const keepValues = avail.filter((die) => ids.includes(die.id)).map((die) => die.value);
   const score = keepValues.length ? tenThousandScoreValues(keepValues).score : 0;
   return { ids, score };
+}
+
+function sproutTenThousandKeep(dice) {
+  const avail = dice.filter((die) => !die.scored && die.value);
+  if (!avail.length) return { ids: [], score: 0 };
+  if (avail.length === TEN_THOUSAND_DICE_COUNT) {
+    const counts = tenThousandCounts(avail.map((die) => die.value));
+    if (counts.every((count) => count === 1) || counts.filter((count) => count === 2).length === 3) {
+      return { ids: avail.map((die) => die.id), score: 1500 };
+    }
+  }
+  const byFace = new Map();
+  avail.forEach((die) => {
+    if (!byFace.has(die.value)) byFace.set(die.value, []);
+    byFace.get(die.value).push(die);
+  });
+  const triples = [...byFace.entries()]
+    .filter(([face, list]) => list.length >= 3)
+    .map(([face, list]) => ({
+      face: Number(face),
+      ids: list.slice(0, 3).map((die) => die.id),
+      score: tenThousandScoreValues(list.slice(0, 3).map((die) => die.value)).score,
+    }))
+    .sort((left, right) => right.score - left.score || left.face - right.face);
+  if (triples.length) return { ids: triples[0].ids, score: triples[0].score };
+  if (byFace.has(1)) return { ids: byFace.get(1).map((die) => die.id), score: byFace.get(1).length * 100 };
+  if (byFace.has(5)) return { ids: byFace.get(5).map((die) => die.id), score: byFace.get(5).length * 50 };
+  return { ids: [], score: 0 };
 }
 
 function tenThousandCanRoll(game, seat) {
@@ -3635,3 +3671,10 @@ function hexToRgb(color) {
   const clean = color.replace("#", "");
   return [0, 2, 4].map((start) => parseInt(clean.slice(start, start + 2), 16));
 }
+
+export const __test = {
+  tenThousandBotKeep,
+  tenThousandBotShouldBank,
+  bestTenThousandKeep,
+  sproutTenThousandKeep,
+};

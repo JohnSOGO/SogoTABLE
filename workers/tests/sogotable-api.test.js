@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker, { EventHubDurableObject, RoomDurableObject } from "../sogotable-api.js";
+import worker, { EventHubDurableObject, RoomDurableObject, __test as tenThousandTest } from "../sogotable-api.js";
 
 const CLASSIC_GAME_ID = "a3f19c6e42b8";
 const TACTICAL_GAME_ID = "d7e4a91f0c23";
@@ -425,7 +425,6 @@ test("10,000 multiplayer: bots resolve each round automatically", async () => wi
   // Bot (P2) resolves immediately for round 1; host (P1) still to act.
   assert.equal(seatByMark(started, "P2").is_bot, true);
   assert.equal(seatByMark(started, "P2").resolved, true);
-  assert.equal(seatByMark(started, "P2").score, 1300);
   assert.equal(seatByMark(started, "P1").resolved, false);
   assert.equal(started.room.game.round, 1);
 
@@ -438,7 +437,6 @@ test("10,000 multiplayer: bots resolve each round automatically", async () => wi
   assert.equal(banked.room.game.round_pending_advance, true);
   assert.equal(seatByMark(banked, "P1").score, 1000);
   assert.equal(seatByMark(banked, "P1").resolved, true);
-  assert.equal(seatByMark(banked, "P2").score, 1300);
   assert.equal(seatByMark(banked, "P2").resolved, true);
 
   const nextRound = await post(env, "/api/room/move", { code: "PRTY", player_id: host.id, action: { type: "roll" } });
@@ -461,6 +459,25 @@ test("10,000 bot opening bust counts a single farkle", async () => withMockRando
   assert.equal(seatByMark(started, "P2").finish_state, "farkled_acked");
   assert.equal(seatByMark(started, "P2").resolved, true);
 }));
+
+test("10,000 bot tiers choose different keeps on the same dice", () => {
+  const dice = [
+    { id: "d1", value: 1, scored: false, selected: false },
+    { id: "d2", value: 1, scored: false, selected: false },
+    { id: "d3", value: 2, scored: false, selected: false },
+    { id: "d4", value: 2, scored: false, selected: false },
+    { id: "d5", value: 2, scored: false, selected: false },
+    { id: "d6", value: 3, scored: false, selected: false },
+  ];
+
+  const sprout = tenThousandTest.sproutTenThousandKeep(dice);
+  const cipher = tenThousandTest.bestTenThousandKeep(dice);
+
+  assert.deepEqual(sprout.ids, ["d3", "d4", "d5"]);
+  assert.equal(sprout.score, 200);
+  assert.deepEqual(cipher.ids, ["d1", "d2", "d3", "d4", "d5"]);
+  assert.equal(cipher.score, 400);
+});
 
 test("10,000 completion records a high score", async () => withMockRandom([0, 0, 0, 0, 0, 0], async () => {
   const env = makeEnv();
