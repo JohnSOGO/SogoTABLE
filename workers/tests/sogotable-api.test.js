@@ -446,6 +446,22 @@ test("10,000 multiplayer: bots resolve each round automatically", async () => wi
   assert.equal(seatByMark(nextRound, "P2").resolved, true);
 }));
 
+test("10,000 bot opening bust counts a single farkle", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const bots = await get(env, "/api/bots?game_id=10000");
+  const bot = bots.bots.find((entry) => entry.name === "Sprout");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "B2ST" });
+  await post(env, "/api/room/join-bot", { code: "B2ST", host_id: host.id, bot_id: bot.id });
+  const started = await post(env, "/api/room/start", { code: "B2ST", host_id: host.id });
+
+  assert.equal(seatByMark(started, "P2").is_bot, true);
+  assert.equal(seatByMark(started, "P2").farkles, 1);
+  assert.equal(seatByMark(started, "P2").phase, "done");
+  assert.equal(seatByMark(started, "P2").finish_state, "farkled_acked");
+  assert.equal(seatByMark(started, "P2").resolved, true);
+}));
+
 test("10,000 completion records a high score", async () => withMockRandom([0, 0, 0, 0, 0, 0], async () => {
   const env = makeEnv();
   const host = player("winner", "Winner");

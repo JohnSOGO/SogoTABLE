@@ -1816,9 +1816,13 @@ function playTenThousandBotRound(game, mark, seat) {
   for (let guard = 0; guard < 50; guard += 1) {
     if (seat.phase === "ready") rollTenThousandDice(seat);
     else if (seat.phase === "selected") rerollTenThousandDice(seat);
-    if (seat.resolved) return; // farkled
+    if (seat.phase === "farkled") {
+      resolveTenThousandFarkle(seat, true, false);
+      return;
+    }
+    if (seat.resolved) return;
     const keep = bestTenThousandKeep(seat.dice);
-    if (!keep.ids.length) { resolveTenThousandFarkle(seat, true); return; }
+    if (!keep.ids.length) { resolveTenThousandFarkle(seat, true, false); return; }
     selectTenThousandDice(seat, keep.ids);
     if (tenThousandBotShouldBank(game, seat)) {
       bankTenThousandScore(game, mark, seat);
@@ -1827,7 +1831,8 @@ function playTenThousandBotRound(game, mark, seat) {
   }
   // Safety: never loop forever — bank whatever is on the table.
   if (seat.phase === "selected" && seat.turn_score > 0) bankTenThousandScore(game, mark, seat);
-  else resolveTenThousandFarkle(seat, true);
+  else if (seat.phase === "farkled") resolveTenThousandFarkle(seat, true, false);
+  else resolveTenThousandFarkle(seat, true, false);
 }
 
 function tenThousandBotShouldBank(game, seat) {
