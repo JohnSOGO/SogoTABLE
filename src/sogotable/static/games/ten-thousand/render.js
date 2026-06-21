@@ -268,22 +268,24 @@ function standingsRow(seat, room, game, pacing) {
     scoreHtml = `<strong>${fmt(seat.score)}</strong>`;
     farkleCell = fmt(seat.farkles);
   } else if (paced) {
+    // Mirror the human row: the running gain rides next to the emoji in the
+    // status column and as "+gain" in the score column — always shown, so a bank
+    // keeps showing how much was banked and a farkle shows +0.
     const flames = paced.hot > 0 ? "\u{1F525}".repeat(paced.hot) : ""; // 🔥 per hot-dice completion
-    // Mirror the human row: while pressing, the running turn score rides next to
-    // the slot machine in the status column, and the score column shows the
-    // carried total plus the same running gain.
-    statusHtml = `${flames}${tenThousandStatusEmoji(paced.status)}${paced.status === "rolling" && paced.turn > 0 ? `<span class="tt-status-inline">${fmt(paced.turn)}</span>` : ""}`;
-    statusTitle = paced.status === "banked" ? "Banked" : paced.status === "farkled" ? "Farkled" : (paced.turn > 0 ? `Rolling, ${fmt(paced.turn)} this turn` : "Rolling");
+    statusHtml = `${flames}${tenThousandStatusEmoji(paced.status)}<span class="tt-status-inline">${fmt(paced.gain)}</span>`;
+    statusTitle = paced.status === "banked" ? `Banked ${fmt(paced.gain)}` : paced.status === "farkled" ? "Farkled, +0" : `Rolling, ${fmt(paced.gain)} this turn`;
     rowStatus = paced.status;
-    scoreHtml = `<strong>${fmt(paced.banked)}</strong>${paced.turn > 0 ? `<span class="tt-standing-turn">+${fmt(paced.turn)}</span>` : ""}`;
+    scoreHtml = `<strong>${fmt(paced.carried)}</strong><span class="tt-standing-turn">+${fmt(paced.gain)}</span>`;
     farkleCell = fmt(paced.farkles);
   } else {
     const status = tenThousandSeatStatus(seat);
-    const turn = Number(seat.turn_score || 0);
-    statusHtml = `${tenThousandStatusEmoji(status)}${status === "rolling" && turn > 0 ? `<span class="tt-status-inline">${fmt(turn)}</span>` : ""}`;
-    statusTitle = status === "banked" ? "Banked this round" : status === "farkled" ? "Farkled" : (turn > 0 ? `Active turn, ${fmt(turn)} this round` : "Rolling");
+    const round = Number(seat.round_score || 0);
+    const gain = Number(seat.turn_score || 0) + round; // live while rolling, banked amount once banked, 0 on farkle
+    const carried = Math.max(0, Number(seat.score || 0) - round);
+    statusHtml = `${tenThousandStatusEmoji(status)}<span class="tt-status-inline">${fmt(gain)}</span>`;
+    statusTitle = status === "banked" ? `Banked ${fmt(gain)}` : status === "farkled" ? "Farkled, +0" : `Rolling, ${fmt(gain)} this turn`;
     rowStatus = status;
-    scoreHtml = `<strong>${fmt(seat.score)}</strong>${turn > 0 ? `<span class="tt-standing-turn">+${fmt(turn)}</span>` : ""}`;
+    scoreHtml = `<strong>${fmt(carried)}</strong><span class="tt-standing-turn">+${fmt(gain)}</span>`;
     farkleCell = fmt(seat.farkles);
   }
 
@@ -317,16 +319,13 @@ function tenThousandBotPaced(seat, pacing) {
   const snap = traj[index];
   const farkledThisRound = traj[lastIndex].status === "farkled";
   const baseFarkles = Math.max(0, Number(seat.farkles || 0) - (farkledThisRound ? 1 : 0));
-  // Split the running total into carried (banked) vs this-turn gain, the same
-  // way a human row shows score and "+turn". While rolling, the gain is the
-  // accrual over the round-start baseline; once banked/farkled there is no live
-  // gain (the total has resolved into the carried score).
-  const baseline = Number((traj[0] && traj[0].total) || 0);
-  const rolling = snap.status === "rolling";
+  // carried = the bot's score before this round; gain = this turn's contribution
+  // (the live accrual while rolling, the banked amount once banked, and 0 on a
+  // farkle, since the total drops back to the baseline). Mirrors the human row.
+  const carried = Number((traj[0] && traj[0].total) || 0);
   return {
-    total: Number(snap.total || 0),
-    banked: rolling ? baseline : Number(snap.total || 0),
-    turn: rolling ? Math.max(0, Number(snap.total || 0) - baseline) : 0,
+    carried,
+    gain: Math.max(0, Number(snap.total || 0) - carried),
     status: snap.status,
     hot: Number(snap.hot || 0),
     farkles: baseFarkles + (snap.status === "farkled" ? 1 : 0),
