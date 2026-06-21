@@ -1,20 +1,25 @@
 # 10,000 — Scoring (as implemented)
 
-This documents the **actual scoring rules in this game**, not the generic
-folk-rules of 10,000/Farkle. Source of truth: `workers/sogotable-api.js` —
-`tenThousandScoreValues()` (combination values), `selectTenThousandDice()`
-(what may be set aside), `tenThousandHasAnyScoringSet()` (farkle test), and
-`bankTenThousandScore()` / `maybeAdvanceTenThousandRound()` (keeping score and
-winning). Played with **6 dice**.
+This documents the **actual scoring rules in this game**. It follows the
+**Default Scoring Set** from `10000_complete_scoring_set.md` (sections 1–9).
+Source of truth: `workers/sogotable-api.js` — `tenThousandScoreValues()`
+(combination values), `tenThousandHasAnyScoringSet()` (farkle test),
+`tenThousandCanBank()` / `bankTenThousandScore()` (banking & opening rule).
+The browser preview (`render.js` `tenThousandSelectionScore`) mirrors the worker
+exactly. Played with **6 dice**; first to **10,000** triggers the final round.
 
 ## The ways to score
 
-Every selection is scored as a whole by `tenThousandScoreValues`. A selection is
-only legal if **every die in it contributes** — see [Selection rules](#selection-rules).
+A selection is scored as a whole, in this priority order (section 9):
+
+1. **Full six-dice combos** (only when all six dice are used)
+2. **N-of-a-kind** with the doubling rule
+3. **Leftover single 1s and 5s**
+
+Any die left over that does not fall into one of these makes the selection
+**invalid** — it cannot be set aside.
 
 ### Singles
-Only **1s** and **5s** score on their own.
-
 | Die | Points (each) |
 |-----|---------------|
 | `1` | **100** |
@@ -22,89 +27,70 @@ Only **1s** and **5s** score on their own.
 
 A lone `2`, `3`, `4`, or `6` is worth nothing.
 
-### Three of a kind
-Three matching dice. Ones are special; every other face is `face × 100`.
+### N-of-a-kind (doubling rule)
+Three of a kind is the base; **each die past three doubles it** (×2, ×4, ×8).
 
-| Triple | Points |
-|--------|--------|
-| three `1`s | **1,000** |
-| three `2`s | 200 |
-| three `3`s | 300 |
-| three `4`s | 400 |
-| three `5`s | 500 |
-| three `6`s | 600 |
+| Face | Three | Four | Five | Six |
+|------|------:|-----:|-----:|----:|
+| `1` | **1,000** | 2,000 | 4,000 | 8,000 |
+| `2` | 200 | 400 | 800 | 1,600 |
+| `3` | 300 | 600 | 1,200 | 2,400 |
+| `4` | 400 | 800 | 1,600 | 3,200 |
+| `5` | 500 | 1,000 | 2,000 | 4,000 |
+| `6` | 600 | 1,200 | 2,400 | 4,800 |
 
-### Six-dice specials (only when all 6 dice are used at once)
-| Combination | Points |
-|-------------|--------|
-| Straight `1-2-3-4-5-6` | **1,500** |
-| Three pairs (e.g. `2 2 4 4 6 6`) | **1,500** |
+### Six-dice combos (all six dice at once)
+| Combination | Example | Points |
+|-------------|---------|-------:|
+| Straight | `1 2 3 4 5 6` | **1,500** |
+| Three pairs | `2 2 4 4 6 6` | **1,500** |
+| Two triplets | `2 2 2 4 4 4` | **2,500** |
 
-These are checked **only** on a full set of 6 dice. A partial run like
-`1-2-3-4-5` is **not** a straight — it scores just the `1` and the `5` (150).
+Full house is **not** scored as a special combo (score the triple + any 1s/5s).
 
-## What this game does NOT do
+## Priority & edge cases (section 14)
 
-This is the part that surprises people, so it's spelled out:
+The highest-value reading of the dice wins; the engine applies the order above
+and never double-counts a die.
 
-- **No four/five/six-of-a-kind multipliers.** Only **one triple per face** is
-  ever scored. Extra matching dice are then treated as singles — which only
-  helps for `1`s and `5`s:
-  | Roll selected | How it scores | Total |
-  |---------------|---------------|-------|
-  | four `1`s | 1,000 + 100 | **1,100** |
-  | five `1`s | 1,000 + 200 | **1,200** |
-  | six `1`s | 1,000 + 300 (one triple + 3 singles) | **1,300** |
-  | four `5`s | 500 + 50 | **550** |
-  | five `5`s | 500 + 100 | **600** |
-  | six `5`s | 500 + 150 | **650** |
-  | four `2`/`3`/`4`/`6`s | triple scores, 4th die is dead | only the **triple** (the 4th cannot be set aside) |
-- **No "two triplets" bonus.** Two triples just add up, e.g. three `3`s +
-  three `4`s = 300 + 400 = **700**.
-- **No bonus / instant win** for six of a kind. Six `1`s is 1,300, six `2`s
-  can only ever bank a single triple (200), etc.
+| Roll | Score | Why |
+|------|------:|-----|
+| `1 1 1 1 1 1` | 8,000 | Six of a kind beats "two triplets" (2,500) |
+| `1 1 1 6 6 6` | 2,500 | Two triplets beats 1,000 + 600 |
+| `1 1 5 5 6 6` | 1,500 | Three pairs — do **not** also add the 1s/5s |
+| `1 2 3 4 5 6` | 1,500 | Straight — do **not** also add 1 + 5 |
+| `6 6 6 6 6 2` | 2,400 | Five 6s; the leftover `2` is just not kept |
+| `1 1 1 1 1 5` | 4,050 | Five 1s (4,000) + single 5 |
 
-## Selection rules
+## Selecting dice (section 8)
 
-When you set dice aside (`selectTenThousandDice`):
+- You must set aside **at least one** scoring die, and **every selected die
+  must score** — selecting a stray `2`/`3`/`4`/`6` (or a die that doesn't
+  complete a combo) is rejected.
+- You may select **multiple times in one turn**: set some aside, re-roll the
+  rest, set more aside — each selection **adds** to *This Turn*.
+- **Hot dice:** if all six dice have been set aside, re-rolling rolls a fresh
+  full set of six and your turn score carries over.
 
-- You must select **at least one** die, and **every selected die must be part
-  of a scoring combination**. Selecting a non-scoring die (a stray `2`/`3`/`4`/`6`,
-  or the 4th die of a non-1/5 four-of-a-kind) makes the whole selection invalid.
-- You may select **multiple times in one turn**: set some dice aside, re-roll
-  the rest, set more aside — each selection **adds** to your *This Turn* score.
-- **Hot dice:** if all 6 dice have been set aside, re-rolling rolls a fresh
-  full set of 6 and your accumulated turn score carries over.
+## Farkle / bust (section 5)
 
-## Farkle (busting)
+A roll **farkles** when it contains no scoring set — no `1`, no `5`, no
+three-of-a-kind, **and** no three-pairs across six dice (e.g. `2 2 4 4 6 6`
+scores 1,500 and is *not* a farkle, but `2 2 3 3 4 6` is). On a farkle the
+entire *This Turn* score is lost, the farkle counter ticks up, and the turn ends.
 
-A roll **farkles** when it contains no scoring set at all
-(`tenThousandHasAnyScoringSet` = no `1`, no `5`, and no three-of-a-kind among
-the dice just rolled). On a farkle:
+## Banking & the opening rule (section 7)
 
-- Your **entire *This Turn* score is lost** (nothing banks).
-- Your **farkle counter increases by 1**.
-- You must acknowledge it ("You Farkled!"), which ends your turn for the round.
-
-## Banking & keeping score
-
-- **Banking** (`bankTenThousandScore`) moves *This Turn* into your permanent
-  score. You may bank only after setting aside at least one scoring die
-  (turn score > 0).
-- **There is no minimum to "get on the board."** Any positive turn score may be
-  banked — even a single `5` (50).
-- Scores **accumulate across rounds** toward the target.
+- **Opening minimum: 500.** Until a seat has banked anything, the first bank
+  must reach **500** — the bank button stays disabled below that, with a hint to
+  keep pressing. (`game.opening_minimum` carries the value to the UI.)
+- After a seat is **on the board**, any positive score may be banked (the
+  smallest scoring die is 50).
+- Scores accumulate across rounds toward **10,000**.
 
 ## Round structure & winning
 
-This implementation is **simultaneous and round-based**, not classic
-take-turns play:
-
-- Each round, **every seat plays its own independent dice** and resolves by
-  either **banking** or **farkling**. Each seat gets **one turn per round**.
-- A round advances only once **all seats have resolved**; the next round starts
-  when someone rolls again.
-- **Target: 10,000.** When a seat banks to **≥ 10,000**, a **final round** is
-  flagged. Once every seat has resolved that round, the game ends and the
-  **highest total score wins** (`tenThousandLeader`) — so reaching 10,000 first
-  is not an automatic win; everyone finishes the round and the top score takes it.
+Simultaneous and round-based: each round every seat plays its own dice and
+resolves by banking or farkling (one turn per round). A round advances once all
+seats resolve. When a seat banks to **≥ 10,000** a final round is flagged;
+after every seat resolves that round, the **highest total wins**.

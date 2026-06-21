@@ -146,6 +146,17 @@ function trayHtml(seat, game, pendingMove) {
       <button class="tt-action" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">🎰🎲</button>
       <button class="tt-action" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"} aria-label="Bank turn score">🏦</button>`;
 
+  // Opening rule: a seat that has not yet banked must reach the opening minimum
+  // before banking unlocks. Explain the disabled bank button so it is not silent.
+  const openingMinimum = Number(game.opening_minimum || 0);
+  const turnScore = Number(seat.turn_score || 0);
+  const needsOpening = !showBust && !resolved && Number(seat.score || 0) === 0
+    && openingMinimum > 0 && turnScore > 0 && turnScore < openingMinimum
+    && (seat.phase === "rolled" || seat.phase === "selected");
+  const hintHtml = needsOpening
+    ? `<p class="ten-thousand-message tt-opening-hint">Reach ${fmt(openingMinimum)} this turn to get on the board.</p>`
+    : "";
+
   return `
     <section class="ten-thousand-tray">
       <div class="ten-thousand-scoreboard">
@@ -155,6 +166,7 @@ function trayHtml(seat, game, pendingMove) {
       </div>
       <div class="ten-thousand-dice" aria-label="Dice">${diceHtml}</div>
       <div class="ten-thousand-actions" aria-label="Dice actions">${actionsHtml}</div>
+      ${hintHtml}
     </section>`;
 }
 
@@ -313,38 +325,44 @@ function tenThousandSelectionScore(selected) {
   const source = Array.isArray(selected) ? selected : [];
   const scoringIds = new Set();
   if (!source.length) return { scoringIds, score: 0, valid: false };
-  if (source.length === 6) {
-    const counts = [0, 0, 0, 0, 0, 0];
-    source.forEach((die) => {
-      if (die.value >= 1 && die.value <= 6) counts[die.value - 1] += 1;
-    });
-    const straight = counts.every((count) => count === 1);
-    const threePairs = counts.filter((count) => count === 2).length === 3;
-    if (straight || threePairs) {
-      source.forEach((die) => scoringIds.add(die.id));
-      return { scoringIds, score: 1500, valid: true };
-    }
-  }
-  // Mirror the server scorer (tenThousandScoreValues): one triple per face
-  // (three 1s = 1000, otherwise face*100), then leftover 1s/5s score as
-  // singles (100/50). Any other leftover die does not score, which makes a
-  // full selection invalid. Keep this in lockstep with the worker so the
-  // human-facing preview matches what actually banks.
+  // Keep this in lockstep with the worker scorer (tenThousandScoreValues):
+  // full six-dice combos first (straight / three pairs / two triplets), then
+  // n-of-a-kind with the doubling rule (four x2, five x4, six x8), then leftover
+  // single 1s/5s. Any other leftover die does not score, so a full selection
+  // that includes one is invalid. This drives the live preview the player sees.
   const byFace = new Map();
   source.forEach((die) => {
-    if (!byFace.has(die.value)) byFace.set(die.value, []);
-    byFace.get(die.value).push(die.id);
+    if (die.value >= 1 && die.value <= 6) {
+      if (!byFace.has(die.value)) byFace.set(die.value, []);
+      byFace.get(die.value).push(die.id);
+    }
   });
+  if (source.length === 6) {
+    const counts = [0, 0, 0, 0, 0, 0];
+    byFace.forEach((ids, face) => { counts[face - 1] = ids.length; });
+    const straight = counts.every((count) => count === 1);
+    const threePairs = counts.filter((count) => count === 2).length === 3;
+    const twoTriplets = counts.filter((count) => count === 3).length === 2;
+    if (straight || threePairs || twoTriplets) {
+      source.forEach((die) => scoringIds.add(die.id));
+      return { scoringIds, score: twoTriplets ? 2500 : 1500, valid: true };
+    }
+  }
   let score = 0;
   byFace.forEach((ids, face) => {
+    const count = ids.length;
     let used = 0;
-    if (ids.length >= 3) {
-      score += face === 1 ? 1000 : face * 100;
-      used = 3;
+    if (count >= 3) {
+      const base = face === 1 ? 1000 : face * 100;
+      score += base * Math.pow(2, count - 3);
+      used = count;
+    } else if (face === 1) {
+      score += count * 100;
+      used = count;
+    } else if (face === 5) {
+      score += count * 50;
+      used = count;
     }
-    const leftover = ids.length - used;
-    if (face === 1) { score += leftover * 100; used = ids.length; }
-    else if (face === 5) { score += leftover * 50; used = ids.length; }
     ids.slice(0, used).forEach((id) => scoringIds.add(id));
   });
   return { scoringIds, score, valid: scoringIds.size === source.length };

@@ -1488,6 +1488,8 @@ function gameToDict(game) {
 }
 
 const TEN_THOUSAND_TARGET_SCORE = 10000;
+const TEN_THOUSAND_OPENING_MINIMUM = 500; // first bank must get you "on the board"
+const TEN_THOUSAND_BANK_MINIMUM = 50; // smallest legal bank once on the board
 const TEN_THOUSAND_DICE_COUNT = 6;
 const TEN_THOUSAND_PHASES = ["ready", "rolled", "selected", "farkled", "done"];
 const TEN_THOUSAND_FINISH_STATES = ["active", "banked", "farkled_pending_ack", "farkled_acked"];
@@ -1499,6 +1501,7 @@ function newTenThousandGame() {
   return {
     game_id: TEN_THOUSAND_GAME_ID,
     target_score: TEN_THOUSAND_TARGET_SCORE,
+    opening_minimum: TEN_THOUSAND_OPENING_MINIMUM,
     status: "playing",
     round: 1,
     round_pending_advance: false,
@@ -1591,6 +1594,7 @@ function tenThousandGameToDict(game) {
 function normalizeTenThousandGame(game) {
   game.game_id = TEN_THOUSAND_GAME_ID;
   game.target_score = TEN_THOUSAND_TARGET_SCORE;
+  game.opening_minimum = TEN_THOUSAND_OPENING_MINIMUM;
   game.status = game.status === "complete" ? "complete" : "playing";
   game.round = clampInteger(game.round, 1, 999999, 1);
   game.final_round = Boolean(game.final_round);
@@ -1754,6 +1758,9 @@ function selectTenThousandDice(seat, diceIds) {
 
 function bankTenThousandScore(game, mark, seat) {
   if (seat.phase !== "selected" || seat.turn_score <= 0) throw new Error("Select scoring dice before banking.");
+  if (seat.turn_score < tenThousandBankMinimum(seat)) {
+    throw new Error(`Score at least ${TEN_THOUSAND_OPENING_MINIMUM} to get on the board before you can bank.`);
+  }
   seat.score += seat.turn_score;
   seat.round_score = seat.turn_score;
   seat.turn_score = 0;
@@ -1846,15 +1853,17 @@ function playTenThousandBotRound(game, mark, seat) {
     selectTenThousandDice(seat, keep.ids);
     const shouldBank = tenThousandBotShouldBank(game, seat, level);
     const finalBank = tenThousandBotShouldMisplay(level) ? !shouldBank : shouldBank;
-    if (finalBank) {
+    // Only bank when it is legal: below the opening minimum the bot must keep
+    // pressing (or eventually bust), exactly like a human with bank disabled.
+    if (finalBank && tenThousandCanBank(game, seat)) {
       bankTenThousandScore(game, mark, seat);
       return;
     }
   }
-  // Safety: never loop forever — bank whatever is on the table.
-  if (seat.phase === "selected" && seat.turn_score > 0) bankTenThousandScore(game, mark, seat);
-  else if (seat.phase === "farkled") resolveTenThousandFarkle(seat, true, false);
-  else resolveTenThousandFarkle(seat, true, false);
+  // Safety: never loop forever — bank whatever is on the table if it is legal,
+  // otherwise resolve without banking so the round can still advance.
+  if (tenThousandCanBank(game, seat)) bankTenThousandScore(game, mark, seat);
+  else if (!seat.resolved) resolveTenThousandFarkle(seat, true, false);
 }
 
 function tenThousandBotKeep(level, dice) {
@@ -1976,7 +1985,14 @@ function tenThousandCanReroll(game, seat) {
 }
 
 function tenThousandCanBank(game, seat) {
-  return game.status === "playing" && !seat.resolved && seat.phase === "selected" && seat.turn_score > 0;
+  return game.status === "playing" && !seat.resolved && seat.phase === "selected"
+    && seat.turn_score >= tenThousandBankMinimum(seat);
+}
+
+// Opening rule: until a seat is "on the board" (has banked anything) the first
+// bank must reach the opening minimum. After that any positive score may bank.
+function tenThousandBankMinimum(seat) {
+  return seat.score > 0 ? TEN_THOUSAND_BANK_MINIMUM : TEN_THOUSAND_OPENING_MINIMUM;
 }
 
 function tenThousandScoringOptions(seat) {
@@ -1992,21 +2008,35 @@ function tenThousandHasAnyScoringSet(values) {
   if (!clean.length) return false;
   if (clean.some((value) => value === 1 || value === 5)) return true;
   const counts = tenThousandCounts(clean);
-  return counts.some((count) => count >= 3);
+  if (counts.some((count) => count >= 3)) return true;
+  // Three pairs is a scoring combo even with no 1s, 5s, or triple (e.g. 2 2 4 4 6 6).
+  if (clean.length === 6 && counts.filter((count) => count === 2).length === 3) return true;
+  return false;
 }
 
+// Scores a selected set of dice values per the Default Scoring Set:
+//   1. Full six-dice combos (highest priority): straight / three pairs / two
+//      triplets, each consuming all six dice.
+//   2. n-of-a-kind with the doubling rule: each die past three doubles the
+//      three-of-a-kind value (four x2, five x4, six x8).
+//   3. Leftover single 1s (100) and 5s (50).
+// Any other leftover die makes the whole set invalid (it cannot be set aside).
 function tenThousandScoreValues(values) {
   const clean = values.map(Number).filter((value) => Number.isInteger(value) && value >= 1 && value <= 6);
   if (clean.length !== values.length || !clean.length) return { valid: false, score: 0 };
   const counts = tenThousandCounts(clean);
-  if (clean.length === 6 && counts.every((count) => count === 1)) return { valid: true, score: 1500 };
-  if (clean.length === 6 && counts.filter((count) => count === 2).length === 3) return { valid: true, score: 1500 };
+  if (clean.length === 6) {
+    if (counts.every((count) => count === 1)) return { valid: true, score: 1500 }; // straight
+    if (counts.filter((count) => count === 2).length === 3) return { valid: true, score: 1500 }; // three pairs
+    if (counts.filter((count) => count === 3).length === 2) return { valid: true, score: 2500 }; // two triplets
+  }
   let score = 0;
   for (let index = 0; index < counts.length; index += 1) {
     const face = index + 1;
     if (counts[index] >= 3) {
-      score += face === 1 ? 1000 : face * 100;
-      counts[index] -= 3;
+      const base = face === 1 ? 1000 : face * 100;
+      score += base * Math.pow(2, counts[index] - 3); // doubling: 4->x2, 5->x4, 6->x8
+      counts[index] = 0;
     }
   }
   score += counts[0] * 100;
@@ -3721,4 +3751,6 @@ export const __test = {
   tenThousandBotAlternativeKeep,
   bestTenThousandKeep,
   sproutTenThousandKeep,
+  tenThousandScoreValues,
+  tenThousandHasAnyScoringSet,
 };

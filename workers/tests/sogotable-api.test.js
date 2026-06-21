@@ -497,6 +497,55 @@ test("10,000 bot tiers choose different keeps on the same dice", () => {
   assert.equal(cipher.score, 400);
 });
 
+test("10,000 scoring follows the default set (doubling, two triplets, combos)", () => {
+  const score = (vals) => tenThousandTest.tenThousandScoreValues(vals);
+  // Singles and three-of-a-kind.
+  assert.equal(score([1]).score, 100);
+  assert.equal(score([5]).score, 50);
+  assert.equal(score([1, 1, 1]).score, 1000);
+  assert.equal(score([6, 6, 6]).score, 600);
+  // Four/five/six of a kind double from the triple value.
+  assert.equal(score([1, 1, 1, 1]).score, 2000);
+  assert.equal(score([1, 1, 1, 1, 1]).score, 4000);
+  assert.equal(score([1, 1, 1, 1, 1, 1]).score, 8000);
+  assert.equal(score([2, 2, 2, 2]).score, 400);
+  assert.equal(score([6, 6, 6, 6, 6, 6]).score, 4800);
+  assert.equal(score([5, 5, 5, 5, 1]).score, 1100); // four 5s + single 1
+  // Six-dice combos.
+  assert.equal(score([1, 2, 3, 4, 5, 6]).score, 1500); // straight
+  assert.equal(score([2, 2, 4, 4, 6, 6]).score, 1500); // three pairs
+  assert.equal(score([2, 2, 2, 4, 4, 4]).score, 2500); // two triplets
+  assert.equal(score([1, 1, 1, 6, 6, 6]).score, 2500); // two triplets with 1s
+  // A leftover non-scoring die makes a full selection invalid.
+  assert.equal(score([6, 6, 6, 6, 6, 2]).valid, false);
+  assert.equal(score([2]).valid, false);
+  // Three pairs of non-1/5 faces is still a scoring set (not a farkle).
+  assert.equal(tenThousandTest.tenThousandHasAnyScoringSet([2, 2, 4, 4, 6, 6]), true);
+  assert.equal(tenThousandTest.tenThousandHasAnyScoringSet([2, 2, 3, 3, 4, 6]), false);
+});
+
+// face = 1 + floor(r*6): 0.75->5, 0.2->2, 0.4->3, 0.6->4 gives dice [5,2,3,4,2,3]
+// — a single scoring 5 (50) with no other scoring dice.
+test("10,000 opening minimum blocks a sub-500 first bank", async () => withMockRandom([0.75, 0.2, 0.4, 0.6, 0.2, 0.4], async () => {
+  const env = makeEnv();
+  const host = player("opener", "Opener");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "OPEN" });
+  await post(env, "/api/room/start", { code: "OPEN", host_id: host.id });
+  const rolled = await post(env, "/api/room/move", { code: "OPEN", player_id: host.id, action: { type: "roll" } });
+  const fiveDie = seatByMark(rolled, "P1").dice.find((die) => die.value === 5);
+  assert.ok(fiveDie, "mock roll should contain a single 5");
+  const selected = await post(env, "/api/room/move", { code: "OPEN", player_id: host.id, action: { type: "select", dice_ids: [fiveDie.id] } });
+  const lowSeat = seatByMark(selected, "P1");
+  assert.equal(lowSeat.turn_score, 50);
+  assert.equal(lowSeat.can_bank, false); // gated until the 500 opening minimum
+  assert.equal(selected.room.game.opening_minimum, 500);
+  const banked = await post(env, "/api/room/move", { code: "OPEN", player_id: host.id, action: { type: "bank" } });
+  assert.equal(banked.ok, false);
+  assert.match(banked.error, /on the board/);
+  // The seat is untouched: still unbanked, still its turn.
+  assert.equal(seatByMark(selected, "P1").score, 0);
+}));
+
 test("10,000 bot error rates map to the four tiers", async () => {
   await withMockRandom([0.09], async () => {
     assert.equal(tenThousandTest.tenThousandBotShouldMisplay(1), true);
