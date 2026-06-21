@@ -324,7 +324,7 @@ Required display:
 Selection behavior:
 
 - Tapping a player selects that player immediately.
-- Tapping a Sogo superuser profile (`Sogo` or `MojoSOGO`) asks for the Sogo passcode before accepting the selection. Canceling or entering the wrong passcode aborts the selection and leaves the previous selected player unchanged.
+- Tapping a Sogo superuser profile (`Sogo` or `MojoSOGO`) asks for the Sogo passcode before accepting the selection unless Sogo has already been unlocked as the current selected player in the tab session. Canceling or entering the wrong passcode aborts the selection and leaves the previous selected player unchanged. Changing to any non-Sogo player clears the Sogo unlock, so selecting Sogo again requires the passcode again.
 - The modal closes after selecting an existing player.
 - Creating a player selects the new player and closes the modal.
 - Player identity is anchored by a stable opaque `id`. Editing a player must preserve the id while updating mutable profile fields: name, icon, and color.
@@ -653,7 +653,7 @@ Room lifecycle:
 
 - Completed rooms are not listed as open or in-progress games.
 - Exit still requires local Yes/No and then leaves/closes the room.
-- Sogo superuser cleanup can close any listed room from the selected-game room cards or the game header after confirmation. The UI only shows this action when the selected roster profile is named `Sogo` or `MojoSOGO`, and the Worker remains authoritative through `POST /api/room/close`.
+- Sogo superuser cleanup can close any listed room from the selected-game room cards or the game header after confirmation. The UI only shows this action when the selected roster profile is named `Sogo` or `MojoSOGO` and has passed the passcode gate for the current tab session; the Worker remains authoritative through `POST /api/room/close`.
 - `Play Again` requires both seated players to agree, then starts a fresh board with the same seated players.
 
 ## Modal State: WIN_OVERLAY

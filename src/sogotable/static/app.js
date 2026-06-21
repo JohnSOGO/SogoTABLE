@@ -1257,7 +1257,10 @@ async function deletePlayer(playerId) {
 
 function finishPlayerDelete(playerId) {
   if (selectedPlayerId === playerId) selectedPlayerId = "";
-  if (deviceSelectedPlayerId === playerId) deviceSelectedPlayerId = "";
+  if (deviceSelectedPlayerId === playerId) {
+    deviceSelectedPlayerId = "";
+    clearSogoSuperuserPasscode();
+  }
   saveSelectedPlayer();
   renderPlayers();
   renderSelectedPlayer();
@@ -3449,7 +3452,7 @@ function deviceSelectedPlayer() {
 }
 
 function isSogoSuperuserSelected() {
-  return isSogoSuperuser(deviceSelectedPlayer());
+  return isSogoSuperuser(deviceSelectedPlayer()) && hasSogoSuperuserPasscode();
 }
 
 function isSogoSuperuser(player) {
@@ -3458,6 +3461,7 @@ function isSogoSuperuser(player) {
 }
 
 async function verifySogoSuperuserPasscode(player) {
+  if (hasSogoSuperuserPasscode()) return true;
   const passcode = window.prompt("Enter Sogo passcode.");
   if (!passcode) {
     clearSogoSuperuserPasscode();
@@ -3481,11 +3485,23 @@ async function ensureSogoSuperuserPasscode(player) {
   return verified ? sessionStorage.getItem(SOGO_SUPERUSER_PASSCODE_KEY) || "" : "";
 }
 
+function hasSogoSuperuserPasscode() {
+  return Boolean(sessionStorage.getItem(SOGO_SUPERUSER_PASSCODE_KEY));
+}
+
 function clearSogoSuperuserPasscode() {
   sessionStorage.removeItem(SOGO_SUPERUSER_PASSCODE_KEY);
 }
 
+function clearLockedSogoSelection() {
+  if (!isSogoSuperuser(deviceSelectedPlayer()) || hasSogoSuperuserPasscode()) return;
+  deviceSelectedPlayerId = "";
+  if (isSogoSuperuser(players.find((player) => player.id === selectedPlayerId))) selectedPlayerId = "";
+}
+
 function setDeviceSelectedPlayer(playerId) {
+  const nextPlayer = players.find((player) => player.id === playerId) || null;
+  if (!isSogoSuperuser(nextPlayer)) clearSogoSuperuserPasscode();
   deviceSelectedPlayerId = playerId;
   selectedPlayerId = playerId;
   saveSelectedPlayer();
@@ -3701,6 +3717,7 @@ async function refreshPlayers() {
     playerApiAvailable = true;
     players = data.players;
     if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
+    clearLockedSogoSelection();
     saveSelectedPlayer();
     renderPlayers();
     renderSelectedPlayer();
