@@ -66,10 +66,20 @@ function renderTenThousandLobby(host, ctx) {
 
 function renderTenThousandPlay(host, ctx) {
   const { room, game, pendingMove } = ctx;
-  const seats = Array.isArray(game.players) ? game.players : [];
+  const rawSeats = Array.isArray(game.players) ? game.players : [];
   const localMark = markForPlayer(room, ctx.localPlayerId);
-  const localSeat = seats.find((seat) => seat.mark === localMark) || null;
   const complete = game.status === "complete";
+
+  // During the farkle reveal delay, present the local seat as if it were still
+  // mid-roll — in the tray AND the standings — so nothing leaks the bust early.
+  // The dice keep their rolled values (white, selectable), the action row stays
+  // the normal one (all gated off, so the player can only hunt), and the turn
+  // score the app shell remembered from before the bust is restored so it does
+  // not snap to zero a beat early.
+  const seats = ctx.holdFarkle
+    ? rawSeats.map((seat) => seat.mark === localMark ? maskHeldFarkleSeat(seat, ctx.holdFarkleTurnScore) : seat)
+    : rawSeats;
+  const localSeat = seats.find((seat) => seat.mark === localMark) || null;
 
   host.innerHTML = `
     ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove) : ""}
@@ -80,12 +90,30 @@ function renderTenThousandPlay(host, ctx) {
   wireStandings(host);
 }
 
+// Clone a freshly busted seat back into a live-roll presentation for the reveal
+// delay: drop the farkle phase/finish_state and restore the pre-bust turn score.
+// The dice (the busted roll) are kept as-is so the player can hunt them.
+function maskHeldFarkleSeat(seat, heldTurnScore) {
+  return {
+    ...seat,
+    phase: "rolled",
+    finish_state: "active",
+    resolved: false,
+    can_roll: false,
+    can_reroll: false,
+    can_bank: false,
+    turn_score: Number.isFinite(heldTurnScore) ? heldTurnScore : seat.turn_score,
+  };
+}
+
 function trayHtml(seat, game, pendingMove) {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
   // Keep the busted roll red for the whole farkle state. Drive it off the phase
   // (reliably "farkled" while busted) AND the finish_state (so it persists after
-  // acknowledging), until the next round resets the dice.
+  // acknowledging), until the next round resets the dice. During the reveal
+  // delay the app shell hands us a seat masked back to a live roll (see
+  // maskHeldFarkleSeat), so none of this fires until the bust is declared.
   const showBust = farkled
     || seat.finish_state === "farkled_pending_ack"
     || seat.finish_state === "farkled_acked";
