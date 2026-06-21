@@ -506,14 +506,16 @@ Response:
 Closes a room as a Sogo superuser action. This is for clearing stuck, abandoned,
 or unwanted rooms from the shared public game list. During the no-account phase,
 the requester must be the selected roster profile whose display name is `Sogo`
-or `MojoSOGO`.
+or `MojoSOGO`, and the request must include the Worker-configured
+`SOGOTABLE_SUPERUSER_PASSCODE` value.
 
 Request:
 
 ```json
 {
   "code": "ABCD",
-  "requester_id": "sogo-player-id"
+  "requester_id": "sogo-player-id",
+  "passcode": "passcode"
 }
 ```
 
@@ -529,6 +531,32 @@ Response:
 ```
 
 Normal players receive `{ "ok": false }` and the room remains open.
+
+### `POST /api/superuser/verify`
+
+Verifies a Sogo superuser passcode before the browser accepts the selected Sogo
+profile. This endpoint is read-only and does not write the shared state row.
+
+Request:
+
+```json
+{
+  "requester_id": "sogo-player-id",
+  "passcode": "passcode"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "superuser": true
+}
+```
+
+If `SOGOTABLE_SUPERUSER_PASSCODE` is not configured on the Worker, verification
+fails closed.
 
 ## Moves
 

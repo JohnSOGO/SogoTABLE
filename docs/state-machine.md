@@ -324,6 +324,7 @@ Required display:
 Selection behavior:
 
 - Tapping a player selects that player immediately.
+- Tapping a Sogo superuser profile (`Sogo` or `MojoSOGO`) asks for the Sogo passcode before accepting the selection. Canceling or entering the wrong passcode aborts the selection and leaves the previous selected player unchanged.
 - The modal closes after selecting an existing player.
 - Creating a player selects the new player and closes the modal.
 - Player identity is anchored by a stable opaque `id`. Editing a player must preserve the id while updating mutable profile fields: name, icon, and color.

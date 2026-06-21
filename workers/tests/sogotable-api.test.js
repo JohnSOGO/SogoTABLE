@@ -69,11 +69,11 @@ class Statement {
 }
 
 function makeEnv() {
-  return { SOGOTABLE_STATE: new InMemoryD1() };
+  return { SOGOTABLE_STATE: new InMemoryD1(), SOGOTABLE_SUPERUSER_PASSCODE: "1234" };
 }
 
 function makeEnvWithRooms() {
-  const env = { SOGOTABLE_STATE: new InMemoryD1() };
+  const env = { SOGOTABLE_STATE: new InMemoryD1(), SOGOTABLE_SUPERUSER_PASSCODE: "1234" };
   env.ROOM_OBJECT = new MockRoomNamespace(env);
   return env;
 }
@@ -81,6 +81,7 @@ function makeEnvWithRooms() {
 function makeEnvWithEvents() {
   const env = {
     SOGOTABLE_STATE: new InMemoryD1(),
+    SOGOTABLE_SUPERUSER_PASSCODE: "1234",
     EVENT_HUB: new MockEventHubNamespace(),
   };
   env.ROOM_OBJECT = new MockRoomNamespace(env);
@@ -1559,14 +1560,32 @@ test("only Sogo can close any active room as superuser", async () => {
   assert.equal(stillOpen.ok, true);
   assert.equal(stillOpen.room.status, "active");
 
-  const closed = await post(env, "/api/room/close", { code: "SGCL", requester_id: sogo.id });
+  const missingPasscode = await post(env, "/api/room/close", { code: "SGCL", requester_id: sogo.id });
+  assert.equal(missingPasscode.ok, false);
+  assert.equal(missingPasscode.error, "Sogo passcode is incorrect.");
+
+  const wrongPasscode = await post(env, "/api/room/close", { code: "SGCL", requester_id: sogo.id, passcode: "wrong" });
+  assert.equal(wrongPasscode.ok, false);
+  assert.equal(wrongPasscode.error, "Sogo passcode is incorrect.");
+
+  const verified = await post(env, "/api/superuser/verify", { requester_id: sogo.id, passcode: "1234" });
+  assert.equal(verified.ok, true);
+  assert.equal(verified.superuser, true);
+
+  const closed = await post(env, "/api/room/close", { code: "SGCL", requester_id: sogo.id, passcode: "1234" });
   const roomObject = env.ROOM_OBJECT.getByName("SGCL");
 
   assert.equal(closed.ok, true);
   assert.equal(closed.closed, true);
   assert.equal(closed.superuser, true);
   assert.deepEqual(roomObject.closed, ["SGCL"]);
-  assert.deepEqual(roomObject.actions.slice(-3), ["/api/room/join", "/api/room/close", "/api/room/close"]);
+  assert.deepEqual(roomObject.actions.slice(-5), [
+    "/api/room/join",
+    "/api/room/close",
+    "/api/room/close",
+    "/api/room/close",
+    "/api/room/close",
+  ]);
 });
 
 test("creates tactical rooms with authoritative pickups and scores", async () => withMockRandom([0], async () => {

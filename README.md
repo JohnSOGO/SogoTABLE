@@ -66,6 +66,9 @@ npm run deploy:brain
 
 The Worker is configured in `wrangler.toml` and stores shared game state in a small D1 database. Durable Objects now serialize active-room mutations and deliver realtime room/app snapshots, while D1 remains the persistence layer during public playtesting.
 
+Sogo superuser actions require the Worker secret `SOGOTABLE_SUPERUSER_PASSCODE`.
+If that secret is missing, Sogo passcode verification fails closed.
+
 ## Run Tests
 
 ```powershell

@@ -55,6 +55,7 @@ const paletteColors = [
   "#334155",
 ];
 const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
+const SOGO_SUPERUSER_PASSCODE_KEY = "sogotable.sogoSuperuserPasscode";
 const CLASSIC_GAME_ID = "a3f19c6e42b8";
 const TACTICAL_GAME_ID = "d7e4a91f0c23";
 const BOXES_GAME_ID = "4b7e2d9a6c10";
@@ -996,15 +997,20 @@ async function createPlayer(event) {
   try {
     const response = await api("/api/players/create", { player });
     players = response.players;
-    finishPlayerSave(response.player.id, input, wasEditing);
-    playConfirm();
+    if (await finishPlayerSave(response.player.id, input, wasEditing)) playConfirm();
   } catch (error) {
     alert(error.message);
   }
 }
 
-function finishPlayerSave(playerId, input, wasEditing = false) {
-  if (!wasEditing || playerId === deviceSelectedPlayerId) setDeviceSelectedPlayer(playerId);
+async function finishPlayerSave(playerId, input, wasEditing = false) {
+  if (!wasEditing || playerId === deviceSelectedPlayerId) {
+    const selected = await selectPlayer(playerId);
+    if (!selected) {
+      renderPlayers();
+      return false;
+    }
+  }
   renderPlayers();
   renderSelectedPlayer();
   renderCurrentPlayer();
@@ -1013,6 +1019,7 @@ function finishPlayerSave(playerId, input, wasEditing = false) {
   updateLobbyPresence();
   renderCreateGameButton();
   closePlayerModal();
+  return true;
 }
 
 function newOpaquePlayerId() {
@@ -1063,7 +1070,9 @@ function renderPlayers() {
         <button type="button" class="delete-player">Delete</button>
       </div>
     `;
-    card.addEventListener("click", () => selectPlayer(player.id, { closeModal: true }));
+    card.addEventListener("click", () => {
+      void selectPlayer(player.id, { closeModal: true });
+    });
     card.querySelector(".edit-player").addEventListener("click", (event) => {
       event.stopPropagation();
       editPlayer(player.id);
@@ -1212,7 +1221,15 @@ function renderRoomHostSummary() {
   host.innerHTML = `<span class="label">Host</span>${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>`;
 }
 
-function selectPlayer(playerId, options = {}) {
+async function selectPlayer(playerId, options = {}) {
+  const player = players.find((item) => item.id === playerId);
+  if (!player) return false;
+  if (isSogoSuperuser(player)) {
+    const verified = await verifySogoSuperuserPasscode(player);
+    if (!verified) return false;
+  } else {
+    clearSogoSuperuserPasscode();
+  }
   setDeviceSelectedPlayer(playerId);
   renderPlayers();
   renderSelectedPlayer();
@@ -1222,6 +1239,7 @@ function selectPlayer(playerId, options = {}) {
   updateLobbyPresence();
   renderCreateGameButton();
   if (options.closeModal) closePlayerModal();
+  return true;
 }
 
 async function deletePlayer(playerId) {
@@ -1524,10 +1542,12 @@ async function closeCurrentRoomAsSuperuser() {
 async function closeRoomAsSuperuser(code) {
   const player = deviceSelectedPlayer();
   if (!player || !isSogoSuperuser(player)) return;
+  const passcode = await ensureSogoSuperuserPasscode(player);
+  if (!passcode) return;
   const confirmed = await confirmAction("Close room?", `Close room ${code} for everyone?`);
   if (!confirmed) return;
   try {
-    await api("/api/room/close", { code, requester_id: player.id });
+    await api("/api/room/close", { code, requester_id: player.id, passcode });
     if (currentRoom && currentRoom.code === code) {
       restoreLocalGameHomePlayer(currentRoom);
       forgetLocalGameHomePlayer(currentRoom);
@@ -1541,6 +1561,7 @@ async function closeRoomAsSuperuser(code) {
     }
     refreshGameRooms();
   } catch (error) {
+    if (String(error.message || "").toLowerCase().includes("passcode")) clearSogoSuperuserPasscode();
     alert(error.message);
   }
 }
@@ -3434,6 +3455,34 @@ function isSogoSuperuserSelected() {
 function isSogoSuperuser(player) {
   const name = String(player && player.name || "").trim().toLowerCase();
   return name === "sogo" || name === "mojosogo";
+}
+
+async function verifySogoSuperuserPasscode(player) {
+  const passcode = window.prompt("Enter Sogo passcode.");
+  if (!passcode) {
+    clearSogoSuperuserPasscode();
+    return false;
+  }
+  try {
+    await api("/api/superuser/verify", { requester_id: player.id, passcode });
+    sessionStorage.setItem(SOGO_SUPERUSER_PASSCODE_KEY, passcode);
+    return true;
+  } catch (error) {
+    clearSogoSuperuserPasscode();
+    alert(error.message);
+    return false;
+  }
+}
+
+async function ensureSogoSuperuserPasscode(player) {
+  const existing = sessionStorage.getItem(SOGO_SUPERUSER_PASSCODE_KEY) || "";
+  if (existing) return existing;
+  const verified = await verifySogoSuperuserPasscode(player);
+  return verified ? sessionStorage.getItem(SOGO_SUPERUSER_PASSCODE_KEY) || "" : "";
+}
+
+function clearSogoSuperuserPasscode() {
+  sessionStorage.removeItem(SOGO_SUPERUSER_PASSCODE_KEY);
 }
 
 function setDeviceSelectedPlayer(playerId) {

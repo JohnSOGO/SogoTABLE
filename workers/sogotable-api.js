@@ -155,8 +155,8 @@ export default {
       }
       const data = await loadState(env);
       const payload = request.method === "POST" ? await readJson(request) : {};
-      const response = await routeRequest(request.method, url, payload, data);
-      if (request.method !== "GET") {
+      const response = await routeRequest(request.method, url, payload, data, { superuserPasscode: env.SOGOTABLE_SUPERUSER_PASSCODE });
+      if (request.method !== "GET" && url.pathname !== "/api/superuser/verify") {
         await saveState(env, data);
         await notifyRoomObject(env, response);
         await notifyEventHub(env, data, response);
@@ -232,7 +232,10 @@ export class RoomDurableObject {
     try {
       const response = await withStateRetry(async () => {
         const data = await loadState(this.env);
-        const result = await routeRequest("POST", new URL(`https://room.object${pathname}`), payload, data, { autoBotMoves: false });
+        const result = await routeRequest("POST", new URL(`https://room.object${pathname}`), payload, data, {
+          autoBotMoves: false,
+          superuserPasscode: this.env.SOGOTABLE_SUPERUSER_PASSCODE,
+        });
         await saveState(this.env, data);
         await this.publishRoomResult(result);
         await notifyEventHub(this.env, data, result);
@@ -402,8 +405,14 @@ function closeSocketQuietly(socket, code, reason) {
 
 async function routeRequest(method, url, payload, data, options = {}) {
   const autoBotMoves = options.autoBotMoves !== false;
+  const superuserPasscode = options.superuserPasscode;
   if (method === "GET" && url.pathname === "/api/games") return { ok: true, games: GAME_DEFINITIONS.map(publicGameDefinition) };
   if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: publicPlayers(data) };
+  if (method === "POST" && url.pathname === "/api/superuser/verify") {
+    const requesterId = String(payload.requester_id || "").trim();
+    assertSogoSuperuser(data, requesterId, payload.passcode, superuserPasscode);
+    return { ok: true, superuser: true };
+  }
   if (method === "GET" && url.pathname === "/api/bots") {
     cleanGameId(url.searchParams.get("game_id") || DEFAULT_GAME_ID);
     return { ok: true, bots: BOT_DEFINITIONS.map(publicBot) };
@@ -539,7 +548,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/close") {
       const code = cleanRoomCode(payload.code || "");
       const requesterId = String(payload.requester_id || "").trim();
-      if (!isSogoSuperuser(data, requesterId)) throw new Error("Only Sogo can close rooms as superuser.");
+      assertSogoSuperuser(data, requesterId, payload.passcode, superuserPasscode);
       const room = data.rooms[code];
       if (room) delete data.rooms[code];
       return { ok: true, closed: true, room_code: code, superuser: true };
@@ -986,6 +995,12 @@ function isSogoSuperuser(data, playerId) {
   const player = (data.players || []).find((item) => item.id === playerId);
   if (!player) return false;
   return SOGO_SUPERUSER_NAMES.has(String(player.name || "").trim().toLowerCase());
+}
+
+function assertSogoSuperuser(data, playerId, passcode, configuredPasscode) {
+  if (!isSogoSuperuser(data, playerId)) throw new Error("Only Sogo can close rooms as superuser.");
+  if (!String(configuredPasscode || "").trim()) throw new Error("Sogo superuser passcode is not configured.");
+  if (String(passcode || "") !== String(configuredPasscode)) throw new Error("Sogo passcode is incorrect.");
 }
 
 function isHiddenTestRoom(room) {
