@@ -2133,17 +2133,17 @@ button.player-switch-button {
 .ten-thousand-actions .tt-action {
   min-width: 0;
   padding-inline: 8px;
-  background: #16a34a;
-  border-color: #15803d;
-  color: #fff;
+  background: #bbf7d0;
+  border-color: #86efac;
+  color: #14532d;
   opacity: 1;
 }
 
 .ten-thousand-actions .tt-action:disabled {
   cursor: not-allowed;
-  background: #d1d5db;
-  border-color: #9ca3af;
-  color: #4b5563;
+  background: #fef9c3;
+  border-color: #fde68a;
+  color: #92400e;
   opacity: 1;
 }
 
