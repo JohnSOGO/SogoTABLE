@@ -113,10 +113,10 @@ function trayHtml(seat, game, pendingMove) {
   const actionsHtml = farkled && !resolved
     ? `<button class="primary tt-ack" type="button" data-action="ack">You Farkled!</button>`
     : `
-      <button class="primary" type="button" data-action="roll" ${canRoll ? "" : "disabled"}>Roll</button>
-      <button class="secondary" type="button" data-action="select" disabled>Score Selected</button>
-      <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">Press</button>
-      <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"}>Bank</button>`;
+      <button class="primary" type="button" data-action="roll" ${canRoll ? "" : "disabled"} aria-label="Roll dice">🎲 Roll</button>
+      <button class="secondary" type="button" data-action="select" disabled aria-label="Score selected dice">📈 Score Selected</button>
+      <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">🎰🎲 Press</button>
+      <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"} aria-label="Bank turn score">🏦 Bank</button>`;
 
   return `
     <section class="ten-thousand-tray">
