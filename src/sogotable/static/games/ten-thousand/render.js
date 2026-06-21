@@ -275,7 +275,11 @@ function standingsRow(seat, room, game, pacing) {
     statusHtml = `${flames}${tenThousandStatusEmoji(paced.status)}<span class="tt-status-inline">${fmt(paced.gain)}</span>`;
     statusTitle = paced.status === "banked" ? `Banked ${fmt(paced.gain)}` : paced.status === "farkled" ? "Farkled, +0" : `Rolling, ${fmt(paced.gain)} this turn`;
     rowStatus = paced.status;
-    scoreHtml = `<strong>${fmt(paced.carried)}</strong><span class="tt-standing-turn">+${fmt(paced.gain)}</span>`;
+    // While rolling, show carried + the live gain; once the round is locked in
+    // (banked/farkled) fold it into the full total — no "+gain".
+    scoreHtml = paced.status === "rolling"
+      ? `<strong>${fmt(paced.carried)}</strong><span class="tt-standing-turn">+${fmt(paced.gain)}</span>`
+      : `<strong>${fmt(paced.carried + paced.gain)}</strong>`;
     farkleCell = fmt(paced.farkles);
   } else {
     const status = tenThousandSeatStatus(seat);
@@ -285,7 +289,11 @@ function standingsRow(seat, room, game, pacing) {
     statusHtml = `${tenThousandStatusEmoji(status)}<span class="tt-status-inline">${fmt(gain)}</span>`;
     statusTitle = status === "banked" ? `Banked ${fmt(gain)}` : status === "farkled" ? "Farkled, +0" : `Rolling, ${fmt(gain)} this turn`;
     rowStatus = status;
-    scoreHtml = `<strong>${fmt(carried)}</strong><span class="tt-standing-turn">+${fmt(gain)}</span>`;
+    // While rolling, show carried + the live gain; once the round is locked in
+    // (banked/farkled) the score is final — show the full total only.
+    scoreHtml = status === "rolling"
+      ? `<strong>${fmt(carried)}</strong><span class="tt-standing-turn">+${fmt(gain)}</span>`
+      : `<strong>${fmt(seat.score)}</strong>`;
     farkleCell = fmt(seat.farkles);
   }
 
