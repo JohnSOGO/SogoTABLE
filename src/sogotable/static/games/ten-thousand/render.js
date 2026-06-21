@@ -114,7 +114,7 @@ function trayHtml(seat, game, pendingMove) {
     ? `<button class="primary tt-ack" type="button" data-action="ack">You Farkled!</button>`
     : `
       <button class="primary" type="button" data-action="roll" ${canRoll ? "" : "disabled"} aria-label="Roll dice">🎲 Roll</button>
-      <button class="secondary" type="button" data-action="select" disabled aria-label="Score selected dice">📈 Score Selected</button>
+      <button class="secondary" type="button" data-action="select" disabled aria-label="Score selected dice">✏️📈 Score Selected</button>
       <button class="secondary" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">🎰🎲 Press</button>
       <button class="primary" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"} aria-label="Bank turn score">🏦 Bank</button>`;
 
@@ -325,7 +325,7 @@ function markForPlayer(room, playerId) {
 
 function seatEmoji(room, mark) {
   const seat = (room.players || []).find((player) => player.mark === mark);
-  return seat && seat.icon ? seat.icon : "🙂";
+  return seat && seat.icon ? seat.icon : "\u{1F642}";
 }
 
 function seatName(room, mark) {
@@ -344,3 +344,4 @@ function escapeName(value) {
 function escapeText(value) {
   return String(value || "").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
 }
+
