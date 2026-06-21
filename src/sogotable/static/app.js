@@ -1484,13 +1484,18 @@ async function resetGame() {
     : "Request a board reset? The other player must agree.";
   const confirmed = await confirmAction("Are you sure?", message);
   if (!confirmed) return;
-  const player = selectedPlayer();
+  const player =
+    currentRoom.players.find((seat) => seat.id === selectedPlayerId || seat.id === deviceSelectedPlayerId)
+    || currentRoom.players.find((seat) => seat.id === currentRoom.host_id)
+    || currentRoom.players[0]
+    || selectedPlayer();
   if (!player) {
     alert("Select your player first.");
     return;
   }
   hideWinOverlay();
   lastCelebratedWinKey = "";
+  lastRenderedRoomKey = "";
   const response = await api("/api/room/reset", { code: currentRoom.code, requester_id: player.id });
   setRoom(response.room);
   if (response.reset === "pending") showTurnStatus(null, "Waiting for the other player to agree.");
