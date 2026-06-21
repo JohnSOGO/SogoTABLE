@@ -109,6 +109,7 @@ const RESERVED_TEST_PLAYERS = [
   { id: "codex-test-player-2", name: "Codex Test 2", icon: "\uD83E\uDDEA", color: "#be123c", kind: "test", hidden: true },
 ];
 const RESERVED_TEST_PLAYER_IDS = new Set(RESERVED_TEST_PLAYERS.map((player) => player.id));
+const SOGO_SUPERUSER_NAMES = new Set(["sogo", "mojosogo"]);
 const OVERLORD_BOT_ID = "0f8a3c9d1e72";
 const TACTICAL_PICKUP_CONFIG = {
   coin: {
@@ -529,11 +530,19 @@ async function routeRequest(method, url, payload, data, options = {}) {
       bumpRoomRevision(room);
       return { ok: true, room: roomToDict(data, room) };
     }
-    if (method === "POST" && (url.pathname === "/api/room/leave" || url.pathname === "/api/room/close")) {
+    if (method === "POST" && url.pathname === "/api/room/leave") {
       const code = cleanRoomCode(payload.code || "");
       const room = data.rooms[code];
       if (room) delete data.rooms[code];
       return { ok: true, closed: true, room_code: code };
+    }
+    if (method === "POST" && url.pathname === "/api/room/close") {
+      const code = cleanRoomCode(payload.code || "");
+      const requesterId = String(payload.requester_id || "").trim();
+      if (!isSogoSuperuser(data, requesterId)) throw new Error("Only Sogo can close rooms as superuser.");
+      const room = data.rooms[code];
+      if (room) delete data.rooms[code];
+      return { ok: true, closed: true, room_code: code, superuser: true };
     }
     if (method === "POST" && url.pathname === "/api/room/move") {
       const room = roomFromPayload(data, payload);
@@ -971,6 +980,12 @@ function isHiddenPlayer(player) {
 
 function publicPlayers(data) {
   return (data.players || []).filter((player) => !isHiddenPlayer(player));
+}
+
+function isSogoSuperuser(data, playerId) {
+  const player = (data.players || []).find((item) => item.id === playerId);
+  if (!player) return false;
+  return SOGO_SUPERUSER_NAMES.has(String(player.name || "").trim().toLowerCase());
 }
 
 function isHiddenTestRoom(room) {

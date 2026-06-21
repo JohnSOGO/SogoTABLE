@@ -581,7 +581,7 @@ button.compact {
 
 .room-summary-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(86px, auto) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto) auto auto;
   gap: 8px;
   align-items: center;
   padding: 10px;
@@ -628,6 +628,11 @@ button.compact {
   min-height: 34px;
   padding: 0 10px;
   white-space: nowrap;
+}
+
+.room-summary-card .room-super-close {
+  min-width: 34px;
+  padding: 0 8px;
 }
 
 .game-card {
@@ -2475,7 +2480,7 @@ button.player-switch-button {
   }
 
   .room-summary-card {
-    grid-template-columns: minmax(0, 1fr) minmax(74px, auto) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(74px, auto) auto auto;
     gap: 6px;
     padding: 8px;
   }
@@ -2486,6 +2491,11 @@ button.player-switch-button {
     min-height: 32px;
     padding: 0 8px;
     font-size: 12px;
+  }
+
+  .room-summary-card .room-super-close {
+    min-width: 32px;
+    padding: 0 7px;
   }
 
   .room-summary-players {

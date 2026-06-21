@@ -1538,6 +1538,37 @@ test("notifies the room durable object after meaningful room changes", async () 
   assert.deepEqual(roomObject.actions, ["/api/invite/respond", "/api/room/join", "/api/room/move", "/api/room/leave"]);
 });
 
+test("only Sogo can close any active room as superuser", async () => {
+  const env = makeEnvWithRooms();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const sogo = player("sogo-id", "Sogo", "#8f1116");
+  await post(env, "/api/players/create", { player: host });
+  await post(env, "/api/players/create", { player: guest });
+  await post(env, "/api/players/create", { player: sogo });
+  await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "SGCL" });
+  const joined = await post(env, "/api/room/join", { code: "SGCL", player: guest });
+
+  assert.equal(joined.room.status, "active");
+
+  const rejected = await post(env, "/api/room/close", { code: "SGCL", requester_id: guest.id });
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.error, "Only Sogo can close rooms as superuser.");
+
+  const stillOpen = await get(env, "/api/room?code=SGCL");
+  assert.equal(stillOpen.ok, true);
+  assert.equal(stillOpen.room.status, "active");
+
+  const closed = await post(env, "/api/room/close", { code: "SGCL", requester_id: sogo.id });
+  const roomObject = env.ROOM_OBJECT.getByName("SGCL");
+
+  assert.equal(closed.ok, true);
+  assert.equal(closed.closed, true);
+  assert.equal(closed.superuser, true);
+  assert.deepEqual(roomObject.closed, ["SGCL"]);
+  assert.deepEqual(roomObject.actions.slice(-3), ["/api/room/join", "/api/room/close", "/api/room/close"]);
+});
+
 test("creates tactical rooms with authoritative pickups and scores", async () => withMockRandom([0], async () => {
   const env = makeEnv();
   const host = player("host", "Host");

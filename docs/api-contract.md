@@ -501,7 +501,34 @@ Response:
 }
 ```
 
-`POST /api/room/close` is currently equivalent.
+### `POST /api/room/close`
+
+Closes a room as a Sogo superuser action. This is for clearing stuck, abandoned,
+or unwanted rooms from the shared public game list. During the no-account phase,
+the requester must be the selected roster profile whose display name is `Sogo`
+or `MojoSOGO`.
+
+Request:
+
+```json
+{
+  "code": "ABCD",
+  "requester_id": "sogo-player-id"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "closed": true,
+  "room_code": "ABCD",
+  "superuser": true
+}
+```
+
+Normal players receive `{ "ok": false }` and the room remains open.
 
 ## Moves
 

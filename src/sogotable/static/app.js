@@ -275,6 +275,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("acceptInvite").addEventListener("click", () => respondToInvite(true));
   document.getElementById("declineInvite").addEventListener("click", () => respondToInvite(false));
   document.getElementById("closeGame").addEventListener("click", closeGame);
+  document.getElementById("superCloseRoom").addEventListener("click", closeCurrentRoomAsSuperuser);
   document.getElementById("resetGame").addEventListener("click", resetGame);
   document.getElementById("confirmYes").addEventListener("click", () => resolveConfirmPrompt(true));
   document.getElementById("confirmNo").addEventListener("click", () => resolveConfirmPrompt(false));
@@ -633,7 +634,7 @@ function renderCurrentGames(errorMessage = "") {
   const openHost = document.getElementById("openGamesList");
   const closedHost = document.getElementById("closedGamesList");
   if (!openHost || !closedHost) return;
-  const nextKey = errorMessage ? `error:${errorMessage}` : gameRoomsSignature(currentGameRooms);
+  const nextKey = errorMessage ? `error:${errorMessage}` : `${gameRoomsSignature(currentGameRooms)}:superuser=${isSogoSuperuserSelected()}`;
   if (nextKey === lastCurrentGameRoomsKey) return;
   lastCurrentGameRoomsKey = nextKey;
   openHost.innerHTML = "";
@@ -660,6 +661,7 @@ function renderRoomSummaryList(host, rooms, emptyText) {
     const hostPlayer = room.players.find((player) => player.id === room.host_id);
     const selectedSeat = room.players.find((player) => player.id === deviceSelectedPlayerId);
     const isOpen = room.status === "waiting_for_player";
+    const canSuperClose = isSogoSuperuserSelected();
     const canJoin = Boolean(deviceSelectedPlayer() && isOpen && !selectedSeat && (room.open_seats == null || room.open_seats > 0));
     const canReenter = Boolean(selectedSeat);
     const actionText = canReenter ? "Re-enter Game" : canJoin ? "Join Game" : room.status === "active" ? "In Progress" : "Join Game";
@@ -669,11 +671,14 @@ function renderRoomSummaryList(host, rooms, emptyText) {
         <span>Code ${escapeHtml(room.code)}</span>
       </div>
       <button type="button" class="${canReenter || canJoin ? "secondary" : "ghost"}">${escapeHtml(actionText)}</button>
+      <button type="button" class="ghost danger room-super-close ${canSuperClose ? "" : "hidden"}" aria-label="Close room ${escapeHtml(room.code)} as Sogo" title="Close room as Sogo">X</button>
       <div class="room-summary-players">${room.players.map((player) => avatarHtml(player)).join("")}</div>
     `;
     const button = card.querySelector("button");
+    const superCloseButton = card.querySelector(".room-super-close");
     button.disabled = !(canReenter || canJoin);
     button.addEventListener("click", () => enterRoomSummary(room));
+    superCloseButton.addEventListener("click", () => closeRoomAsSuperuser(room.code));
     host.appendChild(card);
   });
 }
@@ -1487,6 +1492,35 @@ async function closeGame() {
   showScreen("gameSelected");
 }
 
+async function closeCurrentRoomAsSuperuser() {
+  if (!currentRoom) return;
+  await closeRoomAsSuperuser(currentRoom.code);
+}
+
+async function closeRoomAsSuperuser(code) {
+  const player = deviceSelectedPlayer();
+  if (!player || !isSogoSuperuser(player)) return;
+  const confirmed = await confirmAction("Close room?", `Close room ${code} for everyone?`);
+  if (!confirmed) return;
+  try {
+    await api("/api/room/close", { code, requester_id: player.id });
+    if (currentRoom && currentRoom.code === code) {
+      restoreLocalGameHomePlayer(currentRoom);
+      forgetLocalGameHomePlayer(currentRoom);
+      hostInviteStatus = null;
+      currentRoom = null;
+      activeGameRoom = null;
+      lastRenderedRoomKey = "";
+      hideWinOverlay();
+      stopRoomLiveUpdates();
+      showScreen("gameSelected");
+    }
+    refreshGameRooms();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 async function resetGame() {
   if (!currentRoom) return;
   const completed = isCompletedRoom(currentRoom);
@@ -2146,6 +2180,8 @@ function renderGame() {
     resetButton.setAttribute("aria-label", resetLabel);
     resetButton.title = resetLabel;
   }
+  const superCloseButton = document.getElementById("superCloseRoom");
+  if (superCloseButton) superCloseButton.classList.toggle("hidden", !isSogoSuperuserSelected());
   document.getElementById("gamePlayersPanel").classList.toggle("hidden", currentRoom.started);
   setGameBoardVisible(true);
   syncBattleshipReviewMark(game);
@@ -3365,6 +3401,15 @@ function selectedPlayer() {
 
 function deviceSelectedPlayer() {
   return players.find((player) => player.id === deviceSelectedPlayerId) || null;
+}
+
+function isSogoSuperuserSelected() {
+  return isSogoSuperuser(deviceSelectedPlayer());
+}
+
+function isSogoSuperuser(player) {
+  const name = String(player && player.name || "").trim().toLowerCase();
+  return name === "sogo" || name === "mojosogo";
 }
 
 function setDeviceSelectedPlayer(playerId) {

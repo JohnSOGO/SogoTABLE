@@ -651,6 +651,7 @@ Room lifecycle:
 
 - Completed rooms are not listed as open or in-progress games.
 - Exit still requires local Yes/No and then leaves/closes the room.
+- Sogo superuser cleanup can close any listed room from the selected-game room cards or the game header after confirmation. The UI only shows this action when the selected roster profile is named `Sogo` or `MojoSOGO`, and the Worker remains authoritative through `POST /api/room/close`.
 - `Play Again` requires both seated players to agree, then starts a fresh board with the same seated players.
 
 ## Modal State: WIN_OVERLAY
