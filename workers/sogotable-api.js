@@ -978,6 +978,7 @@ function isHiddenTestRoom(room) {
 }
 
 function publicBot(bot) {
+  const botLevel = botDifficultyLevel(bot);
   return {
     id: bot.id,
     bot_id: bot.id,
@@ -990,7 +991,18 @@ function publicBot(bot) {
     strategy_label: bot.difficulty_label || (bot.strategy === "smart" ? "Smart move scoring" : "Random legal moves"),
     difficulty: bot.difficulty || "novice",
     difficulty_label: bot.difficulty_label || "Novice",
+    bot_level: botLevel,
+    level: botLevel,
   };
+}
+
+function botDifficultyLevel(bot) {
+  const difficulty = String(bot && bot.difficulty || "").toLowerCase();
+  if (difficulty === "novice") return 1;
+  if (difficulty === "casual") return 2;
+  if (difficulty === "strategist") return 3;
+  if (difficulty === "master") return 4;
+  return 2;
 }
 
 function publicInvite(invite) {

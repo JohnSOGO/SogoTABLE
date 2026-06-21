@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "deploy:brain": "npx wrangler deploy --config wrangler.toml",
-    "test:worker": "node --test workers/tests/*.test.js"
+    "test:worker": "node --test workers/tests/*.test.js",
+    "bench:bots": "node scripts/bench-ten-thousand-bots.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.0",

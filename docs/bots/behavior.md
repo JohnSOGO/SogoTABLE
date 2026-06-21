@@ -11,6 +11,8 @@ current recruitable roster is stable:
 ## Shared Contract
 
 - Bot seats are normal room seats with `kind: "bot"`.
+- Hosted bot payloads expose a numeric ladder level (`bot_level` / `level`) so
+  game modules can map the shared ladder without inventing a second roster.
 - Bot actions flow through the same hosted Worker move pipeline as human moves.
 - The browser should render bot intent, not decide bot truth.
 - Bot turns stay event-driven from room state changes, not polling.
@@ -39,4 +41,3 @@ current recruitable roster is stable:
 - Update `docs/ai-difficulty.md` when the recruitable ladder changes.
 - Keep shared bot strategy in docs or Worker-owned rules, not in the browser
   shell.
-
