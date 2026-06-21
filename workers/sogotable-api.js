@@ -151,7 +151,7 @@ export default {
       if (request.method === "POST" && roomAuthorityPath(url.pathname) && env.ROOM_OBJECT) {
         const payload = await readJson(request);
         const response = await roomAuthorityRequest(env, url.pathname, payload);
-        return json(response, response.ok === false ? 400 : 200, corsHeaders);
+        return json(responseForViewer(response, viewerPlayerIdForPayload(payload)), response.ok === false ? 400 : 200, corsHeaders);
       }
       const data = await loadState(env);
       const payload = request.method === "POST" ? await readJson(request) : {};
@@ -161,7 +161,7 @@ export default {
         await notifyRoomObject(env, response);
         await notifyEventHub(env, data, response);
       }
-      return json(response, 200, corsHeaders);
+      return json(responseForViewer(response, viewerPlayerIdForRequest(url, payload)), 200, corsHeaders);
     } catch (error) {
       return json({ ok: false, error: error.message || "Request failed." }, 400, corsHeaders);
     }
@@ -196,14 +196,18 @@ export class RoomDurableObject {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     const hibernating = acceptDurableWebSocket(this.state, server);
-    setSocketAttachment(server, { type: "room", connected_at: Date.now() });
+    setSocketAttachment(server, {
+      type: "room",
+      player_id: String(url.searchParams.get("player_id") || "").trim(),
+      connected_at: Date.now(),
+    });
     this.sessions.add(server);
     if (!hibernating) {
       server.addEventListener("close", () => this.webSocketClose(server));
       server.addEventListener("error", (event) => this.webSocketError(server, event.error));
     }
     const snapshot = await this.state.storage.get("room");
-    if (snapshot) safeSend(server, { type: "room_snapshot", room: snapshot });
+    if (snapshot) safeSend(server, this.roomMessageForSession(server, snapshot));
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -220,7 +224,7 @@ export class RoomDurableObject {
 
   async storeRoomSnapshot(room) {
     await this.state.storage.put("room", room);
-    this.broadcast({ type: "room_snapshot", room });
+    this.broadcastRoomSnapshot(room);
   }
 
   async storeRoomClosed(code) {
@@ -274,6 +278,18 @@ export class RoomDurableObject {
 
   broadcast(message) {
     for (const session of durableWebSockets(this.state, this.sessions)) safeSend(session, message);
+  }
+
+  broadcastRoomSnapshot(room) {
+    for (const session of durableWebSockets(this.state, this.sessions)) safeSend(session, this.roomMessageForSession(session, room));
+  }
+
+  roomMessageForSession(session, room) {
+    const attachment = socketAttachment(session);
+    return {
+      type: "room_snapshot",
+      room: roomToDictForViewer(null, room, attachment.player_id || ""),
+    };
   }
 }
 
@@ -1143,6 +1159,75 @@ function roomToDict(data, room) {
   };
 }
 
+function roomToDictForViewer(data, room, viewerPlayerId = "") {
+  const base = room && room.status && room.game_id ? structuredClone(room) : roomToDict(data, room);
+  const viewerId = String(viewerPlayerId || "").trim();
+  const viewerSeat = base.players.find((player) => player.id === viewerId);
+  base.game = gameToDictForViewer(base.game, viewerSeat ? viewerSeat.mark : "", base.status);
+  return base;
+}
+
+function gameToDictForViewer(game, viewerMark, roomStatusValue) {
+  if (!isBattleshipGame(game)) return game;
+  return battleshipGameToDictForViewer(game, viewerMark, roomStatusValue);
+}
+
+function battleshipGameToDictForViewer(game, viewerMark, roomStatusValue) {
+  const projected = structuredClone(game);
+  if (!projected.players) return projected;
+  const revealShips = roomStatusValue === "completed" || projected.phase === "complete";
+  ["X", "O"].forEach((mark) => {
+    const state = projected.players[mark];
+    if (!state) return;
+    const isViewer = mark === viewerMark;
+    state.shots = (state.shots || []).map((shot) => sanitizeBattleshipShot(shot, revealShips));
+    if (!isViewer && !revealShips) state.ships = [];
+  });
+  if (!revealShips) {
+    projected.last_move = sanitizeBattleshipMove(projected.last_move);
+    projected.events = (projected.events || []).map(sanitizeBattleshipMove);
+  }
+  return projected;
+}
+
+function sanitizeBattleshipShot(shot, revealShips) {
+  if (!shot || revealShips || !("ship_id" in shot)) return shot;
+  const { ship_id, ...publicShot } = shot;
+  return publicShot;
+}
+
+function sanitizeBattleshipMove(move) {
+  if (!move || move.type !== "attack" || move.sunk) return move;
+  const { ship_id, ...publicMove } = move;
+  return publicMove;
+}
+
+function responseForViewer(response, viewerPlayerId = "") {
+  if (!response || response.ok === false) return response;
+  const projected = { ...response };
+  if (projected.room) projected.room = roomToDictForViewer(null, projected.room, viewerPlayerId);
+  if (projected.active_room) projected.active_room = roomToDictForViewer(null, projected.active_room, viewerPlayerId);
+  if (Array.isArray(projected.rooms)) {
+    projected.rooms = projected.rooms.map((room) => room && room.game ? roomToDictForViewer(null, room, viewerPlayerId) : room);
+  }
+  return projected;
+}
+
+function viewerPlayerIdForRequest(url, payload = {}) {
+  return String(url.searchParams.get("player_id") || viewerPlayerIdForPayload(payload) || "").trim();
+}
+
+function viewerPlayerIdForPayload(payload = {}) {
+  return String(
+    payload.player_id ||
+    payload.requester_id ||
+    payload.host_id ||
+    payload.player && payload.player.id ||
+    payload.id ||
+    "",
+  ).trim();
+}
+
 function roomSummary(room) {
   ensureRoomFreshness(room);
   const playerCount = playerCountForGame(room.game_id);
@@ -1175,6 +1260,7 @@ function bumpRoomRevision(room, options = {}) {
 }
 
 function latestInviteForRoom(data, room) {
+  if (!data || !data.invites) return null;
   const invites = Object.values(data.invites).filter((invite) => invite.room_code === room.code);
   return invites.length ? publicInvite(invites[invites.length - 1]) : null;
 }

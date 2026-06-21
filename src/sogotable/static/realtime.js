@@ -31,7 +31,7 @@ export function createRealtimeController(callbacks) {
     if (roomSocket && roomSocket.readyState <= WebSocket.OPEN) return;
     stopRoomSocket(false);
     try {
-      roomSocket = new WebSocket(roomSocketUrl(roomCode));
+      roomSocket = new WebSocket(roomSocketUrl(roomCode, callbacks.getRoomPlayerId()));
     } catch {
       scheduleRoomReconnect();
       return;

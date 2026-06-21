@@ -287,8 +287,6 @@ let battleshipDrafts = {};
 let battleshipResultReveal = null;
 let battleshipResultTimer = null;
 let battleshipQueuedReveal = null;
-let battleshipPendingDefence = null;
-let battleshipPendingDefenceTimer = null;
 let battleshipReviewMark = "";
 let quoridorMode = "pawn";
 let quoridorDraftWall = null;
@@ -309,6 +307,7 @@ const realtime = createRealtimeController({
     gameId: selectedGame().id,
     playerId: deviceSelectedPlayerId,
   }),
+  getRoomPlayerId: () => selectedPlayerId || deviceSelectedPlayerId || "",
   onAppMessage: handleAppEventMessage,
   onRoomMessage: handleRoomSocketMessage,
   onRoomReconnect: () => showTurnStatus(null, "Reconnecting to room..."),
@@ -722,7 +721,7 @@ async function autoOpenActiveRoomForSelectedPlayer({ allowHidden = false } = {})
   ));
   if (!room || (currentRoom && currentRoom.code === room.code)) return false;
   try {
-    const data = await fetchJson(`/api/room?code=${encodeURIComponent(room.code)}`);
+    const data = await fetchJson(roomReadUrl(room.code));
     if (!data.ok) return false;
     activeGameRoom = data.room;
     setRoom(data.room);
@@ -807,7 +806,7 @@ async function enterRoomSummary(summary) {
   if (!player) return alert("Select a player first.");
   let freshSummary = summary;
   try {
-    const data = await fetchJson(`/api/room?code=${encodeURIComponent(summary.code)}`);
+    const data = await fetchJson(roomReadUrl(summary.code));
     if (!data.ok) return alert(data.error || "Game not found.");
     freshSummary = data.room;
   } catch (error) {
@@ -1904,28 +1903,6 @@ async function makeBattleshipAction(action) {
   const moveKey = moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action));
   if (pendingMove) return;
   playClick();
-  const attackPreview = action.type === "attack" ? battleshipAttackPreview(currentRoom.game, selectedSeat.mark, Number(action.row), Number(action.col)) : null;
-  if (attackPreview) {
-    showBattleshipResultReveal({
-      code: currentRoom.code,
-      player: selectedSeat.mark,
-      view: "offence",
-      row: Number(action.row),
-      col: Number(action.col),
-      hit: attackPreview.hit,
-      sunk: Boolean(attackPreview.sunk),
-      attackText: randomBattleshipPhrase(BATTLESHIP_ATTACK_PHRASES),
-      resultText: randomBattleshipResultPhrase(attackPreview.hit, attackPreview.sunk),
-      durationMs: 2000,
-      radarMs: BATTLESHIP_RESULT_REVEAL_DELAY_MS,
-    });
-    scheduleBattleshipPendingDefence(currentRoom.code, selectedSeat.mark);
-    if (attackPreview.sunk && attackPreview.shipName) {
-      window.setTimeout(() => {
-        showInfoPrompt("Battleship", `You sunk my ${attackPreview.shipName}!`);
-      }, BATTLESHIP_RESULT_REVEAL_DELAY_MS + 150);
-    }
-  }
   pendingMove = {
     key: moveKey,
     roomCode: currentRoom.code,
@@ -2070,23 +2047,8 @@ function showBattleshipResultReveal(result) {
   }, durationMs + 50);
 }
 
-function scheduleBattleshipPendingDefence(code, playerMark) {
-  clearBattleshipPendingDefence();
-  if (battleshipViewMode !== "auto") return;
-  battleshipPendingDefenceTimer = window.setTimeout(() => {
-    if (!pendingMove || !currentRoom || currentRoom.code !== code) return;
-    battleshipPendingDefence = {
-      code,
-      player: playerMark,
-    };
-    renderGame();
-  }, 2000);
-}
-
 function clearBattleshipPendingDefence() {
-  window.clearTimeout(battleshipPendingDefenceTimer);
-  battleshipPendingDefenceTimer = null;
-  battleshipPendingDefence = null;
+  battleshipQueuedReveal = null;
 }
 
 function confirmAction(title, message) {
@@ -2151,7 +2113,7 @@ function setRoom(room) {
   syncHostInviteStatusFromRoom(room);
   syncSelectedPlayerForLocalRoom();
   playRoomStateSounds(previousRoom, room);
-  showIncomingBattleshipAttackReveal(previousRoom, room);
+  showBattleshipAttackReveal(previousRoom, room);
   maybeAutoAckTenThousandFarkle(room);
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
@@ -2302,7 +2264,7 @@ function playBoxesEventSound(previousRoom, room) {
   playConfirm();
 }
 
-function showIncomingBattleshipAttackReveal(previousRoom, room) {
+function showBattleshipAttackReveal(previousRoom, room) {
   if (battleshipViewMode !== "auto") return;
   if (!isBattleshipGameState(room.game) || !room.game.last_move || room.game.last_move.type !== "attack") return;
   if (!previousRoom || !previousRoom.game) return;
@@ -2310,12 +2272,13 @@ function showIncomingBattleshipAttackReveal(previousRoom, room) {
   const nextMoveKey = battleshipSoundMoveKey(room.game.last_move);
   if (!nextMoveKey || previousMoveKey === nextMoveKey) return;
   const selectedSeat = room.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
-  if (!selectedSeat || room.game.last_move.player === selectedSeat.mark) return;
+  if (!selectedSeat) return;
+  const ownAttack = room.game.last_move.player === selectedSeat.mark;
   clearBattleshipPendingDefence();
   const reveal = {
     code: room.code,
     player: selectedSeat.mark,
-    view: "defence",
+    view: ownAttack ? "offence" : "defence",
     row: Number(room.game.last_move.row),
     col: Number(room.game.last_move.col),
     hit: Boolean(room.game.last_move.hit),
@@ -2325,7 +2288,7 @@ function showIncomingBattleshipAttackReveal(previousRoom, room) {
     durationMs: 3000,
     radarMs: BATTLESHIP_RESULT_REVEAL_DELAY_MS,
   };
-  if (battleshipResultReveal && battleshipResultReveal.view === "offence") {
+  if (!ownAttack && battleshipResultReveal && battleshipResultReveal.view === "offence") {
     battleshipQueuedReveal = reveal;
     return;
   }
@@ -2614,8 +2577,7 @@ function renderBattleshipGame(game) {
   host.classList.toggle("your-turn", Boolean(yourTurn));
   host.classList.toggle("waiting", Boolean(!yourTurn));
   const reveal = activeBattleshipResultReveal(currentRoom, selectedSeat);
-  const pendingDefence = activeBattleshipPendingDefence(currentRoom, selectedSeat);
-  const activeView = reveal && reveal.view ? reveal.view : pendingDefence ? "defence" : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+  const activeView = reveal && reveal.view ? reveal.view : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
   const boardPlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
   setTurnColorVariables(host, boardPlayer ? boardPlayer.color : selectedSeat ? selectedSeat.color : "#1f7a5f");
   showBattleshipTurnStatus(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
@@ -2761,7 +2723,7 @@ function renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, o
     title.textContent = `Offence: target ${opponent ? opponent.name : "opponent"}`;
     renderBattleshipGrid(grid, game, {
       shots: playerState.shots || [],
-      targetShips: opponentState.ships || [],
+      targetShips: game.phase === "complete" ? opponentState.ships || [] : [],
       mode: "offence",
       shooter: opponent,
       reveal,
@@ -2866,23 +2828,6 @@ function randomBattleshipDraft(game) {
   return [];
 }
 
-function battleshipAttackPreview(game, attackerMark, row, col) {
-  if (!game || !game.players || !["X", "O"].includes(attackerMark)) return null;
-  const attackerState = game.players[attackerMark];
-  const defenderMark = attackerMark === "X" ? "O" : "X";
-  const defenderState = game.players[defenderMark];
-  if (!attackerState || !defenderState || !Array.isArray(attackerState.shots) || !Array.isArray(defenderState.ships)) return null;
-  const target = battleshipShipAt(defenderState.ships, game, row, col);
-  if (!target) return { hit: false, sunk: false, shipName: "" };
-  const nextShots = [...attackerState.shots, { row, col, hit: true, ship_id: target.id }];
-  const shipName = ((game.fleet || []).find((ship) => ship.id === target.id) || target).name || target.id;
-  return {
-    hit: true,
-    sunk: battleshipShipSunk(target, game, nextShots),
-    shipName,
-  };
-}
-
 function battleshipShipAt(ships, game, row, col) {
   return ships.find((ship) => battleshipShipCells(ship, battleshipShipSize(game, ship.id)).some((cell) => cell.row === row && cell.col === col)) || null;
 }
@@ -2966,12 +2911,6 @@ function activeBattleshipResultReveal(room, selectedSeat) {
     return null;
   }
   return battleshipResultReveal;
-}
-
-function activeBattleshipPendingDefence(room, selectedSeat) {
-  if (battleshipViewMode !== "auto" || !room || !selectedSeat || !battleshipPendingDefence) return null;
-  if (battleshipPendingDefence.code !== room.code || battleshipPendingDefence.player !== selectedSeat.mark) return null;
-  return battleshipPendingDefence;
 }
 
 function renderQuoridorGame(game) {
@@ -3429,9 +3368,8 @@ function visibleBattleshipPlayerMark(room) {
   const opponent = selectedSeat ? room.players.find((player) => player.mark && player.mark !== selectedSeat.mark) : null;
   const currentTurnPlayer = room.players.find((player) => player.mark === room.game.current_player);
   const reveal = activeBattleshipResultReveal(room, selectedSeat);
-  const pendingDefence = activeBattleshipPendingDefence(room, selectedSeat);
   const yourTurn = selectedSeat && selectedSeat.mark === room.game.current_player;
-  const activeView = reveal && reveal.view ? reveal.view : pendingDefence ? "defence" : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+  const activeView = reveal && reveal.view ? reveal.view : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
   const visiblePlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
   return visiblePlayer && visiblePlayer.mark || "";
 }
@@ -3644,7 +3582,7 @@ async function refreshCurrentRoomView() {
 async function refreshCurrentRoomSummary() {
   if (!currentRoom) return;
   const wasStarted = currentRoom.started;
-  const data = await fetchJson(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
+  const data = await fetchJson(roomReadUrl(currentRoom.code));
   if (data.ok) {
     setRoom(data.room);
     refreshHostInviteStatus();
@@ -3659,7 +3597,7 @@ async function refreshCurrentRoomSummary() {
 async function refreshRoom() {
   if (!currentRoom) return;
   try {
-    const data = await fetchJson(`/api/room?code=${encodeURIComponent(currentRoom.code)}`);
+    const data = await fetchJson(roomReadUrl(currentRoom.code));
     if (data.ok) {
       setRoom(data.room);
       await refreshHostInviteStatus();
@@ -3700,6 +3638,13 @@ function leaveClosedRoom() {
   renderGames();
   refreshGameRooms();
   showScreen("gameSelected");
+}
+
+function roomReadUrl(code) {
+  const playerId = selectedPlayerId || deviceSelectedPlayerId || "";
+  const query = new URLSearchParams({ code });
+  if (playerId) query.set("player_id", playerId);
+  return `/api/room?${query.toString()}`;
 }
 
 function selectedPlayer() {

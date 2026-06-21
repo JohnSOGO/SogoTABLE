@@ -26,8 +26,8 @@ Battleship is the fourth ready SogoTable game.
 - Ships must stay inside the board and cannot overlap.
 - Players may attack one untried enemy cell on their turn.
 - Attacks record hit or miss.
-- After an attack, the browser briefly holds the offence view and shows a hit
-  explosion or miss splash on the attacked cell.
+- After an attack, the browser shows a hit explosion or miss splash only after
+  the authoritative Worker response or room snapshot reports the result.
 - In `Auto` view, the browser holds offence through the local attack reveal for
   two seconds, then switches to the opponent-colored defence/turn view. Incoming
   attacks show a one-second radar scan on defence, then reveal the hit/miss
@@ -42,6 +42,12 @@ Battleship is the fourth ready SogoTable game.
 The hosted Worker owns fleet validation, attack validation, hit/miss resolution,
 turn order, bot moves, and final result. The browser renders the room snapshot
 and sends setup or attack intent through `/api/room/move`.
+
+Battleship room snapshots are viewer-projected at the Worker response boundary.
+A player receives their own fleet and public shot results, but does not receive
+opponent ship coordinates before the room is complete. Completed rooms reveal
+both fleets for review. The room WebSocket includes `player_id` so each connected
+browser receives its own legal projection.
 
 The game screen defaults to defence during setup, offence on the local player's
 turn, and defence while waiting. Players can manually switch between `Auto`,

@@ -245,6 +245,10 @@ function mutateState(env, mutator) {
   row.value = JSON.stringify(data);
 }
 
+function stateData(env) {
+  return JSON.parse(env.SOGOTABLE_STATE.rows.get("state").value);
+}
+
 test("creates, lists, and deletes players", async () => {
   const env = makeEnv();
   const created = await post(env, "/api/players/create", { player: player("p1", "Player One") });
@@ -1292,6 +1296,61 @@ test("Battleship resolves attacks and rejects duplicate shots", async () => {
   assert.equal(duplicate.error, "It is O's turn.");
 });
 
+test("Battleship room reads project ships for each viewer", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: BATTLESHIP_GAME_ID, player: host, code: "VIEW" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+  const oSeat = joined.room.players.find((seat) => seat.mark === "O");
+  await post(env, "/api/room/move", { code: "VIEW", player_id: xSeat.id, action: { type: "place_fleet", ships: fleet(0) } });
+  await post(env, "/api/room/move", { code: "VIEW", player_id: oSeat.id, action: { type: "place_fleet", ships: fleet(5) } });
+  const xAttack = await post(env, "/api/room/move", { code: "VIEW", player_id: xSeat.id, action: { type: "attack", row: 5, col: 0 } });
+  const xView = await get(env, `/api/room?code=VIEW&player_id=${encodeURIComponent(xSeat.id)}`);
+  const oView = await get(env, `/api/room?code=VIEW&player_id=${encodeURIComponent(oSeat.id)}`);
+  const publicView = await get(env, "/api/room?code=VIEW");
+
+  assert.equal(xAttack.room.game.players[xSeat.mark].ships.length, 5);
+  assert.equal(xAttack.room.game.players[oSeat.mark].ships.length, 0);
+  assert.equal(xAttack.room.game.players[xSeat.mark].shots.length, 1);
+  assert.equal("ship_id" in xAttack.room.game.players[xSeat.mark].shots[0], false);
+  assert.equal("ship_id" in xAttack.room.game.last_move, false);
+  assert.equal(xView.room.game.players[xSeat.mark].ships.length, 5);
+  assert.equal(xView.room.game.players[oSeat.mark].ships.length, 0);
+  assert.equal(oView.room.game.players[oSeat.mark].ships.length, 5);
+  assert.equal(oView.room.game.players[xSeat.mark].ships.length, 0);
+  assert.equal(oView.room.game.players[xSeat.mark].shots[0].hit, true);
+  assert.equal(publicView.room.game.players.X.ships.length, 0);
+  assert.equal(publicView.room.game.players.O.ships.length, 0);
+});
+
+test("Battleship room sockets broadcast viewer-specific projections", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const created = await post(env, "/api/room/create", { game_id: BATTLESHIP_GAME_ID, player: host, code: "SOCK" });
+  const joined = await post(env, "/api/room/join", { code: created.room.code, player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+  const oSeat = joined.room.players.find((seat) => seat.mark === "O");
+  await post(env, "/api/room/move", { code: "SOCK", player_id: xSeat.id, action: { type: "place_fleet", ships: fleet(0) } });
+  await post(env, "/api/room/move", { code: "SOCK", player_id: oSeat.id, action: { type: "place_fleet", ships: fleet(5) } });
+  await post(env, "/api/room/move", { code: "SOCK", player_id: xSeat.id, action: { type: "attack", row: 5, col: 0 } });
+  const fullRoom = stateData(env).rooms.SOCK;
+  const xSocket = new MockHibernatedSocket({ type: "room", player_id: xSeat.id });
+  const oSocket = new MockHibernatedSocket({ type: "room", player_id: oSeat.id });
+  const room = new RoomDurableObject({ getWebSockets: () => [xSocket, oSocket] }, env);
+
+  room.broadcastRoomSnapshot(fullRoom);
+
+  const xRoom = xSocket.sent[0].room;
+  const oRoom = oSocket.sent[0].room;
+  assert.equal(xRoom.game.players[xSeat.mark].ships.length, 5);
+  assert.equal(xRoom.game.players[oSeat.mark].ships.length, 0);
+  assert.equal(oRoom.game.players[oSeat.mark].ships.length, 5);
+  assert.equal(oRoom.game.players[xSeat.mark].ships.length, 0);
+});
+
 test("Battleship detects a sunk fleet winner", async () => {
   const env = makeEnv();
   const host = player("host", "Host");
@@ -1324,6 +1383,8 @@ test("Battleship detects a sunk fleet winner", async () => {
   assert.equal(won.room.status, "completed");
   assert.equal(won.room.game.status, "x_won");
   assert.equal(won.room.game.winner, "X");
+  assert.equal(won.room.game.players.X.ships.length, 5);
+  assert.equal(won.room.game.players.O.ships.length, 5);
 });
 
 test("Battleship bot auto-places fleet and responds with legal attacks", async () => withMockRandom([0.9, 0], async () => {
@@ -1365,7 +1426,8 @@ test("Battleship repairs missing bot setup when the human readies fleet", async 
 
   assert.equal(ready.ok, true, ready.error);
   assert.equal(ready.room.game.players[botSeat.mark].ready, true);
-  assert.equal(ready.room.game.players[botSeat.mark].ships.length, 5);
+  assert.equal(ready.room.game.players[botSeat.mark].ships.length, 0);
+  assert.equal(stateData(env).rooms.BRDY.game.players[botSeat.mark].ships.length, 5);
   assert.notEqual(ready.room.game.status, "setup");
 }));
 
@@ -1377,7 +1439,8 @@ test("Battleship Overlord places a complete non-overlapping fleet", async () => 
   const created = await post(env, "/api/room/create", { game_id: "battleship", player: host, code: "BTTP" });
   const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: overlord.id });
   const botSeat = joined.room.players.find((seat) => seat.kind === "bot");
-  const ships = joined.room.game.players[botSeat.mark].ships;
+  assert.equal(joined.room.game.players[botSeat.mark].ships.length, 0);
+  const ships = stateData(env).rooms.BTTP.game.players[botSeat.mark].ships;
   const occupied = new Set();
 
   assert.equal(ships.length, 5);

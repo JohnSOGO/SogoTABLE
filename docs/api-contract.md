@@ -213,6 +213,14 @@ For unlimited guest-list games such as 10,000, `open_seats` may be `null`.
 
 Full room responses also include `game`, `latest_invite`, and `reset_request`. `revision` is a room-level monotonic freshness marker. `game_epoch` increments when reset/play-again starts a fresh board, so `game.move_count` can safely reset to zero without looking stale.
 
+Room responses are viewer-projected when a `player_id` is supplied on the HTTP
+query string or room WebSocket URL, or when a mutating request includes a player
+identity such as `player_id`, `requester_id`, `host_id`, or `player.id`. This
+matters for hidden-information games. In Battleship, a player sees their own
+ships and both players' public shots/results, but does not receive opponent ship
+coordinates until the room is completed. Public room reads with no `player_id`
+also hide active Battleship fleets.
+
 Canonical `game_id` values:
 
 - `a3f19c6e42b8` - Super Tic Tac Toe
@@ -247,8 +255,9 @@ use `h-row-col` for horizontal edges and `v-row-col` for vertical edges.
 Battleship room game state uses `phase`, `status`, `players`, `current_player`,
 `winner`, `fleet`, `events`, and `last_move`. Valid phases are `setup`,
 `playing`, and `complete`. Each player state includes `ready`, `ships`, and
-`shots`; ships use `{ id, name, size, cells }` and shots use
-`{ row, col, result }`.
+`shots`; ships use `{ id, row, col, orientation }` and shots use
+`{ row, col, hit }`. `ship_id` may appear only when the server is allowed to
+reveal ship identity, such as completed-game review or a public sunk result.
 
 Quoridor room game state uses `size`, `status`, `current_player`, `winner`,
 `pawns`, `walls`, `walls_remaining`, `legal_pawn_moves`, `legal_walls`,
@@ -340,9 +349,9 @@ Returns the selected player's unfinished room for that game, if any.
 }
 ```
 
-### `GET /api/room?code=ABCD`
+### `GET /api/room?code=ABCD&player_id=player-id`
 
-Returns a full room by code.
+Returns a full room by code, projected for the requesting player.
 
 ```json
 {
@@ -351,9 +360,14 @@ Returns a full room by code.
 }
 ```
 
-### `GET /api/room/socket?code=ABCD`
+`player_id` is optional for non-hidden-information games and public recovery
+reads. Battleship clients should include it.
 
-Opens a WebSocket to the room's live update channel.
+### `GET /api/room/socket?code=ABCD&player_id=player-id`
+
+Opens a WebSocket to the room's live update channel. The room Durable Object
+stores the full room internally, but sends each socket a room snapshot projected
+for that socket's `player_id`.
 
 The room Durable Object sends messages shaped like:
 

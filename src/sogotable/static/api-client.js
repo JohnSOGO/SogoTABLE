@@ -19,9 +19,10 @@ export async function fetchJson(url, options = {}) {
   return JSON.parse(text);
 }
 
-export function roomSocketUrl(code) {
+export function roomSocketUrl(code, playerId = "") {
   const url = new URL(`${HOSTED_API_ORIGIN}/api/room/socket`);
   url.searchParams.set("code", code);
+  if (playerId) url.searchParams.set("player_id", playerId);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.toString();
 }

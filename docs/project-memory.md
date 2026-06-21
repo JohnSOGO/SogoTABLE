@@ -150,6 +150,7 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - Battleship phases are `setup`, `playing`, and `complete`.
 - During setup, players can manually draft ship positions by selecting a ship, toggling horizontal/vertical, and tapping a start cell, or use `Auto Place` for quick review.
 - During play, the board defaults to offence on the local player's turn and defence while waiting, with manual `Auto`, `Offence`, and `Defence` view controls.
+- Battleship is a hidden-information game. Worker HTTP and room WebSocket responses are projected per `player_id`: the viewer receives their own ships and public shot results, but opponent ship coordinates stay hidden until the room is complete. The browser must render hit/miss from authoritative room snapshots instead of previewing attacks from opponent ship data.
 
 ## Quoridor UX Decisions
 
