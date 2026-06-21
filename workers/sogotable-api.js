@@ -1602,9 +1602,9 @@ function tenThousandGameToDict(game) {
 function normalizeTenThousandGame(game) {
   game.game_id = TEN_THOUSAND_GAME_ID;
   game.target_score = TEN_THOUSAND_TARGET_SCORE;
-  game.opening_minimum = TEN_THOUSAND_OPENING_MINIMUM;
   game.status = game.status === "complete" ? "complete" : "playing";
   game.round = clampInteger(game.round, 1, 999999, 1);
+  game.opening_minimum = tenThousandOpeningMinimum(game); // round-dependent (after round is set)
   game.final_round = Boolean(game.final_round);
   game.final_trigger = game.final_trigger || null;
   game.round_pending_advance = Boolean(game.round_pending_advance);
@@ -1785,8 +1785,8 @@ function selectTenThousandDice(seat, diceIds) {
 
 function bankTenThousandScore(game, mark, seat) {
   if (seat.phase !== "selected" || seat.turn_score <= 0) throw new Error("Select scoring dice before banking.");
-  if (seat.turn_score < tenThousandBankMinimum(seat)) {
-    throw new Error(`Score at least ${TEN_THOUSAND_OPENING_MINIMUM} to get on the board before you can bank.`);
+  if (seat.turn_score < tenThousandBankMinimum(game, seat)) {
+    throw new Error(`Score at least ${tenThousandOpeningMinimum(game)} to get on the board before you can bank.`);
   }
   seat.score += seat.turn_score;
   seat.round_score = seat.turn_score;
@@ -2071,13 +2071,20 @@ function tenThousandCanReroll(game, seat) {
 
 function tenThousandCanBank(game, seat) {
   return game.status === "playing" && !seat.resolved && seat.phase === "selected"
-    && seat.turn_score >= tenThousandBankMinimum(seat);
+    && seat.turn_score >= tenThousandBankMinimum(game, seat);
 }
 
 // Opening rule: until a seat is "on the board" (has banked anything) the first
 // bank must reach the opening minimum. After that any positive score may bank.
-function tenThousandBankMinimum(seat) {
-  return seat.score > 0 ? TEN_THOUSAND_BANK_MINIMUM : TEN_THOUSAND_OPENING_MINIMUM;
+function tenThousandBankMinimum(game, seat) {
+  return seat.score > 0 ? TEN_THOUSAND_BANK_MINIMUM : tenThousandOpeningMinimum(game);
+}
+
+// House rule: the bar to get on the board drops 50 each round (500, 450, 400...)
+// and never falls below the normal bank minimum.
+function tenThousandOpeningMinimum(game) {
+  const round = Math.max(1, Number(game && game.round) || 1);
+  return Math.max(TEN_THOUSAND_BANK_MINIMUM, TEN_THOUSAND_OPENING_MINIMUM - (round - 1) * 50);
 }
 
 function tenThousandScoringOptions(seat) {

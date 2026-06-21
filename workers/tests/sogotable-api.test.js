@@ -593,6 +593,32 @@ test("10,000 opening minimum blocks a sub-500 first bank", async () => withMockR
   assert.equal(seatByMark(selected, "P1").score, 0);
 }));
 
+test("10,000 opening minimum drops 50 each round (500, 450, 400...)", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
+  const env = makeEnv();
+  const host = player("dropper", "Dropper");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "DROP" });
+  let room = (await post(env, "/api/room/start", { code: "DROP", host_id: host.id })).room;
+  const move = async (type) => (await post(env, "/api/room/move", { code: "DROP", player_id: host.id, action: { type } })).room;
+
+  assert.equal(room.game.round, 1);
+  assert.equal(room.game.opening_minimum, 500);
+
+  // Bust each round to advance: roll -> declare_farkle -> ack, then roll starts
+  // the next round.
+  await move("roll");
+  await move("declare_farkle");
+  await move("ack_farkle");
+  room = await move("roll");
+  assert.equal(room.game.round, 2);
+  assert.equal(room.game.opening_minimum, 450);
+
+  await move("declare_farkle");
+  await move("ack_farkle");
+  room = await move("roll");
+  assert.equal(room.game.round, 3);
+  assert.equal(room.game.opening_minimum, 400);
+}));
+
 test("10,000 Overlord hunts triples by keeping a single 1 or 5", () => {
   const plan = tenThousandTest.overlordKeepPlan;
   const dice = (vals) => vals.map((v, i) => ({ id: "d" + i, value: v, scored: false }));
