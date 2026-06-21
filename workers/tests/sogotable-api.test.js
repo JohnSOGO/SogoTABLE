@@ -593,6 +593,46 @@ test("10,000 opening minimum blocks a sub-500 first bank", async () => withMockR
   assert.equal(seatByMark(selected, "P1").score, 0);
 }));
 
+test("10,000 Overlord hunts triples by keeping a single 1 or 5", () => {
+  const plan = tenThousandTest.overlordKeepPlan;
+  const dice = (vals) => vals.map((v, i) => ({ id: "d" + i, value: v, scored: false }));
+
+  // 6 dice, no triple, has a 1 -> keep one 1 and hunt.
+  let p = plan(dice([1, 2, 3, 4, 6, 6]));
+  assert.deepEqual(p.ids, ["d0"]);
+  assert.equal(p.hunt, true);
+
+  // Both a 1 and a 5 present, no triple -> prefer the 1.
+  p = plan(dice([2, 5, 1, 3, 6, 6]));
+  assert.deepEqual(p.ids, ["d2"]);
+  assert.equal(p.hunt, true);
+
+  // No 1 but a 5, no triple -> keep the 5.
+  p = plan(dice([2, 5, 3, 4, 6, 6]));
+  assert.deepEqual(p.ids, ["d1"]);
+  assert.equal(p.hunt, true);
+
+  // A triple in hand -> take the best keep, not a hunt.
+  p = plan(dice([4, 4, 4, 2, 3, 6]));
+  assert.equal(p.hunt, false);
+  assert.deepEqual(p.ids.slice().sort(), ["d0", "d1", "d2"]);
+
+  // 3 or fewer dice -> play normally (best keep).
+  p = plan(dice([1, 5, 2]));
+  assert.equal(p.hunt, false);
+  assert.deepEqual(p.ids.slice().sort(), ["d0", "d1"]);
+
+  // Clears all dice -> not a hunt.
+  p = plan(dice([1, 1, 5, 5]));
+  assert.equal(p.hunt, false);
+  assert.equal(p.ids.length, 4);
+
+  // 4+ dice, no triple, no 1/5 -> no scoring die -> empty keep (a real farkle).
+  p = plan(dice([2, 2, 3, 3, 4, 6]));
+  assert.equal(p.hunt, false);
+  assert.deepEqual(p.ids, []);
+});
+
 test("10,000 bot error rates map to the four tiers", async () => {
   await withMockRandom([0.09], async () => {
     assert.equal(tenThousandTest.tenThousandBotShouldMisplay(1), true);

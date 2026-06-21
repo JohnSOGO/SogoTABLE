@@ -1876,20 +1876,41 @@ function playTenThousandBotRound(game, mark, seat) {
     else if (seat.phase === "selected") rerollTenThousandDice(seat);
     if (seat.resolved) { finish(); return; }
     const level = tenThousandBotLevel(seat);
-    const keepPlan = tenThousandBotKeep(level, seat.dice);
-    const keep = tenThousandBotShouldMisplay(level)
-      ? tenThousandBotAlternativeKeep(seat.dice, keepPlan.ids)
-      : keepPlan;
+    const overlord = level === 4;
+    // Decide which dice to keep. The Overlord may keep a single die as part of a
+    // triple hunt (huntReroll), which forces a re-roll below.
+    let keepIds;
+    let huntReroll = false;
+    if (overlord) {
+      const plan = overlordKeepPlan(seat.dice);
+      keepIds = plan.ids;
+      huntReroll = plan.hunt;
+    } else {
+      const keepPlan = tenThousandBotKeep(level, seat.dice);
+      const keep = tenThousandBotShouldMisplay(level)
+        ? tenThousandBotAlternativeKeep(seat.dice, keepPlan.ids)
+        : keepPlan;
+      keepIds = keep.ids;
+    }
     // No scoring dice (rolls are no longer auto-farkled) is the bot's bust: it
     // resolves and acknowledges in one step, counting the farkle.
-    if (!keep.ids.length) { resolveTenThousandFarkle(seat, true, true); snap("farkled"); finish(); return; }
-    selectTenThousandDice(seat, keep.ids);
+    if (!keepIds.length) { resolveTenThousandFarkle(seat, true, true); snap("farkled"); finish(); return; }
+    selectTenThousandDice(seat, keepIds);
     if (seat.dice.length && seat.dice.every((die) => die.scored)) hot += 1; // hot dice
-    const shouldBank = tenThousandBotShouldBank(game, seat, level);
-    const finalBank = tenThousandBotShouldMisplay(level) ? !shouldBank : shouldBank;
+    let wantBank;
+    if (overlord) {
+      const remaining = seat.dice.filter((die) => !die.scored).length;
+      const wouldWin = seat.score + seat.turn_score >= game.target_score;
+      // Press through the hunt; with only 1-2 dice left to throw, bank a turn
+      // worth more than 400, otherwise keep pressing. Always bank a winning turn.
+      wantBank = wouldWin || (!huntReroll && (remaining === 1 || remaining === 2) && seat.turn_score > 400);
+    } else {
+      const shouldBank = tenThousandBotShouldBank(game, seat, level);
+      wantBank = tenThousandBotShouldMisplay(level) ? !shouldBank : shouldBank;
+    }
     // Only bank when it is legal: below the opening minimum the bot must keep
     // pressing (or eventually bust), exactly like a human with bank disabled.
-    if (finalBank && tenThousandCanBank(game, seat)) {
+    if (wantBank && tenThousandCanBank(game, seat)) {
       bankTenThousandScore(game, mark, seat);
       snap("banked");
       finish();
@@ -1907,6 +1928,28 @@ function playTenThousandBotRound(game, mark, seat) {
 function tenThousandBotKeep(level, dice) {
   if (level <= 1) return sproutTenThousandKeep(dice);
   return bestTenThousandKeep(dice);
+}
+
+// Overlord (level 4) plays a high-variance three-of-a-kind hunt: when it rolls
+// 4+ dice with no triple and cannot clear them all, it keeps a single die — a 1,
+// or a 5 only if there are no 1s — and re-rolls the rest fishing for a triple.
+// With a triple in hand, all dice scoring, or 3 or fewer dice, it takes the best
+// keep and plays normally. Returns { ids, hunt }; the bank side (press through
+// the hunt; bank over 400 with 1-2 dice left) lives in playTenThousandBotRound.
+function overlordKeepPlan(dice) {
+  const avail = (Array.isArray(dice) ? dice : []).filter((die) => !die.scored && die.value >= 1 && die.value <= 6);
+  const best = bestTenThousandKeep(dice);
+  const clearsAll = best.score > 0 && best.ids.length === avail.length;
+  const counts = tenThousandCounts(avail.map((die) => die.value));
+  const hasTriple = counts.some((count) => count >= 3);
+  if (avail.length >= 4 && !clearsAll && !hasTriple) {
+    const one = avail.find((die) => die.value === 1);
+    const five = avail.find((die) => die.value === 5);
+    const pick = one || five;
+    if (pick) return { ids: [pick.id], hunt: true };
+    return { ids: [], hunt: false }; // no 1/5 and no triple — a true farkle
+  }
+  return { ids: best.ids, hunt: false };
 }
 
 function tenThousandBotShouldMisplay(level) {
@@ -3789,6 +3832,7 @@ export const __test = {
   tenThousandBotAlternativeKeep,
   bestTenThousandKeep,
   sproutTenThousandKeep,
+  overlordKeepPlan,
   tenThousandScoreValues,
   tenThousandHasAnyScoringSet,
 };
