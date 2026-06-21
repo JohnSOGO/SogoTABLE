@@ -72,10 +72,17 @@ function renderTenThousandPlay(host, ctx) {
   const localMark = markForPlayer(room, ctx.localPlayerId);
   const localSeat = seats.find((seat) => seat.mark === localMark) || null;
   const complete = game.status === "complete";
+  // Bot rows replay in step with how many times the local human has rolled this
+  // round; once the human's turn ends (or the game is over) the bots' final
+  // results are shown.
+  const pacing = {
+    rollCount: localSeat ? Number(localSeat.roll_count || 0) : 0,
+    humanDone: complete || Boolean(localSeat && localSeat.resolved),
+  };
 
   host.innerHTML = `
     ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove) : ""}
-    ${standingsHtml(seats, room, game)}
+    ${standingsHtml(seats, room, game, pacing)}
   `;
 
   if (localSeat && !complete) wireTray(host, localSeat, game, ctx);
@@ -214,11 +221,11 @@ function wireTray(host, seat, game, ctx) {
   refreshSelection();
 }
 
-function standingsHtml(seats, room, game) {
+function standingsHtml(seats, room, game, pacing) {
   const rows = seats
     .slice()
     .sort((left, right) => right.score - left.score)
-    .map((seat) => standingsRow(seat, room, game))
+    .map((seat) => standingsRow(seat, room, game, pacing))
     .join("");
   return `
     <section class="ten-thousand-standings" aria-label="Standings">
@@ -229,46 +236,90 @@ function standingsHtml(seats, room, game) {
     </section>`;
 }
 
-function standingsRow(seat, room, game) {
+// Status emoji shared by humans and bots: a slot machine while rolling/pressing,
+// a bank once banked, a red X on a farkle.
+function tenThousandStatusEmoji(status) {
+  if (status === "banked") return "\u{1F3E6}"; // 🏦
+  if (status === "farkled") return "❌"; // ❌
+  return "\u{1F3B0}"; // 🎰 rolling / pressing
+}
+
+function tenThousandSeatStatus(seat) {
+  if (seat.finish_state === "banked") return "banked";
+  if (seat.finish_state === "farkled_pending_ack" || seat.finish_state === "farkled_acked" || seat.phase === "farkled") return "farkled";
+  return "rolling";
+}
+
+function standingsRow(seat, room, game, pacing) {
   const name = seatName(room, seat.mark);
   const emoji = seatEmoji(room, seat.mark);
-  const classes = [
-    "tt-standing",
-    seat.finish_state === "banked" || seat.finish_state === "farkled_acked" ? "is-finished" : "",
-    seat.finish_state === "farkled_pending_ack" ? "is-farkle" : "",
-  ].filter(Boolean).join(" ");
-  const status = standingStatusIcon(seat, game);
+  const complete = game.status === "complete";
+  const paced = seat.is_bot ? tenThousandBotPaced(seat, pacing) : null;
+
+  let statusHtml;
+  let statusTitle;
+  let scoreHtml;
+  let rowStatus;
+  let farkleCell;
+  if (complete && seat.mark === game.winner) {
+    statusHtml = "\u{1F3C6}"; // 🏆
+    statusTitle = "Winner";
+    rowStatus = "banked";
+    scoreHtml = `<strong>${fmt(seat.score)}</strong>`;
+    farkleCell = fmt(seat.farkles);
+  } else if (paced) {
+    const flames = paced.hot > 0 ? "\u{1F525}".repeat(paced.hot) : ""; // 🔥 per hot-dice completion
+    statusHtml = `${flames}${tenThousandStatusEmoji(paced.status)}`;
+    statusTitle = paced.status === "banked" ? "Banked" : paced.status === "farkled" ? "Farkled" : "Rolling";
+    rowStatus = paced.status;
+    scoreHtml = `<strong>${fmt(paced.total)}</strong>`;
+    farkleCell = fmt(paced.farkles);
+  } else {
+    const status = tenThousandSeatStatus(seat);
+    const turn = Number(seat.turn_score || 0);
+    statusHtml = `${tenThousandStatusEmoji(status)}${status === "rolling" && turn > 0 ? `<span class="tt-status-inline">${fmt(turn)}</span>` : ""}`;
+    statusTitle = status === "banked" ? "Banked this round" : status === "farkled" ? "Farkled" : (turn > 0 ? `Active turn, ${fmt(turn)} this round` : "Rolling");
+    rowStatus = status;
+    scoreHtml = `<strong>${fmt(seat.score)}</strong>${turn > 0 ? `<span class="tt-standing-turn">+${fmt(turn)}</span>` : ""}`;
+    farkleCell = fmt(seat.farkles);
+  }
+
+  const classes = ["tt-standing"];
+  if (rowStatus === "banked") classes.push("is-finished");
+  if (rowStatus === "farkled") classes.push("is-farkle");
+
   return `
-    <tr class="${classes}">
+    <tr class="${classes.join(" ")}">
       <td>
         <button class="tt-standing-player" type="button" data-standing-player="${seat.mark}" title="Tap to show name">
           <span class="tt-standing-player-icon">${emoji}</span>
           <span class="tt-standing-player-name">${escapeName(name)}</span>
         </button>
       </td>
-      <td class="tt-standing-status" title="${escapeName(status.title)}">${status.html}</td>
-      <td>${fmt(seat.farkles)}</td>
-      <td><strong>${fmt(seat.score)}</strong>${seat.turn_score > 0 ? `<span class="tt-standing-turn">+${fmt(seat.turn_score)}</span>` : ""}</td>
+      <td class="tt-standing-status" title="${escapeName(statusTitle)}">${statusHtml}</td>
+      <td>${farkleCell}</td>
+      <td>${scoreHtml}</td>
     </tr>`;
 }
 
-function standingStatusIcon(seat, game) {
-  if (game.status === "complete") {
-    return seat.mark === game.winner
-      ? { html: '<span class="tt-status-good">&#9989;</span>', title: "Winner" }
-      : { html: '<span class="tt-status-done">&mdash;</span>', title: "Finished" };
-  }
-  if (seat.finish_state === "farkled_pending_ack") return { html: '<span class="tt-status-bad">&#10060;</span>', title: "Farkled, waiting for OK" };
-  if (seat.finish_state === "banked") return { html: '<span class="tt-status-good">&#9989;</span>', title: "Banked this round" };
-  if (seat.finish_state === "farkled_acked") return { html: '<span class="tt-status-bad">&#10060;</span><span class="tt-status-good">&#9989;</span>', title: "Farkled and acknowledged" };
-  if (seat.phase === "rolled" || seat.phase === "selected") {
-    const score = Number(seat.turn_score || 0);
-    return {
-      html: `<span class="tt-status-wait">&#9203;</span>${score > 0 ? `<span class="tt-status-inline">${fmt(score)}</span>` : ""}`,
-      title: score > 0 ? `Active turn, ${fmt(score)} this round` : "Rolling this turn",
-    };
-  }
-  return { html: '<span class="tt-status-wait">&#9203;</span>', title: "Waiting for this player to finish" };
+// Maps a bot's resolved-round trajectory to the snapshot the human should see
+// right now: indexed by the local human's roll count, clamped to the final
+// entry once the human's turn ends. The farkle tally is paced too, so a bot's
+// bust is not revealed by the count ticking up before the status does.
+function tenThousandBotPaced(seat, pacing) {
+  const traj = Array.isArray(seat.bot_trajectory) ? seat.bot_trajectory : [];
+  if (!traj.length) return null;
+  const lastIndex = traj.length - 1;
+  const index = pacing.humanDone ? lastIndex : Math.min(Math.max(pacing.rollCount, 0), lastIndex);
+  const snap = traj[index];
+  const farkledThisRound = traj[lastIndex].status === "farkled";
+  const baseFarkles = Math.max(0, Number(seat.farkles || 0) - (farkledThisRound ? 1 : 0));
+  return {
+    total: Number(snap.total || 0),
+    status: snap.status,
+    hot: Number(snap.hot || 0),
+    farkles: baseFarkles + (snap.status === "farkled" ? 1 : 0),
+  };
 }
 
 function wireStandings(host) {

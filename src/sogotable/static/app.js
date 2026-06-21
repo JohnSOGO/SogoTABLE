@@ -3494,6 +3494,7 @@ function roomRenderKey(room) {
       turn_score: seat.turn_score,
       round_score: seat.round_score,
       farkles: seat.farkles,
+      roll_count: seat.roll_count,
     }))
     : null;
   return JSON.stringify({

@@ -1553,6 +1553,8 @@ function newTenThousandSeat(seat) {
     resolved: false,
     is_bot: Boolean(seat && seat.kind === "bot"),
     level: tenThousandBotLevel(seat),
+    roll_count: 0, // rolls + rerolls this round (drives the bot "play-along" display)
+    bot_trajectory: [], // per-roll running-total snapshots for a bot's resolved round
   };
 }
 
@@ -1578,6 +1580,8 @@ function tenThousandGameToDict(game) {
       resolved: seat.resolved,
       is_bot: seat.is_bot,
       dice: seat.dice,
+      roll_count: seat.roll_count || 0,
+      bot_trajectory: Array.isArray(seat.bot_trajectory) ? seat.bot_trajectory : [],
       scoring_options: tenThousandScoringOptions(seat),
       can_roll: tenThousandCanRoll(game, seat),
       can_reroll: tenThousandCanReroll(game, seat),
@@ -1624,7 +1628,18 @@ function normalizeTenThousandSeat(seat) {
     resolved: Boolean(source.resolved) || finishState === "banked" || finishState === "farkled_acked",
     is_bot: Boolean(source.is_bot),
     level: Number.isInteger(source.level) ? source.level : (source.is_bot ? 2 : 0),
+    roll_count: clampInteger(source.roll_count, 0, 999999, 0),
+    bot_trajectory: normalizeTenThousandTrajectory(source.bot_trajectory),
   };
+}
+
+function normalizeTenThousandTrajectory(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 200).map((entry) => ({
+    total: clampInteger(entry && entry.total, 0, 9999999, 0),
+    status: ["rolling", "banked", "farkled"].includes(entry && entry.status) ? entry.status : "rolling",
+    hot: clampInteger(entry && entry.hot, 0, 12, 0),
+  }));
 }
 
 function normalizeTenThousandFinishState(source) {
@@ -1693,6 +1708,7 @@ function makeTenThousandMove(game, mark, action) {
 
 function rollTenThousandDice(seat) {
   if (seat.phase !== "ready") throw new Error("Roll is not available.");
+  seat.roll_count = clampInteger(seat.roll_count, 0, 999999, 0) + 1;
   seat.dice = tenThousandBlankDice();
   tenThousandRollDiceByIds(seat, seat.dice.map((die) => die.id));
   finishTenThousandRoll(seat);
@@ -1700,6 +1716,7 @@ function rollTenThousandDice(seat) {
 
 function rerollTenThousandDice(seat) {
   if (seat.phase !== "selected") throw new Error("Reroll is not available.");
+  seat.roll_count = clampInteger(seat.roll_count, 0, 999999, 0) + 1;
   const hotDice = seat.dice.every((die) => die.scored);
   if (hotDice) {
     seat.dice = tenThousandBlankDice();
@@ -1810,6 +1827,8 @@ function startTenThousandRound(game) {
     seat.phase = "ready";
     seat.finish_state = "active";
     seat.resolved = false;
+    seat.roll_count = 0;
+    seat.bot_trajectory = [];
   });
   resolveTenThousandBots(game);
 }
@@ -1840,12 +1859,22 @@ function resolveTenThousandFarkle(seat, acknowledged = false, countFarkle = true
   seat.resolved = Boolean(acknowledged);
 }
 
-// Plays a bot's entire round in one shot (Level 2 policy by default).
+// Plays a bot's entire round in one shot (Level 2 policy by default). Records a
+// per-roll trajectory of running-total snapshots so the client can replay the
+// bot "playing along" in step with the human's rolls. trajectory[0] is the
+// pre-roll baseline (the bot's carried score); each later entry is the state
+// after one of the bot's rolls. total = score + turn_score, which is the
+// running total while rolling, the new total after banking, and the carried
+// total after a farkle. `hot` accumulates each time the bot scores all six dice.
 function playTenThousandBotRound(game, mark, seat) {
+  const trajectory = [{ total: seat.score, status: "rolling", hot: 0 }];
+  let hot = 0;
+  const snap = (status) => trajectory.push({ total: seat.score + seat.turn_score, status, hot });
+  const finish = () => { seat.bot_trajectory = trajectory; };
   for (let guard = 0; guard < 50; guard += 1) {
     if (seat.phase === "ready") rollTenThousandDice(seat);
     else if (seat.phase === "selected") rerollTenThousandDice(seat);
-    if (seat.resolved) return;
+    if (seat.resolved) { finish(); return; }
     const level = tenThousandBotLevel(seat);
     const keepPlan = tenThousandBotKeep(level, seat.dice);
     const keep = tenThousandBotShouldMisplay(level)
@@ -1853,21 +1882,26 @@ function playTenThousandBotRound(game, mark, seat) {
       : keepPlan;
     // No scoring dice (rolls are no longer auto-farkled) is the bot's bust: it
     // resolves and acknowledges in one step, counting the farkle.
-    if (!keep.ids.length) { resolveTenThousandFarkle(seat, true, true); return; }
+    if (!keep.ids.length) { resolveTenThousandFarkle(seat, true, true); snap("farkled"); finish(); return; }
     selectTenThousandDice(seat, keep.ids);
+    if (seat.dice.length && seat.dice.every((die) => die.scored)) hot += 1; // hot dice
     const shouldBank = tenThousandBotShouldBank(game, seat, level);
     const finalBank = tenThousandBotShouldMisplay(level) ? !shouldBank : shouldBank;
     // Only bank when it is legal: below the opening minimum the bot must keep
     // pressing (or eventually bust), exactly like a human with bank disabled.
     if (finalBank && tenThousandCanBank(game, seat)) {
       bankTenThousandScore(game, mark, seat);
+      snap("banked");
+      finish();
       return;
     }
+    snap("rolling");
   }
   // Safety: never loop forever — bank whatever is on the table if it is legal,
   // otherwise resolve without banking so the round can still advance.
-  if (tenThousandCanBank(game, seat)) bankTenThousandScore(game, mark, seat);
-  else if (!seat.resolved) resolveTenThousandFarkle(seat, true, false);
+  if (tenThousandCanBank(game, seat)) { bankTenThousandScore(game, mark, seat); snap("banked"); }
+  else if (!seat.resolved) { resolveTenThousandFarkle(seat, true, false); snap("farkled"); }
+  finish();
 }
 
 function tenThousandBotKeep(level, dice) {

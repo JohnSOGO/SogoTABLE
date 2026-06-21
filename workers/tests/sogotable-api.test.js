@@ -481,6 +481,34 @@ test("10,000 multiplayer: bots resolve each round automatically", async () => wi
   assert.equal(seatByMark(nextRound, "P2").resolved, true);
 }));
 
+test("10,000 records a bot's per-roll trajectory for the play-along display", async () => withMockRandom([0], async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "TRAJ" });
+  await post(env, "/api/room/join-bot", { code: "TRAJ", host_id: host.id, bot_id: "7c91a4e2b6d0" });
+  const started = await post(env, "/api/room/start", { code: "TRAJ", host_id: host.id });
+
+  const bot = seatByMark(started, "P2");
+  assert.equal(bot.is_bot, true);
+  const traj = bot.bot_trajectory;
+  assert.equal(Array.isArray(traj), true);
+  assert.ok(traj.length >= 2); // baseline + at least one roll
+  assert.equal(traj[0].total, 0); // baseline = carried score before this round
+  assert.equal(traj[0].status, "rolling");
+  const final = traj[traj.length - 1];
+  assert.ok(final.status === "banked" || final.status === "farkled");
+  assert.equal(final.total, bot.score); // running total resolves to the bot's score
+  // Each entry is a non-negative running total; intermediate entries are "rolling".
+  assert.ok(traj.every((entry) => Number.isInteger(entry.total) && entry.total >= 0));
+  assert.ok(traj.slice(1, -1).every((entry) => entry.status === "rolling"));
+
+  // The human's roll count drives the pacing: starts at 0, ticks up on each roll.
+  assert.equal(bot.roll_count >= 0, true);
+  assert.equal(seatByMark(started, "P1").roll_count, 0);
+  const rolled = await post(env, "/api/room/move", { code: "TRAJ", player_id: host.id, action: { type: "roll" } });
+  assert.equal(seatByMark(rolled, "P1").roll_count, 1);
+}));
+
 test("10,000 bot opening bust counts a single farkle", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
   const env = makeEnv();
   const host = player("host", "Host");
