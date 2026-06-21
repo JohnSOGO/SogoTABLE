@@ -1559,7 +1559,11 @@ function newTenThousandSeat(seat) {
 }
 
 function tenThousandBotLevel(seat) {
-  if (!seat || seat.kind !== "bot") return 0;
+  // Accept both the room player (kind "bot", carries bot_level) and the in-game
+  // seat (is_bot, carries the resolved level). Previously this only checked
+  // `kind`, so the in-game seat — which has no `kind` — always resolved to 0 and
+  // every tier silently played as the level-0 default.
+  if (!seat || (seat.kind !== "bot" && seat.is_bot !== true)) return 0;
   const level = Number(seat.bot_level !== undefined ? seat.bot_level : seat.level);
   if (Number.isInteger(level) && level >= 1 && level <= 4) return level;
   return 2; // Kitchen Table default

@@ -1,4 +1,4 @@
-import worker from "../workers/sogotable-api.js";
+import worker, { __test } from "../workers/sogotable-api.js";
 
 const TEN_THOUSAND_GAME_ID = "6d10f4a2c8b3";
 const BOT_IDS = [
@@ -116,65 +116,20 @@ async function roomAction(env, path, body) {
   return result.room;
 }
 
+// The benchmark's "human" opponent takes the maximal scoring keep (the real
+// worker scorer, so doubling / two-triplets stay in sync) and banks on a simple
+// fixed policy. It is a constant baseline across all bot matchups.
 function chooseScoringDiceIds(dice) {
-  const available = dice.filter((die) => !die.scored && !die.selected && die.value);
-  if (!available.length) return [];
-  let best = { ids: [], score: 0 };
-  const total = 1 << available.length;
-
-  for (let mask = 1; mask < total; mask += 1) {
-    const values = [];
-    const ids = [];
-    for (let index = 0; index < available.length; index += 1) {
-      if ((mask & (1 << index)) === 0) continue;
-      values.push(available[index].value);
-      ids.push(available[index].id);
-    }
-    const scored = tenThousandScoreValues(values);
-    if (!scored.valid) continue;
-    if (scored.score > best.score || (scored.score === best.score && ids.length > best.ids.length)) {
-      best = { ids, score: scored.score };
-    }
-  }
-
-  return best.ids;
-}
-
-function tenThousandScoreValues(values) {
-  const clean = values.map(Number).filter((value) => Number.isInteger(value) && value >= 1 && value <= 6);
-  if (clean.length !== values.length || !clean.length) return { valid: false, score: 0 };
-  const counts = tenThousandCounts(clean);
-  if (clean.length === 6 && counts.every((count) => count === 1)) return { valid: true, score: 1500 };
-  if (clean.length === 6 && counts.filter((count) => count === 2).length === 3) return { valid: true, score: 1500 };
-  let score = 0;
-  for (let index = 0; index < counts.length; index += 1) {
-    const face = index + 1;
-    if (counts[index] >= 3) {
-      score += face === 1 ? 1000 : face * 100;
-      counts[index] -= 3;
-    }
-  }
-  score += counts[0] * 100;
-  counts[0] = 0;
-  score += counts[4] * 50;
-  counts[4] = 0;
-  if (counts.some((count) => count > 0)) return { valid: false, score: 0 };
-  return { valid: score > 0, score };
-}
-
-function tenThousandCounts(values) {
-  const counts = [0, 0, 0, 0, 0, 0];
-  values.forEach((value) => {
-    counts[value - 1] += 1;
-  });
-  return counts;
+  return __test.bestTenThousandKeep(dice || []).ids;
 }
 
 function shouldBank(seat, game) {
+  // Cannot bank below the opening minimum (the server enforces it); press on.
+  if (!seat.can_bank) return false;
   if (seat.score + seat.turn_score >= game.target_score) return true;
+  const remaining = (seat.dice || []).filter((die) => !die.scored).length;
+  if (remaining <= 2 && seat.turn_score >= 400) return true;
   if (seat.turn_score >= 750) return true;
-  if ((seat.dice || []).length <= 2 && seat.turn_score >= 350) return true;
-  if (seat.turn_score >= 1200) return true;
   return false;
 }
 
@@ -216,11 +171,15 @@ async function playGame(bot, gameIndex) {
 
     if (seat.phase === "rolled") {
       const keepIds = chooseScoringDiceIds(seat.dice || []);
-      if (!keepIds.length) throw new Error(`No scoring dice found for ${room.code} on ${bot.name}.`);
+      // Rolls no longer auto-farkle: with no scoring play, the player declares
+      // their own farkle (then acknowledges it on the next pass).
+      const action = keepIds.length
+        ? { type: "select", dice_ids: keepIds }
+        : { type: "declare_farkle" };
       room = await roomAction(env, "/api/room/move", {
         code: room.code,
         player_id: humanSeat.id,
-        action: { type: "select", dice_ids: keepIds },
+        action,
       });
       continue;
     }
