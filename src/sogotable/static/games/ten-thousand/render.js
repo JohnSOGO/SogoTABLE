@@ -109,10 +109,16 @@ function trayHtml(seat, game, pendingMove) {
     : new Set();
   if (animate) lastAnimatedMoveCount = moveCount;
 
-  // On a farkle, only the just-rolled dice that failed to score (the unscored
-  // ones) are red; dice already set aside this turn stay as they were.
+  // On a farkle, the unscored dice are red — except any that were actually part
+  // of a scoring play, which are marked yellow to show the player the move they
+  // missed. (Empty when the bust was a true farkle with no play.)
+  const missedIds = showBust ? tenThousandMissedScoringIds(dice) : new Set();
   const diceHtml = dice
-    .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: showBust && !die.scored }))
+    .map((die) => dieHtml(die, {
+      rolling: rolledIds.has(die.id),
+      missed: showBust && !die.scored && missedIds.has(die.id),
+      bust: showBust && !die.scored && !missedIds.has(die.id),
+    }))
     .join("");
   // The first slot is "Play+Dice" to roll, but once a roll is on the table it
   // becomes the "Red X": the player must declare their own farkle. There is no
@@ -273,22 +279,26 @@ function wireStandings(host) {
   });
 }
 
-function dieHtml(die, { rolling = false, bust = false } = {}) {
+function dieHtml(die, { rolling = false, bust = false, missed = false } = {}) {
   const rawValue = Number(die.value);
   const hasValue = Number.isInteger(rawValue) && rawValue >= 1 && rawValue <= 6;
-  if (bust && !hasValue) throw new Error("Ten Thousand farkle dice must preserve their rolled values.");
+  if ((bust || missed) && !hasValue) throw new Error("Ten Thousand farkle dice must preserve their rolled values.");
   const value = hasValue ? rawValue : 1;
   const blank = !hasValue;
   const disabled = die.scored || blank;
+  // On a declared farkle, a die that was actually part of a scoring play is
+  // marked yellow (the move you missed) rather than red.
   const classes = [
     "ten-thousand-die",
     die.scored ? "scored" : "",
+    missed ? "tt-missed pending" : "",
     bust ? "select-bust pending farkled" : "",
     hasValue ? "landed" : "blank",
   ].filter(Boolean).join(" ");
   const cubeClasses = ["die-cube", `die-face-${value}`, rolling ? "rolling" : ""].filter(Boolean).join(" ");
+  const label = missed ? `, missed scoring die ${value}` : "";
   return `
-    <button class="${classes}" type="button" data-die-id="${die.id}" ${disabled ? "disabled" : ""} aria-label="Die ${die.id}, ${hasValue ? value : "not rolled"}">
+    <button class="${classes}" type="button" data-die-id="${die.id}" ${disabled ? "disabled" : ""} aria-label="Die ${die.id}, ${hasValue ? value : "not rolled"}${label}">
       <span class="${cubeClasses}">
         ${[1, 2, 3, 4, 5, 6].map((face) => faceHtml(face)).join("")}
       </span>
@@ -305,6 +315,29 @@ function faceHtml(face) {
 
 function tenThousandScoringIds(selected) {
   return tenThousandSelectionScore(selected).scoringIds;
+}
+
+// The ids of the best-scoring keep among the still-rollable dice — i.e. the play
+// the player had available. Empty when there was genuinely no scoring play.
+// Brute-forces the (at most 2^6) subsets and keeps the highest-scoring valid one.
+function tenThousandMissedScoringIds(dice) {
+  const avail = (Array.isArray(dice) ? dice : [])
+    .filter((die) => !die.scored && Number(die.value) >= 1 && Number(die.value) <= 6);
+  let bestIds = new Set();
+  let bestScore = 0;
+  const total = 1 << avail.length;
+  for (let mask = 1; mask < total; mask += 1) {
+    const subset = [];
+    for (let index = 0; index < avail.length; index += 1) {
+      if (mask & (1 << index)) subset.push(avail[index]);
+    }
+    const result = tenThousandSelectionScore(subset);
+    if (result.valid && result.score > bestScore) {
+      bestScore = result.score;
+      bestIds = new Set(subset.map((die) => die.id));
+    }
+  }
+  return bestIds;
 }
 
 function tenThousandSelectionScore(selected) {

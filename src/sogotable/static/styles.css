@@ -2083,6 +2083,15 @@ button.player-switch-button {
   box-shadow: inset 0 0 0 1px rgba(127, 29, 29, 0.12);
 }
 
+/* A die that was actually part of a scoring play on a declared farkle: yellow,
+   to show the player the move they didn't take. */
+.ten-thousand-die.tt-missed .die-face {
+  border-color: #eab308;
+  background: linear-gradient(145deg, #fef9c3, #fde047);
+  color: #713f12;
+  box-shadow: inset 0 0 0 1px rgba(113, 63, 18, 0.18);
+}
+
 .ten-thousand-die.selected .die-face,
 .ten-thousand-die.scored .die-face {
   border-color: #8ad3ad;
