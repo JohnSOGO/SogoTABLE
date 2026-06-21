@@ -99,10 +99,10 @@ GAME_DEFINITIONS.forEach((game) => {
 });
 const BOT_MOVE_DELAY_MS = 700;
 const BOT_DEFINITIONS = [
-  { id: "7c91a4e2b6d0", name: "Sogo Bot", icon: "\uD83E\uDD16", color: "#4f46e5", rating: 1000, strategy: "random" },
-  { id: "0f8a3c9d1e72", name: "Tactical Tess", icon: "\uD83C\uDFAF", color: "#c43d5d", rating: 1000, strategy: "smart" },
-  { id: "b64d20f19a8c", name: "Corner Cade", icon: "\u2B50", color: "#1f7a5f", rating: 1000, strategy: "random" },
-  { id: "5e2c8a71d0f4", name: "Lucky Lina", icon: "\uD83C\uDF40", color: "#b7791f", rating: 1000, strategy: "random" },
+  { id: "7c91a4e2b6d0", name: "Sprout", icon: "\uD83C\uDF31", color: "#16a34a", rating: 900, strategy: "random", difficulty: "novice", difficulty_label: "Novice" },
+  { id: "5e2c8a71d0f4", name: "Buddy", icon: "\uD83E\uDD1D", color: "#2563eb", rating: 980, strategy: "random", difficulty: "casual", difficulty_label: "Casual" },
+  { id: "b64d20f19a8c", name: "Cipher", icon: "\uD83D\uDD11", color: "#7c3aed", rating: 1100, strategy: "smart", difficulty: "strategist", difficulty_label: "Strategist" },
+  { id: "0f8a3c9d1e72", name: "Overlord", icon: "\uD83D\uDC51", color: "#dc2626", rating: 1250, strategy: "smart", difficulty: "master", difficulty_label: "Master" },
 ];
 const RESERVED_TEST_PLAYERS = [
   { id: "codex-test-player-1", name: "Codex Test 1", icon: "\uD83E\uDDEA", color: "#4f46e5", kind: "test", hidden: true },
@@ -987,7 +987,9 @@ function publicBot(bot) {
     color: bot.color,
     strategy: bot.strategy || "random",
     strategy_icon: bot.strategy === "smart" ? "\uD83E\uDDE0" : "\uD83C\uDFB2",
-    strategy_label: bot.strategy === "smart" ? "Smart move scoring" : "Random legal moves",
+    strategy_label: bot.difficulty_label || (bot.strategy === "smart" ? "Smart move scoring" : "Random legal moves"),
+    difficulty: bot.difficulty || "novice",
+    difficulty_label: bot.difficulty_label || "Novice",
   };
 }
 

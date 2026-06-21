@@ -47,6 +47,6 @@ The game screen defaults to defence during setup, offence on the local player's
 turn, and defence while waiting. Players can manually switch between `Auto`,
 `Offence`, and `Defence`.
 
-Tactical Tess uses stronger Battleship logic than the basic bots: Monte Carlo
+Overlord uses stronger Battleship logic than the basic bots: Monte Carlo
 fleet placement scored against a generic attack heat map, and probability-based
 attacks with parity, information value, and hit-line finishing.

@@ -136,7 +136,7 @@ Bot seats have:
 
 Bots do not appear in the shared player roster, lobby player list, or public leaderboard rows.
 
-Bot `id` and `bot_id` values must be opaque random ids. Bot names such as `Sogo Bot` are mutable display labels, not identity.
+Bot `id` and `bot_id` values must be opaque random ids. Bot names such as `Sprout` or `Overlord` are mutable display labels, not identity.
 
 Persistent player color is a preference. A room seat may use a gameplay-safe display color if the preferred color conflicts with another seated player.
 

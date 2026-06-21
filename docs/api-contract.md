@@ -442,9 +442,9 @@ Response:
       "id": "7c91a4e2b6d0",
       "bot_id": "7c91a4e2b6d0",
       "kind": "bot",
-      "name": "Sogo Bot",
-      "icon": "🤖",
-      "color": "#4f46e5"
+      "name": "Sprout",
+      "icon": "🌱",
+      "color": "#16a34a"
     }
   ]
 }

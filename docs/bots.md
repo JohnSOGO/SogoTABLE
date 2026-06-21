@@ -14,7 +14,7 @@ The user can create a room, open the waiting opponent controls, tap `Invite Bot`
 
 ### Evaluate
 
-This is the right direction because it preserves the room-as-game architecture and makes future games easier to test. The dangerous version would be a browser-side fake opponent or a separate single-player rules branch. Most v1 bots intentionally use random legal moves. Tactical Tess is the first normal-strength bot and uses hosted move scoring only.
+This is the right direction because it preserves the room-as-game architecture and makes future games easier to test. The dangerous version would be a browser-side fake opponent or a separate single-player rules branch. Most v1 bots intentionally use random legal moves. Cipher and Overlord are the scored bots in the current ladder and use hosted move scoring only.
 
 ### Conclude
 
@@ -33,14 +33,14 @@ Adopt with constraints: generic bot seats, hosted authority, short delayed room-
 - [x] Reuse the opponent picker modal for bot selection.
 - [x] Count human stats from bot games while excluding bots from visible leaderboards.
 - [x] Add Worker tests for bot list, seating, legal moves, and leaderboard filtering.
-- [x] Upgrade Tactical Tess to a scored normal bot with attack, defense, destination control, positional scoring, and pickup scoring.
+- [x] Upgrade Cipher and Overlord to scored normal bots with attack, defense, destination control, positional scoring, and pickup scoring.
 
 ## Current Behavior
 
 - Ready games share the same bot opponent flow.
 - The first bots are named personas. Most v1 bots choose a random legal move.
-- The bot invite list marks algorithms visually: `🧠` for Tactical Tess's smart scored selector and `🎲` for random legal-move bots.
-- Tactical Tess uses a one-ply scored move selector:
+- The bot invite list marks algorithms visually: `🧠` for Cipher and Overlord's smart scored selectors and `🎲` for random legal-move bots.
+- Cipher and Overlord use one-ply scored move selectors:
   - win the whole game if possible
   - block opponent game wins
   - win or block zones
@@ -53,6 +53,6 @@ Adopt with constraints: generic bot seats, hosted authority, short delayed room-
 
 ## Future Work
 
-- Add one-ply opponent-response scoring for a future hard bot after Tactical Tess has been playtested.
+- Add one-ply opponent-response scoring for a future hard bot after the smart ladder has been playtested.
 - Keep future bot behavior as move choice, not direct board mutation.
 - Consider separate vs-bot stats only if human-vs-bot ELO starts confusing the lobby.

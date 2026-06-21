@@ -30,6 +30,7 @@ opponent, remote invite, bot invite, reset, exit, and room WebSocket flow. The
 Worker owns move validation and state transitions; the browser renders legal
 pawn destinations and wall slots from the authoritative room state.
 
-Bots use the four difficulty levels documented in
-`src/sogotable/static/games/Quoridor/quoridor_ai_rules_four_difficulties.md`:
-Rookie, Scout, Tactician, and Master.
+Bots use the global recruitable ladder documented in
+`docs/ai-difficulty.md`, and Quoridor maps those four bot ids onto its
+four-level behavior model described in
+`src/sogotable/static/games/Quoridor/quoridor_ai_rules_four_difficulties.md`.
