@@ -120,6 +120,14 @@ input {
   align-self: center;
 }
 
+#intro .intro-admin-action {
+  width: var(--intro-control-width);
+  align-self: center;
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+}
+
 .brand {
   width: var(--intro-control-width);
   display: grid;

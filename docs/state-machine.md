@@ -227,6 +227,7 @@ Required display:
 - Centered image logo/splash art, about 90% as wide as the `Start Playing` button.
 - Short product text.
 - `Start Playing` button.
+- If the current selected player is an unlocked Sogo superuser, show `Export .ZIP` below `Start Playing`. It exports an allowlisted source-review archive from the public GitHub `main` source tree and must not include secrets, runtime state, generated caches, ignored `AI/` intake files, Cloudflare local state, or dependency folders.
 - Small revision label.
 
 Allowed transitions:
@@ -239,6 +240,7 @@ Do not:
 - Add setup forms here.
 - Add room controls here.
 - Add game descriptions here beyond light intro copy.
+- Add broad repository exports or runtime-data exports here.
 
 ## Screen State: PLAYER_GAME_SELECTION
 
