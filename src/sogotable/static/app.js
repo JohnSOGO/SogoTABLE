@@ -1484,9 +1484,17 @@ async function closeGame() {
 async function resetGame() {
   if (!currentRoom) return;
   const completed = isCompletedRoom(currentRoom);
+  // Agreement is only sought when more than one human is seated; bots auto-agree
+  // and a solo game resets instantly, so don't claim "the other player must
+  // agree" when there is no other player to ask.
+  const needsAgreement = (currentRoom.players || []).filter((seat) => !isBotPlayer(seat)).length > 1;
   const message = completed
-    ? "Request a new game with these same players? The other player must agree."
-    : "Request a board reset? The other player must agree.";
+    ? (needsAgreement
+      ? "Request a new game with these same players? The other players must agree."
+      : "Start a new game with the same players?")
+    : (needsAgreement
+      ? "Request a board reset? The other players must agree."
+      : "Reset the board and start over?");
   const confirmed = await confirmAction("Are you sure?", message);
   if (!confirmed) return;
   const player =
