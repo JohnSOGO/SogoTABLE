@@ -253,11 +253,11 @@ function dieHtml(die, { rolling = false, bust = false } = {}) {
   if (bust && !hasValue) throw new Error("Ten Thousand farkle dice must preserve their rolled values.");
   const value = hasValue ? rawValue : 1;
   const blank = !hasValue;
-  const disabled = die.scored || blank || bust;
+  const disabled = die.scored || blank;
   const classes = [
     "ten-thousand-die",
     die.scored ? "scored" : "",
-    bust ? "select-bust pending" : "",
+    bust ? "select-bust pending farkled" : "",
     hasValue ? "landed" : "blank",
   ].filter(Boolean).join(" ");
   const cubeClasses = ["die-cube", `die-face-${value}`, rolling ? "rolling" : ""].filter(Boolean).join(" ");
