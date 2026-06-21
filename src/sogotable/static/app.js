@@ -225,6 +225,7 @@ let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let pendingConfirmAction = null;
 let handledResetRequestKey = "";
+let selectedGameEntryRequestId = 0;
 const realtime = createRealtimeController({
   getAppSubscription: () => ({
     gameId: selectedGame().id,
@@ -379,17 +380,33 @@ function bindNavigation() {
   });
 }
 
-function showScreen(name) {
-  if (name === "game" && !currentRoom) return;
-  if (name === "gameSelected" && !selectedGame()) return;
+function setActiveScreen(name) {
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.toggle("active", screen.id === name);
   });
-  if (name === "game") startRoomLiveUpdates();
+}
+
+function showScreen(name) {
+  if (name === "game" && !currentRoom) return;
+  if (name === "gameSelected" && !selectedGame()) return;
   if (name === "gameSelected") {
-    renderGameSelected();
-    refreshSelectedGameView();
+    void enterSelectedGameScreen();
+    return;
   }
+  setActiveScreen(name);
+  if (name === "game") startRoomLiveUpdates();
+}
+
+async function enterSelectedGameScreen() {
+  const game = selectedGame();
+  if (!game) return;
+  const requestId = ++selectedGameEntryRequestId;
+  realtime.sendAppEventSubscription();
+  await refreshSelectedGameView({ allowHiddenPresence: true });
+  if (requestId !== selectedGameEntryRequestId || selectedGame().id !== game.id) return;
+  if (await autoOpenActiveRoomForSelectedPlayer({ allowHidden: true })) return;
+  renderGameSelected();
+  setActiveScreen("gameSelected");
 }
 
 function bindRefreshTitleControls() {
@@ -470,15 +487,16 @@ function renderGameSelected() {
   renderActiveGameNotice();
 }
 
-async function refreshSelectedGameView() {
-  if (!selectedGame()) return;
+async function refreshSelectedGameView({ allowHiddenPresence = false } = {}) {
+  const game = selectedGame();
+  if (!game) return;
   realtime.sendAppEventSubscription();
+  await updateLobbyPresence({ game, allowHidden: allowHiddenPresence });
   await Promise.all([
-    refreshLobbyPlayers(),
-    refreshGameStats(),
-    refreshGameRooms(),
+    refreshLobbyPlayers(game),
+    refreshGameStats(game),
+    refreshGameRooms(game),
     refreshPendingInvites(),
-    updateLobbyPresence(),
   ]);
 }
 
@@ -545,40 +563,43 @@ function renderLobbyPlayers() {
   });
 }
 
-async function refreshLobbyPlayers() {
-  const game = selectedGame();
+async function refreshLobbyPlayers(game = selectedGame()) {
   if (!game) return;
   try {
     const data = await fetchJson(`/api/lobby?game_id=${encodeURIComponent(game.id)}`);
     if (!data.ok) throw new Error(data.error || "Could not load lobby players.");
+    if (!isCurrentSelectedGame(game)) return;
     lobbyPlayers = data.players;
     renderLobbyPlayers();
   } catch {
+    if (!isCurrentSelectedGame(game)) return;
     lobbyPlayers = [];
     renderLobbyPlayers();
   }
 }
 
-async function refreshGameStats() {
-  const game = selectedGame();
+async function refreshGameStats(game = selectedGame()) {
   if (!game) return;
   try {
     const data = await fetchJson(`/api/stats?game_id=${encodeURIComponent(game.id)}`);
     if (!data.ok) throw new Error(data.error || "Could not load stats.");
+    if (!isCurrentSelectedGame(game)) return;
     currentGameStats = data.stats || { high_scores: [], ratings: [] };
     renderGameStats();
   } catch {
+    if (!isCurrentSelectedGame(game)) return;
     currentGameStats = { high_scores: [], ratings: [] };
     renderGameStats();
   }
 }
 
-async function updateLobbyPresence() {
+async function updateLobbyPresence({ game = selectedGame(), allowHidden = false } = {}) {
   const player = deviceSelectedPlayer();
-  const game = selectedGame();
-  if (!player || !game || !document.getElementById("gameSelected").classList.contains("active")) return;
+  const gameSelectedScreen = document.getElementById("gameSelected");
+  if (!player || !game || (!allowHidden && !gameSelectedScreen.classList.contains("active"))) return;
   try {
     const response = await api("/api/lobby/presence", { game_id: game.id, player });
+    if (!isCurrentSelectedGame(game)) return;
     lobbyPlayers = response.players;
     renderLobbyPlayers();
     if (response.stats) {
@@ -586,22 +607,23 @@ async function updateLobbyPresence() {
       renderGameStats();
     }
   } catch {
-    refreshLobbyPlayers();
+    refreshLobbyPlayers(game);
   }
 }
 
-async function refreshGameRooms() {
-  const game = selectedGame();
+async function refreshGameRooms(game = selectedGame()) {
   if (!game) return;
   try {
     const data = await fetchJson(`/api/rooms?game_id=${encodeURIComponent(game.id)}`);
     if (!data.ok) throw new Error(data.error || "Could not load games.");
+    if (!isCurrentSelectedGame(game)) return;
     currentGameRooms = data.rooms;
     renderCurrentGames();
     renderCreateGameButton();
     renderActiveGameNotice();
-    autoOpenActiveRoomForSelectedPlayer();
+    void autoOpenActiveRoomForSelectedPlayer();
   } catch (error) {
+    if (!isCurrentSelectedGame(game)) return;
     currentGameRooms = [];
     playerApiAvailable = false;
     renderCurrentGames(error.message);
@@ -610,23 +632,25 @@ async function refreshGameRooms() {
   }
 }
 
-async function autoOpenActiveRoomForSelectedPlayer() {
+async function autoOpenActiveRoomForSelectedPlayer({ allowHidden = false } = {}) {
   const player = deviceSelectedPlayer();
   const gameSelectedScreen = document.getElementById("gameSelected");
-  if (!player || !gameSelectedScreen || !gameSelectedScreen.classList.contains("active")) return;
+  if (!player || !gameSelectedScreen || (!allowHidden && !gameSelectedScreen.classList.contains("active"))) return false;
   const room = currentGameRooms.find((item) => (
     item.status === "active" &&
     item.players.some((seat) => seat.id === player.id)
   ));
-  if (!room || (currentRoom && currentRoom.code === room.code)) return;
+  if (!room || (currentRoom && currentRoom.code === room.code)) return false;
   try {
     const data = await fetchJson(`/api/room?code=${encodeURIComponent(room.code)}`);
-    if (!data.ok) return;
+    if (!data.ok) return false;
     activeGameRoom = data.room;
     setRoom(data.room);
     showScreen("game");
+    return true;
   } catch {
     // A transient read failure should not strand the screen; the next explicit refresh or socket update can recover.
+    return false;
   }
 }
 
@@ -3489,6 +3513,10 @@ function forgetLocalGameHomePlayer(room) {
 
 function selectedGame() {
   return games.find((game) => game.id === canonicalGameId(selectedGameId)) || games.find(gameIsReady) || games[0];
+}
+
+function isCurrentSelectedGame(game) {
+  return Boolean(game && selectedGame() && canonicalGameId(game.id) === canonicalGameId(selectedGame().id));
 }
 
 function gameName(gameId) {

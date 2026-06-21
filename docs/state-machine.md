@@ -282,6 +282,7 @@ Game button behavior:
 - Disabled if the game definition is not currently available.
 - Enabled when a device/home selected player exists.
 - Tapping a game button sets `selectedGameId` and opens `GAME_SELECTED`.
+- Opening a selected-game lobby should be settled before it is painted: send the lobby presence registration and fetch lobby/current-games data first, then reveal/update the selected-game UI so placeholder text does not visibly toggle.
 - Game availability is data-driven on the game definition so future games can be added as `ready`, `coming_soon`, or unavailable without changing the screen flow.
 
 Do not:
