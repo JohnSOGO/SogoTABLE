@@ -189,3 +189,33 @@ export function playBattleshipMiss() {
     { frequency: 190, duration: 0.08, type: "triangle", volume: 0.023, delay: 0.08, slideTo: 150 },
   ]);
 }
+
+// 10,000 dice tumbling: a few short, slightly detuned knocks.
+export function playDiceRoll() {
+  playSequence([
+    { frequency: 220, duration: 0.05, type: "square", volume: 0.022, slideTo: 175 },
+    { frequency: 320, duration: 0.045, type: "square", volume: 0.02, delay: 0.05, slideTo: 250 },
+    { frequency: 200, duration: 0.05, type: "triangle", volume: 0.021, delay: 0.1, slideTo: 150 },
+  ]);
+}
+
+// Setting aside scoring dice: a light upward blip.
+export function playScorePick() {
+  playTone({ frequency: 660, duration: 0.05, type: "sine", volume: 0.026, slideTo: 880 });
+}
+
+// Banking the turn score: a satisfying two-note cash-in.
+export function playBank() {
+  playSequence([
+    { frequency: 700, duration: 0.07, type: "sine", volume: 0.032, slideTo: 980 },
+    { frequency: 1040, duration: 0.11, type: "sine", volume: 0.034, delay: 0.08 },
+  ]);
+}
+
+// Farkle (busted roll): a downward bust tone.
+export function playFarkle() {
+  playSequence([
+    { frequency: 300, duration: 0.1, type: "sawtooth", volume: 0.03, slideTo: 150 },
+    { frequency: 170, duration: 0.16, type: "triangle", volume: 0.028, delay: 0.09, slideTo: 90 },
+  ]);
+}

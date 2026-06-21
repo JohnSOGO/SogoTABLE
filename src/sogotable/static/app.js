@@ -15,14 +15,18 @@ import {
   soundVolumeLevel,
   playBattleshipHit,
   playBattleshipMiss,
+  playBank,
   playCancel,
   playClick,
   playConfirm,
+  playDiceRoll,
+  playFarkle,
   playInvalidMove,
   playInviteReceived,
   playLose,
   playPlayerJoined,
   playRoomCreated,
+  playScorePick,
   playTurnChanged,
   playWin,
   toggleSound,
@@ -188,6 +192,7 @@ let lastPlayerJoinedSoundKey = "";
 let lastTurnSoundKey = "";
 let lastGameEventSoundKey = "";
 let lastGameOverSoundKey = "";
+let lastTenThousandSoundKey = "";
 let selectedPlayerStatsRequestId = 0;
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
@@ -1639,7 +1644,12 @@ async function makeTenThousandAction(action) {
     roomCode: currentRoom.code,
     moveCount: currentRoom.game.move_count,
   };
-  renderGame();
+  // Deliberately do NOT re-render here. Re-rendering mid-request snaps the tray
+  // back to the pre-commit seat (selection highlight cleared, projected "This
+  // turn" dropped to the banked-so-far base) and then jumps again when the
+  // server answers, which reads as a glitchy flicker. The pendingMove guard
+  // above already blocks double submits, so let the optimistic dice/score the
+  // player just set rest until the authoritative snapshot arrives.
   try {
     const response = await api("/api/room/move", {
       code: currentRoom.code,
@@ -1848,7 +1858,24 @@ function playRoomStateSounds(previousRoom, room) {
   playTurnChangedSound(previousRoom, room);
   playTacticalEventSound(previousRoom, room);
   playBoxesEventSound(previousRoom, room);
+  playTenThousandEventSound(previousRoom, room);
   playGameOverSound(previousRoom, room);
+}
+
+// 10,000 has no shared current_player, so the turn-change sound never fires.
+// Drive its audio off last_move instead: dice tumble on a roll/reroll, a blip
+// when scoring dice are set aside, a cash-in on bank, and a bust on a farkle.
+function playTenThousandEventSound(previousRoom, room) {
+  if (!isTenThousandGameState(room.game)) return;
+  const move = room.game.last_move;
+  if (!move || !move.type) return;
+  const soundKey = `${room.code}:${move.move_count}:${move.type}:${move.mark || ""}`;
+  if (soundKey === lastTenThousandSoundKey) return;
+  lastTenThousandSoundKey = soundKey;
+  if (move.type === "roll" || move.type === "reroll") playDiceRoll();
+  else if (move.type === "select") playScorePick();
+  else if (move.type === "bank") playBank();
+  else if (move.type === "farkle") playFarkle();
 }
 
 function playPlayerJoinedSound(previousRoom, room) {
