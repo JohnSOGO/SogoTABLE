@@ -339,17 +339,15 @@ async function refreshRevisionSummary() {
 }
 
 async function fetchRevisionStatus() {
-  const endpoints = ["/api/status", "/revision.json"];
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, { cache: "no-store" });
-      const contentType = response.headers.get("content-type") || "";
-      if (!response.ok || !contentType.includes("application/json")) continue;
+  try {
+    const response = await fetch("/revision.json", { cache: "no-store" });
+    const contentType = response.headers.get("content-type") || "";
+    if (response.ok && contentType.includes("application/json")) {
       const data = await response.json();
       if (data.ok && data.status && data.status.summary) return data;
-    } catch {
-      // Try the next revision source. Static Pages does not provide /api/status.
     }
+  } catch {
+    // Static Pages can briefly lag the asset refresh.
   }
   throw new Error("revision unavailable");
 }
