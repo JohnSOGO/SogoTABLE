@@ -635,11 +635,11 @@ test("Overlord blocks an immediate zone win", async () => withMockRandom([0, 0, 
   const env = makeEnv();
   const host = player("host", "Host");
   const bots = await get(env, "/api/bots?game_id=super_tactical_tac_toe");
-  const tess = bots.bots.find((bot) => bot.name === "Overlord");
+  const overlord = bots.bots.find((bot) => bot.name === "Overlord");
   const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TBLK" });
-  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: tess.id });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: overlord.id });
   const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
-  const tessSeat = joined.room.players.find((seat) => seat.id === tess.id);
+  const overlordSeat = joined.room.players.find((seat) => seat.id === overlord.id);
 
   mutateState(env, (data) => {
     const game = data.rooms.TBLK.game;
@@ -653,18 +653,18 @@ test("Overlord blocks an immediate zone win", async () => withMockRandom([0, 0, 
   const moved = await post(env, "/api/room/move", { code: "TBLK", player_id: humanSeat.id, board: 1, cell: 0 });
 
   assert.equal(moved.ok, true);
-  assert.equal(moved.room.game.boards[0][2], tessSeat.mark);
+  assert.equal(moved.room.game.boards[0][2], overlordSeat.mark);
 }));
 
 test("Overlord avoids sending the opponent to a winning destination zone", async () => withMockRandom([0, 0, 0, 0], async () => {
   const env = makeEnv();
   const host = player("host", "Host");
   const bots = await get(env, "/api/bots?game_id=super_tactical_tac_toe");
-  const tess = bots.bots.find((bot) => bot.name === "Overlord");
+  const overlord = bots.bots.find((bot) => bot.name === "Overlord");
   const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TDST" });
-  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: tess.id });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: overlord.id });
   const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
-  const tessSeat = joined.room.players.find((seat) => seat.id === tess.id);
+  const overlordSeat = joined.room.players.find((seat) => seat.id === overlord.id);
 
   mutateState(env, (data) => {
     const game = data.rooms.TDST.game;
@@ -679,7 +679,7 @@ test("Overlord avoids sending the opponent to a winning destination zone", async
 
   assert.equal(moved.ok, true);
   assert.equal(moved.room.game.boards[0][2], null);
-  assert.equal(moved.room.game.boards[0].some((cell, index) => index !== 2 && cell === tessSeat.mark), true);
+  assert.equal(moved.room.game.boards[0].some((cell, index) => index !== 2 && cell === overlordSeat.mark), true);
   assert.notEqual(moved.room.game.next_board, 2);
 }));
 
@@ -687,11 +687,11 @@ test("Overlord values a treasure pickup over a plain center cell", async () => w
   const env = makeEnv();
   const host = player("host", "Host");
   const bots = await get(env, "/api/bots?game_id=super_tactical_tac_toe");
-  const tess = bots.bots.find((bot) => bot.name === "Overlord");
+  const overlord = bots.bots.find((bot) => bot.name === "Overlord");
   const created = await post(env, "/api/room/create", { game_id: "super_tactical_tac_toe", player: host, code: "TPWR" });
-  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: tess.id });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: overlord.id });
   const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
-  const tessSeat = joined.room.players.find((seat) => seat.id === tess.id);
+  const overlordSeat = joined.room.players.find((seat) => seat.id === overlord.id);
 
   mutateState(env, (data) => {
     const game = data.rooms.TPWR.game;
@@ -714,8 +714,8 @@ test("Overlord values a treasure pickup over a plain center cell", async () => w
   const moved = await post(env, "/api/room/move", { code: "TPWR", player_id: humanSeat.id, board: 1, cell: 0 });
 
   assert.equal(moved.ok, true);
-  assert.equal(moved.room.game.boards[0][5], tessSeat.mark);
-  assert.equal(moved.room.game.scores[tessSeat.mark], 25);
+  assert.equal(moved.room.game.boards[0][5], overlordSeat.mark);
+  assert.equal(moved.room.game.scores[overlordSeat.mark], 25);
 }));
 
 test("room durable object returns the latest bot-applied snapshot", async () => withMockRandom([0, 0], async () => {
@@ -1164,9 +1164,9 @@ test("Battleship Overlord places a complete non-overlapping fleet", async () => 
   const env = makeEnv();
   const host = player("host", "Host");
   const bots = await get(env, "/api/bots?game_id=battleship");
-  const tess = bots.bots.find((bot) => bot.name === "Overlord");
+  const overlord = bots.bots.find((bot) => bot.name === "Overlord");
   const created = await post(env, "/api/room/create", { game_id: "battleship", player: host, code: "BTTP" });
-  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: tess.id });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: overlord.id });
   const botSeat = joined.room.players.find((seat) => seat.kind === "bot");
   const ships = joined.room.game.players[botSeat.mark].ships;
   const occupied = new Set();
@@ -1192,9 +1192,9 @@ test("Battleship Overlord extends a known hit line", async () => {
   const env = makeEnv();
   const host = player("host", "Host");
   const bots = await get(env, "/api/bots?game_id=battleship");
-  const tess = bots.bots.find((bot) => bot.name === "Overlord");
+  const overlord = bots.bots.find((bot) => bot.name === "Overlord");
   const created = await post(env, "/api/room/create", { game_id: "battleship", player: host, code: "BTTG" });
-  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: tess.id });
+  const joined = await post(env, "/api/room/join-bot", { code: created.room.code, host_id: host.id, bot_id: overlord.id });
   const humanSeat = joined.room.players.find((seat) => seat.kind !== "bot");
   const botSeat = joined.room.players.find((seat) => seat.kind === "bot");
   await post(env, "/api/room/move", { code: "BTTG", player_id: humanSeat.id, action: { type: "auto_place" } });

@@ -109,7 +109,7 @@ const RESERVED_TEST_PLAYERS = [
   { id: "codex-test-player-2", name: "Codex Test 2", icon: "\uD83E\uDDEA", color: "#be123c", kind: "test", hidden: true },
 ];
 const RESERVED_TEST_PLAYER_IDS = new Set(RESERVED_TEST_PLAYERS.map((player) => player.id));
-const TACTICAL_TESS_BOT_ID = "0f8a3c9d1e72";
+const OVERLORD_BOT_ID = "0f8a3c9d1e72";
 const TACTICAL_PICKUP_CONFIG = {
   coin: {
     emoji: "\uD83E\uDE99",
@@ -1240,7 +1240,7 @@ function chooseBotMove(game, bot = null) {
   if (isBattleshipGame(game)) return chooseBattleshipBotMove(game, bot, moves);
   if (isQuoridorGame(game)) return chooseQuoridorBotMove(game, bot, moves);
   if (isBoxesGame(game)) return chooseBoxesBotMove(game, moves);
-  if (bot && (bot.bot_id === TACTICAL_TESS_BOT_ID || bot.id === TACTICAL_TESS_BOT_ID)) return chooseScoredBotMove(game, bot, moves);
+  if (bot && bot.strategy === "smart") return chooseScoredBotMove(game, bot, moves);
   return moves[Math.floor(Math.random() * moves.length)];
 }
 
@@ -1476,7 +1476,7 @@ const TEN_THOUSAND_DICE_COUNT = 6;
 const TEN_THOUSAND_PHASES = ["ready", "rolled", "selected", "farkled", "done"];
 const TEN_THOUSAND_FINISH_STATES = ["active", "banked", "farkled_pending_ack", "farkled_acked"];
 // Level 2 (Kitchen Table) bank thresholds by dice remaining, per
-// farkle_ai_players_4_levels.md. Used to resolve bot rounds server-side.
+// docs/bots/farkle_ai_players_4_levels.md. Used to resolve bot rounds server-side.
 const TEN_THOUSAND_BOT_BANK = { 6: 1000, 5: 750, 4: 600, 3: 450, 2: 350, 1: 250 };
 
 function newTenThousandGame() {
@@ -2172,7 +2172,7 @@ function autoBattleshipFleet() {
 }
 
 function chooseBattleshipBotFleet(bot = null) {
-  if (!isTacticalTessBot(bot)) return autoBattleshipFleet();
+  if (!isOverlordBot(bot)) return autoBattleshipFleet();
   return chooseStrongBattleshipFleet(BATTLESHIP_SIZE, BATTLESHIP_FLEET, 5000);
 }
 
@@ -2276,7 +2276,7 @@ function chooseBattleshipBotMove(game, bot, moves) {
   const heat = buildBattleshipAttackHeatMap(knowledge, remainingShips);
   const target = chooseBattleshipTargetMove(knowledge, heat, remainingShips);
   if (target) return target;
-  if (!isTacticalTessBot(bot)) return moves[Math.floor(Math.random() * moves.length)];
+  if (!isOverlordBot(bot)) return moves[Math.floor(Math.random() * moves.length)];
   return chooseBattleshipHuntMove(knowledge, heat, remainingShips, moves);
 }
 
@@ -2437,8 +2437,8 @@ function zeroBattleshipGrid(boardSize) {
   return Array.from({ length: boardSize }, () => Array.from({ length: boardSize }, () => 0));
 }
 
-function isTacticalTessBot(bot) {
-  return Boolean(bot && (bot.bot_id === TACTICAL_TESS_BOT_ID || bot.id === TACTICAL_TESS_BOT_ID));
+function isOverlordBot(bot) {
+  return Boolean(bot && (bot.bot_id === OVERLORD_BOT_ID || bot.id === OVERLORD_BOT_ID));
 }
 
 const QUORIDOR_SIZE = 9;
@@ -2709,7 +2709,7 @@ function quoridorBotDifficulty(bot) {
   const id = bot && (bot.bot_id || bot.id);
   if (id === "5e2c8a71d0f4") return "rookie";
   if (id === "b64d20f19a8c") return "tactician";
-  if (id === TACTICAL_TESS_BOT_ID) return "master";
+  if (id === OVERLORD_BOT_ID) return "master";
   return "scout";
 }
 
