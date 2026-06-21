@@ -7,7 +7,9 @@ const FACE_PIPS = {
   6: [1, 3, 4, 6, 7, 9],
 };
 
-const ROLL_MOVE_TYPES = new Set(["roll", "reroll", "farkle"]);
+// Only actual dice rolls tumble. A declared farkle acts on the dice already on
+// the table — they just turn red in place, no re-animation.
+const ROLL_MOVE_TYPES = new Set(["roll", "reroll"]);
 let lastAnimatedMoveCount = -1;
 
 export function renderTenThousandGame(ctx) {
@@ -66,20 +68,10 @@ function renderTenThousandLobby(host, ctx) {
 
 function renderTenThousandPlay(host, ctx) {
   const { room, game, pendingMove } = ctx;
-  const rawSeats = Array.isArray(game.players) ? game.players : [];
+  const seats = Array.isArray(game.players) ? game.players : [];
   const localMark = markForPlayer(room, ctx.localPlayerId);
-  const complete = game.status === "complete";
-
-  // During the farkle reveal delay, present the local seat as if it were still
-  // mid-roll — in the tray AND the standings — so nothing leaks the bust early.
-  // The dice keep their rolled values (white, selectable), the action row stays
-  // the normal one (all gated off, so the player can only hunt), and the turn
-  // score the app shell remembered from before the bust is restored so it does
-  // not snap to zero a beat early.
-  const seats = ctx.holdFarkle
-    ? rawSeats.map((seat) => seat.mark === localMark ? maskHeldFarkleSeat(seat, ctx.holdFarkleTurnScore) : seat)
-    : rawSeats;
   const localSeat = seats.find((seat) => seat.mark === localMark) || null;
+  const complete = game.status === "complete";
 
   host.innerHTML = `
     ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove) : ""}
@@ -90,30 +82,14 @@ function renderTenThousandPlay(host, ctx) {
   wireStandings(host);
 }
 
-// Clone a freshly busted seat back into a live-roll presentation for the reveal
-// delay: drop the farkle phase/finish_state and restore the pre-bust turn score.
-// The dice (the busted roll) are kept as-is so the player can hunt them.
-function maskHeldFarkleSeat(seat, heldTurnScore) {
-  return {
-    ...seat,
-    phase: "rolled",
-    finish_state: "active",
-    resolved: false,
-    can_roll: false,
-    can_reroll: false,
-    can_bank: false,
-    turn_score: Number.isFinite(heldTurnScore) ? heldTurnScore : seat.turn_score,
-  };
-}
-
 function trayHtml(seat, game, pendingMove) {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
   // Keep the busted roll red for the whole farkle state. Drive it off the phase
   // (reliably "farkled" while busted) AND the finish_state (so it persists after
-  // acknowledging), until the next round resets the dice. During the reveal
-  // delay the app shell hands us a seat masked back to a live roll (see
-  // maskHeldFarkleSeat), so none of this fires until the bust is declared.
+  // acknowledging), until the next round resets the dice. A farkle only happens
+  // after the player declares it themselves (the Red X), so showing red here is
+  // always intentional.
   const showBust = farkled
     || seat.finish_state === "farkled_pending_ack"
     || seat.finish_state === "farkled_acked";
@@ -138,10 +114,19 @@ function trayHtml(seat, game, pendingMove) {
   const diceHtml = dice
     .map((die) => dieHtml(die, { rolling: rolledIds.has(die.id), bust: showBust && !die.scored }))
     .join("");
+  // The first slot is "Play+Dice" to roll, but once a roll is on the table it
+  // becomes the "Red X": the player must declare their own farkle. There is no
+  // auto-detect, so the game never reveals whether a scoring play exists — you
+  // either find one and select it, or you give up and bust yourself. The Red X
+  // only enables while a fresh roll is unselected (phase "rolled").
+  const canDeclareFarkle = canAct && seat.phase === "rolled";
+  const firstButton = canRoll
+    ? `<button class="tt-action" type="button" data-action="roll" aria-label="Play dice">▶️🎲</button>`
+    : `<button class="tt-action tt-farkle-x" type="button" data-action="declare-farkle" ${canDeclareFarkle ? "" : "disabled"} aria-label="No scoring play — declare a farkle">❌</button>`;
   const actionsHtml = farkled && !resolved
-    ? `<button class="primary tt-ack" type="button" data-action="ack">You Farkled!</button>`
+    ? `<button class="primary tt-ack" type="button" data-action="ack" disabled>You Farkled!</button>`
     : `
-      <button class="tt-action" type="button" data-action="roll" ${canRoll ? "" : "disabled"} aria-label="Play dice">▶️🎲</button>
+      ${firstButton}
       <button class="tt-action" type="button" data-action="select" disabled aria-label="Score selected dice">✏️📈</button>
       <button class="tt-action" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">🎰🎲</button>
       <button class="tt-action" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"} aria-label="Bank turn score">🏦</button>`;
@@ -213,6 +198,7 @@ function wireTray(host, seat, game, ctx) {
   };
   action('[data-action="ack"]', () => ({ type: "ack_farkle" }));
   action('[data-action="roll"]', () => ({ type: "roll" }));
+  action('[data-action="declare-farkle"]', () => ({ type: "declare_farkle" }));
   action('[data-action="reroll"]', () => ({ type: "reroll" }));
   action('[data-action="bank"]', () => ({ type: "bank" }));
   if (selectButton) selectButton.addEventListener("click", () => {

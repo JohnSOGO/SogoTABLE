@@ -370,33 +370,52 @@ test("10,000 rolls, selects scoring dice, presses, and banks (per seat)", async 
   assert.equal(seatByMark(nextRound, "P1").phase, "rolled");
 })); 
 
-test("10,000 farkle preserves the final dice until acknowledged", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
+test("10,000 farkle is player-declared, not auto-detected", async () => withMockRandom([0.17, 0.17, 0.34, 0.34, 0.51, 0.85], async () => {
   const env = makeEnv();
   const host = player("farkle", "Farkle");
   await post(env, "/api/room/create", { game_id: TEN_THOUSAND_GAME_ID, player: host, code: "BUST" });
   await post(env, "/api/room/start", { code: "BUST", host_id: host.id });
+  // A no-scoring-play roll does NOT auto-farkle: it lands as a live "rolled"
+  // state so the game never reveals whether a play exists.
   const rolled = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "roll" } });
-  const acked = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "ack_farkle" } });
-  const nextRoll = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "roll" } });
-
-  assert.equal(rolled.room.game.last_move.type, "farkle");
-  assert.deepEqual(rolled.room.game.last_move.dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
-  assert.equal(seatByMark(rolled, "P1").farkles, 1);
-  assert.equal(seatByMark(rolled, "P1").turn_score, 0);
-  assert.equal(seatByMark(rolled, "P1").phase, "farkled");
-  assert.equal(seatByMark(rolled, "P1").finish_state, "farkled_pending_ack");
-  assert.equal(seatByMark(rolled, "P1").resolved, false);
   assert.deepEqual(seatByMark(rolled, "P1").dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
-  assert.equal(acked.room.game.last_move.type, "ack_farkle");
-  assert.equal(acked.room.game.round, 1);
-  assert.equal(acked.room.game.round_pending_advance, true);
+  assert.equal(seatByMark(rolled, "P1").phase, "rolled");
+  assert.equal(seatByMark(rolled, "P1").farkles, 0);
+  assert.equal(rolled.room.game.last_move.type, "roll");
+
+  // The player declares their own farkle (the Red X). Dice are preserved and a
+  // farkle is counted, pending acknowledgement.
+  const declared = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "declare_farkle" } });
+  assert.equal(declared.room.game.last_move.type, "farkle");
+  assert.deepEqual(seatByMark(declared, "P1").dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
+  assert.equal(seatByMark(declared, "P1").farkles, 1);
+  assert.equal(seatByMark(declared, "P1").turn_score, 0);
+  assert.equal(seatByMark(declared, "P1").phase, "farkled");
+  assert.equal(seatByMark(declared, "P1").finish_state, "farkled_pending_ack");
+  assert.equal(seatByMark(declared, "P1").resolved, false);
+
+  const acked = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "ack_farkle" } });
   assert.equal(seatByMark(acked, "P1").phase, "done");
   assert.equal(seatByMark(acked, "P1").finish_state, "farkled_acked");
   assert.equal(seatByMark(acked, "P1").resolved, true);
-  assert.deepEqual(seatByMark(acked, "P1").dice.map((die) => die.value), [2, 2, 3, 3, 4, 6]);
+  assert.equal(acked.room.game.round_pending_advance, true);
+  const nextRoll = await post(env, "/api/room/move", { code: "BUST", player_id: host.id, action: { type: "roll" } });
   assert.equal(nextRoll.room.game.round, 2);
-  assert.equal(nextRoll.room.game.round_pending_advance, false);
   assert.equal(seatByMark(nextRoll, "P1").phase, "rolled");
+}));
+
+test("10,000 a player may declare a farkle even with a scoring play available", async () => withMockRandom([0, 0, 0, 0, 0, 0], async () => {
+  const env = makeEnv();
+  const host = player("brave", "Brave");
+  await post(env, "/api/room/create", { game_id: TEN_THOUSAND_GAME_ID, player: host, code: "RISK" });
+  await post(env, "/api/room/start", { code: "RISK", host_id: host.id });
+  // Six 1s — clearly a scoring roll — yet declaring a farkle still busts.
+  const rolled = await post(env, "/api/room/move", { code: "RISK", player_id: host.id, action: { type: "roll" } });
+  assert.equal(seatByMark(rolled, "P1").phase, "rolled");
+  const declared = await post(env, "/api/room/move", { code: "RISK", player_id: host.id, action: { type: "declare_farkle" } });
+  assert.equal(declared.room.game.last_move.type, "farkle");
+  assert.equal(seatByMark(declared, "P1").farkles, 1);
+  assert.equal(seatByMark(declared, "P1").turn_score, 0);
 }));
 
 test("10,000 multiplayer: barrier waits for all humans before advancing", async () => withMockRandom([0], async () => {

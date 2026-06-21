@@ -74,10 +74,19 @@ and never double-counts a die.
 
 ## Farkle / bust (section 5)
 
-A roll **farkles** when it contains no scoring set — no `1`, no `5`, no
+A roll has **no play** when it contains no scoring set — no `1`, no `5`, no
 three-of-a-kind, **and** no three-pairs across six dice (e.g. `2 2 4 4 6 6`
-scores 1,500 and is *not* a farkle, but `2 2 3 3 4 6` is). On a farkle the
-entire *This Turn* score is lost, the farkle counter ticks up, and the turn ends.
+scores 1,500 and has a play, but `2 2 3 3 4 6` does not).
+
+**The farkle is player-declared, not auto-detected.** After rolling, the first
+action button becomes a **Red X**; the game never tells you whether a play
+exists (auto-detecting would leak that a play is there whenever it *didn't* fire,
+which is too big an advantage). You either find a scoring selection or press the
+Red X to bust yourself — and the Red X always busts, even if a play was actually
+available. On a declared farkle the entire *This Turn* score is lost, the farkle
+counter ticks up, the dice turn red with a "You Farkled" banner for ~2 seconds,
+then it resolves and the turn ends. (Bots evaluate their own dice and bust when
+they truly have no scoring play.)
 
 ## Banking & the opening rule (section 7)
 

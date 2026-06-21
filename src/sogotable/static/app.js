@@ -193,12 +193,12 @@ let lastTurnSoundKey = "";
 let lastGameEventSoundKey = "";
 let lastGameOverSoundKey = "";
 let lastTenThousandSoundKey = "";
-// Farkle reveal delay: hold a fresh bust looking like a normal roll for a beat
-// so the player can hunt for a score before it is declared.
-const TEN_THOUSAND_FARKLE_REVEAL_MS = 3000;
-let tenThousandFarkleHold = null; // { code, mark } while a bust reveal is held
-let tenThousandFarkleHandledKey = ""; // dedupe so each bust schedules once
-let tenThousandFarkleRevealTimer = null;
+// Farkle is player-declared (the Red X). Once declared, the red dice and the
+// "You Farkled" banner show for a beat, then the bust auto-acknowledges so the
+// round can advance.
+const TEN_THOUSAND_FARKLE_ACK_MS = 2000;
+let tenThousandFarkleAckKey = ""; // dedupe so each declared bust schedules once
+let tenThousandFarkleAckTimer = null;
 let selectedPlayerStatsRequestId = 0;
 let opponentPickerMode = "remote";
 let playerApiAvailable = true;
@@ -1809,51 +1809,36 @@ function setRoom(room) {
   syncSelectedPlayerForLocalRoom();
   playRoomStateSounds(previousRoom, room);
   showIncomingBattleshipAttackReveal(previousRoom, room);
-  maybeHoldTenThousandFarkleReveal(previousRoom, room);
+  maybeAutoAckTenThousandFarkle(room);
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
   renderGame();
   handleIncomingResetRequest();
 }
 
-// When the local seat busts, hold the reveal for a beat: the dice animate and
-// settle white with the normal action row, the player hunts for a score, and
-// only after TEN_THOUSAND_FARKLE_REVEAL_MS do the dice turn red, the bust sound
-// play, and the "You Farkled" button appear. Pure presentation; the server has
-// already resolved the farkle.
-function maybeHoldTenThousandFarkleReveal(previousRoom, room) {
+// After the local player declares a farkle (the Red X), the server marks the
+// seat "farkled_pending_ack" and the tray shows the red dice + "You Farkled"
+// banner. Hold that for TEN_THOUSAND_FARKLE_ACK_MS, then auto-acknowledge so the
+// round can advance — the player already chose to bust, so no extra tap.
+function maybeAutoAckTenThousandFarkle(room) {
   if (!room || !isTenThousandGameState(room.game)) return;
   const localSeat = room.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
   if (!localSeat) return;
   const seatState = (room.game.players || []).find((seat) => seat.mark === localSeat.mark);
-  const move = room.game.last_move || {};
   if (!seatState || seatState.finish_state !== "farkled_pending_ack") return;
-  if (move.type !== "farkle" || move.mark !== localSeat.mark) return;
   const key = `${room.code}:${localSeat.mark}:${room.game.move_count}`;
-  if (key === tenThousandFarkleHandledKey) return;
-  tenThousandFarkleHandledKey = key;
-  // Remember the turn score from just before the bust so the held tray can keep
-  // showing it (the server has already zeroed it). It only drops to 0 at reveal.
-  const prevSeat = previousRoom && previousRoom.code === room.code
-    ? ((previousRoom.game && previousRoom.game.players) || []).find((seat) => seat.mark === localSeat.mark)
-    : null;
-  const heldTurnScore = prevSeat && Number.isFinite(Number(prevSeat.turn_score)) ? Number(prevSeat.turn_score) : 0;
-  tenThousandFarkleHold = { code: room.code, mark: localSeat.mark, turnScore: heldTurnScore };
-  if (tenThousandFarkleRevealTimer) clearTimeout(tenThousandFarkleRevealTimer);
-  tenThousandFarkleRevealTimer = setTimeout(() => {
-    tenThousandFarkleRevealTimer = null;
-    tenThousandFarkleHold = null;
-    playFarkle();
-    renderGame();
-  }, TEN_THOUSAND_FARKLE_REVEAL_MS);
-}
-
-function tenThousandFarkleHeld(room, localSeat) {
-  return Boolean(tenThousandFarkleHold
-    && localSeat
-    && room
-    && tenThousandFarkleHold.code === room.code
-    && tenThousandFarkleHold.mark === localSeat.mark);
+  if (key === tenThousandFarkleAckKey) return;
+  tenThousandFarkleAckKey = key;
+  if (tenThousandFarkleAckTimer) clearTimeout(tenThousandFarkleAckTimer);
+  tenThousandFarkleAckTimer = setTimeout(() => {
+    tenThousandFarkleAckTimer = null;
+    // Only acknowledge if the bust is still pending (the player may have already
+    // tapped through, or the room may have moved on).
+    if (!currentRoom || !isTenThousandGameState(currentRoom.game)) return;
+    const seat = currentRoom.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+    const state = seat && (currentRoom.game.players || []).find((entry) => entry.mark === seat.mark);
+    if (state && state.finish_state === "farkled_pending_ack") makeTenThousandAction({ type: "ack_farkle" });
+  }, TEN_THOUSAND_FARKLE_ACK_MS);
 }
 
 function maybeShowTenThousandFarklePrompt(previousRoom, room) {
@@ -1919,9 +1904,8 @@ function playRoomStateSounds(previousRoom, room) {
 
 // 10,000 has no shared current_player, so the turn-change sound never fires.
 // Drive its audio off last_move instead: dice tumble on a roll/reroll, a blip
-// when scoring dice are set aside, a cash-in on bank. A farkle is itself a
-// busted roll, so it tumbles here too; the bust sound is deferred to the reveal
-// timer (maybeHoldTenThousandFarkleReveal) so it lands with the red dice.
+// when scoring dice are set aside, a cash-in on bank, and a bust when the player
+// declares their farkle (the red dice appear at the same moment).
 function playTenThousandEventSound(previousRoom, room) {
   if (!isTenThousandGameState(room.game)) return;
   const move = room.game.last_move;
@@ -1929,9 +1913,10 @@ function playTenThousandEventSound(previousRoom, room) {
   const soundKey = `${room.code}:${move.move_count}:${move.type}:${move.mark || ""}`;
   if (soundKey === lastTenThousandSoundKey) return;
   lastTenThousandSoundKey = soundKey;
-  if (move.type === "roll" || move.type === "reroll" || move.type === "farkle") playDiceRoll();
+  if (move.type === "roll" || move.type === "reroll") playDiceRoll();
   else if (move.type === "select") playScorePick();
   else if (move.type === "bank") playBank();
+  else if (move.type === "farkle") playFarkle();
 }
 
 function playPlayerJoinedSound(previousRoom, room) {
@@ -2177,7 +2162,6 @@ function renderGame() {
     document.getElementById("gamePlayersPanel").classList.add("hidden");
     showTurnStatus(null, `Round ${game.round}`);
     const localSeat = currentRoom.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
-    const heldFarkle = tenThousandFarkleHeld(currentRoom, localSeat);
     renderTenThousandGame({
       host: document.getElementById("macroBoard"),
       game,
@@ -2186,8 +2170,6 @@ function renderGame() {
       isHost: currentRoom.host_id === deviceSelectedPlayerId,
       localPlayerId: localSeat ? localSeat.id : (selectedPlayerId || deviceSelectedPlayerId),
       pendingMove,
-      holdFarkle: heldFarkle,
-      holdFarkleTurnScore: heldFarkle ? tenThousandFarkleHold.turnScore : null,
       makeMove: makeTenThousandAction,
       startGame: startTenThousandGame,
       addBot: openBotOpponentModal,

@@ -1674,6 +1674,7 @@ function makeTenThousandMove(game, mark, action) {
   else if (type === "select") selectTenThousandDice(seat, action.dice_ids || action.diceIds || []);
   else if (type === "reroll") rerollTenThousandDice(seat);
   else if (type === "bank") bankTenThousandScore(game, mark, seat);
+  else if (type === "declare_farkle") declareTenThousandFarkle(seat);
   else if (type === "ack_farkle") acknowledgeTenThousandFarkle(game, seat);
   else throw new Error("10,000 action is required.");
   game.move_count += 1;
@@ -1720,18 +1721,23 @@ function tenThousandRollDiceByIds(seat, ids) {
   });
 }
 
-// A farkle (no scoring dice in the rolled set) ends this seat's round: the
-// turn score is lost but the busted roll stays visible until the player
-// acknowledges it.
+// A roll always lands as a live "rolled" state. The farkle is NOT auto-detected:
+// a human must spot (or fail to spot) a scoring play and declare a farkle
+// themselves via declare_farkle. Bots evaluate their own keep in
+// playTenThousandBotRound and farkle there when no scoring dice remain. Not
+// revealing the bust is deliberate — an auto-farkle would tell the player a
+// valid play exists whenever it does NOT fire.
 function finishTenThousandRoll(seat) {
-  const rolledDice = seat.dice.filter((die) => die.rolling);
   seat.dice.forEach((die) => { die.rolling = false; });
-  if (!tenThousandHasAnyScoringSet(rolledDice.map((die) => die.value))) {
-    resolveTenThousandFarkle(seat, false);
-    return;
-  }
   seat.phase = "rolled";
   seat.finish_state = "active";
+}
+
+// The player declares their own farkle (the "Red X"). It always busts the turn,
+// even if a scoring play was actually available — that risk is the whole point.
+function declareTenThousandFarkle(seat) {
+  if (seat.phase !== "rolled") throw new Error("Roll before declaring a farkle.");
+  resolveTenThousandFarkle(seat, false);
 }
 
 function acknowledgeTenThousandFarkle(game, seat) {
@@ -1839,17 +1845,15 @@ function playTenThousandBotRound(game, mark, seat) {
   for (let guard = 0; guard < 50; guard += 1) {
     if (seat.phase === "ready") rollTenThousandDice(seat);
     else if (seat.phase === "selected") rerollTenThousandDice(seat);
-    if (seat.phase === "farkled") {
-      resolveTenThousandFarkle(seat, true, false);
-      return;
-    }
     if (seat.resolved) return;
     const level = tenThousandBotLevel(seat);
     const keepPlan = tenThousandBotKeep(level, seat.dice);
     const keep = tenThousandBotShouldMisplay(level)
       ? tenThousandBotAlternativeKeep(seat.dice, keepPlan.ids)
       : keepPlan;
-    if (!keep.ids.length) { resolveTenThousandFarkle(seat, true, false); return; }
+    // No scoring dice (rolls are no longer auto-farkled) is the bot's bust: it
+    // resolves and acknowledges in one step, counting the farkle.
+    if (!keep.ids.length) { resolveTenThousandFarkle(seat, true, true); return; }
     selectTenThousandDice(seat, keep.ids);
     const shouldBank = tenThousandBotShouldBank(game, seat, level);
     const finalBank = tenThousandBotShouldMisplay(level) ? !shouldBank : shouldBank;
