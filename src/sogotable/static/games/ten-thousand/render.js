@@ -297,6 +297,11 @@ function tenThousandSelectionScore(selected) {
       return { scoringIds, score: 1500, valid: true };
     }
   }
+  // Mirror the server scorer (tenThousandScoreValues): one triple per face
+  // (three 1s = 1000, otherwise face*100), then leftover 1s/5s score as
+  // singles (100/50). Any other leftover die does not score, which makes a
+  // full selection invalid. Keep this in lockstep with the worker so the
+  // human-facing preview matches what actually banks.
   const byFace = new Map();
   source.forEach((die) => {
     if (!byFace.has(die.value)) byFace.set(die.value, []);
@@ -304,16 +309,15 @@ function tenThousandSelectionScore(selected) {
   });
   let score = 0;
   byFace.forEach((ids, face) => {
-    if (face === 1) {
-      ids.forEach((id) => scoringIds.add(id));
-      score += ids.length * 100;
-    } else if (face === 5) {
-      ids.forEach((id) => scoringIds.add(id));
-      score += ids.length * 50;
-    } else if (ids.length >= 3) {
-      ids.slice(0, 3).forEach((id) => scoringIds.add(id));
-      score += face * 100;
+    let used = 0;
+    if (ids.length >= 3) {
+      score += face === 1 ? 1000 : face * 100;
+      used = 3;
     }
+    const leftover = ids.length - used;
+    if (face === 1) { score += leftover * 100; used = ids.length; }
+    else if (face === 5) { score += leftover * 50; used = ids.length; }
+    ids.slice(0, used).forEach((id) => scoringIds.add(id));
   });
   return { scoringIds, score, valid: scoringIds.size === source.length };
 }
