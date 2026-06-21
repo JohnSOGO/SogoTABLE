@@ -1834,10 +1834,15 @@ function playTenThousandBotRound(game, mark, seat) {
     }
     if (seat.resolved) return;
     const level = tenThousandBotLevel(seat);
-    const keep = tenThousandBotKeep(level, seat.dice);
+    const keepPlan = tenThousandBotKeep(level, seat.dice);
+    const keep = tenThousandBotShouldMisplay(level)
+      ? tenThousandBotAlternativeKeep(seat.dice, keepPlan.ids)
+      : keepPlan;
     if (!keep.ids.length) { resolveTenThousandFarkle(seat, true, false); return; }
     selectTenThousandDice(seat, keep.ids);
-    if (tenThousandBotShouldBank(game, seat, level)) {
+    const shouldBank = tenThousandBotShouldBank(game, seat, level);
+    const finalBank = tenThousandBotShouldMisplay(level) ? !shouldBank : shouldBank;
+    if (finalBank) {
       bankTenThousandScore(game, mark, seat);
       return;
     }
@@ -1851,6 +1856,24 @@ function playTenThousandBotRound(game, mark, seat) {
 function tenThousandBotKeep(level, dice) {
   if (level <= 1) return sproutTenThousandKeep(dice);
   return bestTenThousandKeep(dice);
+}
+
+function tenThousandBotShouldMisplay(level) {
+  return Math.random() < tenThousandBotErrorRate(level);
+}
+
+function tenThousandBotErrorRate(level) {
+  if (level <= 1) return 0.3;
+  if (level === 2) return 0.2;
+  if (level === 3) return 0.1;
+  return 0;
+}
+
+function tenThousandBotAlternativeKeep(dice, preferredIds) {
+  const options = tenThousandAllKeepOptions(dice)
+    .filter((choice) => choice.ids.length && !setsEqual(choice.ids, preferredIds))
+    .sort((left, right) => left.score - right.score || left.ids.length - right.ids.length);
+  return options[0] || { ids: [], score: 0 };
 }
 
 function tenThousandBotShouldBank(game, seat, level) {
@@ -1873,26 +1896,33 @@ function tenThousandRemainingDice(seat) {
 // Maximal scoring subset of the seat's still-rollable dice (used by bots and as
 // the canonical "take everything that scores" keep).
 function bestTenThousandKeep(dice) {
+  const options = tenThousandAllKeepOptions(dice)
+    .sort((left, right) => right.score - left.score || right.ids.length - left.ids.length);
+  return options[0] || { ids: [], score: 0 };
+}
+
+function tenThousandAllKeepOptions(dice) {
   const avail = dice.filter((die) => !die.scored && die.value);
+  const choices = [];
   if (avail.length === TEN_THOUSAND_DICE_COUNT) {
     const counts = tenThousandCounts(avail.map((die) => die.value));
     if (counts.every((count) => count === 1) || counts.filter((count) => count === 2).length === 3) {
-      return { ids: avail.map((die) => die.id), score: 1500 };
+      choices.push({ ids: avail.map((die) => die.id), score: 1500 });
     }
   }
-  const byFace = new Map();
-  avail.forEach((die) => {
-    if (!byFace.has(die.value)) byFace.set(die.value, []);
-    byFace.get(die.value).push(die);
-  });
-  const ids = [];
-  byFace.forEach((list, face) => {
-    if (face === 1 || face === 5) list.forEach((die) => ids.push(die.id));
-    else if (list.length >= 3) list.slice(0, 3).forEach((die) => ids.push(die.id));
-  });
-  const keepValues = avail.filter((die) => ids.includes(die.id)).map((die) => die.value);
-  const score = keepValues.length ? tenThousandScoreValues(keepValues).score : 0;
-  return { ids, score };
+  const total = 1 << avail.length;
+  for (let mask = 1; mask < total; mask += 1) {
+    const ids = [];
+    const values = [];
+    for (let index = 0; index < avail.length; index += 1) {
+      if ((mask & (1 << index)) === 0) continue;
+      ids.push(avail[index].id);
+      values.push(avail[index].value);
+    }
+    const score = tenThousandScoreValues(values);
+    if (score.valid) choices.push({ ids, score: score.score });
+  }
+  return choices;
 }
 
 function sproutTenThousandKeep(dice) {
@@ -1921,6 +1951,13 @@ function sproutTenThousandKeep(dice) {
   if (byFace.has(1)) return { ids: byFace.get(1).map((die) => die.id), score: byFace.get(1).length * 100 };
   if (byFace.has(5)) return { ids: byFace.get(5).map((die) => die.id), score: byFace.get(5).length * 50 };
   return { ids: [], score: 0 };
+}
+
+function setsEqual(left, right) {
+  const a = [...new Set((Array.isArray(left) ? left : []).map(String))].sort();
+  const b = [...new Set((Array.isArray(right) ? right : []).map(String))].sort();
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
 }
 
 function tenThousandCanRoll(game, seat) {
@@ -3675,6 +3712,9 @@ function hexToRgb(color) {
 export const __test = {
   tenThousandBotKeep,
   tenThousandBotShouldBank,
+  tenThousandBotErrorRate,
+  tenThousandBotShouldMisplay,
+  tenThousandBotAlternativeKeep,
   bestTenThousandKeep,
   sproutTenThousandKeep,
 };

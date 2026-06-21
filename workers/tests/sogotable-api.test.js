@@ -479,6 +479,17 @@ test("10,000 bot tiers choose different keeps on the same dice", () => {
   assert.equal(cipher.score, 400);
 });
 
+test("10,000 bot error rates map to the four tiers", async () => {
+  await withMockRandom([0.09], async () => {
+    assert.equal(tenThousandTest.tenThousandBotShouldMisplay(1), true);
+    assert.equal(tenThousandTest.tenThousandBotShouldMisplay(4), false);
+  });
+  assert.equal(tenThousandTest.tenThousandBotErrorRate(1), 0.3);
+  assert.equal(tenThousandTest.tenThousandBotErrorRate(2), 0.2);
+  assert.equal(tenThousandTest.tenThousandBotErrorRate(3), 0.1);
+  assert.equal(tenThousandTest.tenThousandBotErrorRate(4), 0);
+});
+
 test("10,000 completion records a high score", async () => withMockRandom([0, 0, 0, 0, 0, 0], async () => {
   const env = makeEnv();
   const host = player("winner", "Winner");

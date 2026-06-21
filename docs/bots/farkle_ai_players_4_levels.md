@@ -44,24 +44,28 @@ Use the shared names and flavor them locally by policy:
 - Chooses a legal keep, usually the obvious one.
 - Presses too often and banks late.
 - Is allowed to be imperfect.
+- Has a 30% mistake rate on each bot decision.
 
 ### Buddy - Casual
 
 - Uses simple score thresholds.
 - Recognizes when a turn is safe enough to bank.
 - Does not need deep probability math.
+- Has a 20% mistake rate on each bot decision.
 
 ### Cipher - Strategist
 
 - Uses risk-aware keep selection.
 - Balances turn score against farkle risk.
 - Banks when the roll value turns negative.
+- Has a 10% mistake rate on each bot decision.
 
 ### Overlord - Master
 
 - Uses the strongest fair 10,000 policy.
 - Evaluates pressure, expected value, and endgame context.
 - Protects leads and finishes games cleanly.
+- Has a 0% mistake rate on each bot decision.
 
 ## Core Decision Shape
 
@@ -93,4 +97,3 @@ round can resolve inside the Worker turn loop.
 The existing 10,000 bot-farkle fix in the Worker should stay the source of
 truth for count/ack handling. This document should describe the policy and
 behavior expectations, not restate low-level reducer code.
-
