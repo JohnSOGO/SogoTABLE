@@ -2130,9 +2130,26 @@ button.player-switch-button {
   gap: 8px;
 }
 
-.ten-thousand-actions button {
+.ten-thousand-actions .tt-action {
   min-width: 0;
   padding-inline: 8px;
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+  opacity: 1;
+}
+
+.ten-thousand-actions .tt-action:disabled {
+  cursor: not-allowed;
+  background: #d1d5db;
+  border-color: #9ca3af;
+  color: #4b5563;
+  opacity: 1;
+}
+
+.ten-thousand-actions .tt-action:not(:disabled):hover,
+.ten-thousand-actions .tt-action:not(:disabled):focus-visible {
+  filter: brightness(0.96);
 }
 
 /* The farkle acknowledge button is the only control in its row — span the full
