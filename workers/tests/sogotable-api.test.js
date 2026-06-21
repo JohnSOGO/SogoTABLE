@@ -324,6 +324,24 @@ test("10,000 creates a waiting room the host starts with indexed seats", async (
   assert.equal(rooms.rooms[0].open_seats, null);
 });
 
+test("10,000 reset re-seeds seats so a solo game stays playable", async () => {
+  const env = makeEnv();
+  const host = player("solo", "Solo Player");
+  await post(env, "/api/room/create", { game_id: "ten_thousand", player: host, code: "RDIC" });
+  await post(env, "/api/room/start", { code: "RDIC", host_id: host.id });
+
+  const reset = await post(env, "/api/room/reset", { code: "RDIC", requester_id: host.id });
+  assert.equal(reset.ok, true);
+  assert.equal(reset.reset, undefined);
+  assert.equal(reset.room.started, true);
+  assert.equal(reset.room.game.round, 1);
+  // The fresh game must keep the seat (was dropping to an empty board before).
+  assert.equal(reset.room.game.players.length, 1);
+  assert.equal(reset.room.game.players[0].mark, "P1");
+  assert.equal(reset.room.game.players[0].phase, "ready");
+  assert.equal(reset.room.game.players[0].score, 0);
+});
+
 test("10,000 rolls, selects scoring dice, presses, and banks (per seat)", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51, 0.68, 0.85, 0.17], async () => {
   const env = makeEnv();
   const host = player("roller", "Roller");

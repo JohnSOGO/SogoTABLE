@@ -1425,6 +1425,10 @@ function handleResetVote(room, requesterId, approve) {
   if (room.players.length > 1 && room.reset_votes.length < room.players.length) return "pending";
   room.reset_votes = [];
   room.game = newGame(room.game_id);
+  // Host-start games seed per-seat state at startRoom; a reset must re-seed it
+  // too, otherwise the room stays started with an empty game (e.g. Ten Thousand
+  // ends up with no seats and a dead board).
+  if (room.started && isTenThousandGame(room.game)) initTenThousandSeats(room.game, room.players);
   bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
