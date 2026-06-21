@@ -3430,6 +3430,8 @@ function roomRenderKey(room) {
     : null;
   return JSON.stringify({
     code: room.code,
+    revision: room.revision,
+    game_epoch: room.game_epoch,
     started: room.started,
     status: room.status,
     local_mode: room.local_mode,
