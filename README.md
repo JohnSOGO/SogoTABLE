@@ -95,7 +95,7 @@ npm run test:worker
 - [Wu Wei Method](docs/wu-wei-method.md)
 - [Wu Wei Event-Driven Progress](docs/wu-wei-event-driven-progress.md)
 - [Audio](docs/audio.md)
-- [Bot Opponents](docs/bots.md)
+- [Bot Behavior](docs/bots/index.md)
 - [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)
 - [Super Tic Tactical Toe](docs/game-super-tic-tactical-toe.md)
 - [Dots and Boxes](docs/game-dots-and-boxes.md)

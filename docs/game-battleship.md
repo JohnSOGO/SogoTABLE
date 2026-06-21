@@ -49,4 +49,5 @@ turn, and defence while waiting. Players can manually switch between `Auto`,
 
 Overlord uses stronger Battleship logic than the basic bots: Monte Carlo
 fleet placement scored against a generic attack heat map, and probability-based
-attacks with parity, information value, and hit-line finishing.
+attacks with parity, information value, and hit-line finishing. The shared bot
+behavior contract lives in `docs/bots/behavior.md`.
