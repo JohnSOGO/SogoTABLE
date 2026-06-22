@@ -2278,7 +2278,6 @@ function playBoxesEventSound(previousRoom, room) {
 }
 
 function showBattleshipAttackReveal(previousRoom, room) {
-  if (battleshipViewMode !== "auto") return;
   if (!isBattleshipGameState(room.game) || !room.game.last_move || room.game.last_move.type !== "attack") return;
   if (!previousRoom || !previousRoom.game) return;
   const previousMoveKey = battleshipSoundMoveKey(previousRoom.game.last_move);
@@ -2287,6 +2286,10 @@ function showBattleshipAttackReveal(previousRoom, room) {
   const selectedSeat = room.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
   if (!selectedSeat) return;
   const ownAttack = room.game.last_move.player === selectedSeat.mark;
+  const shouldReveal = battleshipViewMode === "auto"
+    || (ownAttack && battleshipViewMode === "offence")
+    || (!ownAttack && battleshipViewMode === "defence");
+  if (!shouldReveal) return;
   clearBattleshipPendingDefence();
   const reveal = {
     code: room.code,
@@ -2600,9 +2603,9 @@ function renderBattleshipGame(game) {
 
 function battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer) {
   if (reveal && reveal.view === "offence") return selectedSeat;
-  if (reveal && reveal.view === "defence") return opponent;
+  if (reveal && reveal.view === "defence") return selectedSeat;
   if (activeView === "offence") return selectedSeat || currentTurnPlayer;
-  if (activeView === "defence") return opponent || currentTurnPlayer;
+  if (activeView === "defence") return selectedSeat || currentTurnPlayer;
   return currentTurnPlayer || selectedSeat;
 }
 

@@ -35,6 +35,8 @@ Battleship is the fourth ready SogoTable game.
 - The attacked cell gets an opponent-colored reveal outline while the hit/miss
   animation is active so the visual result is visible even when sound is the
   first cue.
+- Manual `Defence` view stays on the player's own fleet and shows incoming
+  attack target/result reveals there.
 - The game ends when every ship cell in one fleet has been hit.
 
 ## Runtime Ownership
