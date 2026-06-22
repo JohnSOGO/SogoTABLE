@@ -865,10 +865,19 @@ Declined response:
 
 The hosted Worker stores current playtest state in D1. It uses optimistic locking on the single state row so stale concurrent writes fail instead of silently overwriting newer state.
 
-Active room mutations for `POST /api/room/join`, `POST /api/room/join-bot`, `POST /api/room/leave`, `POST /api/room/close`, `POST /api/room/move`, `POST /api/room/reset`, and invite acceptance through `POST /api/invite/respond` are routed through the room's Durable Object before persistence. The public HTTP request/response contract stays the same, but the room object serializes these changes per room and broadcasts the resulting room snapshot.
+Room creation through `POST /api/room/create` is routed through the globally named
+`ROOM_FACTORY` Durable Object before persistence. Active room mutations for
+`POST /api/room/join`, `POST /api/room/join-bot`, `POST /api/room/leave`,
+`POST /api/room/close`, `POST /api/room/move`, `POST /api/room/reset`, invite
+creation through `POST /api/invite/create`, and invite acceptance through
+`POST /api/invite/respond` are routed through the room's Durable Object before
+persistence. The public HTTP request/response contract stays the same, but the
+factory serializes code allocation while the room object serializes per-room
+changes and broadcasts the resulting room snapshot.
 
-If the `ROOM_OBJECT` Durable Object binding is unavailable in production, those
-room-authority POST paths fail closed with HTTP `503`:
+If the required `ROOM_FACTORY` or `ROOM_OBJECT` Durable Object binding is
+unavailable in production, those room-authority POST paths fail closed with HTTP
+`503`:
 
 ```json
 { "ok": false, "error": "Room authority unavailable." }

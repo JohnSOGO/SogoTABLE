@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker, { EventHubDurableObject, RoomDurableObject, __test as tenThousandTest } from "../sogotable-api.js";
+import worker, { EventHubDurableObject, RoomDurableObject, RoomFactoryDurableObject, __test as tenThousandTest } from "../sogotable-api.js";
 
 const CLASSIC_GAME_ID = "a3f19c6e42b8";
 const TACTICAL_GAME_ID = "d7e4a91f0c23";
@@ -89,12 +89,14 @@ function makeProductionEnv() {
 function makeStrictEnvWithRooms() {
   const env = makeProductionEnv();
   env.ROOM_OBJECT = new MockRoomNamespace(env);
+  env.ROOM_FACTORY = new MockRoomFactoryNamespace(env);
   return env;
 }
 
 function makeEnvWithRooms() {
   const env = makeEnv();
   env.ROOM_OBJECT = new MockRoomNamespace(env);
+  env.ROOM_FACTORY = new MockRoomFactoryNamespace(env);
   return env;
 }
 
@@ -102,6 +104,7 @@ function makeEnvWithEvents() {
   const env = makeEnv();
   env.EVENT_HUB = new MockEventHubNamespace();
   env.ROOM_OBJECT = new MockRoomNamespace(env);
+  env.ROOM_FACTORY = new MockRoomFactoryNamespace(env);
   return env;
 }
 
@@ -160,6 +163,47 @@ class MockRoomObject {
 
   async closeRoom(code) {
     this.closed.push(code);
+  }
+}
+
+class MockRoomFactoryNamespace {
+  constructor(env) {
+    this.env = env;
+    this.objects = new Map();
+  }
+
+  getByName(name) {
+    if (!this.objects.has(name)) this.objects.set(name, new MockRoomFactoryObject(name, this.env));
+    return this.objects.get(name);
+  }
+}
+
+class MockRoomFactoryObject {
+  constructor(name, env) {
+    this.name = name;
+    this.env = env;
+    this.actions = [];
+    this.queue = Promise.resolve();
+  }
+
+  async fetch(request) {
+    const run = async () => {
+      const url = new URL(request.url);
+      if (request.method === "POST" && url.pathname === "/__room_create") {
+        const { pathname, payload } = await request.json();
+        this.actions.push(pathname);
+        const delegatedEnv = tenThousandTest.allowDirectRoomAuthority({ ...this.env, ROOM_FACTORY: null });
+        return worker.fetch(new Request(`https://sogotable.test${pathname}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }), delegatedEnv);
+      }
+      return Response.json({ ok: false, error: "Unhandled mock room factory request." }, { status: 404 });
+    };
+    const next = this.queue.then(run, run);
+    this.queue = next.catch(() => {});
+    return next;
   }
 }
 
@@ -1627,18 +1671,21 @@ test("invite accept routes through room authority", async () => {
 
   assert.equal(accepted.ok, true);
   assert.equal(accepted.room.status, "active");
+  assert.equal(roomObject.actions.includes("/api/invite/create"), true);
   assert.equal(roomObject.actions.includes("/api/invite/respond"), true);
   assert.equal(roomObject.snapshots.at(-1).players.some((seat) => seat.id === guest.id), true);
 });
 
 test("room authority paths fail closed when ROOM_OBJECT is unavailable", async () => {
   const cases = [
+    { path: "/api/room/create", body: { game_id: "super_tic_tac_toe", player: player("host", "Host"), code: "AUTH" } },
     { path: "/api/room/join", body: { code: "AUTH", player: player("guest", "Guest") } },
     { path: "/api/room/join-bot", body: { code: "AUTH", host_id: "host", bot_id: "7c91a4e2b6d0" } },
     { path: "/api/room/leave", body: { code: "AUTH", player_id: "host", requester_id: "host" } },
     { path: "/api/room/close", body: { code: "AUTH", requester_id: "sogo-id", passcode: "1234" } },
     { path: "/api/room/move", body: { code: "AUTH", player_id: "host", board: 0, cell: 0 } },
     { path: "/api/room/reset", body: { code: "AUTH", requester_id: "host" } },
+    { path: "/api/invite/create", body: { code: "AUTH", host_id: "host", player: player("guest", "Guest") } },
     { path: "/api/invite/respond", body: { invite_id: "AUTH:guest", accept: true, player: player("guest", "Guest") } },
   ];
 
@@ -1650,6 +1697,44 @@ test("room authority paths fail closed when ROOM_OBJECT is unavailable", async (
     assert.equal(json.error, "Room authority unavailable.", item.path);
     assert.equal(env.SOGOTABLE_STATE.writeCount, 0, item.path);
   }
+});
+
+test("room factory serializes duplicate room creation", async () => {
+  const env = makeEnvWithRooms();
+  const firstHost = player("first-host", "First Host");
+  const secondHost = player("second-host", "Second Host", "#2563eb");
+  const [first, second] = await Promise.all([
+    post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: firstHost, code: "DUPE" }),
+    post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: secondHost, code: "DUPE" }),
+  ]);
+  const successes = [first, second].filter((response) => response.ok);
+  const failures = [first, second].filter((response) => !response.ok);
+  const factory = env.ROOM_FACTORY.getByName("room-factory");
+
+  assert.equal(factory.actions.filter((action) => action === "/api/room/create").length, 2);
+  assert.equal(successes.length, 1);
+  assert.equal(successes[0].room.code, "DUPE");
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].error, "Room code is already in use.");
+});
+
+test("room object serializes concurrent invite creation", async () => {
+  const env = makeEnvWithRooms();
+  const host = player("host", "Host");
+  const firstGuest = player("guest-a", "Guest A", "#2563eb");
+  const secondGuest = player("guest-b", "Guest B", "#c43d5d");
+  const room = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "INVT" });
+  const [firstInvite, secondInvite] = await Promise.all([
+    post(env, "/api/invite/create", { code: room.room.code, host_id: host.id, player: firstGuest }),
+    post(env, "/api/invite/create", { code: room.room.code, host_id: host.id, player: secondGuest }),
+  ]);
+  const roomObject = env.ROOM_OBJECT.getByName("INVT");
+
+  const successfulInvites = [firstInvite, secondInvite].filter((response) => response.ok);
+
+  assert.equal(successfulInvites.length >= 1, true);
+  assert.equal(roomObject.actions.filter((action) => action === "/api/invite/create").length, 2);
+  assert.equal(roomObject.snapshots.at(-1).latest_invite.status, "pending");
 });
 
 test("owner tokens protect room actions through room authority", async () => {
@@ -1700,7 +1785,7 @@ test("notifies the room durable object after meaningful room changes", async () 
   const joined = await post(env, "/api/room/join", { code: "PUSH", player: guest });
   assert.equal(joined.ok, true);
   assert.equal(roomObject.snapshots.at(-1).status, "active");
-  assert.deepEqual(roomObject.actions, ["/api/invite/respond", "/api/room/join"]);
+  assert.deepEqual(roomObject.actions, ["/api/invite/create", "/api/invite/respond", "/api/room/join"]);
 
   const xSeat = joined.room.players.find((seat) => seat.mark === "X");
   await post(env, "/api/room/move", { code: "PUSH", player_id: xSeat.id, board: 0, cell: 0 });
@@ -1708,7 +1793,7 @@ test("notifies the room durable object after meaningful room changes", async () 
 
   await post(env, "/api/room/leave", { code: "PUSH", player_id: host.id, requester_id: host.id });
   assert.deepEqual(roomObject.closed, ["PUSH"]);
-  assert.deepEqual(roomObject.actions, ["/api/invite/respond", "/api/room/join", "/api/room/move", "/api/room/leave"]);
+  assert.deepEqual(roomObject.actions, ["/api/invite/create", "/api/invite/respond", "/api/room/join", "/api/room/move", "/api/room/leave"]);
 });
 
 test("only Sogo can close any active room as superuser", async () => {

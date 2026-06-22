@@ -64,7 +64,7 @@ The public site uses a shared API brain for players, lobby presence, rooms, invi
 npm run deploy:brain
 ```
 
-The Worker is configured in `wrangler.toml` and stores shared game state in a small D1 database. Durable Objects now serialize active-room mutations and deliver realtime room/app snapshots, while D1 remains the persistence layer during public playtesting.
+The Worker is configured in `wrangler.toml` and stores shared game state in a small D1 database. Durable Objects now serialize room creation, active-room mutations, and realtime room/app snapshots, while D1 remains the persistence layer during public playtesting.
 
 Sogo superuser actions require the Worker secret `SOGOTABLE_SUPERUSER_PASSCODE`
 and `SOGOTABLE_SUPERUSER_PLAYER_IDS`, a comma-separated allowlist of player ids.

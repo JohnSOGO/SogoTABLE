@@ -150,10 +150,19 @@ export default {
     try {
       let payload = {};
       if (request.method === "POST") payload = await readJson(request);
+      if (request.method === "POST" && roomFactoryPath(url.pathname)) {
+        if (!env.ROOM_FACTORY && !directRoomAuthorityAllowed(env)) {
+          return json({ ok: false, error: "Room authority unavailable." }, 503, corsHeaders);
+        }
+      }
       if (request.method === "POST" && roomAuthorityPath(url.pathname)) {
         if (!env.ROOM_OBJECT && !directRoomAuthorityAllowed(env)) {
           return json({ ok: false, error: "Room authority unavailable." }, 503, corsHeaders);
         }
+      }
+      if (request.method === "POST" && roomFactoryPath(url.pathname) && env.ROOM_FACTORY) {
+        const response = await roomFactoryRequest(env, url.pathname, payload);
+        return json(responseForViewer(response, viewerPlayerIdForPayload(payload)), response.ok === false ? 400 : 200, corsHeaders);
       }
       if (request.method === "POST" && roomAuthorityPath(url.pathname) && env.ROOM_OBJECT) {
         const response = await roomAuthorityRequest(env, url.pathname, payload);
@@ -301,6 +310,38 @@ export class RoomDurableObject {
       type: "room_snapshot",
       room: roomToDictForViewer(null, room, attachment.player_id || ""),
     };
+  }
+}
+
+export class RoomFactoryDurableObject {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method !== "POST" || url.pathname !== "/__room_create") return json({ ok: false, error: "Unhandled room factory request." }, 404);
+    const { pathname, payload } = await request.json();
+    if (pathname !== "/api/room/create") return json({ ok: false, error: "Unhandled room factory action." }, 404);
+    try {
+      const response = await withStateRetry(async () => {
+        const data = await loadState(this.env);
+        const result = await routeRequest("POST", new URL(`https://room.factory${pathname}`), payload || {}, data, {
+          autoBotMoves: false,
+          superuserPasscode: this.env.SOGOTABLE_SUPERUSER_PASSCODE,
+          superuserPlayerIds: this.env.SOGOTABLE_SUPERUSER_PLAYER_IDS,
+          ownerAuthBypass: this.env.__SOGOTABLE_TEST_OWNER_BYPASS,
+        });
+        await saveState(this.env, data);
+        await notifyRoomObject(this.env, result);
+        await notifyEventHub(this.env, data, result);
+        return result;
+      });
+      return json(response);
+    } catch (error) {
+      return json({ ok: false, error: error.message || "Room factory action failed." }, 400);
+    }
   }
 }
 
@@ -729,14 +770,28 @@ function directRoomAuthorityAllowed(env) {
 
 function roomAuthorityPath(pathname) {
   return [
-    "/api/room/join",
     "/api/room/join-bot",
+    "/api/room/join",
     "/api/room/leave",
     "/api/room/close",
     "/api/room/move",
     "/api/room/reset",
+    "/api/invite/create",
     "/api/invite/respond",
   ].includes(pathname);
+}
+
+function roomFactoryPath(pathname) {
+  return pathname === "/api/room/create";
+}
+
+async function roomFactoryRequest(env, pathname, payload) {
+  const response = await env.ROOM_FACTORY.getByName("room-factory").fetch(new Request("https://room.factory/__room_create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pathname, payload }),
+  }));
+  return response.json();
 }
 
 async function roomAuthorityRequest(env, pathname, payload) {
