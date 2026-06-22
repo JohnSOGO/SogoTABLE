@@ -287,9 +287,7 @@ let battleshipSelectedShipId = "carrier";
 let battleshipDrafts = {};
 let battleshipResultReveal = null;
 let battleshipResultTimer = null;
-let battleshipQueuedReveal = null;
-let battleshipPendingAutoDefence = null;
-let battleshipPendingAutoDefenceTimer = null;
+let battleshipRevealQueue = [];
 let battleshipReviewMark = "";
 let quoridorMode = "pawn";
 let quoridorDraftWall = null;
@@ -299,8 +297,9 @@ let lastTenThousandFarkleNoticeKey = "";
 let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
 let pendingMove = null;
-const BATTLESHIP_RESULT_REVEAL_DELAY_MS = 1000;
-const BATTLESHIP_AUTO_DEFENCE_REVEAL_DELAY_MS = 250;
+const BATTLESHIP_RADAR_MS = 1000;          // radar scan before the hit/miss lands
+const BATTLESHIP_RESULT_MS = 2000;         // how long the hit/miss stays up
+const BATTLESHIP_DEFENCE_SETTLE_MS = 250;  // let the defence board settle before an incoming reveal
 let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let playerOwnerTokens = loadPlayerOwnerTokens();
@@ -1929,7 +1928,9 @@ async function makeBattleshipAction(action) {
       action,
     });
     pendingMove = null;
-    clearBattleshipPendingDefence();
+    // Don't clear reveals here: setRoom enqueues the fresh ones from the event
+    // diff, and a live WebSocket broadcast may already be playing this move's
+    // reveal before this response resolves.
     if (action.type === "place_fleet" || action.type === "auto_place") {
       const selectedSeatAfterMove = currentRoom.players.find((seat) => seat.id === player.id);
       clearBattleshipDraft(currentRoom.code, selectedSeatAfterMove && selectedSeatAfterMove.mark);
@@ -1937,7 +1938,7 @@ async function makeBattleshipAction(action) {
     setRoom(response.room);
   } catch (error) {
     pendingMove = null;
-    clearBattleshipPendingDefence();
+    clearBattleshipReveals();
     renderGame();
     showTurnStatus(null, error.message);
     playInvalidMove();
@@ -2030,56 +2031,65 @@ async function startTenThousandGame() {
   }
 }
 
-function showBattleshipResultReveal(result) {
-  const durationMs = Math.max(1000, Number(result.durationMs || 1000));
-  const radarMs = Math.max(0, Number(result.radarMs || 0));
-  const now = Date.now();
-  battleshipResultReveal = {
-    ...result,
-    radarUntil: radarMs ? now + radarMs : 0,
-    until: now + durationMs,
-  };
-  if (radarMs) {
-    window.setTimeout(() => {
-      if (battleshipResultReveal && battleshipResultReveal.code === result.code && battleshipResultReveal.row === result.row && battleshipResultReveal.col === result.col) {
-        if (result.hit) playBattleshipHit();
-        else playBattleshipMiss();
-        renderGame();
-      }
-    }, radarMs);
-  } else if (result.hit) playBattleshipHit();
-  else playBattleshipMiss();
-  renderGame();
-  window.clearTimeout(battleshipResultTimer);
-  battleshipResultTimer = window.setTimeout(() => {
-    battleshipResultReveal = null;
-    const queued = battleshipQueuedReveal;
-    battleshipQueuedReveal = null;
-    if (queued) {
-      if (queued.autoDefenceDelay) scheduleBattleshipAutoDefenceReveal(queued);
-      else showBattleshipResultReveal(queued);
-      return;
-    }
+// A reveal plays in up to three phases: an optional "settle" pause (so the
+// board can switch to the defending view), a radar scan, then the hit/miss
+// result. Reveals are queued so a player's own offence reveal and the incoming
+// defence reveal play back to back instead of clobbering each other.
+function enqueueBattleshipReveals(reveals) {
+  if (!reveals.length) return;
+  battleshipRevealQueue.push(...reveals);
+  if (!battleshipResultReveal) advanceBattleshipRevealQueue();
+}
+
+function advanceBattleshipRevealQueue() {
+  const next = battleshipRevealQueue.shift();
+  if (!next) {
     renderGame();
-  }, durationMs + 50);
+    return;
+  }
+  showBattleshipResultReveal(next);
 }
 
-function scheduleBattleshipAutoDefenceReveal(reveal) {
-  battleshipPendingAutoDefence = reveal;
+function showBattleshipResultReveal(reveal) {
+  const settleMs = Math.max(0, Number(reveal.settleMs || 0));
+  const now = Date.now();
+  const radarStart = now + settleMs;
+  const radarUntil = radarStart + BATTLESHIP_RADAR_MS;
+  const active = {
+    ...reveal,
+    pendingUntil: settleMs ? radarStart : 0,
+    radarUntil,
+    until: radarUntil + BATTLESHIP_RESULT_MS,
+  };
+  battleshipResultReveal = active;
+  window.clearTimeout(battleshipResultTimer);
+  // Repaint when the radar scan begins (after the settle pause)...
+  if (settleMs) {
+    window.setTimeout(() => {
+      if (battleshipResultReveal === active) renderGame();
+    }, settleMs);
+  }
+  // ...play the hit/miss cue and repaint when the scan resolves...
+  window.setTimeout(() => {
+    if (battleshipResultReveal !== active) return;
+    if (active.hit) playBattleshipHit();
+    else playBattleshipMiss();
+    renderGame();
+  }, radarUntil - now);
+  // ...then clear and move on to the next queued reveal.
+  battleshipResultTimer = window.setTimeout(() => {
+    if (battleshipResultReveal !== active) return;
+    battleshipResultReveal = null;
+    advanceBattleshipRevealQueue();
+  }, active.until - now);
   renderGame();
-  battleshipPendingAutoDefenceTimer = window.setTimeout(() => {
-    if (!battleshipPendingAutoDefence || battleshipPendingAutoDefence.moveKey !== reveal.moveKey) return;
-    battleshipPendingAutoDefence = null;
-    battleshipPendingAutoDefenceTimer = null;
-    showBattleshipResultReveal(reveal);
-  }, BATTLESHIP_AUTO_DEFENCE_REVEAL_DELAY_MS);
 }
 
-function clearBattleshipPendingDefence() {
-  battleshipQueuedReveal = null;
-  battleshipPendingAutoDefence = null;
-  window.clearTimeout(battleshipPendingAutoDefenceTimer);
-  battleshipPendingAutoDefenceTimer = null;
+function clearBattleshipReveals() {
+  battleshipRevealQueue = [];
+  battleshipResultReveal = null;
+  window.clearTimeout(battleshipResultTimer);
+  battleshipResultTimer = null;
 }
 
 function confirmAction(title, message) {
@@ -2295,57 +2305,37 @@ function playBoxesEventSound(previousRoom, room) {
   playConfirm();
 }
 
+// Reveal every attack that landed since the last snapshot, in order. A bot
+// game folds the human's shot and the bot's reply into one snapshot, so the
+// diff (not last_move, which is always the bot's) is what surfaces the
+// player's own offence reveal alongside the incoming defence reveal.
 function showBattleshipAttackReveal(previousRoom, room) {
-  if (!isBattleshipGameState(room.game) || !room.game.last_move || room.game.last_move.type !== "attack") return;
-  if (!previousRoom || !previousRoom.game) return;
-  const previousMoveKey = battleshipSoundMoveKey(previousRoom.game.last_move);
-  const nextMoveKey = battleshipSoundMoveKey(room.game.last_move);
-  if (!nextMoveKey || previousMoveKey === nextMoveKey) return;
+  if (!isBattleshipGameState(room.game)) return;
+  if (!previousRoom || !previousRoom.game || previousRoom.code !== room.code) return;
   const selectedSeat = battleshipViewerSeat(room);
   if (!selectedSeat) return;
-  const ownAttack = room.game.last_move.player === selectedSeat.mark;
-  const shouldReveal = battleshipViewMode === "auto"
-    || (ownAttack && battleshipViewMode === "offence")
-    || (!ownAttack && battleshipViewMode === "defence");
-  if (!shouldReveal) return;
-  clearBattleshipPendingDefence();
-  const reveal = {
-    code: room.code,
-    player: selectedSeat.mark,
-    moveKey: nextMoveKey,
-    view: ownAttack ? "offence" : "defence",
-    row: Number(room.game.last_move.row),
-    col: Number(room.game.last_move.col),
-    hit: Boolean(room.game.last_move.hit),
-    sunk: Boolean(room.game.last_move.sunk),
-    attackText: randomBattleshipPhrase(BATTLESHIP_ATTACK_PHRASES),
-    resultText: randomBattleshipResultPhrase(Boolean(room.game.last_move.hit), Boolean(room.game.last_move.sunk)),
-    durationMs: 3000,
-    radarMs: BATTLESHIP_RESULT_REVEAL_DELAY_MS,
-  };
-  if (!ownAttack && battleshipResultReveal && battleshipResultReveal.view === "offence") {
-    reveal.autoDefenceDelay = battleshipViewMode === "auto";
-    battleshipQueuedReveal = reveal;
-    return;
+  const previousEvents = Array.isArray(previousRoom.game.events) ? previousRoom.game.events : [];
+  const events = Array.isArray(room.game.events) ? room.game.events : [];
+  const newAttacks = events.slice(previousEvents.length).filter((move) => move && move.type === "attack");
+  const reveals = [];
+  for (const move of newAttacks) {
+    const ownAttack = move.player === selectedSeat.mark;
+    const view = ownAttack ? "offence" : "defence";
+    if (battleshipViewMode !== "auto" && battleshipViewMode !== view) continue;
+    reveals.push({
+      code: room.code,
+      player: selectedSeat.mark,
+      view,
+      row: Number(move.row),
+      col: Number(move.col),
+      hit: Boolean(move.hit),
+      sunk: Boolean(move.sunk),
+      attackText: randomBattleshipPhrase(BATTLESHIP_ATTACK_PHRASES),
+      resultText: randomBattleshipResultPhrase(Boolean(move.hit), Boolean(move.sunk)),
+      settleMs: view === "defence" && battleshipViewMode === "auto" ? BATTLESHIP_DEFENCE_SETTLE_MS : 0,
+    });
   }
-  if (!ownAttack && battleshipViewMode === "auto") {
-    scheduleBattleshipAutoDefenceReveal(reveal);
-    return;
-  }
-  showBattleshipResultReveal(reveal);
-}
-
-function battleshipSoundMoveKey(move) {
-  if (!move || move.type !== "attack") return "";
-  return JSON.stringify({
-    type: "battleshipAttack",
-    player: move.player,
-    row: move.row,
-    col: move.col,
-    hit: Boolean(move.hit),
-    sunk: Boolean(move.sunk),
-    ship: move.ship_id || "",
-  });
+  enqueueBattleshipReveals(reveals);
 }
 
 function playGameOverSound(previousRoom, room) {
@@ -2618,12 +2608,9 @@ function renderBattleshipGame(game) {
   host.classList.toggle("your-turn", Boolean(yourTurn));
   host.classList.toggle("waiting", Boolean(!yourTurn));
   const reveal = activeBattleshipResultReveal(currentRoom, selectedSeat);
-  const pendingAutoDefence = activeBattleshipPendingAutoDefence(currentRoom, selectedSeat);
   const activeView = reveal && reveal.view
     ? reveal.view
-    : pendingAutoDefence
-      ? "defence"
-      : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+    : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
   const boardPlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
   setTurnColorVariables(host, boardPlayer ? boardPlayer.color : selectedSeat ? selectedSeat.color : "#1f7a5f");
   showBattleshipTurnStatus(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
@@ -2657,13 +2644,13 @@ function showBattleshipTurnStatus(activeView, reveal, selectedSeat, opponent, cu
   }
   if (reveal && reveal.view === "offence") {
     const phase = battleshipRevealPhase(reveal);
-    setTurnStatusText(host, phase === "radar" ? reveal.attackText || "Taking the shot." : reveal.resultText || battleshipDefaultResultText(reveal));
+    setTurnStatusText(host, phase === "result" ? reveal.resultText || battleshipDefaultResultText(reveal) : reveal.attackText || "Taking the shot.");
     host.classList.add("your-turn");
     return;
   }
   if (reveal && reveal.view === "defence") {
     const phase = battleshipRevealPhase(reveal);
-    setTurnStatusText(host, phase === "radar" ? reveal.attackText || "Incoming!" : reveal.resultText || battleshipDefaultResultText(reveal));
+    setTurnStatusText(host, phase === "result" ? reveal.resultText || battleshipDefaultResultText(reveal) : reveal.attackText || "Incoming!");
     host.classList.add("waiting");
     return;
   }
@@ -2682,7 +2669,9 @@ function showBattleshipTurnStatus(activeView, reveal, selectedSeat, opponent, cu
 
 function battleshipRevealPhase(reveal) {
   if (!reveal) return "";
-  if (reveal.radarUntil && Date.now() < reveal.radarUntil) return "radar";
+  const now = Date.now();
+  if (reveal.pendingUntil && now < reveal.pendingUntil) return "pending";
+  if (reveal.radarUntil && now < reveal.radarUntil) return "radar";
   return "result";
 }
 
@@ -2765,7 +2754,7 @@ function renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, o
   panel.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       battleshipViewMode = button.dataset.view;
-      clearBattleshipPendingDefence();
+      clearBattleshipReveals();
       renderGame();
     });
   });
@@ -2822,11 +2811,14 @@ function renderBattleshipGrid(grid, game, options = {}) {
     for (let col = 0; col < size; col += 1) {
       const ship = ships.find((item) => battleshipShipCells(item, battleshipShipSize(game, item.id)).some((cell) => cell.row === row && cell.col === col));
       const rawShot = shots.find((item) => item.row === row && item.col === col);
-      const radarTarget = options.reveal && revealPhase === "radar" && options.reveal.row === row && options.reveal.col === col;
+      const revealCell = Boolean(options.reveal && options.reveal.row === row && options.reveal.col === col);
+      const radarTarget = revealCell && revealPhase === "radar";
+      const pendingTarget = revealCell && revealPhase === "pending";
       const attackLock = Boolean(radarTarget && options.reveal.view === "offence");
       const radarScan = Boolean(options.reveal && revealPhase === "radar" && options.reveal.view !== "offence" && (options.reveal.row === row || options.reveal.col === col));
-      const shot = radarTarget ? null : rawShot;
-      const reveal = options.reveal && revealPhase !== "radar" && options.reveal.row === row && options.reveal.col === col ? options.reveal : null;
+      // Keep the landed shot hidden through the settle and radar phases so the result lands as a reveal, not a spoiler.
+      const shot = (radarTarget || pendingTarget) ? null : rawShot;
+      const reveal = revealCell && revealPhase === "result" ? options.reveal : null;
       const selectedShip = ship && options.mode === "setup" && ship.id === options.selectedShipId;
       const hitShip = shot && shot.hit && shot.ship_id ? targetShips.find((item) => item.id === shot.ship_id) : null;
       const sunkHit = hitShip ? battleshipShipSunk(hitShip, game, shots) : false;
@@ -2965,12 +2957,6 @@ function activeBattleshipResultReveal(room, selectedSeat) {
     return null;
   }
   return battleshipResultReveal;
-}
-
-function activeBattleshipPendingAutoDefence(room, selectedSeat) {
-  if (battleshipViewMode !== "auto" || !room || !selectedSeat || !battleshipPendingAutoDefence) return null;
-  if (battleshipPendingAutoDefence.code !== room.code || battleshipPendingAutoDefence.player !== selectedSeat.mark) return null;
-  return battleshipPendingAutoDefence;
 }
 
 function renderQuoridorGame(game) {
@@ -3428,13 +3414,10 @@ function visibleBattleshipPlayerMark(room) {
   const opponent = selectedSeat ? room.players.find((player) => player.mark && player.mark !== selectedSeat.mark) : null;
   const currentTurnPlayer = room.players.find((player) => player.mark === room.game.current_player);
   const reveal = activeBattleshipResultReveal(room, selectedSeat);
-  const pendingAutoDefence = activeBattleshipPendingAutoDefence(room, selectedSeat);
   const yourTurn = selectedSeat && selectedSeat.mark === room.game.current_player;
   const activeView = reveal && reveal.view
     ? reveal.view
-    : pendingAutoDefence
-      ? "defence"
-      : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+    : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
   const visiblePlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
   return visiblePlayer && visiblePlayer.mark || "";
 }
