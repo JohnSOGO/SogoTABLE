@@ -2,9 +2,9 @@
   "ok": true,
   "status": {
     "version": "0.1.2",
-    "revision": "9adfce7",
-    "branch": "feature/bohnanza-controls",
-    "dirty": true,
-    "summary": "SogoTable 0.1.2 rev 9adfce7 branch feature/bohnanza-controls dirty"
+    "revision": "cb8e863",
+    "branch": "main",
+    "dirty": false,
+    "summary": "SogoTable 0.1.2 rev cb8e863 branch main clean"
   }
 }
