@@ -80,6 +80,9 @@ storage on every request. The current Worker has:
 - `API_MUTATION_RATE_LIMITER`: 180 `POST`/`DELETE` requests per minute per client key.
 - `SUPERUSER_RATE_LIMITER`: 20 `POST /api/superuser/verify` attempts per minute per client key.
 
+Workers rate-limit `namespace_id` values must be positive integers encoded as
+strings. Keep namespace ids unique per limiter unless counters should be shared.
+
 Keep these limits roomy enough for household play, then tune with live evidence
 before broader public sharing.
 
