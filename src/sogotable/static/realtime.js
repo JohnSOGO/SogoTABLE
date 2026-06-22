@@ -8,6 +8,7 @@ export function createRealtimeController(callbacks) {
   let roomSocketReconnectAttempts = 0;
   let roomCode = "";
   let connectedRoomCode = "";
+  let connectedRoomPlayerId = "";
   let appEventsSocket = null;
   let appEventsGameId = "";
   let appEventsReconnectTimer = null;
@@ -17,6 +18,7 @@ export function createRealtimeController(callbacks) {
     const nextCode = nextRoomCode || "";
     if (connectedRoomCode && connectedRoomCode !== nextCode) stopRoomSocket();
     roomCode = nextCode;
+    if (roomSocket && connectedRoomPlayerId && connectedRoomPlayerId !== callbacks.getRoomPlayerId()) stopRoomSocket();
     connectRoomSocket();
     callbacks.refreshRoom();
   }
@@ -31,7 +33,9 @@ export function createRealtimeController(callbacks) {
     if (roomSocket && roomSocket.readyState <= WebSocket.OPEN) return;
     stopRoomSocket(false);
     try {
-      roomSocket = new WebSocket(roomSocketUrl(roomCode, callbacks.getRoomPlayerId()));
+      const playerId = callbacks.getRoomPlayerId();
+      roomSocket = new WebSocket(roomSocketUrl(roomCode, playerId));
+      connectedRoomPlayerId = playerId;
     } catch {
       scheduleRoomReconnect();
       return;
@@ -57,6 +61,7 @@ export function createRealtimeController(callbacks) {
 
   function stopRoomSocket(clearReconnect = true) {
     connectedRoomCode = "";
+    connectedRoomPlayerId = "";
     if (roomSocket) {
       const socket = roomSocket;
       roomSocket = null;
@@ -142,6 +147,12 @@ export function createRealtimeController(callbacks) {
 
   return {
     connectAppEvents,
+    refreshRoomLiveUpdates: () => {
+      if (!roomCode) return;
+      stopRoomSocket();
+      connectRoomSocket();
+      callbacks.refreshRoom();
+    },
     sendAppEventSubscription,
     startRoomLiveUpdates,
     stopRoomLiveUpdates,

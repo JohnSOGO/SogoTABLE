@@ -312,7 +312,7 @@ const realtime = createRealtimeController({
     gameId: selectedGame().id,
     playerId: deviceSelectedPlayerId,
   }),
-  getRoomPlayerId: () => selectedPlayerId || deviceSelectedPlayerId || "",
+  getRoomPlayerId: () => deviceSelectedPlayerId || selectedPlayerId || "",
   onAppMessage: handleAppEventMessage,
   onRoomMessage: handleRoomSocketMessage,
   onRoomReconnect: () => showTurnStatus(null, "Reconnecting to room..."),
@@ -2301,7 +2301,7 @@ function showBattleshipAttackReveal(previousRoom, room) {
   const previousMoveKey = battleshipSoundMoveKey(previousRoom.game.last_move);
   const nextMoveKey = battleshipSoundMoveKey(room.game.last_move);
   if (!nextMoveKey || previousMoveKey === nextMoveKey) return;
-  const selectedSeat = room.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+  const selectedSeat = battleshipViewerSeat(room);
   if (!selectedSeat) return;
   const ownAttack = room.game.last_move.player === selectedSeat.mark;
   const shouldReveal = battleshipViewMode === "auto"
@@ -2569,7 +2569,7 @@ function renderGame() {
 
 function syncBattleshipReviewMark(game) {
   if (!isBattleshipGameState(game) || game.phase !== "complete") return;
-  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId && player.mark);
+  const selectedSeat = battleshipViewerSeat(currentRoom);
   const currentReviewSeat = currentRoom.players.find((player) => player.mark === battleshipReviewMark);
   if (currentReviewSeat) return;
   battleshipReviewMark = selectedSeat && selectedSeat.mark || (currentRoom.players.find((player) => player.mark) || {}).mark || "";
@@ -2583,7 +2583,7 @@ function renderBattleshipGame(game) {
   const host = document.getElementById("macroBoard");
   host.className = "macro-board battleship-room-board";
   host.innerHTML = "";
-  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
+  const selectedSeat = battleshipViewerSeat(currentRoom);
   const currentTurnPlayer = currentRoom.players.find((player) => player.mark === game.current_player);
   setTurnColorVariables(host, currentTurnPlayer ? currentTurnPlayer.color : selectedSeat ? selectedSeat.color : "#1f7a5f");
   if (!currentRoom.started) {
@@ -2628,6 +2628,13 @@ function renderBattleshipGame(game) {
   setTurnColorVariables(host, boardPlayer ? boardPlayer.color : selectedSeat ? selectedSeat.color : "#1f7a5f");
   showBattleshipTurnStatus(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
   renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, opponentState, activeView, reveal);
+}
+
+function battleshipViewerSeat(room) {
+  if (!room || !Array.isArray(room.players)) return null;
+  return room.players.find((player) => player.id === deviceSelectedPlayerId && player.mark)
+    || room.players.find((player) => player.id === selectedPlayerId && player.mark)
+    || null;
 }
 
 function battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer) {
@@ -3417,7 +3424,7 @@ function renderGamePlayerSwitch() {
 }
 
 function visibleBattleshipPlayerMark(room) {
-  const selectedSeat = room.players.find((player) => player.id === selectedPlayerId);
+  const selectedSeat = battleshipViewerSeat(room);
   const opponent = selectedSeat ? room.players.find((player) => player.mark && player.mark !== selectedSeat.mark) : null;
   const currentTurnPlayer = room.players.find((player) => player.mark === room.game.current_player);
   const reveal = activeBattleshipResultReveal(room, selectedSeat);
@@ -3766,10 +3773,12 @@ function clearLockedSogoSelection() {
 function setDeviceSelectedPlayer(playerId) {
   const nextPlayer = players.find((player) => player.id === playerId) || null;
   if (!isSogoSuperuser(nextPlayer)) clearSogoSuperuserPasscode();
+  const previousPlayerId = deviceSelectedPlayerId;
   deviceSelectedPlayerId = playerId;
   selectedPlayerId = playerId;
   saveSelectedPlayer();
   realtime.sendAppEventSubscription();
+  if (currentRoom && previousPlayerId !== deviceSelectedPlayerId) realtime.refreshRoomLiveUpdates();
 }
 
 function syncSelectedPlayerForLocalRoom() {
@@ -3824,6 +3833,7 @@ function restoreLocalGameHomePlayer(room) {
   if (deviceSelectedPlayerId !== homePlayerId) {
     deviceSelectedPlayerId = homePlayerId;
     saveSelectedPlayer();
+    if (currentRoom) realtime.refreshRoomLiveUpdates();
   }
   if (!changed) return;
   renderPlayers();

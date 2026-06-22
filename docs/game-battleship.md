@@ -56,6 +56,10 @@ The game screen defaults to defence during setup, offence on the local player's
 turn, and defence while waiting. Players can manually switch between `Auto`,
 `Offence`, and `Defence`.
 
+Battleship viewer state is tied to the device-selected player for both human
+opponents and bot games. This keeps the room WebSocket projection and Auto view
+on the local player's own fleet when an incoming attack resolves.
+
 Overlord uses stronger Battleship logic than the basic bots: Monte Carlo
 fleet placement scored against a generic attack heat map, and probability-based
 attacks with parity, information value, and hit-line finishing. The shared bot
