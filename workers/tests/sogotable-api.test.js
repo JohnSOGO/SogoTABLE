@@ -69,21 +69,22 @@ class Statement {
 }
 
 function makeEnv() {
+  return tenThousandTest.allowDirectRoomAuthority({ SOGOTABLE_STATE: new InMemoryD1(), SOGOTABLE_SUPERUSER_PASSCODE: "1234" });
+}
+
+function makeProductionEnv() {
   return { SOGOTABLE_STATE: new InMemoryD1(), SOGOTABLE_SUPERUSER_PASSCODE: "1234" };
 }
 
 function makeEnvWithRooms() {
-  const env = { SOGOTABLE_STATE: new InMemoryD1(), SOGOTABLE_SUPERUSER_PASSCODE: "1234" };
+  const env = makeEnv();
   env.ROOM_OBJECT = new MockRoomNamespace(env);
   return env;
 }
 
 function makeEnvWithEvents() {
-  const env = {
-    SOGOTABLE_STATE: new InMemoryD1(),
-    SOGOTABLE_SUPERUSER_PASSCODE: "1234",
-    EVENT_HUB: new MockEventHubNamespace(),
-  };
+  const env = makeEnv();
+  env.EVENT_HUB = new MockEventHubNamespace();
   env.ROOM_OBJECT = new MockRoomNamespace(env);
   return env;
 }
@@ -1567,6 +1568,27 @@ test("invite accept routes through room authority", async () => {
   assert.equal(accepted.room.status, "active");
   assert.equal(roomObject.actions.includes("/api/invite/respond"), true);
   assert.equal(roomObject.snapshots.at(-1).players.some((seat) => seat.id === guest.id), true);
+});
+
+test("room authority paths fail closed when ROOM_OBJECT is unavailable", async () => {
+  const cases = [
+    { path: "/api/room/join", body: { code: "AUTH", player: player("guest", "Guest") } },
+    { path: "/api/room/join-bot", body: { code: "AUTH", host_id: "host", bot_id: "7c91a4e2b6d0" } },
+    { path: "/api/room/leave", body: { code: "AUTH", player_id: "host", requester_id: "host" } },
+    { path: "/api/room/close", body: { code: "AUTH", requester_id: "sogo-id", passcode: "1234" } },
+    { path: "/api/room/move", body: { code: "AUTH", player_id: "host", board: 0, cell: 0 } },
+    { path: "/api/room/reset", body: { code: "AUTH", requester_id: "host" } },
+    { path: "/api/invite/respond", body: { invite_id: "AUTH:guest", accept: true, player: player("guest", "Guest") } },
+  ];
+
+  for (const item of cases) {
+    const env = makeProductionEnv();
+    const { response, json } = await request(env, "POST", item.path, item.body);
+    assert.equal(response.status, 503, item.path);
+    assert.equal(json.ok, false, item.path);
+    assert.equal(json.error, "Room authority unavailable.", item.path);
+    assert.equal(env.SOGOTABLE_STATE.writeCount, 0, item.path);
+  }
 });
 
 test("notifies the room durable object after meaningful room changes", async () => {

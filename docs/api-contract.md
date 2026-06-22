@@ -831,6 +831,16 @@ The hosted Worker stores current playtest state in D1. It uses optimistic lockin
 
 Active room mutations for `POST /api/room/join`, `POST /api/room/join-bot`, `POST /api/room/leave`, `POST /api/room/close`, `POST /api/room/move`, `POST /api/room/reset`, and invite acceptance through `POST /api/invite/respond` are routed through the room's Durable Object before persistence. The public HTTP request/response contract stays the same, but the room object serializes these changes per room and broadcasts the resulting room snapshot.
 
+If the `ROOM_OBJECT` Durable Object binding is unavailable in production, those
+room-authority POST paths fail closed with HTTP `503`:
+
+```json
+{ "ok": false, "error": "Room authority unavailable." }
+```
+
+They must not fall back to direct Worker mutation routing, because that would
+bypass the room object's serialization and live snapshot contract.
+
 App event snapshots include selected-game room lists, lobby players, pending invites, and game stats. The EventHub sends an initial snapshot on socket open/subscription, and the browser reconnects the app event socket when the selected game changes.
 
 Read-only `GET` polling endpoints must not write the whole state row back to D1.

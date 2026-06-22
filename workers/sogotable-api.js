@@ -148,13 +148,18 @@ export default {
     if (request.method === "GET" && url.pathname === "/api/room/socket") return roomSocket(request, env, url);
     if (request.method === "GET" && url.pathname === "/api/events/socket") return appEventsSocket(request, env, url);
     try {
+      let payload = {};
+      if (request.method === "POST") payload = await readJson(request);
+      if (request.method === "POST" && roomAuthorityPath(url.pathname)) {
+        if (!env.ROOM_OBJECT && !directRoomAuthorityAllowed(env)) {
+          return json({ ok: false, error: "Room authority unavailable." }, 503, corsHeaders);
+        }
+      }
       if (request.method === "POST" && roomAuthorityPath(url.pathname) && env.ROOM_OBJECT) {
-        const payload = await readJson(request);
         const response = await roomAuthorityRequest(env, url.pathname, payload);
         return json(responseForViewer(response, viewerPlayerIdForPayload(payload)), response.ok === false ? 400 : 200, corsHeaders);
       }
       const data = await loadState(env);
-      const payload = request.method === "POST" ? await readJson(request) : {};
       const response = await routeRequest(request.method, url, payload, data, { superuserPasscode: env.SOGOTABLE_SUPERUSER_PASSCODE });
       if (request.method !== "GET" && url.pathname !== "/api/superuser/verify") {
         await saveState(env, data);
@@ -674,6 +679,10 @@ function roomSocket(request, env, url) {
   if (!env.ROOM_OBJECT) return json({ ok: false, error: "Room live updates are not configured." }, 503);
   const code = cleanRoomCode(url.searchParams.get("code") || "");
   return env.ROOM_OBJECT.getByName(code).fetch(request);
+}
+
+function directRoomAuthorityAllowed(env) {
+  return Boolean(env && env.__SOGOTABLE_TEST_DIRECT_ROOM_AUTHORITY);
 }
 
 function roomAuthorityPath(pathname) {
@@ -3952,6 +3961,10 @@ function hexToRgb(color) {
 }
 
 export const __test = {
+  allowDirectRoomAuthority(env) {
+    env.__SOGOTABLE_TEST_DIRECT_ROOM_AUTHORITY = true;
+    return env;
+  },
   tenThousandBotKeep,
   tenThousandBotShouldBank,
   tenThousandBotErrorRate,
