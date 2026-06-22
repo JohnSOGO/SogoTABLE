@@ -29,9 +29,10 @@ Battleship is the fourth ready SogoTable game.
 - After an attack, the browser shows a hit explosion or miss splash only after
   the authoritative Worker response or room snapshot reports the result.
 - In `Auto` view, the browser holds offence through the local attack reveal for
-  two seconds, then switches to the opponent-colored defence/turn view. Incoming
-  attacks show a one-second radar scan on defence, then reveal the hit/miss
-  result for two seconds before returning to offence.
+  two seconds, then switches to the player's own-fleet defence/turn view. Incoming
+  attacks switch to defence immediately, wait 250ms for the defending board to
+  settle, show a one-second radar scan, then reveal the hit/miss result for two
+  seconds before returning to offence.
 - The attacked cell gets an opponent-colored reveal outline while the hit/miss
   animation is active so the visual result is visible even when sound is the
   first cue.

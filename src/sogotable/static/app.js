@@ -288,6 +288,8 @@ let battleshipDrafts = {};
 let battleshipResultReveal = null;
 let battleshipResultTimer = null;
 let battleshipQueuedReveal = null;
+let battleshipPendingAutoDefence = null;
+let battleshipPendingAutoDefenceTimer = null;
 let battleshipReviewMark = "";
 let quoridorMode = "pawn";
 let quoridorDraftWall = null;
@@ -298,6 +300,7 @@ let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
 let pendingMove = null;
 const BATTLESHIP_RESULT_REVEAL_DELAY_MS = 1000;
+const BATTLESHIP_AUTO_DEFENCE_REVEAL_DELAY_MS = 250;
 let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let playerOwnerTokens = loadPlayerOwnerTokens();
@@ -2053,15 +2056,30 @@ function showBattleshipResultReveal(result) {
     const queued = battleshipQueuedReveal;
     battleshipQueuedReveal = null;
     if (queued) {
-      showBattleshipResultReveal(queued);
+      if (queued.autoDefenceDelay) scheduleBattleshipAutoDefenceReveal(queued);
+      else showBattleshipResultReveal(queued);
       return;
     }
     renderGame();
   }, durationMs + 50);
 }
 
+function scheduleBattleshipAutoDefenceReveal(reveal) {
+  battleshipPendingAutoDefence = reveal;
+  renderGame();
+  battleshipPendingAutoDefenceTimer = window.setTimeout(() => {
+    if (!battleshipPendingAutoDefence || battleshipPendingAutoDefence.moveKey !== reveal.moveKey) return;
+    battleshipPendingAutoDefence = null;
+    battleshipPendingAutoDefenceTimer = null;
+    showBattleshipResultReveal(reveal);
+  }, BATTLESHIP_AUTO_DEFENCE_REVEAL_DELAY_MS);
+}
+
 function clearBattleshipPendingDefence() {
   battleshipQueuedReveal = null;
+  battleshipPendingAutoDefence = null;
+  window.clearTimeout(battleshipPendingAutoDefenceTimer);
+  battleshipPendingAutoDefenceTimer = null;
 }
 
 function confirmAction(title, message) {
@@ -2294,6 +2312,7 @@ function showBattleshipAttackReveal(previousRoom, room) {
   const reveal = {
     code: room.code,
     player: selectedSeat.mark,
+    moveKey: nextMoveKey,
     view: ownAttack ? "offence" : "defence",
     row: Number(room.game.last_move.row),
     col: Number(room.game.last_move.col),
@@ -2305,7 +2324,12 @@ function showBattleshipAttackReveal(previousRoom, room) {
     radarMs: BATTLESHIP_RESULT_REVEAL_DELAY_MS,
   };
   if (!ownAttack && battleshipResultReveal && battleshipResultReveal.view === "offence") {
+    reveal.autoDefenceDelay = battleshipViewMode === "auto";
     battleshipQueuedReveal = reveal;
+    return;
+  }
+  if (!ownAttack && battleshipViewMode === "auto") {
+    scheduleBattleshipAutoDefenceReveal(reveal);
     return;
   }
   showBattleshipResultReveal(reveal);
@@ -2594,7 +2618,12 @@ function renderBattleshipGame(game) {
   host.classList.toggle("your-turn", Boolean(yourTurn));
   host.classList.toggle("waiting", Boolean(!yourTurn));
   const reveal = activeBattleshipResultReveal(currentRoom, selectedSeat);
-  const activeView = reveal && reveal.view ? reveal.view : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+  const pendingAutoDefence = activeBattleshipPendingAutoDefence(currentRoom, selectedSeat);
+  const activeView = reveal && reveal.view
+    ? reveal.view
+    : pendingAutoDefence
+      ? "defence"
+      : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
   const boardPlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
   setTurnColorVariables(host, boardPlayer ? boardPlayer.color : selectedSeat ? selectedSeat.color : "#1f7a5f");
   showBattleshipTurnStatus(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
@@ -2729,6 +2758,7 @@ function renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, o
   panel.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       battleshipViewMode = button.dataset.view;
+      clearBattleshipPendingDefence();
       renderGame();
     });
   });
@@ -2928,6 +2958,12 @@ function activeBattleshipResultReveal(room, selectedSeat) {
     return null;
   }
   return battleshipResultReveal;
+}
+
+function activeBattleshipPendingAutoDefence(room, selectedSeat) {
+  if (battleshipViewMode !== "auto" || !room || !selectedSeat || !battleshipPendingAutoDefence) return null;
+  if (battleshipPendingAutoDefence.code !== room.code || battleshipPendingAutoDefence.player !== selectedSeat.mark) return null;
+  return battleshipPendingAutoDefence;
 }
 
 function renderQuoridorGame(game) {
@@ -3385,8 +3421,13 @@ function visibleBattleshipPlayerMark(room) {
   const opponent = selectedSeat ? room.players.find((player) => player.mark && player.mark !== selectedSeat.mark) : null;
   const currentTurnPlayer = room.players.find((player) => player.mark === room.game.current_player);
   const reveal = activeBattleshipResultReveal(room, selectedSeat);
+  const pendingAutoDefence = activeBattleshipPendingAutoDefence(room, selectedSeat);
   const yourTurn = selectedSeat && selectedSeat.mark === room.game.current_player;
-  const activeView = reveal && reveal.view ? reveal.view : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+  const activeView = reveal && reveal.view
+    ? reveal.view
+    : pendingAutoDefence
+      ? "defence"
+      : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
   const visiblePlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
   return visiblePlayer && visiblePlayer.mark || "";
 }
