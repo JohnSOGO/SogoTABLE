@@ -1483,6 +1483,29 @@ test("Battleship room reads project ships for each viewer", async () => {
   assert.equal(publicView.room.game.players.O.ships.length, 0);
 });
 
+test("Battleship reveals a sunk opponent ship to the attacker, not the rest of the fleet", async () => {
+  const env = makeEnv();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  await post(env, "/api/room/create", { game_id: BATTLESHIP_GAME_ID, player: host, code: "SUNK" });
+  const joined = await post(env, "/api/room/join", { code: "SUNK", player: guest });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+  const oSeat = joined.room.players.find((seat) => seat.mark === "O");
+  await post(env, "/api/room/move", { code: "SUNK", player_id: xSeat.id, action: { type: "place_fleet", ships: fleet(0) } });
+  await post(env, "/api/room/move", { code: "SUNK", player_id: oSeat.id, action: { type: "place_fleet", ships: fleet(5) } });
+  // O's destroyer occupies (9,0) and (9,1). X hits both to sink it.
+  await post(env, "/api/room/move", { code: "SUNK", player_id: xSeat.id, action: { type: "attack", row: 9, col: 0 } });
+  await post(env, "/api/room/move", { code: "SUNK", player_id: oSeat.id, action: { type: "attack", row: 9, col: 9 } });
+  const sink = await post(env, "/api/room/move", { code: "SUNK", player_id: xSeat.id, action: { type: "attack", row: 9, col: 1 } });
+  const xView = await get(env, `/api/room?code=SUNK&player_id=${encodeURIComponent(xSeat.id)}`);
+
+  assert.equal(sink.room.game.last_move.sunk, true);
+  assert.equal(sink.room.game.last_move.ship_id, "destroyer");
+  const revealed = xView.room.game.players[oSeat.mark].ships;
+  assert.equal(revealed.length, 1);
+  assert.equal(revealed[0].id, "destroyer");
+});
+
 test("Battleship room sockets broadcast viewer-specific projections", async () => {
   const env = makeEnv();
   const host = player("host", "Host");

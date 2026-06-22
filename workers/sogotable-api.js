@@ -1358,18 +1358,27 @@ function battleshipGameToDictForViewer(game, viewerMark, roomStatusValue) {
   const projected = structuredClone(game);
   if (!projected.players) return projected;
   const revealShips = roomStatusValue === "completed" || projected.phase === "complete";
+  const viewerState = viewerMark ? projected.players[viewerMark] : null;
+  const viewerShots = viewerState ? viewerState.shots || [] : [];
   ["X", "O"].forEach((mark) => {
     const state = projected.players[mark];
     if (!state) return;
     const isViewer = mark === viewerMark;
     state.shots = (state.shots || []).map((shot) => sanitizeBattleshipShot(shot, revealShips));
-    if (!isViewer && !revealShips) state.ships = [];
+    // Hide the opponent's fleet during play, but reveal the ships the viewer has
+    // already sunk so the attacker can mark them red and see which ship went down.
+    if (!isViewer && !revealShips) state.ships = battleshipSunkShips(state.ships, viewerShots);
   });
   if (!revealShips) {
     projected.last_move = sanitizeBattleshipMove(projected.last_move);
     projected.events = (projected.events || []).map(sanitizeBattleshipMove);
   }
   return projected;
+}
+
+function battleshipSunkShips(defenderShips, attackerShots) {
+  const hits = new Set((attackerShots || []).filter((shot) => shot.hit).map((shot) => `${shot.row}:${shot.col}`));
+  return (defenderShips || []).filter((ship) => battleshipShipCells(ship).every((cell) => hits.has(`${cell.row}:${cell.col}`)));
 }
 
 function sanitizeBattleshipShot(shot, revealShips) {

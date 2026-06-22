@@ -2318,8 +2318,14 @@ function showBattleshipAttackReveal(previousRoom, room) {
   const events = Array.isArray(room.game.events) ? room.game.events : [];
   const newAttacks = events.slice(previousEvents.length).filter((move) => move && move.type === "attack");
   const reveals = [];
+  const sunkByYou = [];
   for (const move of newAttacks) {
     const ownAttack = move.player === selectedSeat.mark;
+    // The Worker keeps ship_id on a sinking move, so name the ship you just sank.
+    if (ownAttack && move.sunk) {
+      const ship = (room.game.fleet || []).find((item) => item.id === move.ship_id);
+      sunkByYou.push(ship ? ship.name : "ship");
+    }
     const view = ownAttack ? "offence" : "defence";
     if (battleshipViewMode !== "auto" && battleshipViewMode !== view) continue;
     reveals.push({
@@ -2336,6 +2342,7 @@ function showBattleshipAttackReveal(previousRoom, room) {
     });
   }
   enqueueBattleshipReveals(reveals);
+  for (const shipName of sunkByYou) showInfoPrompt("Battleship", `You sunk my ${shipName}!`);
 }
 
 function playGameOverSound(previousRoom, room) {
@@ -2766,7 +2773,9 @@ function renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, o
     title.textContent = `Offence: target ${opponent ? opponent.name : "opponent"}`;
     renderBattleshipGrid(grid, game, {
       shots: playerState.shots || [],
-      targetShips: game.phase === "complete" ? opponentState.ships || [] : [],
+      // Opponent ships are hidden until you sink them; the Worker reveals each
+      // sunk ship so its cells can be marked. All ships are revealed on complete.
+      targetShips: opponentState.ships || [],
       mode: "offence",
       shooter: opponent,
       reveal,
@@ -2820,7 +2829,9 @@ function renderBattleshipGrid(grid, game, options = {}) {
       const shot = (radarTarget || pendingTarget) ? null : rawShot;
       const reveal = revealCell && revealPhase === "result" ? options.reveal : null;
       const selectedShip = ship && options.mode === "setup" && ship.id === options.selectedShipId;
-      const hitShip = shot && shot.hit && shot.ship_id ? targetShips.find((item) => item.id === shot.ship_id) : null;
+      // Identify the hit's ship by position (shot.ship_id is stripped from the
+      // viewer projection); targetShips holds the fleet whose cells can be marked.
+      const hitShip = shot && shot.hit ? battleshipShipAt(targetShips, game, row, col) : null;
       const sunkHit = hitShip ? battleshipShipSunk(hitShip, game, shots) : false;
       const cell = document.createElement("button");
       cell.type = "button";
