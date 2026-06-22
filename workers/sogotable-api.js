@@ -109,7 +109,7 @@ const RESERVED_TEST_PLAYERS = [
   { id: "codex-test-player-2", name: "Codex Test 2", icon: "\uD83E\uDDEA", color: "#be123c", kind: "test", hidden: true },
 ];
 const RESERVED_TEST_PLAYER_IDS = new Set(RESERVED_TEST_PLAYERS.map((player) => player.id));
-const SOGO_SUPERUSER_NAMES = new Set(["sogo", "mojosogo"]);
+const OWNER_TOKEN_BYTES = 24;
 const OVERLORD_BOT_ID = "0f8a3c9d1e72";
 const TACTICAL_PICKUP_CONFIG = {
   coin: {
@@ -160,7 +160,11 @@ export default {
         return json(responseForViewer(response, viewerPlayerIdForPayload(payload)), response.ok === false ? 400 : 200, corsHeaders);
       }
       const data = await loadState(env);
-      const response = await routeRequest(request.method, url, payload, data, { superuserPasscode: env.SOGOTABLE_SUPERUSER_PASSCODE });
+      const response = await routeRequest(request.method, url, payload, data, {
+        superuserPasscode: env.SOGOTABLE_SUPERUSER_PASSCODE,
+        superuserPlayerIds: env.SOGOTABLE_SUPERUSER_PLAYER_IDS,
+        ownerAuthBypass: env.__SOGOTABLE_TEST_OWNER_BYPASS,
+      });
       if (request.method !== "GET" && url.pathname !== "/api/superuser/verify") {
         await saveState(env, data);
         await notifyRoomObject(env, response);
@@ -244,6 +248,8 @@ export class RoomDurableObject {
         const result = await routeRequest("POST", new URL(`https://room.object${pathname}`), payload, data, {
           autoBotMoves: false,
           superuserPasscode: this.env.SOGOTABLE_SUPERUSER_PASSCODE,
+          superuserPlayerIds: this.env.SOGOTABLE_SUPERUSER_PLAYER_IDS,
+          ownerAuthBypass: this.env.__SOGOTABLE_TEST_OWNER_BYPASS,
         });
         await saveState(this.env, data);
         await this.publishRoomResult(result);
@@ -427,11 +433,12 @@ function closeSocketQuietly(socket, code, reason) {
 async function routeRequest(method, url, payload, data, options = {}) {
   const autoBotMoves = options.autoBotMoves !== false;
   const superuserPasscode = options.superuserPasscode;
+  const superuserPlayerIds = options.superuserPlayerIds;
   if (method === "GET" && url.pathname === "/api/games") return { ok: true, games: GAME_DEFINITIONS.map(publicGameDefinition) };
   if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: publicPlayers(data) };
   if (method === "POST" && url.pathname === "/api/superuser/verify") {
     const requesterId = String(payload.requester_id || "").trim();
-    assertSogoSuperuser(data, requesterId, payload.passcode, superuserPasscode);
+    assertSogoSuperuser(data, requesterId, payload.passcode, superuserPasscode, superuserPlayerIds);
     return { ok: true, superuser: true };
   }
   if (method === "GET" && url.pathname === "/api/bots") {
@@ -446,6 +453,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/player/stats/clear") {
       const playerId = String(payload.player_id || payload.id || "").trim();
       if (!playerId) throw new Error("Player id is required.");
+      await assertPlayerOwner(data, playerId, payload.owner_token, options);
       clearPlayerStats(data, playerId);
       return { ok: true, player_id: playerId, stats: publicPlayerStats(data, playerId), game_ids: GAME_DEFINITIONS.map((game) => game.id) };
   }
@@ -455,14 +463,35 @@ async function routeRequest(method, url, payload, data, options = {}) {
   }
     if (method === "POST" && url.pathname === "/api/players/create") {
       const player = playerFromPayload(payload);
+      const existing = data.players.find((item) => item.id === player.id);
+      let ownerToken = "";
+      if (existing) {
+        await assertPlayerOwner(data, player.id, payload.owner_token, options);
+        player.owner_token_hash = existing.owner_token_hash;
+      } else {
+        ownerToken = generateOwnerToken();
+        player.owner_token_hash = await ownerTokenHash(ownerToken);
+      }
       upsertPlayer(data, player);
-      const rooms = refreshActiveRoomPlayer(data, player).map((room) => roomToDict(data, room));
+      const rooms = refreshActiveRoomPlayer(data, publicPlayer(player)).map((room) => roomToDict(data, room));
       refreshPlayerStats(data, player);
-      return { ok: true, player, players: publicPlayers(data), rooms };
+      const response = { ok: true, player: publicPlayer(player), players: publicPlayers(data), rooms };
+      if (ownerToken) response.owner_token = ownerToken;
+      return response;
+    }
+    if (method === "POST" && url.pathname === "/api/player/claim") {
+      const playerId = String(payload.player_id || payload.id || "").trim();
+      const player = data.players.find((item) => item.id === playerId);
+      if (!player) throw new Error("Player not found.");
+      if (player.owner_token_hash) throw new Error("Player is already claimed.");
+      const ownerToken = generateOwnerToken();
+      player.owner_token_hash = await ownerTokenHash(ownerToken);
+      return { ok: true, player: publicPlayer(player), owner_token: ownerToken };
     }
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
       if (!playerId) throw new Error("Player id is required.");
+      await assertPlayerOwner(data, playerId, payload.owner_token, options);
       if (playerHasUnfinishedRoom(data, playerId)) throw new Error("Player is seated in an unfinished room.");
       data.players = data.players.filter((player) => player.id !== playerId);
       delete data.lobbyViewers[playerId];
@@ -504,6 +533,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/create") {
       const gameId = cleanGameId(payload.game_id);
       const player = playerFromPayload(payload);
+      await assertPlayerOwner(data, player.id, payload.owner_token, options);
       const existing = activeRoomForPlayer(data, player.id, gameId);
       if (existing) return { ok: true, room: roomToDict(data, existing), existing: true };
       const code = payload.code ? cleanRoomCode(payload.code) : newRoomCode(data);
@@ -527,8 +557,10 @@ async function routeRequest(method, url, payload, data, options = {}) {
     }
     if (method === "POST" && url.pathname === "/api/room/join") {
       const room = roomFromPayload(data, payload);
+      const player = playerFromPayload(payload);
+      await assertPlayerOwner(data, player.id, payload.owner_token, options);
       if (payload.local) room.local_mode = true;
-      addPlayerToRoom(room, playerFromPayload(payload));
+      addPlayerToRoom(room, player);
       activateRoomIfReady(room);
       bumpRoomRevision(room);
       if (autoBotMoves) runBotTurns(data, room);
@@ -537,6 +569,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/join-bot") {
       const room = roomFromPayload(data, payload);
       const hostId = String(payload.host_id || "").trim();
+      await assertPlayerOwner(data, hostId, payload.owner_token, options);
       if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use bot opponents.");
       if (hostId !== room.host_id) throw new Error("Only the host can invite a bot.");
       if (roomStatus(room) !== "waiting_for_player") throw new Error("Bot can only join a waiting room.");
@@ -553,6 +586,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/start") {
       const room = roomFromPayload(data, payload);
       const hostId = String(payload.host_id || "").trim();
+      await assertPlayerOwner(data, hostId, payload.owner_token, options);
       if (hostId !== room.host_id) throw new Error("Only the host can start the game.");
       if (room.started) throw new Error("Game already started.");
       if (!room.players.length) throw new Error("Add at least one player.");
@@ -562,6 +596,8 @@ async function routeRequest(method, url, payload, data, options = {}) {
     }
     if (method === "POST" && url.pathname === "/api/room/leave") {
       const code = cleanRoomCode(payload.code || "");
+      const requesterId = String(payload.requester_id || payload.player_id || "").trim();
+      if (requesterId) await assertPlayerOwner(data, requesterId, payload.owner_token, options);
       const room = data.rooms[code];
       if (room) delete data.rooms[code];
       return { ok: true, closed: true, room_code: code };
@@ -569,7 +605,8 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/close") {
       const code = cleanRoomCode(payload.code || "");
       const requesterId = String(payload.requester_id || "").trim();
-      assertSogoSuperuser(data, requesterId, payload.passcode, superuserPasscode);
+      await assertPlayerOwner(data, requesterId, payload.owner_token, options);
+      assertSogoSuperuser(data, requesterId, payload.passcode, superuserPasscode, superuserPlayerIds);
       const room = data.rooms[code];
       if (room) delete data.rooms[code];
       return { ok: true, closed: true, room_code: code, superuser: true };
@@ -577,7 +614,9 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/move") {
       const room = roomFromPayload(data, payload);
       if (!room.started) throw new Error("Room is waiting for another player.");
-      const mark = playerMark(room, String(payload.player_id || ""));
+      const playerId = String(payload.player_id || "");
+      await assertPlayerOwner(data, playerId, payload.owner_token, options);
+      const mark = playerMark(room, playerId);
       if (!mark) throw new Error("Player is not in this room.");
       if (isTenThousandGame(room.game)) {
         makeTenThousandMove(room.game, mark, payload.action || payload);
@@ -611,6 +650,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const room = roomFromPayload(data, payload);
       const requesterId = String(payload.requester_id || "").trim();
       if (!requesterId) throw new Error("Requester id is required.");
+      await assertPlayerOwner(data, requesterId, payload.owner_token, options);
       if (!room.players.some((player) => player.id === requesterId)) throw new Error("Only a seated player can reset the game.");
       const resetStatus = handleResetVote(room, requesterId, payload.approve !== false);
       if (autoBotMoves && !resetStatus) runBotTurns(data, room);
@@ -632,6 +672,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const room = roomFromPayload(data, payload);
       if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use invites.");
       const hostId = String(payload.host_id || "").trim();
+      await assertPlayerOwner(data, hostId, payload.owner_token, options);
       if (hostId !== room.host_id) throw new Error("Only the host can invite a player.");
       const playerCount = playerCountForGame(room.game_id);
       if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error("Room is full.");
@@ -655,6 +696,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const invite = data.invites[String(payload.invite_id || "").trim()];
       if (!invite || invite.status !== "pending") throw new Error("Invite not found.");
       const player = playerFromPayload(payload);
+      await assertPlayerOwner(data, player.id, payload.owner_token, options);
       if (player.id !== invite.target_id) throw new Error("Invite belongs to a different player.");
       if (!payload.accept) {
         invite.status = "declined";
@@ -1013,19 +1055,57 @@ function isHiddenPlayer(player) {
 }
 
 function publicPlayers(data) {
-  return (data.players || []).filter((player) => !isHiddenPlayer(player));
+  return (data.players || []).filter((player) => !isHiddenPlayer(player)).map(publicPlayer);
 }
 
-function isSogoSuperuser(data, playerId) {
-  const player = (data.players || []).find((item) => item.id === playerId);
-  if (!player) return false;
-  return SOGO_SUPERUSER_NAMES.has(String(player.name || "").trim().toLowerCase());
+function publicPlayer(player) {
+  if (!player) return player;
+  const { owner_token_hash, ...clean } = player;
+  return clean;
 }
 
-function assertSogoSuperuser(data, playerId, passcode, configuredPasscode) {
-  if (!isSogoSuperuser(data, playerId)) throw new Error("Only Sogo can close rooms as superuser.");
+async function assertPlayerOwner(data, playerId, ownerToken, options = {}) {
+  const id = String(playerId || "").trim();
+  if (options.ownerAuthBypass || RESERVED_TEST_PLAYER_IDS.has(id)) return;
+  if (!id) throw new Error("Player id is required.");
+  const player = (data.players || []).find((item) => item.id === id);
+  if (!player) throw new Error("Player not found.");
+  if (!player.owner_token_hash) throw new Error("Player must be claimed before this action.");
+  const token = String(ownerToken || "").trim();
+  if (!token) throw new Error("Player owner token is required.");
+  const hash = await ownerTokenHash(token);
+  if (hash !== player.owner_token_hash) throw new Error("Player owner token is incorrect.");
+}
+
+function assertSogoSuperuser(data, playerId, passcode, configuredPasscode, configuredPlayerIds) {
+  if (!isSogoSuperuser(data, playerId, configuredPlayerIds)) throw new Error("Only configured Sogo superuser player ids can close rooms.");
   if (!String(configuredPasscode || "").trim()) throw new Error("Sogo superuser passcode is not configured.");
   if (String(passcode || "") !== String(configuredPasscode)) throw new Error("Sogo passcode is incorrect.");
+}
+
+function isSogoSuperuser(data, playerId, configuredPlayerIds) {
+  const id = String(playerId || "").trim();
+  if (!id) return false;
+  const allowed = configuredSogoSuperuserIds(configuredPlayerIds);
+  if (!allowed.size) return false;
+  if (!allowed.has(id)) return false;
+  return Boolean((data.players || []).find((item) => item.id === id));
+}
+
+function configuredSogoSuperuserIds(value) {
+  return new Set(String(value || "").split(",").map((item) => item.trim()).filter(Boolean));
+}
+
+function generateOwnerToken() {
+  const bytes = new Uint8Array(OWNER_TOKEN_BYTES);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function ownerTokenHash(token) {
+  const bytes = new TextEncoder().encode(String(token || ""));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function isHiddenTestRoom(room) {
@@ -3963,6 +4043,10 @@ function hexToRgb(color) {
 export const __test = {
   allowDirectRoomAuthority(env) {
     env.__SOGOTABLE_TEST_DIRECT_ROOM_AUTHORITY = true;
+    return env;
+  },
+  allowOwnerAuthBypass(env) {
+    env.__SOGOTABLE_TEST_OWNER_BYPASS = true;
     return env;
   },
   tenThousandBotKeep,

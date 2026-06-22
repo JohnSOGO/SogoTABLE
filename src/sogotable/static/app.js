@@ -56,6 +56,7 @@ const paletteColors = [
 ];
 const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
 const SOGO_SUPERUSER_PASSCODE_KEY = "sogotable.sogoSuperuserPasscode";
+const PLAYER_OWNER_TOKEN_STORAGE_KEY = "sogotable.playerOwnerTokens";
 const REVIEW_EXPORT_REPO_RAW_BASE = "https://raw.githubusercontent.com/JohnSOGO/SogoTABLE/main/";
 const REVIEW_EXPORT_FILES = [
   "README.md",
@@ -299,6 +300,7 @@ let pendingMove = null;
 const BATTLESHIP_RESULT_REVEAL_DELAY_MS = 1000;
 let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
+let playerOwnerTokens = loadPlayerOwnerTokens();
 let pendingConfirmAction = null;
 let handledResetRequestKey = "";
 let selectedGameEntryRequestId = 0;
@@ -825,7 +827,7 @@ async function enterRoomSummary(summary) {
     return;
   }
   try {
-    const response = await api("/api/room/join", { code: freshSummary.code, player });
+    const response = await api("/api/room/join", { code: freshSummary.code, player, owner_token: await ensureOwnerToken(player.id) });
     setRoom(response.room);
     refreshGameRooms();
     showScreen("game");
@@ -1073,7 +1075,10 @@ async function createPlayer(event) {
     color: normalizePlayerColor(selectedColor, paletteColors[0]),
   };
   try {
-    const response = await api("/api/players/create", { player });
+    const payload = { player };
+    if (wasEditing) payload.owner_token = await ensureOwnerToken(player.id);
+    const response = await api("/api/players/create", payload);
+    rememberOwnerToken(response.player.id, response.owner_token);
     players = response.players;
     if (await finishPlayerSave(response.player.id, input, wasEditing)) playConfirm();
   } catch (error) {
@@ -1193,7 +1198,7 @@ async function clearEditingPlayerStats() {
   if (!player) return;
   if (!confirm(`Clear all stats for ${player.name}?`)) return;
   try {
-    const response = await api("/api/player/stats/clear", { player_id: player.id });
+    const response = await api("/api/player/stats/clear", { player_id: player.id, owner_token: await ensureOwnerToken(player.id) });
     if (player.id === deviceSelectedPlayerId) {
       selectedPlayerStats = response.stats || [];
       renderSelectedPlayerStats();
@@ -1507,7 +1512,9 @@ async function deletePlayer(playerId) {
   if (!player) return;
   if (!confirm(`Delete ${player.name} from the shared player roster?`)) return;
   try {
-    const response = await api("/api/players/delete", { id: playerId });
+    const response = await api("/api/players/delete", { id: playerId, owner_token: await ensureOwnerToken(playerId) });
+    delete playerOwnerTokens[playerId];
+    savePlayerOwnerTokens();
     players = response.players;
     finishPlayerDelete(playerId);
   } catch (error) {
@@ -1669,7 +1676,7 @@ async function joinLocalOpponent(player) {
   const homePlayerId = deviceSelectedPlayerId || selectedPlayerId;
   rememberLocalGameHomePlayer(currentRoom.code, homePlayerId);
   try {
-    const response = await api("/api/room/join", { code: currentRoom.code, player, local: true });
+    const response = await api("/api/room/join", { code: currentRoom.code, player, local: true, owner_token: await ensureOwnerToken(player.id) });
     hostInviteStatus = null;
     setRoom(response.room);
     closeInvitePlayerModal();
@@ -1685,6 +1692,7 @@ async function joinBotOpponent(bot) {
       code: currentRoom.code,
       host_id: currentRoom.host_id,
       bot_id: bot.id,
+      owner_token: await ensureOwnerToken(currentRoom.host_id),
     });
     hostInviteStatus = null;
     setRoom(response.room);
@@ -1698,7 +1706,7 @@ async function joinBotOpponent(bot) {
 async function invitePlayer(player) {
   if (!currentRoom) return;
   try {
-    const response = await api("/api/invite/create", { code: currentRoom.code, host_id: currentRoom.host_id, player });
+    const response = await api("/api/invite/create", { code: currentRoom.code, host_id: currentRoom.host_id, player, owner_token: await ensureOwnerToken(currentRoom.host_id) });
     hostInviteStatus = response.invite;
     renderRoomInviteStatus();
     closeInvitePlayerModal();
@@ -1734,7 +1742,7 @@ async function respondToInvite(accept) {
   const player = deviceSelectedPlayer();
   if (!currentInvite || !player) return;
   try {
-    const response = await api("/api/invite/respond", { invite_id: currentInvite.id, accept, player });
+    const response = await api("/api/invite/respond", { invite_id: currentInvite.id, accept, player, owner_token: await ensureOwnerToken(player.id) });
     document.getElementById("invitePrompt").classList.add("hidden");
     currentInvite = null;
     if (accept) playConfirm();
@@ -1758,7 +1766,7 @@ async function createRoom() {
   const player = deviceSelectedPlayer();
   if (!player) return alert("Select a player first.");
   try {
-    const response = await api("/api/room/create", { game_id: selectedGameId, player });
+    const response = await api("/api/room/create", { game_id: selectedGameId, player, owner_token: await ensureOwnerToken(player.id) });
     hostInviteStatus = null;
     activeGameRoom = response.room;
     setRoom(response.room);
@@ -1781,7 +1789,7 @@ async function closeGame() {
   if (roomToClose) {
     try {
       const exitingPlayerId = selectedPlayerId || deviceSelectedPlayerId;
-      await api("/api/room/leave", { code: roomToClose.code, player_id: exitingPlayerId, requester_id: exitingPlayerId });
+      await api("/api/room/leave", { code: roomToClose.code, player_id: exitingPlayerId, requester_id: exitingPlayerId, owner_token: await ensureOwnerToken(exitingPlayerId) });
     } catch (error) {
       alert(error.message);
       return;
@@ -1810,7 +1818,7 @@ async function closeRoomAsSuperuser(code) {
   const confirmed = await confirmAction("Close room?", `Close room ${code} for everyone?`);
   if (!confirmed) return;
   try {
-    await api("/api/room/close", { code, requester_id: player.id, passcode });
+    await api("/api/room/close", { code, requester_id: player.id, passcode, owner_token: await ensureOwnerToken(player.id) });
     if (currentRoom && currentRoom.code === code) {
       restoreLocalGameHomePlayer(currentRoom);
       forgetLocalGameHomePlayer(currentRoom);
@@ -1857,7 +1865,7 @@ async function resetGame() {
   hideWinOverlay();
   lastCelebratedWinKey = "";
   lastRenderedRoomKey = "";
-  const response = await api("/api/room/reset", { code: currentRoom.code, requester_id: player.id });
+  const response = await api("/api/room/reset", { code: currentRoom.code, requester_id: player.id, owner_token: await ensureOwnerToken(player.id) });
   setRoom(response.room);
   if (response.reset === "pending") showTurnStatus(null, "Waiting for the other player to agree.");
 }
@@ -1880,6 +1888,7 @@ async function makeMove(board, cell, lineId = "") {
     const response = await api("/api/room/move", {
       code: currentRoom.code,
       player_id: player.id,
+      owner_token: await ensureOwnerToken(player.id),
       board,
       cell,
       line_id: lineId,
@@ -1913,6 +1922,7 @@ async function makeBattleshipAction(action) {
     const response = await api("/api/room/move", {
       code: currentRoom.code,
       player_id: player.id,
+      owner_token: await ensureOwnerToken(player.id),
       action,
     });
     pendingMove = null;
@@ -1947,6 +1957,7 @@ async function makeQuoridorAction(action) {
     const response = await api("/api/room/move", {
       code: currentRoom.code,
       player_id: player.id,
+      owner_token: await ensureOwnerToken(player.id),
       action,
     });
     clearQuoridorWallHold();
@@ -1988,6 +1999,7 @@ async function makeTenThousandAction(action) {
     const response = await api("/api/room/move", {
       code: currentRoom.code,
       player_id: player.id,
+      owner_token: await ensureOwnerToken(player.id),
       action,
     });
     pendingMove = null;
@@ -2006,6 +2018,7 @@ async function startTenThousandGame() {
     const response = await api("/api/room/start", {
       code: currentRoom.code,
       host_id: currentRoom.host_id,
+      owner_token: await ensureOwnerToken(currentRoom.host_id),
     });
     setRoom(response.room);
     playConfirm();
@@ -2366,6 +2379,7 @@ async function handleIncomingResetRequest() {
       code: currentRoom.code,
       requester_id: localPlayer.id,
       approve: confirmed,
+      owner_token: await ensureOwnerToken(localPlayer.id),
     });
     setRoom(response.room);
   } catch (error) {
@@ -3955,6 +3969,33 @@ function loadLocalGameHomePlayers() {
 
 function saveLocalGameHomePlayers() {
   localStorage.setItem("sogotable.localGameHomePlayers", JSON.stringify(localGameHomePlayers));
+}
+
+function loadPlayerOwnerTokens() {
+  try {
+    return JSON.parse(localStorage.getItem(PLAYER_OWNER_TOKEN_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function savePlayerOwnerTokens() {
+  localStorage.setItem(PLAYER_OWNER_TOKEN_STORAGE_KEY, JSON.stringify(playerOwnerTokens));
+}
+
+function rememberOwnerToken(playerId, ownerToken) {
+  if (!playerId || !ownerToken) return;
+  playerOwnerTokens[playerId] = ownerToken;
+  savePlayerOwnerTokens();
+}
+
+async function ensureOwnerToken(playerId) {
+  const id = String(playerId || "").trim();
+  if (!id) throw new Error("Player id is required.");
+  if (playerOwnerTokens[id]) return playerOwnerTokens[id];
+  const response = await api("/api/player/claim", { player_id: id });
+  rememberOwnerToken(id, response.owner_token);
+  return response.owner_token;
 }
 
 function saveSelectedPlayer() {

@@ -69,11 +69,27 @@ class Statement {
 }
 
 function makeEnv() {
-  return tenThousandTest.allowDirectRoomAuthority({ SOGOTABLE_STATE: new InMemoryD1(), SOGOTABLE_SUPERUSER_PASSCODE: "1234" });
+  return tenThousandTest.allowOwnerAuthBypass(
+    tenThousandTest.allowDirectRoomAuthority({
+      SOGOTABLE_STATE: new InMemoryD1(),
+      SOGOTABLE_SUPERUSER_PASSCODE: "1234",
+      SOGOTABLE_SUPERUSER_PLAYER_IDS: "sogo-id",
+    }),
+  );
 }
 
 function makeProductionEnv() {
-  return { SOGOTABLE_STATE: new InMemoryD1(), SOGOTABLE_SUPERUSER_PASSCODE: "1234" };
+  return {
+    SOGOTABLE_STATE: new InMemoryD1(),
+    SOGOTABLE_SUPERUSER_PASSCODE: "1234",
+    SOGOTABLE_SUPERUSER_PLAYER_IDS: "sogo-id",
+  };
+}
+
+function makeStrictEnvWithRooms() {
+  const env = makeProductionEnv();
+  env.ROOM_OBJECT = new MockRoomNamespace(env);
+  return env;
 }
 
 function makeEnvWithRooms() {
@@ -115,7 +131,7 @@ class MockRoomObject {
     if (request.method === "POST" && url.pathname === "/__room_action") {
       const { pathname, payload } = await request.json();
       this.actions.push(pathname);
-      const delegatedEnv = { ...this.env, ROOM_OBJECT: null };
+      const delegatedEnv = tenThousandTest.allowDirectRoomAuthority({ ...this.env, ROOM_OBJECT: null });
       const response = await worker.fetch(new Request(`https://sogotable.test${pathname}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -263,6 +279,51 @@ test("creates, lists, and deletes players", async () => {
   const deleted = await post(env, "/api/players/delete", { id: "p1" });
   assert.equal(deleted.ok, true);
   assert.deepEqual(deleted.players, []);
+});
+
+test("player owner tokens are returned once and protect profile mutations", async () => {
+  const env = makeProductionEnv();
+  const created = await post(env, "/api/players/create", { player: player("p1", "Player One") });
+  const listed = await get(env, "/api/players");
+  const missingEdit = await post(env, "/api/players/create", { player: player("p1", "Renamed") });
+  const wrongDelete = await post(env, "/api/players/delete", { id: "p1", owner_token: "wrong" });
+  const edited = await post(env, "/api/players/create", { player: player("p1", "Renamed"), owner_token: created.owner_token });
+  const deleted = await post(env, "/api/players/delete", { id: "p1", owner_token: created.owner_token });
+
+  assert.equal(created.ok, true);
+  assert.equal(typeof created.owner_token, "string");
+  assert.equal(created.owner_token.length > 20, true);
+  assert.equal("owner_token_hash" in created.player, false);
+  assert.equal("owner_token_hash" in listed.players[0], false);
+  assert.equal("owner_token" in listed.players[0], false);
+  assert.equal(missingEdit.ok, false);
+  assert.equal(missingEdit.error, "Player owner token is required.");
+  assert.equal(wrongDelete.ok, false);
+  assert.equal(wrongDelete.error, "Player owner token is incorrect.");
+  assert.equal(edited.ok, true);
+  assert.equal(edited.player.name, "Renamed");
+  assert.equal("owner_token" in edited, false);
+  assert.equal(deleted.ok, true);
+});
+
+test("legacy players can be claimed once", async () => {
+  const env = makeProductionEnv();
+  const created = await post(env, "/api/players/create", { player: player("legacy", "Legacy") });
+  mutateState(env, (data) => {
+    delete data.players.find((item) => item.id === "legacy").owner_token_hash;
+  });
+
+  const claimed = await post(env, "/api/player/claim", { player_id: "legacy" });
+  const repeat = await post(env, "/api/player/claim", { player_id: "legacy" });
+  const edited = await post(env, "/api/players/create", { player: player("legacy", "Claimed"), owner_token: claimed.owner_token });
+
+  assert.equal(created.ok, true);
+  assert.equal(claimed.ok, true);
+  assert.equal(typeof claimed.owner_token, "string");
+  assert.equal(repeat.ok, false);
+  assert.equal(repeat.error, "Player is already claimed.");
+  assert.equal(edited.ok, true);
+  assert.equal(edited.player.name, "Claimed");
 });
 
 test("reserved Codex test players are hidden from public roster and lobby", async () => {
@@ -1591,6 +1652,32 @@ test("room authority paths fail closed when ROOM_OBJECT is unavailable", async (
   }
 });
 
+test("owner tokens protect room actions through room authority", async () => {
+  const env = makeStrictEnvWithRooms();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const hostCreated = await post(env, "/api/players/create", { player: host });
+  const guestCreated = await post(env, "/api/players/create", { player: guest });
+  const missingCreate = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "OWNR" });
+  const created = await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "OWNR", owner_token: hostCreated.owner_token });
+  const missingJoin = await post(env, "/api/room/join", { code: "OWNR", player: guest });
+  const joined = await post(env, "/api/room/join", { code: "OWNR", player: guest, owner_token: guestCreated.owner_token });
+  const xSeat = joined.room.players.find((seat) => seat.mark === "X");
+  const missingMove = await post(env, "/api/room/move", { code: "OWNR", player_id: xSeat.id, board: 0, cell: 0 });
+  const moved = await post(env, "/api/room/move", { code: "OWNR", player_id: xSeat.id, owner_token: xSeat.id === host.id ? hostCreated.owner_token : guestCreated.owner_token, board: 0, cell: 0 });
+
+  assert.equal(missingCreate.ok, false);
+  assert.equal(missingCreate.error, "Player owner token is required.");
+  assert.equal(created.ok, true);
+  assert.equal(missingJoin.ok, false);
+  assert.equal(missingJoin.error, "Player owner token is required.");
+  assert.equal(joined.ok, true);
+  assert.equal(missingMove.ok, false);
+  assert.equal(missingMove.error, "Player owner token is required.");
+  assert.equal(moved.ok, true);
+  assert.equal(moved.room.game.move_count, 1);
+});
+
 test("notifies the room durable object after meaningful room changes", async () => {
   const env = makeEnvWithRooms();
   const host = player("host", "Host");
@@ -1639,7 +1726,7 @@ test("only Sogo can close any active room as superuser", async () => {
 
   const rejected = await post(env, "/api/room/close", { code: "SGCL", requester_id: guest.id });
   assert.equal(rejected.ok, false);
-  assert.equal(rejected.error, "Only Sogo can close rooms as superuser.");
+  assert.equal(rejected.error, "Only configured Sogo superuser player ids can close rooms.");
 
   const stillOpen = await get(env, "/api/room?code=SGCL");
   assert.equal(stillOpen.ok, true);
@@ -1671,6 +1758,30 @@ test("only Sogo can close any active room as superuser", async () => {
     "/api/room/close",
     "/api/room/close",
   ]);
+});
+
+test("Sogo superuser powers require configured player id allowlist", async () => {
+  const env = makeStrictEnvWithRooms();
+  const host = player("host", "Host");
+  const guest = player("guest", "Guest", "#2563eb");
+  const sogo = player("sogo-id", "Not The Magic Name", "#8f1116");
+  const impostor = player("not-sogo", "Sogo", "#8f1116");
+  const hostCreated = await post(env, "/api/players/create", { player: host });
+  const guestCreated = await post(env, "/api/players/create", { player: guest });
+  const sogoCreated = await post(env, "/api/players/create", { player: sogo });
+  const impostorCreated = await post(env, "/api/players/create", { player: impostor });
+  await post(env, "/api/room/create", { game_id: "super_tic_tac_toe", player: host, code: "ALOW", owner_token: hostCreated.owner_token });
+  await post(env, "/api/room/join", { code: "ALOW", player: guest, owner_token: guestCreated.owner_token });
+
+  const impostorClose = await post(env, "/api/room/close", { code: "ALOW", requester_id: impostor.id, passcode: "1234", owner_token: impostorCreated.owner_token });
+  const verified = await post(env, "/api/superuser/verify", { requester_id: sogo.id, passcode: "1234" });
+  const closed = await post(env, "/api/room/close", { code: "ALOW", requester_id: sogo.id, passcode: "1234", owner_token: sogoCreated.owner_token });
+
+  assert.equal(impostorClose.ok, false);
+  assert.equal(impostorClose.error, "Only configured Sogo superuser player ids can close rooms.");
+  assert.equal(verified.ok, true);
+  assert.equal(closed.ok, true);
+  assert.equal(closed.closed, true);
 });
 
 test("creates tactical rooms with authoritative pickups and scores", async () => withMockRandom([0], async () => {

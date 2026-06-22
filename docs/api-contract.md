@@ -44,7 +44,9 @@ lobby presence, public room lists, and public game stats.
 
 ### `POST /api/players/create`
 
-Creates or updates a player.
+Creates or updates a player. Creating a new player returns an `owner_token`
+once. The Worker stores only a SHA-256 hash of that token. Browser clients store
+the token locally and include it on protected player and room mutations.
 
 Request:
 
@@ -65,16 +67,42 @@ Response:
 {
   "ok": true,
   "player": {},
-  "players": []
+  "players": [],
+  "owner_token": "new-player-token-returned-once"
 }
 ```
+
+`owner_token` is only returned for a newly created player. Editing an existing
+claimed player requires the existing `owner_token` in the request body.
+
+### `POST /api/player/claim`
+
+Claims a legacy unowned player profile once.
+
+Request:
+
+```json
+{ "player_id": "player-id" }
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "player": {},
+  "owner_token": "new-player-token-returned-once"
+}
+```
+
+If the player already has an owner token hash, the claim is rejected.
 
 ### `POST /api/players/delete`
 
 Request:
 
 ```json
-{ "id": "player-id" }
+{ "id": "player-id", "owner_token": "player-token" }
 ```
 
 Response:
@@ -87,6 +115,11 @@ Response:
 ```
 
 Delete is blocked while the player is seated in an unfinished room. Successful deletes remove pending lobby presence and pending invites for that player, but do not rewrite completed historical stats.
+
+Protected mutations require `owner_token` for the player being acted as:
+`POST /api/players/create` when editing, `POST /api/players/delete`,
+`POST /api/player/stats/clear`, room create/join/join-bot/start/leave/close,
+room move/reset, and invite create/respond.
 
 ## Games
 
@@ -519,9 +552,11 @@ Response:
 
 Closes a room as a Sogo superuser action. This is for clearing stuck, abandoned,
 or unwanted rooms from the shared public game list. During the no-account phase,
-the requester must be the selected roster profile whose display name is `Sogo`
-or `MojoSOGO`, and the request must include the Worker-configured
-`SOGOTABLE_SUPERUSER_PASSCODE` value.
+the requester must be included in the Worker-configured
+`SOGOTABLE_SUPERUSER_PLAYER_IDS` comma-separated player-id allowlist and the
+request must include both that player's `owner_token` and the Worker-configured
+`SOGOTABLE_SUPERUSER_PASSCODE` value. Display-name detection remains only a
+browser UI affordance.
 
 Request:
 
@@ -529,6 +564,7 @@ Request:
 {
   "code": "ABCD",
   "requester_id": "sogo-player-id",
+  "owner_token": "sogo-player-token",
   "passcode": "passcode"
 }
 ```
