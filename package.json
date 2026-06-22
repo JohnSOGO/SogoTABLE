@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "deploy:brain": "npx wrangler deploy --config wrangler.toml",
+    "test": "npm run test:worker",
     "test:worker": "node --test workers/tests/*.test.js",
     "bench:bots": "node scripts/bench-ten-thousand-bots.mjs"
   },

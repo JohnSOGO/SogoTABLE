@@ -17,7 +17,8 @@ There is no Python code required in the current architecture.
 - Vanilla browser JavaScript under `src/sogotable/static/`.
 - Cloudflare Worker API in `workers/sogotable-api.js`.
 - Cloudflare D1 database `sogotable-state` for shared state.
-- One `RoomDurableObject` per active room for serialized room mutations and live WebSocket fanout.
+- One globally named `RoomFactoryDurableObject` for serialized room creation.
+- One `RoomDurableObject` per active room for serialized room mutations, invite lifecycle, and live WebSocket fanout.
 - Cloudflare WebSocket Hibernation for idle room/app-event sockets.
 - Node built-in test runner for Worker API contract tests.
 - PWA manifest and service worker for an installable mobile shell.
@@ -51,15 +52,15 @@ Durable identity should be opaque. Anything that crosses sessions, rooms, stats,
 
 Room codes are the deliberate exception in the current product: they are human-facing join codes, not long-term internal room identity. Legacy game ids such as `super_tic_tac_toe` remain compatibility aliases, but new writes should use canonical opaque game ids.
 
-The Worker plus the room Durable Object path is the single multiplayer authority.
+The Worker plus the room factory and room Durable Object path is the single multiplayer authority.
 
 It owns:
 
 - persistent player roster
 - selected-game lobby presence
-- room creation and re-entry
+- room creation through the room factory Durable Object
 - room joins and exits through the room Durable Object
-- invite creation and invite responses
+- invite creation and invite responses through the room Durable Object
 - reset voting through the room Durable Object
 - Super Tic Tac Toe move validation through the room Durable Object
 - Super Tic Tactical Toe pickup, scoring, and move validation through the room Durable Object
@@ -104,11 +105,11 @@ language, and future game modules should prefer the terms in `docs/nomenclature.
 
 The current public-playtesting backend stores shared app state as one JSON row in D1. The Worker uses a version column and optimistic locking so stale concurrent writes fail instead of silently overwriting newer state.
 
-Active room-changing HTTP actions now enter the room's Durable Object first for `join`, `join-bot`, invite response, `leave`/`close`, `move`, and `reset`. The Durable Object serializes those mutations for that room, persists the resulting state through D1, stores the latest room snapshot, and broadcasts meaningful changes to connected WebSocket clients. Room and app-event sockets use Cloudflare WebSocket Hibernation so idle connected tabs do not keep Durable Objects billable. This removes aggressive room polling during normal connected play while preserving HTTP as the recovery/backfill path.
+Room creation now enters the globally named room factory Durable Object first so room code allocation and duplicate-code checks are serialized. Active room-changing HTTP actions enter the room's Durable Object first for `join`, `join-bot`, invite create/respond, `leave`/`close`, `move`, and `reset`. The Durable Object serializes those mutations for that room, persists the resulting state through D1, stores the latest room snapshot, and broadcasts meaningful changes to connected WebSocket clients. Room and app-event sockets use Cloudflare WebSocket Hibernation so idle connected tabs do not keep Durable Objects billable. This removes aggressive room polling during normal connected play while preserving HTTP as the recovery/backfill path.
 
 Rooms carry monotonic `revision` and `game_epoch` freshness fields. Browser stale-snapshot checks should use those room-level markers instead of treating lower `game.move_count` as stale, because reset/play-again legitimately starts a fresh board at move count zero.
 
-This is good enough for family playtesting. The next Durable Object step is to reduce the remaining Worker-owned room-adjacent paths, especially room creation and any remaining invite creation bookkeeping, once the current room-authority path has been smoke-tested:
+This is good enough for family playtesting. The next Durable Object step is deeper state partitioning once the current authority path has been smoke-tested:
 
 ```text
 One room -> one Durable Object authority for validation, invite lifecycle, and live state

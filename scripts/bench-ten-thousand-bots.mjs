@@ -67,7 +67,9 @@ class Statement {
 }
 
 function makeEnv() {
-  return { SOGOTABLE_STATE: new InMemoryD1() };
+  return __test.allowOwnerAuthBypass(
+    __test.allowDirectRoomAuthority({ SOGOTABLE_STATE: new InMemoryD1() }),
+  );
 }
 
 function player(id, name, color = "#1f7a5f") {

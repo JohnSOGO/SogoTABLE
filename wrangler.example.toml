@@ -1,0 +1,37 @@
+name = "sogotable-api"
+main = "workers/sogotable-api.js"
+compatibility_date = "2026-06-07"
+account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+
+routes = [
+  { pattern = "sogotable.example.com/api/*", zone_name = "example.com" }
+]
+
+[[d1_databases]]
+binding = "SOGOTABLE_STATE"
+database_name = "sogotable-state"
+database_id = "YOUR_D1_DATABASE_ID"
+
+[[durable_objects.bindings]]
+name = "ROOM_OBJECT"
+class_name = "RoomDurableObject"
+
+[[durable_objects.bindings]]
+name = "ROOM_FACTORY"
+class_name = "RoomFactoryDurableObject"
+
+[[durable_objects.bindings]]
+name = "EVENT_HUB"
+class_name = "EventHubDurableObject"
+
+[[migrations]]
+tag = "v1_room_durable_object"
+new_sqlite_classes = [ "RoomDurableObject" ]
+
+[[migrations]]
+tag = "v2_event_hub"
+new_sqlite_classes = [ "EventHubDurableObject" ]
+
+[[migrations]]
+tag = "v3_room_factory"
+new_sqlite_classes = [ "RoomFactoryDurableObject" ]

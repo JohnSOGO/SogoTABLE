@@ -72,6 +72,18 @@ If either is missing, Sogo superuser verification fails closed.
 
 ## Run Tests
 
+Install dependencies from the committed lockfile:
+
+```powershell
+npm ci
+```
+
+```powershell
+npm test
+```
+
+The default test command is an alias for:
+
 ```powershell
 npm run test:worker
 ```
@@ -93,6 +105,7 @@ npm run test:worker
 - [API Contract](docs/api-contract.md)
 - [Purpose](docs/purpose.md)
 - [Architecture](docs/architecture.md)
+- [Architecture Debt](docs/architecture-debt.md)
 - [Cloudflare Quota Guardrails](docs/cloudflare-quota.md)
 - [Nomenclature](docs/nomenclature.md)
 - [Live Rounds](docs/live-rounds.md)
