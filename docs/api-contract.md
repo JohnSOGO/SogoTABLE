@@ -886,6 +886,16 @@ unavailable in production, those room-authority POST paths fail closed with HTTP
 They must not fall back to direct Worker mutation routing, because that would
 bypass the room object's serialization and live snapshot contract.
 
+Mutating API requests are protected by Cloudflare Workers rate-limit bindings.
+`API_MUTATION_RATE_LIMITER` limits `POST` and `DELETE` requests to 180 requests
+per minute per client key. `SUPERUSER_RATE_LIMITER` separately limits
+`POST /api/superuser/verify` to 20 attempts per minute per client key. Limited
+requests return HTTP `429` with a `Retry-After` header:
+
+```json
+{ "ok": false, "error": "Too many requests. Try again shortly." }
+```
+
 App event snapshots include selected-game room lists, lobby players, pending invites, and game stats. The EventHub sends an initial snapshot on socket open/subscription, and the browser reconnects the app event socket when the selected game changes.
 
 Read-only `GET` polling endpoints must not write the whole state row back to D1.

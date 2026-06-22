@@ -71,6 +71,18 @@ Avoid:
 The current `wrangler.toml` has no `kv_namespaces` binding, and no gameplay KV
 write path should be added as a quota fix.
 
+## Rate Limit Rule
+
+Use Cloudflare Workers rate-limit bindings for coarse public API abuse
+protection instead of writing limiter counters to D1, KV, or Durable Object
+storage on every request. The current Worker has:
+
+- `API_MUTATION_RATE_LIMITER`: 180 `POST`/`DELETE` requests per minute per client key.
+- `SUPERUSER_RATE_LIMITER`: 20 `POST /api/superuser/verify` attempts per minute per client key.
+
+Keep these limits roomy enough for household play, then tune with live evidence
+before broader public sharing.
+
 ## Verification
 
 Before deploying quota-sensitive Worker changes, run:

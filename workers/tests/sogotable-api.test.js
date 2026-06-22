@@ -234,6 +234,21 @@ class MockEventHubObject {
   }
 }
 
+class MockRateLimitBinding {
+  constructor(limit = Infinity) {
+    this.allowed = limit;
+    this.calls = [];
+    this.counts = new Map();
+  }
+
+  async limit({ key }) {
+    this.calls.push(key);
+    const nextCount = (this.counts.get(key) || 0) + 1;
+    this.counts.set(key, nextCount);
+    return { success: nextCount <= this.allowed };
+  }
+}
+
 class MockHibernatedSocket {
   constructor(attachment = {}) {
     this.attachment = attachment;
@@ -368,6 +383,43 @@ test("legacy players can be claimed once", async () => {
   assert.equal(repeat.error, "Player is already claimed.");
   assert.equal(edited.ok, true);
   assert.equal(edited.player.name, "Claimed");
+});
+
+test("rate limits mutating API requests before state writes", async () => {
+  const env = makeEnv();
+  env.API_MUTATION_RATE_LIMITER = new MockRateLimitBinding(0);
+  const { response, json } = await request(env, "POST", "/api/players/create", { player: player("limited", "Limited") }, { "CF-Connecting-IP": "203.0.113.10" });
+
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("Retry-After"), "60");
+  assert.equal(json.ok, false);
+  assert.equal(json.error, "Too many requests. Try again shortly.");
+  assert.deepEqual(env.API_MUTATION_RATE_LIMITER.calls, ["mutation:203.0.113.10"]);
+  assert.equal(env.SOGOTABLE_STATE.writeCount, 0);
+});
+
+test("rate limiting does not apply to read-only API requests", async () => {
+  const env = makeEnv();
+  env.API_MUTATION_RATE_LIMITER = new MockRateLimitBinding(0);
+  const games = await get(env, "/api/games", { "CF-Connecting-IP": "203.0.113.11" });
+
+  assert.equal(games.ok, true);
+  assert.equal(env.API_MUTATION_RATE_LIMITER.calls.length, 0);
+});
+
+test("superuser verification has a stricter rate limit", async () => {
+  const env = makeEnv();
+  env.API_MUTATION_RATE_LIMITER = new MockRateLimitBinding(10);
+  env.SUPERUSER_RATE_LIMITER = new MockRateLimitBinding(0);
+  const { response, json } = await request(env, "POST", "/api/superuser/verify", { requester_id: "sogo-id", passcode: "1234" }, { "CF-Connecting-IP": "203.0.113.12" });
+
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("Retry-After"), "60");
+  assert.equal(json.ok, false);
+  assert.equal(json.error, "Too many superuser attempts. Try again shortly.");
+  assert.deepEqual(env.SUPERUSER_RATE_LIMITER.calls, ["superuser:203.0.113.12"]);
+  assert.equal(env.API_MUTATION_RATE_LIMITER.calls.length, 0);
+  assert.equal(env.SOGOTABLE_STATE.writeCount, 0);
 });
 
 test("reserved Codex test players are hidden from public roster and lobby", async () => {

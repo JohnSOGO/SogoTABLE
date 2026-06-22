@@ -66,6 +66,10 @@ npm run deploy:brain
 
 The Worker is configured in `wrangler.toml` and stores shared game state in a small D1 database. Durable Objects now serialize room creation, active-room mutations, and realtime room/app snapshots, while D1 remains the persistence layer during public playtesting.
 
+Mutating API requests are protected by Cloudflare Workers rate-limit bindings:
+`API_MUTATION_RATE_LIMITER` allows 180 writes per minute per client key, and
+`SUPERUSER_RATE_LIMITER` allows 20 superuser verification attempts per minute.
+
 Sogo superuser actions require the Worker secret `SOGOTABLE_SUPERUSER_PASSCODE`
 and `SOGOTABLE_SUPERUSER_PLAYER_IDS`, a comma-separated allowlist of player ids.
 If either is missing, Sogo superuser verification fails closed.

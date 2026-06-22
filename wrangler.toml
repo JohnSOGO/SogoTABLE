@@ -12,6 +12,16 @@ binding = "SOGOTABLE_STATE"
 database_name = "sogotable-state"
 database_id = "bbb1cdec-0410-476f-b058-f216263b61d8"
 
+[[ratelimits]]
+name = "API_MUTATION_RATE_LIMITER"
+namespace_id = "sogotable-api-mutations"
+simple = { limit = 180, period = 60 }
+
+[[ratelimits]]
+name = "SUPERUSER_RATE_LIMITER"
+namespace_id = "sogotable-superuser"
+simple = { limit = 20, period = 60 }
+
 [[durable_objects.bindings]]
 name = "ROOM_OBJECT"
 class_name = "RoomDurableObject"

@@ -10,7 +10,7 @@ This ledger records known compromises that are acceptable for the current family
 - CSS remains in one broad app stylesheet plus a few game-local files.
 - The browser uses the deployed API origin for static local previews. A configurable local API origin is deferred until it unlocks real local multiplayer testing.
 - API errors are still string-based. Typed error codes are deferred until clients need richer recovery behavior.
-- Rate limiting is not yet implemented. The current owner-token model protects identity mutations but is not abuse prevention.
+- Rate limiting is intentionally coarse. The current owner-token model protects identity mutations, and the Worker has per-client write and superuser verification limits, but there is no per-player, per-room, or adaptive abuse policy yet.
 - The service worker cache name is manually bumped when shell assets change.
 
 ## Risks
@@ -18,7 +18,7 @@ This ledger records known compromises that are acceptable for the current family
 - A single D1 state row increases conflict pressure as public usage grows.
 - Large Worker and frontend files make unrelated changes easier to entangle.
 - String errors and manual cache versioning can create brittle UI behavior after future feature growth.
-- No rate limit means public endpoints still depend on Cloudflare defaults and low traffic.
+- Coarse rate limits may still need tuning before broad public use, especially for shared household networks and bursty room setup flows.
 
 ## Exit Criteria
 
@@ -26,5 +26,5 @@ This ledger records known compromises that are acceptable for the current family
 - Split Worker modules by platform routing, persistence, rooms, players, invites, game rules, bot policy, and projections once tests can cover the seams.
 - Split the browser shell into stable state/controller modules before adding another complex game.
 - Add typed error identifiers when at least two client flows need distinct recovery handling for the same endpoint.
-- Add rate limiting before broad public sharing outside the current family playtest group.
+- Tune rate limits with real traffic evidence before broad public sharing outside the current family playtest group.
 - Automate service-worker cache versioning from build metadata before frequent public releases.
