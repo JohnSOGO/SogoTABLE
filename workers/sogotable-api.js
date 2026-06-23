@@ -178,7 +178,10 @@ export default {
         superuserPlayerIds: env.SOGOTABLE_SUPERUSER_PLAYER_IDS,
         ownerAuthBypass: env.__SOGOTABLE_TEST_OWNER_BYPASS,
       });
-      if (request.method !== "GET" && url.pathname !== "/api/superuser/verify") {
+      // Read-only POSTs (passcode/verify, bug-report export) must not rewrite the
+      // shared state blob or fan out room/event notifications.
+      const readOnlyPost = url.pathname === "/api/superuser/verify" || url.pathname === "/api/bug-reports/list";
+      if (request.method !== "GET" && !readOnlyPost) {
         await saveState(env, data);
         await notifyRoomObject(env, response);
         await notifyEventHub(env, data, response);
