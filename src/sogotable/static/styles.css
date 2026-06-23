@@ -2237,6 +2237,10 @@ button.player-switch-button {
   border-color: #fde68a;
 }
 
+.ten-thousand-tray .tt-waiting {
+  margin-top: 8px;
+}
+
 .ten-thousand-message {
   min-height: 24px;
   margin: 0;

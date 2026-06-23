@@ -99,7 +99,7 @@ function renderTenThousandPlay(host, ctx) {
   };
 
   host.innerHTML = `
-    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove, ctx.actionLabels) : ""}
+    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove, ctx.actionLabels, room) : ""}
     ${standingsHtml(seats, room, game, pacing)}
   `;
 
@@ -107,7 +107,7 @@ function renderTenThousandPlay(host, ctx) {
   wireStandings(host);
 }
 
-function trayHtml(seat, game, pendingMove, labelStyle) {
+function trayHtml(seat, game, pendingMove, labelStyle, room) {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
   // Keep the busted roll red for the whole farkle state. Drive it off the phase
@@ -187,6 +187,17 @@ function trayHtml(seat, game, pendingMove, labelStyle) {
     ? `<p class="ten-thousand-message tt-opening-hint">Reach ${fmt(openingMinimum)} this turn to get on the board.</p>`
     : "";
 
+  // While the busted banner is up, tell the player who still has to finish
+  // before the round can advance and the next round can start.
+  const stillPlaying = (Array.isArray(game.players) ? game.players : [])
+    .filter((other) => !other.resolved && other.mark !== seat.mark)
+    .map((other) => seatName(room, other.mark));
+  const waitingHtml = showBust && !canRoll
+    ? `<p class="ten-thousand-message tt-waiting">${stillPlaying.length
+        ? `Waiting for players: ${stillPlaying.map(escapeName).join(", ")}`
+        : "Waiting for the next round…"}</p>`
+    : "";
+
   return `
     <section class="ten-thousand-tray">
       <div class="ten-thousand-scoreboard">
@@ -197,6 +208,7 @@ function trayHtml(seat, game, pendingMove, labelStyle) {
       <div class="ten-thousand-dice" aria-label="Dice">${diceHtml}</div>
       <div class="ten-thousand-actions${words ? " tt-words" : ""}" aria-label="Dice actions">${actionsHtml}</div>
       ${hintHtml}
+      ${waitingHtml}
     </section>`;
 }
 
