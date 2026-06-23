@@ -11,6 +11,24 @@ const FACE_PIPS = {
 // the table — they just turn red in place, no re-animation.
 const ROLL_MOVE_TYPES = new Set(["roll", "reroll"]);
 let lastAnimatedMoveCount = -1;
+// Uncommitted dice selection per seat-roll, kept across snapshot re-renders so
+// another player's move can't wipe the local player's in-progress selection.
+const trayPendingSelections = new Map(); // key `${code}:${mark}:${roll_count}` -> Set<dieId>
+
+function tenThousandSelectionSet(code, mark, rollCount) {
+  const prefix = `${code}:${mark}:`;
+  const key = `${prefix}${rollCount}`;
+  // Drop this seat's selection from any earlier roll so the map can't grow.
+  for (const existing of trayPendingSelections.keys()) {
+    if (existing !== key && existing.startsWith(prefix)) trayPendingSelections.delete(existing);
+  }
+  let selection = trayPendingSelections.get(key);
+  if (!selection) {
+    selection = new Set();
+    trayPendingSelections.set(key, selection);
+  }
+  return selection;
+}
 
 export function renderTenThousandGame(ctx) {
   const { host, game } = ctx;
@@ -170,7 +188,8 @@ function trayHtml(seat, game, pendingMove) {
 
 function wireTray(host, seat, game, ctx) {
   const { makeMove } = ctx;
-  const selectedDice = new Set();
+  const code = ctx.room && ctx.room.code || "";
+  const selectedDice = tenThousandSelectionSet(code, seat.mark, Number(seat.roll_count || 0));
   const selectButton = host.querySelector('[data-action="select"]');
   const turnScoreNode = host.querySelector("[data-turn-score]");
   const dice = Array.isArray(seat.dice) ? seat.dice : [];
@@ -209,13 +228,18 @@ function wireTray(host, seat, game, ctx) {
       if (!button.disabled) makeMove(build());
     });
   };
+  // Once a selection is committed or the sub-turn ends, the local highlight has
+  // served its purpose; drop it so stale die ids never bleed into the next roll.
   action('[data-action="ack"]', () => ({ type: "ack_farkle" }));
   action('[data-action="roll"]', () => ({ type: "roll" }));
-  action('[data-action="declare-farkle"]', () => ({ type: "declare_farkle" }));
+  action('[data-action="declare-farkle"]', () => { selectedDice.clear(); return { type: "declare_farkle" }; });
   action('[data-action="reroll"]', () => ({ type: "reroll" }));
-  action('[data-action="bank"]', () => ({ type: "bank" }));
+  action('[data-action="bank"]', () => { selectedDice.clear(); return { type: "bank" }; });
   if (selectButton) selectButton.addEventListener("click", () => {
-    if (!selectButton.disabled) makeMove({ type: "select", dice_ids: [...selectedDice] });
+    if (selectButton.disabled) return;
+    const diceIds = [...selectedDice];
+    selectedDice.clear();
+    makeMove({ type: "select", dice_ids: diceIds });
   });
 
   refreshSelection();
