@@ -2288,6 +2288,10 @@ function playTenThousandEventSound(previousRoom, room) {
   if (!isTenThousandGameState(room.game)) return;
   const move = room.game.last_move;
   if (!move || !move.type) return;
+  // Parallel play broadcasts every seat's move to every device. Only voice this
+  // device's own seat, so an opponent's roll/bank/farkle doesn't fire SFX here.
+  const localSeat = room.players.find((player) => player.id === deviceSelectedPlayerId || player.id === selectedPlayerId);
+  if (!localSeat || !localSeat.mark || move.mark !== localSeat.mark) return;
   const soundKey = `${room.code}:${move.move_count}:${move.type}:${move.mark || ""}`;
   if (soundKey === lastTenThousandSoundKey) return;
   lastTenThousandSoundKey = soundKey;
