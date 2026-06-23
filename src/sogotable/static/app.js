@@ -2441,9 +2441,18 @@ function showBattleshipAttackReveal(previousRoom, room) {
   if (!previousRoom || !previousRoom.game || previousRoom.code !== room.code) return;
   const selectedSeat = battleshipViewerSeat(room);
   if (!selectedSeat) return;
-  const previousEvents = Array.isArray(previousRoom.game.events) ? previousRoom.game.events : [];
+  // Detect new attacks by content, not array index. The Worker caps game.events
+  // to a sliding window (slice(-40)), so once a long game fills it the length
+  // stops growing and an index diff would miss every later attack — that's why
+  // reveals "stopped after a while". Cells are unique per player, so key on those.
+  const attackKey = (move) => `${move.player}:${move.row}:${move.col}`;
+  const seenAttacks = new Set(
+    (Array.isArray(previousRoom.game.events) ? previousRoom.game.events : [])
+      .filter((move) => move && move.type === "attack")
+      .map(attackKey),
+  );
   const events = Array.isArray(room.game.events) ? room.game.events : [];
-  const newAttacks = events.slice(previousEvents.length).filter((move) => move && move.type === "attack");
+  const newAttacks = events.filter((move) => move && move.type === "attack" && !seenAttacks.has(attackKey(move)));
   const reveals = [];
   const sunkByYou = [];
   for (const move of newAttacks) {
