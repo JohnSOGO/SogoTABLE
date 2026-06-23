@@ -984,7 +984,7 @@ async function submitBugReport() {
   const button = document.getElementById("submitBugReport");
   const description = (textarea.value || "").trim();
   if (!description) {
-    status.textContent = "Please describe the bug first.";
+    status.textContent = "Please add a description first.";
     return;
   }
   button.disabled = true;
@@ -992,7 +992,7 @@ async function submitBugReport() {
   try {
     await api("/api/bug-report", { ...bugReportContext(), description, user_agent: navigator.userAgent });
     textarea.value = "";
-    status.textContent = "Thanks — bug report sent.";
+    status.textContent = "Thanks — sent!";
     playConfirm();
   } catch (error) {
     status.textContent = error.message || "Could not send the report.";

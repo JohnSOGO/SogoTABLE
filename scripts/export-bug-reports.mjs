@@ -45,7 +45,7 @@ for (const r of reports) {
   // rather than creating duplicates.
   const file = join(outDir, `${stamp(created)}_${r.id || "report"}.txt`);
   const lines = [
-    `Bug Report: ${r.id || "(no id)"}`,
+    `Report: ${r.id || "(no id)"}`,
     `When:   ${new Date(created).toString()}`,
     `Who:    ${r.player_name || "(unknown)"}${r.player_id ? ` <${r.player_id}>` : ""}`,
     `Screen: ${r.screen || "(unknown)"}`,
