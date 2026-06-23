@@ -567,6 +567,19 @@ async function routeRequest(method, url, payload, data, options = {}) {
       player.owner_token_hash = await ownerTokenHash(ownerToken);
       return { ok: true, player: publicPlayer(player), owner_token: ownerToken };
     }
+    if (method === "POST" && url.pathname === "/api/player/unclaim") {
+      const requesterId = String(payload.requester_id || "").trim();
+      // Passcode-authenticated admin action. Unlike most owner actions this does
+      // NOT call assertPlayerOwner: its whole purpose is to recover a player when
+      // the claiming device has lost its stored owner token, so requiring that
+      // token would defeat it. The Sogo superuser passcode is the gate.
+      assertSogoSuperuser(data, requesterId, payload.passcode, superuserPasscode, superuserPlayerIds);
+      const targetId = String(payload.player_id || payload.id || "").trim();
+      const target = data.players.find((item) => item.id === targetId);
+      if (!target) throw new Error("Player not found.");
+      delete target.owner_token_hash;
+      return { ok: true, player: publicPlayer(target), players: publicPlayers(data) };
+    }
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
       if (!playerId) throw new Error("Player id is required.");
@@ -1154,7 +1167,7 @@ function publicPlayers(data) {
 function publicPlayer(player) {
   if (!player) return player;
   const { owner_token_hash, ...clean } = player;
-  return clean;
+  return { ...clean, claimed: Boolean(owner_token_hash) };
 }
 
 async function assertPlayerOwner(data, playerId, ownerToken, options = {}) {
@@ -1171,7 +1184,7 @@ async function assertPlayerOwner(data, playerId, ownerToken, options = {}) {
 }
 
 function assertSogoSuperuser(data, playerId, passcode, configuredPasscode, configuredPlayerIds) {
-  if (!isSogoSuperuser(data, playerId, configuredPlayerIds)) throw new Error("Only configured Sogo superuser player ids can close rooms.");
+  if (!isSogoSuperuser(data, playerId, configuredPlayerIds)) throw new Error("Only the configured Sogo superuser can do this.");
   if (!String(configuredPasscode || "").trim()) throw new Error("Sogo superuser passcode is not configured.");
   if (String(passcode || "") !== String(configuredPasscode)) throw new Error("Sogo passcode is incorrect.");
 }

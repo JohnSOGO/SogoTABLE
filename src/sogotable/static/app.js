@@ -1145,6 +1145,9 @@ function renderPlayers() {
   }
   visiblePlayers.forEach((player) => {
     const editing = playerModalMode === "edit" && player.id === editingPlayerId;
+    // The Sogo superuser can release a claimed player so a device that lost its
+    // owner token can re-claim it (the cause of "Player is already claimed").
+    const showUnlock = isSogoSuperuserSelected() && player.claimed;
     const card = document.createElement("div");
     card.className = `player-card ${player.id === deviceSelectedPlayerId ? "selected" : ""} ${editing ? "editing" : ""}`;
     card.innerHTML = `
@@ -1152,6 +1155,7 @@ function renderPlayers() {
       <strong>${escapeHtml(player.name)}</strong>
       <div class="player-actions ${editing ? "hidden" : ""}">
         <button type="button" class="secondary edit-player">Edit</button>
+        ${showUnlock ? '<button type="button" class="secondary unlock-player">Unlock</button>' : ""}
         <button type="button" class="delete-player">Delete</button>
       </div>
     `;
@@ -1162,12 +1166,40 @@ function renderPlayers() {
       event.stopPropagation();
       editPlayer(player.id);
     });
+    if (showUnlock) {
+      card.querySelector(".unlock-player").addEventListener("click", (event) => {
+        event.stopPropagation();
+        unclaimPlayerAsSuperuser(player.id);
+      });
+    }
     card.querySelector(".delete-player").addEventListener("click", (event) => {
       event.stopPropagation();
       deletePlayer(player.id);
     });
     host.appendChild(card);
   });
+}
+
+async function unclaimPlayerAsSuperuser(playerId) {
+  const superuser = deviceSelectedPlayer();
+  if (!superuser || !isSogoSuperuser(superuser)) return;
+  const target = players.find((item) => item.id === playerId);
+  if (!target) return;
+  const passcode = await ensureSogoSuperuserPasscode(superuser);
+  if (!passcode) return;
+  const confirmed = await confirmAction("Unlock player?", `Release the claim on ${target.name}? Any device can then re-claim it.`);
+  if (!confirmed) return;
+  try {
+    const response = await api("/api/player/unclaim", { player_id: playerId, requester_id: superuser.id, passcode });
+    players = response.players;
+    delete playerOwnerTokens[playerId];
+    savePlayerOwnerTokens();
+    renderPlayers();
+    playConfirm();
+  } catch (error) {
+    if (String(error.message || "").toLowerCase().includes("passcode")) clearSogoSuperuserPasscode();
+    alert(error.message);
+  }
 }
 
 function editPlayer(playerId) {

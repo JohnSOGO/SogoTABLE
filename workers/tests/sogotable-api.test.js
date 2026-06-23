@@ -385,6 +385,35 @@ test("legacy players can be claimed once", async () => {
   assert.equal(edited.player.name, "Claimed");
 });
 
+test("Sogo superuser unclaim releases a player for re-claiming", async () => {
+  const env = makeProductionEnv();
+  await post(env, "/api/players/create", { player: player("sogo-id", "Sogo") });
+  await post(env, "/api/players/create", { player: player("toast", "Toast") });
+
+  // Toast is claimed on creation, so another device's claim is rejected.
+  const blocked = await post(env, "/api/player/claim", { player_id: "toast" });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.error, "Player is already claimed.");
+
+  // A non-superuser requester cannot unclaim.
+  const notSuper = await post(env, "/api/player/unclaim", { requester_id: "toast", player_id: "toast", passcode: "1234" });
+  assert.equal(notSuper.ok, false);
+
+  // The wrong passcode cannot unclaim.
+  const wrongPass = await post(env, "/api/player/unclaim", { requester_id: "sogo-id", player_id: "toast", passcode: "0000" });
+  assert.equal(wrongPass.ok, false);
+
+  // Superuser + correct passcode releases the claim without needing the owner token.
+  const unclaimed = await post(env, "/api/player/unclaim", { requester_id: "sogo-id", player_id: "toast", passcode: "1234" });
+  assert.equal(unclaimed.ok, true);
+  assert.equal(unclaimed.player.claimed, false);
+
+  // The freed player can now be claimed by a fresh device.
+  const reclaimed = await post(env, "/api/player/claim", { player_id: "toast" });
+  assert.equal(reclaimed.ok, true);
+  assert.equal(typeof reclaimed.owner_token, "string");
+});
+
 test("rate limits mutating API requests before state writes", async () => {
   const env = makeEnv();
   env.API_MUTATION_RATE_LIMITER = new MockRateLimitBinding(0);
@@ -1886,7 +1915,7 @@ test("only Sogo can close any active room as superuser", async () => {
 
   const rejected = await post(env, "/api/room/close", { code: "SGCL", requester_id: guest.id });
   assert.equal(rejected.ok, false);
-  assert.equal(rejected.error, "Only configured Sogo superuser player ids can close rooms.");
+  assert.equal(rejected.error, "Only the configured Sogo superuser can do this.");
 
   const stillOpen = await get(env, "/api/room?code=SGCL");
   assert.equal(stillOpen.ok, true);
@@ -1938,7 +1967,7 @@ test("Sogo superuser powers require configured player id allowlist", async () =>
   const closed = await post(env, "/api/room/close", { code: "ALOW", requester_id: sogo.id, passcode: "1234", owner_token: sogoCreated.owner_token });
 
   assert.equal(impostorClose.ok, false);
-  assert.equal(impostorClose.error, "Only configured Sogo superuser player ids can close rooms.");
+  assert.equal(impostorClose.error, "Only the configured Sogo superuser can do this.");
   assert.equal(verified.ok, true);
   assert.equal(closed.ok, true);
   assert.equal(closed.closed, true);
