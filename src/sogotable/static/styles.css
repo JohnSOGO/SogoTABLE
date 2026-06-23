@@ -2532,16 +2532,27 @@ button.player-switch-button {
     padding: 8px 4px;
   }
 
+  /* Keep the 6 dice 3-across / 2-down and the actions 4-across on phones too,
+     matching larger screens — shrink the dice to fit rather than reflowing. */
   .ten-thousand-dice {
-    grid-template-columns: repeat(2, minmax(86px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .ten-thousand-die {
+    width: clamp(56px, 26vw, 104px);
   }
 
   .die-cube {
-    --die-size: clamp(68px, 21vw, 84px);
+    --die-size: clamp(54px, 24vw, 96px);
   }
 
   .ten-thousand-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .ten-thousand-actions .tt-action {
+    padding-inline: 4px;
   }
 }
