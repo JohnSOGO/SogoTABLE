@@ -154,22 +154,27 @@ function trayHtml(seat, game, pendingMove, labelStyle) {
   // Players can opt into brief words instead of emojis via Game Options.
   const words = labelStyle === "words";
   const label = {
-    roll: words ? "Roll" : "▶️🎲",
+    start: words ? "Start Round" : "🎲🎲🎲🎲🎲🎲",
     bust: words ? "Bust" : "❌",
     select: words ? "Score" : "✏️📈",
     reroll: words ? "Reroll" : "🎰🎲",
     bank: words ? "Bank" : "🏦",
   };
-  const firstButton = canRoll
-    ? `<button class="tt-action" type="button" data-action="roll" aria-label="Play dice">${label.roll}</button>`
-    : `<button class="tt-action tt-farkle-x" type="button" data-action="declare-farkle" ${canDeclareFarkle ? "" : "disabled"} aria-label="No scoring play — declare a farkle">${label.bust}</button>`;
-  const actionsHtml = farkled && !resolved
-    ? `<button class="primary tt-ack" type="button" data-action="ack" disabled>You Farkled!</button>`
-    : `
-      ${firstButton}
+  // Collapse to a single full-width button when there is really only one choice:
+  // rolling to start a turn/round, or the busted banner after a farkle (which
+  // stays up until this seat can roll the next round). Otherwise show the row.
+  let actionsHtml;
+  if (canRoll) {
+    actionsHtml = `<button class="tt-action tt-wide" type="button" data-action="roll" aria-label="Start round — roll the dice">${label.start}</button>`;
+  } else if (showBust) {
+    actionsHtml = `<button class="primary tt-ack" type="button" data-action="ack" disabled>You Farkled!</button>`;
+  } else {
+    actionsHtml = `
+      <button class="tt-action tt-farkle-x" type="button" data-action="declare-farkle" ${canDeclareFarkle ? "" : "disabled"} aria-label="No scoring play — declare a farkle">${label.bust}</button>
       <button class="tt-action" type="button" data-action="select" disabled aria-label="Score selected dice">${label.select}</button>
       <button class="tt-action" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">${label.reroll}</button>
       <button class="tt-action" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"} aria-label="Bank turn score">${label.bank}</button>`;
+  }
 
   // Opening rule: a seat that has not yet banked must reach the opening minimum
   // before banking unlocks. Explain the disabled bank button so it is not silent.

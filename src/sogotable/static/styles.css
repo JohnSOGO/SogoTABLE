@@ -2194,6 +2194,11 @@ button.player-switch-button {
   cursor: default;
 }
 
+/* When the start-roll is the only choice, it spans the whole action row. */
+.ten-thousand-actions .tt-action.tt-wide {
+  grid-column: 1 / -1;
+}
+
 /* Word mode (Game Options): shrink the label to a single non-wrapping line so
    the four buttons still fit 4-across on the narrowest phones. */
 .ten-thousand-actions.tt-words .tt-action {
