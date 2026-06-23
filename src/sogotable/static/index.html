@@ -133,6 +133,21 @@
         </div>
       </div>
 
+      <div id="gameOptionsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameOptionsTitle">
+        <div class="modal-panel">
+          <header class="modal-header">
+            <h2 id="gameOptionsTitle">Game Options</h2>
+            <button id="closeGameOptionsModal" class="ghost" type="button">Close</button>
+          </header>
+          <div class="game-options">
+            <label class="game-option">
+              <input id="optionActionWords" type="checkbox" />
+              <span>Use words on action buttons</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <div id="invitePrompt" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="invitePromptTitle">
         <div class="modal-panel">
           <h2 id="invitePromptTitle">Invite Received</h2>
@@ -147,6 +162,7 @@
       <section id="game" class="screen">
         <header class="game-header">
           <button id="closeGame" class="ghost icon-button" type="button" aria-label="Exit game" title="Exit game">🔙</button>
+          <button id="openGameOptions" class="ghost icon-button" type="button" aria-label="Game options" title="Game options">📜</button>
           <div>
             <h2 id="roomTitle" class="refreshable-title">Super Tic Tac Toe</h2>
             <div id="gameMeta" class="meta"></div>

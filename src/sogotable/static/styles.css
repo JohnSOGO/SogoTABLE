@@ -189,7 +189,7 @@ p,
 .topbar,
 .game-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   gap: 10px;
   align-items: center;
 }
@@ -2192,6 +2192,37 @@ button.player-switch-button {
   color: #7f1d1d;
   opacity: 1;
   cursor: default;
+}
+
+/* Word mode (Game Options): shrink the label to a single non-wrapping line so
+   the four buttons still fit 4-across on the narrowest phones. */
+.ten-thousand-actions.tt-words .tt-action {
+  font-size: clamp(0.72rem, 3.4vw, 0.95rem);
+  font-weight: 800;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+  padding-inline: 4px;
+}
+
+/* Game Options modal */
+.game-options {
+  display: grid;
+  gap: 12px;
+  padding: 4px 2px 2px;
+}
+
+.game-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.game-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
 }
 
 .ten-thousand-tray .tt-opening-hint {

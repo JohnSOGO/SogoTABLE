@@ -353,6 +353,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("openGameStats").addEventListener("click", openGameStatsModal);
   document.getElementById("closeGameStatsModal").addEventListener("click", closeGameStatsModal);
   document.getElementById("gameStatsModal").addEventListener("click", closeGameStatsModalOnBackdrop);
+  document.getElementById("openGameOptions").addEventListener("click", openGameOptionsModal);
+  document.getElementById("closeGameOptionsModal").addEventListener("click", closeGameOptionsModal);
+  document.getElementById("gameOptionsModal").addEventListener("click", closeGameOptionsModalOnBackdrop);
+  document.getElementById("optionActionWords").addEventListener("change", onActionWordsToggle);
   document.getElementById("createGame").addEventListener("click", createRoom);
   document.getElementById("refreshGameList").addEventListener("click", refreshGameRooms);
   document.getElementById("acceptInvite").addEventListener("click", () => respondToInvite(true));
@@ -920,6 +924,32 @@ function closeGameStatsModal() {
 
 function closeGameStatsModalOnBackdrop(event) {
   if (event.target.id === "gameStatsModal") closeGameStatsModal();
+}
+
+// Per-device display preference (like the sound toggle): action buttons show
+// emojis by default, or brief words when the player opts in.
+const ACTION_LABELS_STORAGE_KEY = "sogotable.actionLabels";
+function actionLabelStyle() {
+  return localStorage.getItem(ACTION_LABELS_STORAGE_KEY) === "words" ? "words" : "emoji";
+}
+
+function openGameOptionsModal() {
+  const checkbox = document.getElementById("optionActionWords");
+  if (checkbox) checkbox.checked = actionLabelStyle() === "words";
+  document.getElementById("gameOptionsModal").classList.remove("hidden");
+}
+
+function closeGameOptionsModal() {
+  document.getElementById("gameOptionsModal").classList.add("hidden");
+}
+
+function closeGameOptionsModalOnBackdrop(event) {
+  if (event.target.id === "gameOptionsModal") closeGameOptionsModal();
+}
+
+function onActionWordsToggle(event) {
+  localStorage.setItem(ACTION_LABELS_STORAGE_KEY, event.target.checked ? "words" : "emoji");
+  renderGame();
 }
 
 function lobbyStatsTable(title, items, valueLabel, valueKey, emptyText) {
@@ -2569,6 +2599,7 @@ function renderGame() {
       addBot: openBotOpponentModal,
       invitePlayer: openInvitePlayerModal,
       escapeHtml,
+      actionLabels: actionLabelStyle(),
     });
     return;
   }

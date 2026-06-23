@@ -99,7 +99,7 @@ function renderTenThousandPlay(host, ctx) {
   };
 
   host.innerHTML = `
-    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove) : ""}
+    ${localSeat && !complete ? trayHtml(localSeat, game, pendingMove, ctx.actionLabels) : ""}
     ${standingsHtml(seats, room, game, pacing)}
   `;
 
@@ -107,7 +107,7 @@ function renderTenThousandPlay(host, ctx) {
   wireStandings(host);
 }
 
-function trayHtml(seat, game, pendingMove) {
+function trayHtml(seat, game, pendingMove, labelStyle) {
   const resolved = Boolean(seat.resolved);
   const farkled = seat.phase === "farkled";
   // Keep the busted roll red for the whole farkle state. Drive it off the phase
@@ -151,16 +151,25 @@ function trayHtml(seat, game, pendingMove) {
   // either find one and select it, or you give up and bust yourself. The Red X
   // only enables while a fresh roll is unselected (phase "rolled").
   const canDeclareFarkle = canAct && seat.phase === "rolled";
+  // Players can opt into brief words instead of emojis via Game Options.
+  const words = labelStyle === "words";
+  const label = {
+    roll: words ? "Roll" : "▶️🎲",
+    bust: words ? "Bust" : "❌",
+    select: words ? "Score" : "✏️📈",
+    reroll: words ? "Reroll" : "🎰🎲",
+    bank: words ? "Bank" : "🏦",
+  };
   const firstButton = canRoll
-    ? `<button class="tt-action" type="button" data-action="roll" aria-label="Play dice">▶️🎲</button>`
-    : `<button class="tt-action tt-farkle-x" type="button" data-action="declare-farkle" ${canDeclareFarkle ? "" : "disabled"} aria-label="No scoring play — declare a farkle">❌</button>`;
+    ? `<button class="tt-action" type="button" data-action="roll" aria-label="Play dice">${label.roll}</button>`
+    : `<button class="tt-action tt-farkle-x" type="button" data-action="declare-farkle" ${canDeclareFarkle ? "" : "disabled"} aria-label="No scoring play — declare a farkle">${label.bust}</button>`;
   const actionsHtml = farkled && !resolved
     ? `<button class="primary tt-ack" type="button" data-action="ack" disabled>You Farkled!</button>`
     : `
       ${firstButton}
-      <button class="tt-action" type="button" data-action="select" disabled aria-label="Score selected dice">✏️📈</button>
-      <button class="tt-action" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">🎰🎲</button>
-      <button class="tt-action" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"} aria-label="Bank turn score">🏦</button>`;
+      <button class="tt-action" type="button" data-action="select" disabled aria-label="Score selected dice">${label.select}</button>
+      <button class="tt-action" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">${label.reroll}</button>
+      <button class="tt-action" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"} aria-label="Bank turn score">${label.bank}</button>`;
 
   // Opening rule: a seat that has not yet banked must reach the opening minimum
   // before banking unlocks. Explain the disabled bank button so it is not silent.
@@ -181,7 +190,7 @@ function trayHtml(seat, game, pendingMove) {
         <div><span class="label">Farkles</span><strong>${fmt(seat.farkles)}</strong></div>
       </div>
       <div class="ten-thousand-dice" aria-label="Dice">${diceHtml}</div>
-      <div class="ten-thousand-actions" aria-label="Dice actions">${actionsHtml}</div>
+      <div class="ten-thousand-actions${words ? " tt-words" : ""}" aria-label="Dice actions">${actionsHtml}</div>
       ${hintHtml}
     </section>`;
 }
