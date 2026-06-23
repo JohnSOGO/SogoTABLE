@@ -32,9 +32,16 @@
 - After all seats have banked or farkled and acknowledged, the round is marked
   complete and the next round starts when a player rolls again.
 - Tapping scoring dice updates the visible `This turn` score immediately; tapping
-  them off subtracts their value again before the move is committed.
+  them off subtracts their value again before the move is committed. The browser
+  preserves an uncommitted dice selection across parallel-play snapshots from
+  other seats, keyed by room, mark, and roll count, then clears it when the
+  selection is committed, banked, or farkled.
 - Banking brings the total score closer to 10,000. Reaching 10,000 completes the
   game and records a high score.
+- On phones, the six dice stay 3-across and the four action buttons stay
+  4-across; the UI shrinks controls to fit instead of reflowing to fewer columns.
+- Game Options can switch action buttons from emoji labels to short word labels
+  (`Roll`, `Bust`, `Score`, `Reroll`, `Bank`) as a per-device preference.
 
 ## Scoring
 
@@ -57,3 +64,7 @@ Moves use `/api/room/move` with action objects:
 
 The browser may animate intermediate tumbling faces, but it must settle on the
 Worker-provided dice values.
+
+Browser sound effects for 10,000 are local-seat only. Parallel room snapshots
+from another player must not play roll, score, bank, or farkle sounds on this
+device.

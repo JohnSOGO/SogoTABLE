@@ -38,10 +38,14 @@ Adopt with constraints: procedural Web Audio only, global mute toggle, no backgr
 
 ### 2026-06-07
 
-Implemented the first sound pass. Sound is enabled quietly by default, unlocks after the first user gesture, and can be muted/unmuted from the global `Audio` button. Future games should reuse `src/sogotable/static/sound.js` and should emit browser sounds from UI intent or received room snapshots, not from game-rule code.
+Implemented the first sound pass. Sound is enabled quietly by default, unlocks after the first user gesture, and can be muted/unmuted from the global Audio button. Future games should reuse `src/sogotable/static/sound.js` and should emit browser sounds from UI intent or received room snapshots, not from game-rule code.
 
-The turn-change sound now uses a close two-note language by player mark: X keeps the original cue, and O plays the same cue one semitone higher. The global sound toggle uses speaker icons, with `🔊` for sound on and `🔇` for muted.
+The turn-change sound now uses a close two-note language by player mark: X keeps the original cue, and O plays the same cue one semitone higher. The global sound toggle uses speaker icons for sound on and muted states.
 
 ### 2026-06-09
 
-The compact speaker button now cycles through five persisted volume levels, then mute. When sound is on, the button shows `🔊` plus a green bottom progress bar from one to five steps. When muted, it shows `🔇` and no volume bar. The generated Web Audio module scales every cue from the selected level instead of changing each sound effect separately, using a wide enough multiplier curve that phone speakers should make each level audibly distinct.
+The compact speaker button now cycles through five persisted volume levels, then mute. When sound is on, the button shows a speaker icon plus a green bottom progress bar from one to five steps. When muted, it shows a muted-speaker icon and no volume bar. The generated Web Audio module scales every cue from the selected level instead of changing each sound effect separately, using a wide enough multiplier curve that phone speakers should make each level audibly distinct.
+
+### 2026-06-22
+
+10,000 is simultaneous/parallel enough that every device receives every seat's room snapshots. Its roll, score, bank, and farkle sounds must resolve the local device's own room seat first and ignore other seats' moves, so one player's actions do not create sound effects on another player's phone.

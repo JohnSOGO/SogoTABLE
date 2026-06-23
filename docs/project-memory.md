@@ -169,11 +169,15 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - 10,000 is game #6 and the first hosted dice game with a flexible guest list. It uses the normal selected-game screen, room, reset, exit, room WebSocket, and high-score infrastructure, and the host lobby keeps the standard invite buttons while omitting local-opponent controls.
 - The Worker owns dice rolls, scoring validation, farkles, banking, and game completion. The browser renders CSS 3D dice animation as presentation only and must settle on the Worker-provided dice values.
 - Tapping scoring dice updates the visible `This turn` score immediately; deselecting them subtracts the value back out before the move is committed.
+- Uncommitted 10,000 dice selections persist across full room snapshot re-renders caused by other parallel seats acting. Store that client-only highlight by room, mark, and roll count, and clear it when the local player commits a selection, banks, or declares a farkle.
 - A farkle preserves the final rolled dice values, turns the dice red, and opens a popup that must be acknowledged before play continues.
 - 10,000 publishes a canonical `finish_state` per seat. The standings table header is `Status`, and the UI maps the state to hourglass, green check, red X, or both after a farkle ACK. The farkle tray also exposes an OK button so the seat cannot soft-lock if the popup is missed.
 - The top banner for 10,000 shows the round number, and the tray below the actions stays quiet so the play surface is not cluttered with status copy.
 - After every seat has banked or farkled and acknowledged, the round stays on the current board until the next roll starts the following round.
 - The standings table shows player icon first, reveals the player name on tap, and includes Farkle and status columns so the round state is obvious at a glance.
+- On phones, 10,000 keeps six dice 3-across and action buttons 4-across. Shrink controls to preserve that scan pattern instead of reflowing dice/actions into fewer columns.
+- 10,000 action buttons default to emoji labels, but Game Options can persist a per-device `sogotable.actionLabels = words` preference for short word labels. Keep words compact enough for a single 4-across row on small phones.
+- 10,000 sound effects are tied to the local device's own room seat. Parallel snapshots for other seats must update state without playing this device's roll, score, bank, or farkle sounds.
 - Scoring uses the first classic rule set: single 1s and 5s, triples, 1-6 straight, and three pairs. The target score is 10,000.
 
 ## Super Tic Tac Toe UX Decisions

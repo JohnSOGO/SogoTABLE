@@ -162,6 +162,7 @@ During local hot-seat play, runtime `selectedPlayerId` may temporarily point to 
 - Local hot-seat play may auto-toggle the runtime actor, but must restore the device/home selected player when the game ends or closes.
 - Player colors are gameplay signals. Use them carefully and keep them readable.
 - Global sound is browser-only presentation state. The compact speaker control cycles through five persisted volume levels and then mute, showing a green bottom progress bar for volume and no bar while muted.
+- Game Options are browser-only presentation state. The current option is a per-device action-label preference that defaults to emoji labels and can switch supported game action buttons to short words.
 - Timing mode must not create a separate lobby architecture. Turn-based, simultaneous, and live-round games should all flow through the same global player/game/room shell unless a future product decision deliberately changes that.
 
 ## Timing State: Live Round
@@ -559,7 +560,8 @@ Purpose:
 
 Required display:
 
-- Header with `Exit`, centered game name, centered room id, and `Reset`.
+- Header with `Exit`, `Game Options`, centered game name, centered room id,
+  sound control, and `Reset`.
 - Players setup panel hidden.
 - Top player labels visible.
 - Top player labels are passive status labels, not buttons.
@@ -600,6 +602,8 @@ Move behavior:
 - After a local hot-seat move, runtime actor auto-switches to the current-turn player.
 - Remote devices do not auto-switch their device/home selected player.
 - Move, invalid-move, turn-change, tactical-event, and game-over sounds should be played from browser-observed intent or room-state transitions through the central sound module, not from game-rule code.
+- In 10,000 parallel play, roll/select/bank/farkle sounds should play only for
+  the local device's own room seat, even when other seats' snapshots arrive.
 
 Exit behavior:
 
@@ -709,6 +713,31 @@ Behavior:
 - Yes continues the action.
 - No cancels the action.
 - Backdrop click cancels the action.
+
+## Modal State: GAME_OPTIONS_MODAL
+
+DOM id:
+
+- `gameOptionsModal`
+
+Purpose:
+
+- Store per-device presentation preferences for active games.
+
+Required display:
+
+- Title: `Game Options`
+- Close button.
+- `Use words on action buttons` checkbox.
+
+Behavior:
+
+- Default action labels are emoji.
+- Checking the option stores `sogotable.actionLabels = words` in localStorage
+  and re-renders the current game.
+- Unchecking restores emoji labels.
+- Word labels must remain short enough for supported games to keep their intended
+  phone layouts.
 
 ## Room-Seat Color Rules
 
