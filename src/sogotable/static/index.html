@@ -24,6 +24,7 @@
       <section id="games" class="screen">
         <header class="topbar">
           <button class="ghost icon-button" data-screen="intro" aria-label="Back" title="Back">🔙</button>
+          <button class="ghost icon-button" type="button" data-open-menu aria-label="Menu" title="Menu">📜</button>
           <h2>Player & Game Select</h2>
           <button class="ghost sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Mute sound">🔊</button>
         </header>
@@ -48,6 +49,7 @@
       <section id="gameSelected" class="screen">
         <header class="topbar">
           <button class="ghost icon-button" data-screen="games" aria-label="Back" title="Back">🔙</button>
+          <button class="ghost icon-button" type="button" data-open-menu aria-label="Menu" title="Menu">📜</button>
           <h2 id="selectedGameTitle" class="refreshable-title">Super Tic Tac Toe</h2>
           <button class="ghost sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Mute sound">🔊</button>
         </header>
@@ -136,7 +138,7 @@
       <div id="gameOptionsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameOptionsTitle">
         <div class="modal-panel">
           <header class="modal-header">
-            <h2 id="gameOptionsTitle">Game Options</h2>
+            <h2 id="gameOptionsTitle">Menu</h2>
             <button id="closeGameOptionsModal" class="ghost" type="button">Close</button>
           </header>
           <div class="game-options">
@@ -144,6 +146,12 @@
               <input id="optionActionWords" type="checkbox" />
               <span>Use words on action buttons</span>
             </label>
+            <div class="bug-report">
+              <label class="bug-report-label" for="bugReportText">Report a bug</label>
+              <textarea id="bugReportText" rows="4" placeholder="What went wrong, and what were you doing?"></textarea>
+              <button id="submitBugReport" class="primary" type="button">Send bug report</button>
+              <p id="bugReportStatus" class="bug-report-status" aria-live="polite"></p>
+            </div>
           </div>
         </div>
       </div>
@@ -162,7 +170,7 @@
       <section id="game" class="screen">
         <header class="game-header">
           <button id="closeGame" class="ghost icon-button" type="button" aria-label="Exit game" title="Exit game">🔙</button>
-          <button id="openGameOptions" class="ghost icon-button" type="button" aria-label="Game options" title="Game options">📜</button>
+          <button class="ghost icon-button" type="button" data-open-menu aria-label="Menu" title="Menu">📜</button>
           <div>
             <h2 id="roomTitle" class="refreshable-title">Super Tic Tac Toe</h2>
             <div id="gameMeta" class="meta"></div>

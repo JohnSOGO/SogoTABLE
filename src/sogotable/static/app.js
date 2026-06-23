@@ -353,10 +353,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("openGameStats").addEventListener("click", openGameStatsModal);
   document.getElementById("closeGameStatsModal").addEventListener("click", closeGameStatsModal);
   document.getElementById("gameStatsModal").addEventListener("click", closeGameStatsModalOnBackdrop);
-  document.getElementById("openGameOptions").addEventListener("click", openGameOptionsModal);
+  document.querySelectorAll("[data-open-menu]").forEach((button) => button.addEventListener("click", openGameOptionsModal));
   document.getElementById("closeGameOptionsModal").addEventListener("click", closeGameOptionsModal);
   document.getElementById("gameOptionsModal").addEventListener("click", closeGameOptionsModalOnBackdrop);
   document.getElementById("optionActionWords").addEventListener("change", onActionWordsToggle);
+  document.getElementById("submitBugReport").addEventListener("click", submitBugReport);
   document.getElementById("createGame").addEventListener("click", createRoom);
   document.getElementById("refreshGameList").addEventListener("click", refreshGameRooms);
   document.getElementById("acceptInvite").addEventListener("click", () => respondToInvite(true));
@@ -936,6 +937,8 @@ function actionLabelStyle() {
 function openGameOptionsModal() {
   const checkbox = document.getElementById("optionActionWords");
   if (checkbox) checkbox.checked = actionLabelStyle() === "words";
+  const status = document.getElementById("bugReportStatus");
+  if (status) status.textContent = "";
   document.getElementById("gameOptionsModal").classList.remove("hidden");
 }
 
@@ -950,6 +953,52 @@ function closeGameOptionsModalOnBackdrop(event) {
 function onActionWordsToggle(event) {
   localStorage.setItem(ACTION_LABELS_STORAGE_KEY, event.target.checked ? "words" : "emoji");
   renderGame();
+}
+
+// Captures who/where for a bug report: the device's player and the screen they
+// are on (and the game/room if any), so reports are actionable without asking.
+function bugReportContext() {
+  const active = document.querySelector(".screen.active");
+  const screenId = active ? active.id : "unknown";
+  const screenLabels = {
+    intro: "Intro",
+    games: "Player & Game Select",
+    gameSelected: "Game Lobby",
+    game: "In Game",
+  };
+  const player = deviceSelectedPlayer();
+  const game = selectedGame();
+  return {
+    screen: screenLabels[screenId] || screenId,
+    game: currentRoom ? gameName(currentRoom.game_id) : (game ? game.name : ""),
+    game_id: currentRoom ? currentRoom.game_id : (game ? game.id : ""),
+    room_code: currentRoom ? currentRoom.code : "",
+    player_id: player ? player.id : (deviceSelectedPlayerId || ""),
+    player_name: player ? player.name : "",
+  };
+}
+
+async function submitBugReport() {
+  const textarea = document.getElementById("bugReportText");
+  const status = document.getElementById("bugReportStatus");
+  const button = document.getElementById("submitBugReport");
+  const description = (textarea.value || "").trim();
+  if (!description) {
+    status.textContent = "Please describe the bug first.";
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "Sending…";
+  try {
+    await api("/api/bug-report", { ...bugReportContext(), description, user_agent: navigator.userAgent });
+    textarea.value = "";
+    status.textContent = "Thanks — bug report sent.";
+    playConfirm();
+  } catch (error) {
+    status.textContent = error.message || "Could not send the report.";
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function lobbyStatsTable(title, items, valueLabel, valueKey, emptyText) {

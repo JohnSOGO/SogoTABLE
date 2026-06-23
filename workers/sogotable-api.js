@@ -580,6 +580,34 @@ async function routeRequest(method, url, payload, data, options = {}) {
       delete target.owner_token_hash;
       return { ok: true, player: publicPlayer(target), players: publicPlayers(data) };
     }
+    if (method === "POST" && url.pathname === "/api/bug-report") {
+      const description = String(payload.description || "").trim();
+      if (!description) throw new Error("Bug description is required.");
+      if (!Array.isArray(data.bug_reports)) data.bug_reports = [];
+      const report = {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        created_at: Date.now(),
+        player_id: String(payload.player_id || ""),
+        player_name: String(payload.player_name || "").slice(0, 120),
+        screen: String(payload.screen || "").slice(0, 120),
+        game: String(payload.game || "").slice(0, 120),
+        game_id: String(payload.game_id || "").slice(0, 60),
+        room_code: String(payload.room_code || "").slice(0, 12),
+        user_agent: String(payload.user_agent || "").slice(0, 400),
+        description: description.slice(0, 4000),
+      };
+      data.bug_reports.push(report);
+      data.bug_reports = data.bug_reports.slice(-500);
+      return { ok: true, id: report.id };
+    }
+    if (method === "POST" && url.pathname === "/api/bug-reports/list") {
+      // Admin export, gated by the Sogo passcode alone (no player context — this
+      // is called by the local export script, not a seated player).
+      if (!String(superuserPasscode || "").trim() || String(payload.passcode || "") !== String(superuserPasscode)) {
+        throw new Error("Sogo passcode is incorrect.");
+      }
+      return { ok: true, reports: Array.isArray(data.bug_reports) ? data.bug_reports : [] };
+    }
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
       if (!playerId) throw new Error("Player id is required.");

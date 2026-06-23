@@ -1,0 +1,3 @@
+# Exported bug reports are local artifacts — keep the folder, ignore the files.
+*
+!.gitignore

@@ -2230,6 +2230,34 @@ button.player-switch-button {
   flex: 0 0 auto;
 }
 
+.bug-report {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+.bug-report-label {
+  font-weight: 700;
+}
+
+.bug-report textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 80px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font: inherit;
+}
+
+.bug-report-status {
+  margin: 0;
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .ten-thousand-tray .tt-opening-hint {
   margin-top: 8px;
   color: #92400e;

@@ -440,6 +440,33 @@ test("Sogo superuser can cancel a pending invite to free a stuck target", async 
   assert.equal(after.invites.length, 0);
 });
 
+test("Bug reports are stored and listed for the Sogo superuser passcode", async () => {
+  const env = makeProductionEnv();
+  const sent = await post(env, "/api/bug-report", {
+    description: "Dice did not roll",
+    player_name: "Sogo",
+    screen: "In Game",
+    game: "Ten Thousand",
+    room_code: "ABCD",
+  });
+  assert.equal(sent.ok, true);
+  assert.ok(sent.id);
+
+  const empty = await post(env, "/api/bug-report", { description: "   " });
+  assert.equal(empty.ok, false);
+  assert.equal(empty.error, "Bug description is required.");
+
+  const wrong = await post(env, "/api/bug-reports/list", { passcode: "0000" });
+  assert.equal(wrong.ok, false);
+
+  const listed = await post(env, "/api/bug-reports/list", { passcode: "1234" });
+  assert.equal(listed.ok, true);
+  assert.equal(listed.reports.length, 1);
+  assert.equal(listed.reports[0].description, "Dice did not roll");
+  assert.equal(listed.reports[0].screen, "In Game");
+  assert.equal(listed.reports[0].room_code, "ABCD");
+});
+
 test("rate limits mutating API requests before state writes", async () => {
   const env = makeEnv();
   env.API_MUTATION_RATE_LIMITER = new MockRateLimitBinding(0);
