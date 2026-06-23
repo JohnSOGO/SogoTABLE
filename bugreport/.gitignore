@@ -1,3 +1,4 @@
-# Exported bug reports are local artifacts — keep the folder, ignore the files.
+# Exported bug reports are local artifacts — keep the folder + helper, ignore the reports.
 *
 !.gitignore
+!export-bug-reports.bat
