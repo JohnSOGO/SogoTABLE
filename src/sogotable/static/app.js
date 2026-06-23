@@ -304,6 +304,7 @@ let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let playerOwnerTokens = loadPlayerOwnerTokens();
 let pendingConfirmAction = null;
+let pendingPasscodePrompt = null;
 let handledResetRequestKey = "";
 let selectedGameEntryRequestId = 0;
 const realtime = createRealtimeController({
@@ -368,6 +369,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("confirmYes").addEventListener("click", () => resolveConfirmPrompt(true));
   document.getElementById("confirmNo").addEventListener("click", () => resolveConfirmPrompt(false));
   document.getElementById("confirmPrompt").addEventListener("click", closeConfirmPromptOnBackdrop);
+  document.getElementById("passcodeSubmit").addEventListener("click", submitPasscodePrompt);
+  document.getElementById("passcodeCancel").addEventListener("click", cancelPasscodePrompt);
+  document.getElementById("passcodePrompt").addEventListener("click", closePasscodePromptOnBackdrop);
+  document.getElementById("passcodeInput").addEventListener("keydown", onPasscodeInputKey);
   const closeWinOverlay = document.getElementById("closeWinOverlay");
   if (closeWinOverlay) closeWinOverlay.addEventListener("click", hideWinOverlay);
   bindRefreshTitleControls();
@@ -2247,6 +2252,53 @@ function resolveConfirmPrompt(confirmed) {
   resolve(confirmed);
 }
 
+// A numeric-keypad replacement for window.prompt for the (digits-only) passcode:
+// a password input with inputmode="numeric" opens the number pad on touch
+// devices. Resolves to the entered string, or null if cancelled.
+function promptForPasscode(title = "Enter passcode") {
+  const prompt = document.getElementById("passcodePrompt");
+  const input = document.getElementById("passcodeInput");
+  document.getElementById("passcodePromptTitle").textContent = title;
+  input.value = "";
+  prompt.classList.remove("hidden");
+  setTimeout(() => input.focus(), 0);
+  return new Promise((resolve) => {
+    pendingPasscodePrompt = resolve;
+  });
+}
+
+function resolvePasscodePrompt(value) {
+  document.getElementById("passcodePrompt").classList.add("hidden");
+  if (!pendingPasscodePrompt) return;
+  const resolve = pendingPasscodePrompt;
+  pendingPasscodePrompt = null;
+  if (value === null) playCancel();
+  else playConfirm();
+  resolve(value);
+}
+
+function submitPasscodePrompt() {
+  resolvePasscodePrompt((document.getElementById("passcodeInput").value || "").trim());
+}
+
+function cancelPasscodePrompt() {
+  resolvePasscodePrompt(null);
+}
+
+function closePasscodePromptOnBackdrop(event) {
+  if (event.target.id === "passcodePrompt") cancelPasscodePrompt();
+}
+
+function onPasscodeInputKey(event) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    submitPasscodePrompt();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    cancelPasscodePrompt();
+  }
+}
+
 function closeConfirmPromptOnBackdrop(event) {
   if (event.target.id !== "confirmPrompt") return;
   if (event.currentTarget && event.currentTarget.classList.contains("info-prompt")) return;
@@ -3864,7 +3916,7 @@ function isSogoSuperuser(player) {
 
 async function verifySogoSuperuserPasscode(player) {
   if (hasSogoSuperuserPasscode()) return true;
-  const passcode = window.prompt("Enter Sogo passcode.");
+  const passcode = await promptForPasscode("Enter Sogo passcode");
   if (!passcode) {
     clearSogoSuperuserPasscode();
     return false;

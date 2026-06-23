@@ -2258,6 +2258,17 @@ button.player-switch-button {
   font-size: 0.9rem;
 }
 
+.passcode-input {
+  width: 100%;
+  margin: 14px 0;
+  padding: 12px 14px;
+  font-size: 1.4rem;
+  text-align: center;
+  letter-spacing: 0.3em;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+}
+
 .ten-thousand-tray .tt-opening-hint {
   margin-top: 8px;
   color: #92400e;

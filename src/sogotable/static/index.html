@@ -218,6 +218,17 @@
           </div>
         </div>
       </div>
+
+      <div id="passcodePrompt" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="passcodePromptTitle">
+        <div class="modal-panel confirm-panel">
+          <h2 id="passcodePromptTitle">Enter Sogo passcode</h2>
+          <input id="passcodeInput" class="passcode-input" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Passcode" />
+          <div class="invite-actions">
+            <button id="passcodeSubmit" class="primary" type="button">OK</button>
+            <button id="passcodeCancel" class="secondary" type="button">Cancel</button>
+          </div>
+        </div>
+      </div>
     </main>
     <script type="module" src="/app.js"></script>
   </body>
