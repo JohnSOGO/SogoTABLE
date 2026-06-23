@@ -2200,7 +2200,7 @@ function setRoom(room) {
 // round can advance — the player already chose to bust, so no extra tap.
 function maybeAutoAckTenThousandFarkle(room) {
   if (!room || !isTenThousandGameState(room.game)) return;
-  const localSeat = room.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+  const localSeat = localRoomSeat(room);
   if (!localSeat) return;
   const seatState = (room.game.players || []).find((seat) => seat.mark === localSeat.mark);
   if (!seatState || seatState.finish_state !== "farkled_pending_ack") return;
@@ -2213,7 +2213,7 @@ function maybeAutoAckTenThousandFarkle(room) {
     // Only acknowledge if the bust is still pending (the player may have already
     // tapped through, or the room may have moved on).
     if (!currentRoom || !isTenThousandGameState(currentRoom.game)) return;
-    const seat = currentRoom.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+    const seat = localRoomSeat(currentRoom);
     const state = seat && (currentRoom.game.players || []).find((entry) => entry.mark === seat.mark);
     if (state && state.finish_state === "farkled_pending_ack") makeTenThousandAction({ type: "ack_farkle" });
   }, TEN_THOUSAND_FARKLE_ACK_MS);
@@ -2221,7 +2221,7 @@ function maybeAutoAckTenThousandFarkle(room) {
 
 function maybeShowTenThousandFarklePrompt(previousRoom, room) {
   if (!room || !isTenThousandGameState(room.game)) return;
-  const localSeat = room.players.find((player) => player.id === deviceSelectedPlayerId || player.id === selectedPlayerId);
+  const localSeat = localRoomSeat(room);
   if (!localSeat) return;
   const seatState = (room.game.players || []).find((seat) => seat.mark === localSeat.mark);
   if (!seatState || seatState.phase !== "farkled") return;
@@ -2284,13 +2284,25 @@ function playRoomStateSounds(previousRoom, room) {
 // Drive its audio off last_move instead: dice tumble on a roll/reroll, a blip
 // when scoring dice are set aside, a cash-in on bank, and a bust when the player
 // declares their farkle (the red dice appear at the same moment).
+// The seat this device is actually playing. Prefer deviceSelectedPlayerId
+// (per-tab sessionStorage) over the shared selectedPlayerId (localStorage), so
+// two browser tabs — or any device where the two diverge — each resolve to their
+// OWN seat. A loose `a || b` match could land on the host's seat and leak its
+// SFX / view to a guest.
+function localRoomSeat(room) {
+  if (!room || !Array.isArray(room.players)) return null;
+  return room.players.find((player) => player.id === deviceSelectedPlayerId && player.mark)
+    || room.players.find((player) => player.id === selectedPlayerId && player.mark)
+    || null;
+}
+
 function playTenThousandEventSound(previousRoom, room) {
   if (!isTenThousandGameState(room.game)) return;
   const move = room.game.last_move;
   if (!move || !move.type) return;
   // Parallel play broadcasts every seat's move to every device. Only voice this
   // device's own seat, so an opponent's roll/bank/farkle doesn't fire SFX here.
-  const localSeat = room.players.find((player) => player.id === deviceSelectedPlayerId || player.id === selectedPlayerId);
+  const localSeat = localRoomSeat(room);
   if (!localSeat || !localSeat.mark || move.mark !== localSeat.mark) return;
   const soundKey = `${room.code}:${move.move_count}:${move.type}:${move.mark || ""}`;
   if (soundKey === lastTenThousandSoundKey) return;
@@ -2387,7 +2399,7 @@ function playGameOverSound(previousRoom, room) {
   const soundKey = `${room.code}:${room.game.move_count}:${room.game.status}:${room.game.winner || ""}`;
   if (soundKey === lastGameOverSoundKey) return;
   lastGameOverSoundKey = soundKey;
-  const selectedSeat = room.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+  const selectedSeat = localRoomSeat(room);
   if (!room.game.winner || room.game.status === "draw") {
     playConfirm();
     return;
@@ -2543,7 +2555,7 @@ function renderGame() {
   if (isTenThousandGameState(game)) {
     document.getElementById("gamePlayersPanel").classList.add("hidden");
     showTurnStatus(null, `Round ${game.round}`);
-    const localSeat = currentRoom.players.find((player) => player.id === selectedPlayerId || player.id === deviceSelectedPlayerId);
+    const localSeat = localRoomSeat(currentRoom);
     renderTenThousandGame({
       host: document.getElementById("macroBoard"),
       game,
