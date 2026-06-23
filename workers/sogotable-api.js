@@ -806,6 +806,24 @@ async function routeRequest(method, url, payload, data, options = {}) {
       invite.status = "accepted";
       return { ok: true, accepted: true, room: roomToDict(data, room) };
     }
+    if (method === "POST" && url.pathname === "/api/invite/cancel") {
+      const requesterId = String(payload.requester_id || "").trim();
+      // Passcode-authenticated admin cleanup: deletes pending invites so a target
+      // stuck on an invite popup (e.g. one it can't respond to) is freed without
+      // needing that target's owner token.
+      assertSogoSuperuser(data, requesterId, payload.passcode, superuserPasscode, superuserPlayerIds);
+      const targetId = String(payload.target_id || payload.player_id || "").trim();
+      const hostId = String(payload.host_id || "").trim();
+      const removed = [];
+      Object.keys(data.invites).forEach((id) => {
+        const invite = data.invites[id];
+        if (targetId && invite.target_id !== targetId) return;
+        if (hostId && invite.host_id !== hostId) return;
+        removed.push(id);
+        delete data.invites[id];
+      });
+      return { ok: true, removed };
+    }
   throw new Error("Unknown endpoint.");
 }
 

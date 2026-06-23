@@ -414,6 +414,32 @@ test("Sogo superuser unclaim releases a player for re-claiming", async () => {
   assert.equal(typeof reclaimed.owner_token, "string");
 });
 
+test("Sogo superuser can cancel a pending invite to free a stuck target", async () => {
+  const env = makeEnv();
+  await post(env, "/api/players/create", { player: player("sogo-id", "Sogo") });
+  await post(env, "/api/room/create", { game_id: "battleship", player: player("sogo-id", "Sogo"), code: "INVT" });
+  await post(env, "/api/invite/create", { code: "INVT", host_id: "sogo-id", player: player("toast", "Toast") });
+
+  const before = await get(env, "/api/invites?player_id=toast");
+  assert.equal(before.invites.length, 1);
+
+  // A non-superuser cannot cancel.
+  const notSuper = await post(env, "/api/invite/cancel", { requester_id: "toast", target_id: "toast", passcode: "1234" });
+  assert.equal(notSuper.ok, false);
+
+  // The wrong passcode cannot cancel.
+  const wrongPass = await post(env, "/api/invite/cancel", { requester_id: "sogo-id", target_id: "toast", passcode: "0000" });
+  assert.equal(wrongPass.ok, false);
+
+  // Superuser + correct passcode deletes the invite.
+  const cancelled = await post(env, "/api/invite/cancel", { requester_id: "sogo-id", target_id: "toast", passcode: "1234" });
+  assert.equal(cancelled.ok, true);
+  assert.equal(cancelled.removed.length, 1);
+
+  const after = await get(env, "/api/invites?player_id=toast");
+  assert.equal(after.invites.length, 0);
+});
+
 test("rate limits mutating API requests before state writes", async () => {
   const env = makeEnv();
   env.API_MUTATION_RATE_LIMITER = new MockRateLimitBinding(0);
