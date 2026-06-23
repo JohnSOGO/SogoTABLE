@@ -187,6 +187,7 @@ The authoritative endpoint list and request/response payloads live in `docs/api-
 High-level endpoint groups:
 
 - `GET/POST/DELETE /api/players`
+- `POST /api/player/unclaim`
 - `GET /api/lobby`
 - `POST /api/lobby/presence`
 - `GET /api/rooms`
@@ -200,6 +201,7 @@ High-level endpoint groups:
 - `GET /api/invites`
 - `POST /api/invite/create`
 - `POST /api/invite/respond`
+- `POST /api/invite/cancel`
 
 ## Progressive Web App
 

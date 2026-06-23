@@ -333,6 +333,7 @@ Selection behavior:
 - Tapping `Edit` populates the create form with that player's profile, changes the form heading to `Edit Player`, and changes the submit button to `Save Changes`.
 - Saving an edit updates the shared roster profile and any active-room/stat display snapshots that refer to that player id.
 - `Clear Stats` clears games played, wins, personal high score, ELO, and leaderboard entries for the edited player across games.
+- When the selected player is an unlocked Sogo superuser, claimed player rows may show `Unlock`. Tapping it confirms, then calls `POST /api/player/unclaim` with the Sogo passcode so a player that lost its browser owner token can be claimed again.
 
 Color behavior:
 
@@ -656,6 +657,7 @@ Room lifecycle:
 - Completed rooms are not listed as open or in-progress games.
 - Exit still requires local Yes/No and then leaves/closes the room.
 - Sogo superuser cleanup can close any listed room from the selected-game room cards or the game header after confirmation. The UI only shows this action when the selected roster profile is named `Sogo` or `MojoSOGO` and has passed the passcode gate for the current tab session; the Worker remains authoritative through `POST /api/room/close`.
+- Sogo superuser API cleanup can also cancel pending invites through `POST /api/invite/cancel` when a target is stuck and cannot respond. This is currently an API/admin recovery path, not a normal room-screen control.
 - `Play Again` requires both seated players to agree, then starts a fresh board with the same seated players.
 
 ## Modal State: WIN_OVERLAY

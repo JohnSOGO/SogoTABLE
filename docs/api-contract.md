@@ -42,6 +42,9 @@ lobby presence, public room lists, and public game stats.
 }
 ```
 
+Public player objects include `claimed: true` when the Worker has an
+`owner_token` hash for that player. Clients must never receive the hash itself.
+
 ### `POST /api/players/create`
 
 Creates or updates a player. Creating a new player returns an `owner_token`
@@ -97,6 +100,36 @@ Response:
 
 If the player already has an owner token hash, the claim is rejected.
 
+### `POST /api/player/unclaim`
+
+Sogo superuser recovery endpoint for a player whose claiming browser lost its
+local owner token. This deletes the stored owner-token hash so the player can be
+claimed again through `POST /api/player/claim`.
+
+This endpoint intentionally does not require the target player's `owner_token`,
+because the lost token is the failure mode it recovers from. It is authorized by
+the configured Sogo superuser player id allowlist and passcode.
+
+Request:
+
+```json
+{
+  "requester_id": "sogo-player-id",
+  "player_id": "locked-player-id",
+  "passcode": "passcode"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "player": {},
+  "players": []
+}
+```
+
 ### `POST /api/players/delete`
 
 Request:
@@ -119,7 +152,9 @@ Delete is blocked while the player is seated in an unfinished room. Successful d
 Protected mutations require `owner_token` for the player being acted as:
 `POST /api/players/create` when editing, `POST /api/players/delete`,
 `POST /api/player/stats/clear`, room create/join/join-bot/start/leave/close,
-room move/reset, and invite create/respond.
+room move/reset, and invite create/respond. Sogo recovery mutations such as
+`POST /api/player/unclaim` and `POST /api/invite/cancel` are passcode-gated
+superuser actions instead of owner-token actions.
 
 ## Games
 
@@ -251,8 +286,9 @@ query string or room WebSocket URL, or when a mutating request includes a player
 identity such as `player_id`, `requester_id`, `host_id`, or `player.id`. This
 matters for hidden-information games. In Battleship, a player sees their own
 ships and both players' public shots/results, but does not receive opponent ship
-coordinates until the room is completed. Public room reads with no `player_id`
-also hide active Battleship fleets.
+coordinates until the room is completed, except that opponent ships already sunk
+by that viewer are revealed so the attacker can mark the sunk ship. Public room
+reads with no `player_id` also hide active Battleship fleets.
 
 Canonical `game_id` values:
 
@@ -291,6 +327,8 @@ Battleship room game state uses `phase`, `status`, `players`, `current_player`,
 `shots`; ships use `{ id, row, col, orientation }` and shots use
 `{ row, col, hit }`. `ship_id` may appear only when the server is allowed to
 reveal ship identity, such as completed-game review or a public sunk result.
+During active play, the viewer's opponent `ships` array contains only ships that
+viewer has fully sunk.
 
 Quoridor room game state uses `size`, `status`, `current_player`, `winner`,
 `pawns`, `walls`, `walls_remaining`, `legal_pawn_moves`, `legal_walls`,
@@ -858,6 +896,40 @@ Declined response:
 {
   "ok": true,
   "accepted": false
+}
+```
+
+### `POST /api/invite/cancel`
+
+Sogo superuser cleanup endpoint for pending invites that a target cannot answer,
+for example after losing the target player's owner token. It deletes matching
+pending invite records and broadcasts an app snapshot so affected invite popups
+clear live.
+
+The request must include a configured Sogo superuser `requester_id` and the
+Worker-configured passcode. `target_id` or `player_id` scopes cancellation to a
+target player. `host_id` may further narrow the cleanup to invites from one
+host. If no target or host is supplied, the current implementation removes all
+pending invites visible to the shared state; use that only as a deliberate
+global cleanup.
+
+Request:
+
+```json
+{
+  "requester_id": "sogo-player-id",
+  "target_id": "stuck-target-player-id",
+  "host_id": "optional-host-player-id",
+  "passcode": "passcode"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "removed": ["invite-id"]
 }
 ```
 

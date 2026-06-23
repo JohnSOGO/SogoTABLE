@@ -38,6 +38,9 @@ Battleship is the fourth ready SogoTable game.
   first cue.
 - Manual `Defence` view stays on the player's own fleet and shows incoming
   attack target/result reveals there.
+- Sunk enemy ships are revealed to the attacker after the authoritative snapshot
+  confirms the sink, so the browser can mark those ship cells and show the sunk
+  ship message while keeping the rest of the enemy fleet hidden.
 - The game ends when every ship cell in one fleet has been hit.
 
 ## Runtime Ownership
@@ -48,9 +51,10 @@ and sends setup or attack intent through `/api/room/move`.
 
 Battleship room snapshots are viewer-projected at the Worker response boundary.
 A player receives their own fleet and public shot results, but does not receive
-opponent ship coordinates before the room is complete. Completed rooms reveal
-both fleets for review. The room WebSocket includes `player_id` so each connected
-browser receives its own legal projection.
+opponent ship coordinates before the room is complete except for opponent ships
+that player has already sunk. Completed rooms reveal both fleets for review. The
+room WebSocket includes `player_id` so each connected browser receives its own
+legal projection.
 
 The game screen defaults to defence during setup, offence on the local player's
 turn, and defence while waiting. Players can manually switch between `Auto`,
