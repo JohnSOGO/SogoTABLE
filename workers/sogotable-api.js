@@ -194,7 +194,7 @@ export default {
 };
 
 async function rateLimitRequest(request, env, url) {
-  if (request.method === "POST" && url.pathname === "/api/superuser/verify") {
+  if (request.method === "POST" && (url.pathname === "/api/superuser/verify" || url.pathname === "/api/player/reclaim")) {
     const limited = await rateLimitBinding(env.SUPERUSER_RATE_LIMITER, `superuser:${clientRateLimitKey(request)}`);
     if (limited) return rateLimitResponse("Too many superuser attempts. Try again shortly.", SUPERUSER_RATE_LIMIT_RETRY_SECONDS, corsHeadersFor(request));
   }
@@ -582,6 +582,24 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (!target) throw new Error("Player not found.");
       delete target.owner_token_hash;
       return { ok: true, player: publicPlayer(target), players: publicPlayers(data) };
+    }
+    if (method === "POST" && url.pathname === "/api/player/reclaim") {
+      // Passcode-gated takeover: lets a second device act as a player that was
+      // already claimed elsewhere, by proving knowledge of the shared Sogo
+      // passcode. Unlike /claim it accepts an already-claimed player, and unlike
+      // /unclaim it does NOT require the caller to be the superuser — the whole
+      // point is for any family device that knows the passcode to recover a
+      // player whose owner token it never held. Issues a fresh owner token,
+      // which invalidates the previous device's token for that player.
+      if (!String(superuserPasscode || "").trim() || String(payload.passcode || "") !== String(superuserPasscode)) {
+        throw new Error("Sogo passcode is incorrect.");
+      }
+      const playerId = String(payload.player_id || payload.id || "").trim();
+      const player = data.players.find((item) => item.id === playerId);
+      if (!player) throw new Error("Player not found.");
+      const ownerToken = generateOwnerToken();
+      player.owner_token_hash = await ownerTokenHash(ownerToken);
+      return { ok: true, player: publicPlayer(player), owner_token: ownerToken };
     }
     if (method === "POST" && url.pathname === "/api/bug-report") {
       const description = String(payload.description || "").trim();

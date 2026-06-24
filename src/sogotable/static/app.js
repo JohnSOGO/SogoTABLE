@@ -2126,6 +2126,18 @@ async function makeTenThousandAction(action) {
     setRoom(response.room);
   } catch (error) {
     pendingMove = null;
+    // A stored owner token that the server no longer accepts means this player
+    // was reclaimed on another device. Drop the dead token and offer the
+    // passcode takeover, then replay the action so the button isn't left inert.
+    if (isStaleOwnerTokenError(error)) {
+      delete playerOwnerTokens[player.id];
+      savePlayerOwnerTokens();
+      const token = await reclaimOwnerToken(player.id).catch(() => null);
+      if (token) {
+        makeTenThousandAction(action);
+        return;
+      }
+    }
     renderGame();
     showTurnStatus(null, error.message);
     playInvalidMove();
@@ -4230,8 +4242,47 @@ async function ensureOwnerToken(playerId) {
   const id = String(playerId || "").trim();
   if (!id) throw new Error("Player id is required.");
   if (playerOwnerTokens[id]) return playerOwnerTokens[id];
-  const response = await api("/api/player/claim", { player_id: id });
-  rememberOwnerToken(id, response.owner_token);
+  try {
+    const response = await api("/api/player/claim", { player_id: id });
+    rememberOwnerToken(id, response.owner_token);
+    return response.owner_token;
+  } catch (error) {
+    // The player exists but was claimed on another device, so this device holds
+    // no owner token for it. Offer the passcode-gated takeover so the action can
+    // proceed here instead of failing silently with a dead-button feel.
+    if (isAlreadyClaimedError(error)) {
+      const token = await reclaimOwnerToken(id);
+      if (token) return token;
+      throw new Error(`${playerDisplayName(id)} is claimed on another device. Enter the Sogo passcode to use this player here.`);
+    }
+    throw error;
+  }
+}
+
+function isAlreadyClaimedError(error) {
+  return String(error && error.message || "").toLowerCase().includes("already claimed");
+}
+
+// True when an action was rejected because this device's owner token for the
+// player no longer matches the server — e.g. the player was reclaimed on a
+// different device, invalidating the token stored here.
+function isStaleOwnerTokenError(error) {
+  return String(error && error.message || "").toLowerCase().includes("owner token is incorrect");
+}
+
+function playerDisplayName(playerId) {
+  const seat = (players || []).find((item) => item.id === playerId);
+  return seat && seat.name ? seat.name : "This player";
+}
+
+// Passcode-gated takeover for a player claimed on another device. Prompts for
+// the shared Sogo passcode, then mints a fresh owner token for this device
+// (invalidating the other device's). Returns the token, or null if cancelled.
+async function reclaimOwnerToken(playerId) {
+  const passcode = await promptForPasscode(`Sogo passcode to use ${playerDisplayName(playerId)} here`);
+  if (!passcode) return null;
+  const response = await api("/api/player/reclaim", { player_id: playerId, passcode });
+  rememberOwnerToken(playerId, response.owner_token);
   return response.owner_token;
 }
 

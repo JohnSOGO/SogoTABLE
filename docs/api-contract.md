@@ -130,6 +130,42 @@ Response:
 }
 ```
 
+### `POST /api/player/reclaim`
+
+Passcode-gated takeover so a second device can act as a player that was already
+claimed on another device. Unlike `POST /api/player/claim` it accepts an
+already-claimed player, and unlike `POST /api/player/unclaim` it does **not**
+require the caller to be the Sogo superuser — knowledge of the shared Sogo
+passcode is the only gate. It mints a fresh `owner_token`, which invalidates the
+previous device's token for that player.
+
+The client invokes this automatically when an action is attempted as a player
+whose owner token this device does not hold (or no longer matches), prompting
+for the Sogo passcode rather than failing silently with dead-looking buttons.
+Rate-limited on the stricter superuser limiter to throttle passcode guessing.
+
+Request:
+
+```json
+{
+  "player_id": "claimed-player-id",
+  "passcode": "passcode"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "player": {},
+  "owner_token": "fresh-player-token-returned-once"
+}
+```
+
+The wrong passcode is rejected with `"Sogo passcode is incorrect."`; an unknown
+`player_id` with `"Player not found."`.
+
 ### `POST /api/players/delete`
 
 Request:
