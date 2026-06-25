@@ -107,9 +107,11 @@ they truly have no scoring play.)
 
 ## Banking & the opening rule (section 7)
 
-- **Opening minimum: 500.** Until a seat has banked anything, the first bank
-  must reach **500** — the bank button stays disabled below that, with a hint to
-  keep pressing. (`game.opening_minimum` carries the value to the UI.)
+- **Opening minimum: host-chosen, default 500.** Until a seat has banked
+  anything, the first bank must reach the opening bar — the bank button stays
+  disabled below that, with a hint to keep pressing. The host picks the bar in
+  the lobby before starting (`None`/250/500/750/1000); `game.opening_base` stores
+  the choice and `game.opening_minimum` carries the round-aware value to the UI.
 - After a seat is **on the board**, any positive score may be banked (the
   smallest scoring die is 50).
 - Scores accumulate across rounds toward **10,000**.

@@ -2375,6 +2375,26 @@ button.player-switch-button {
   text-align: center;
 }
 
+.tt-lobby-opening {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.tt-lobby-opening select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-weight: 700;
+  color: #111827;
+  min-width: 96px;
+}
+
 .tt-lobby-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

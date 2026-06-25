@@ -11,6 +11,10 @@ const FACE_PIPS = {
 // the table — they just turn red in place, no re-animation.
 const ROLL_MOVE_TYPES = new Set(["roll", "reroll"]);
 let lastAnimatedMoveCount = -1;
+// The host's lobby choice for the opening "get on the board" bar, kept across
+// lobby re-renders (e.g. when a bot joins) so the pick isn't reset before Start.
+let tenThousandOpeningChoice = null;
+const TEN_THOUSAND_OPENING_OPTIONS = [0, 250, 500, 750, 1000];
 // Uncommitted dice selection per seat-roll, kept across snapshot re-renders so
 // another player's move can't wipe the local player's in-progress selection.
 const trayPendingSelections = new Map(); // key `${code}:${mark}:${roll_count}` -> Set<dieId>
@@ -55,8 +59,20 @@ function renderTenThousandLobby(host, ctx) {
       </li>`).join("")
     : `<li class="tt-lobby-empty">No players yet.</li>`;
 
+  const game = ctx.game || (room && room.game) || {};
+  const currentOpening = tenThousandOpeningChoice != null
+    ? tenThousandOpeningChoice
+    : Number(game.opening_base != null ? game.opening_base : 500);
+  const openingHtml = `
+    <label class="tt-lobby-opening">
+      <span>Opening score to get on the board</span>
+      <select data-lobby="opening">
+        ${TEN_THOUSAND_OPENING_OPTIONS.map((value) => `<option value="${value}"${value === currentOpening ? " selected" : ""}>${value === 0 ? "None (50)" : fmt(value)}</option>`).join("")}
+      </select>
+    </label>`;
   const hostControls = isHost
     ? `
+      ${openingHtml}
       <div class="tt-lobby-actions">
         <button class="secondary" type="button" data-lobby="invite">Invite Remote Opponent</button>
         <button class="secondary" type="button" data-lobby="bot">Invite Bot</button>
@@ -81,7 +97,15 @@ function renderTenThousandLobby(host, ctx) {
   };
   wire("invite", ctx.invitePlayer);
   wire("bot", ctx.addBot);
-  wire("start", ctx.startGame);
+  const openingSelect = host.querySelector('[data-lobby="opening"]');
+  if (openingSelect) openingSelect.addEventListener("change", () => {
+    tenThousandOpeningChoice = Number(openingSelect.value);
+  });
+  const startButton = host.querySelector('[data-lobby="start"]');
+  if (startButton && ctx.startGame) startButton.addEventListener("click", () => {
+    if (startButton.disabled) return;
+    ctx.startGame(openingSelect ? Number(openingSelect.value) : undefined);
+  });
 }
 
 function renderTenThousandPlay(host, ctx) {

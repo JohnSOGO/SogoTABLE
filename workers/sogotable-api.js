@@ -731,6 +731,11 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (hostId !== room.host_id) throw new Error("Only the host can start the game.");
       if (room.started) throw new Error("Game already started.");
       if (!room.players.length) throw new Error("Add at least one player.");
+      // 10,000 host option: the opening "get on the board" bar, chosen in the
+      // lobby. Clamp defensively; normalize re-derives the round-aware minimum.
+      if (isTenThousandGame(room.game) && payload.opening_minimum !== undefined && payload.opening_minimum !== null) {
+        room.game.opening_base = clampInteger(payload.opening_minimum, 0, TEN_THOUSAND_OPENING_BASE_MAX, TEN_THOUSAND_OPENING_MINIMUM);
+      }
       startRoom(room);
       bumpRoomRevision(room);
       return { ok: true, room: roomToDict(data, room) };
@@ -1811,11 +1816,17 @@ function handleResetVote(room, requesterId, approve) {
   });
   if (room.players.length > 1 && room.reset_votes.length < room.players.length) return "pending";
   room.reset_votes = [];
+  // Carry the host's 10,000 opening-bar choice into the fresh game so a reset
+  // keeps the table's chosen rules instead of snapping back to the default.
+  const prevOpeningBase = isTenThousandGame(room.game) ? room.game.opening_base : undefined;
   room.game = newGame(room.game_id);
   // Host-start games seed per-seat state at startRoom; a reset must re-seed it
   // too, otherwise the room stays started with an empty game (e.g. Ten Thousand
   // ends up with no seats and a dead board).
-  if (room.started && isTenThousandGame(room.game)) initTenThousandSeats(room.game, room.players);
+  if (room.started && isTenThousandGame(room.game)) {
+    if (prevOpeningBase !== undefined) room.game.opening_base = prevOpeningBase;
+    initTenThousandSeats(room.game, room.players);
+  }
   bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
@@ -1875,7 +1886,8 @@ function gameToDict(game) {
 }
 
 const TEN_THOUSAND_TARGET_SCORE = 10000;
-const TEN_THOUSAND_OPENING_MINIMUM = 500; // first bank must get you "on the board"
+const TEN_THOUSAND_OPENING_MINIMUM = 500; // default first-bank bar to get "on the board"
+const TEN_THOUSAND_OPENING_BASE_MAX = 5000; // host may raise the opening bar up to this
 const TEN_THOUSAND_BANK_MINIMUM = 50; // smallest legal bank once on the board
 const TEN_THOUSAND_DICE_COUNT = 6;
 const TEN_THOUSAND_PHASES = ["ready", "rolled", "selected", "farkled", "done"];
@@ -1888,7 +1900,8 @@ function newTenThousandGame() {
   return {
     game_id: TEN_THOUSAND_GAME_ID,
     target_score: TEN_THOUSAND_TARGET_SCORE,
-    opening_minimum: TEN_THOUSAND_OPENING_MINIMUM,
+    opening_base: TEN_THOUSAND_OPENING_MINIMUM, // host-chosen first-bank bar (round 1)
+    opening_minimum: TEN_THOUSAND_OPENING_MINIMUM, // derived per round from opening_base
     status: "playing",
     round: 1,
     round_pending_advance: false,
@@ -1994,7 +2007,8 @@ function normalizeTenThousandGame(game) {
   game.target_score = TEN_THOUSAND_TARGET_SCORE;
   game.status = game.status === "complete" ? "complete" : "playing";
   game.round = clampInteger(game.round, 1, 999999, 1);
-  game.opening_minimum = tenThousandOpeningMinimum(game); // round-dependent (after round is set)
+  game.opening_base = clampInteger(game.opening_base, 0, TEN_THOUSAND_OPENING_BASE_MAX, TEN_THOUSAND_OPENING_MINIMUM);
+  game.opening_minimum = tenThousandOpeningMinimum(game); // round-dependent (after round + base are set)
   game.final_round = Boolean(game.final_round);
   game.final_trigger = game.final_trigger || null;
   game.round_pending_advance = Boolean(game.round_pending_advance);
@@ -2547,11 +2561,15 @@ function tenThousandBankMinimum(game, seat) {
   return seat.score > 0 ? TEN_THOUSAND_BANK_MINIMUM : tenThousandOpeningMinimum(game);
 }
 
-// House rule: the bar to get on the board drops 50 each round (500, 450, 400...)
-// and never falls below the normal bank minimum.
+// The opening bar starts at the host-chosen base (default 500) and, by house
+// rule, drops 50 each round, never below the normal bank minimum.
 function tenThousandOpeningMinimum(game) {
   const round = Math.max(1, Number(game && game.round) || 1);
-  return Math.max(TEN_THOUSAND_BANK_MINIMUM, TEN_THOUSAND_OPENING_MINIMUM - (round - 1) * 50);
+  return Math.max(TEN_THOUSAND_BANK_MINIMUM, tenThousandOpeningBase(game) - (round - 1) * 50);
+}
+
+function tenThousandOpeningBase(game) {
+  return clampInteger(game && game.opening_base, 0, TEN_THOUSAND_OPENING_BASE_MAX, TEN_THOUSAND_OPENING_MINIMUM);
 }
 
 function tenThousandScoringOptions(seat) {

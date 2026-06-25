@@ -10,6 +10,10 @@
 - Hosted Worker room starts immediately after creation; the lobby shows
   `Invite Remote Opponent` and `Invite Bot`, and it accepts any number of
   additional guests.
+- The lobby also lets the **host pick the opening "get on the board" bar**
+  (`None`/250/500/750/1000, default 500) before starting. It is sent on
+  `/api/room/start` as `opening_minimum`, stored as `game.opening_base`, and
+  carried into a reset so the table keeps its chosen rules.
 - The browser renders animated CSS 3D dice, but the Worker owns final dice
   values, scoring validation, banking, farkles, and completion.
 

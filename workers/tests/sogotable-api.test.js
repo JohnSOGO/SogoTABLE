@@ -1015,6 +1015,45 @@ test("10,000 opening minimum drops 50 each round (500, 450, 400...)", async () =
   assert.equal(room.game.opening_minimum, 400);
 }));
 
+test("10,000 host can raise the opening minimum at start", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51], async () => {
+  const env = makeEnv();
+  const host = player("opener2", "Opener2");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "OPN2" });
+  // Host picks a 1,000 opening bar in the lobby.
+  const started = await post(env, "/api/room/start", { code: "OPN2", host_id: host.id, opening_minimum: 1000 });
+  assert.equal(started.room.game.opening_base, 1000);
+  assert.equal(started.room.game.opening_minimum, 1000); // round 1
+  await post(env, "/api/room/move", { code: "OPN2", player_id: host.id, action: { type: "roll" } }); // [1,1,1,2,3,4]
+  // Three 1s = 1,000 exactly clears the raised bar.
+  const banked = await post(env, "/api/room/move", { code: "OPN2", player_id: host.id, action: { type: "score_and_bank", dice_ids: ["d1", "d2", "d3"] } });
+  assert.equal(seatByMark(banked, "P1").score, 1000);
+}));
+
+test("10,000 a raised opening minimum blocks a bank under the bar", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51], async () => {
+  const env = makeEnv();
+  const host = player("opener3", "Opener3");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "OPN3" });
+  const started = await post(env, "/api/room/start", { code: "OPN3", host_id: host.id, opening_minimum: 1500 });
+  assert.equal(started.room.game.opening_minimum, 1500);
+  await post(env, "/api/room/move", { code: "OPN3", player_id: host.id, action: { type: "roll" } }); // [1,1,1,2,3,4]
+  // Three 1s = 1,000 is under the 1,500 bar, so the combined bank is rejected.
+  const blocked = await post(env, "/api/room/move", { code: "OPN3", player_id: host.id, action: { type: "score_and_bank", dice_ids: ["d1", "d2", "d3"] } });
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.error, /on the board/);
+}));
+
+test("10,000 'None' opening lets the first scoring dice bank immediately", async () => withMockRandom([0.68, 0.17, 0.34, 0.51, 0.85, 0.85], async () => {
+  const env = makeEnv();
+  const host = player("opener4", "Opener4");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "OPN4" });
+  const started = await post(env, "/api/room/start", { code: "OPN4", host_id: host.id, opening_minimum: 0 });
+  assert.equal(started.room.game.opening_minimum, 50); // floors at the bank minimum
+  await post(env, "/api/room/move", { code: "OPN4", player_id: host.id, action: { type: "roll" } }); // [5,2,3,4,6,6]
+  // A lone 5 (50) is bankable from the start when there is no opening bar.
+  const banked = await post(env, "/api/room/move", { code: "OPN4", player_id: host.id, action: { type: "score_and_bank", dice_ids: ["d1"] } });
+  assert.equal(seatByMark(banked, "P1").score, 50);
+}));
+
 test("10,000 Overlord hunts triples by keeping a single 1 or 5", () => {
   const plan = tenThousandTest.overlordKeepPlan;
   const dice = (vals) => vals.map((v, i) => ({ id: "d" + i, value: v, scored: false }));

@@ -2144,13 +2144,14 @@ async function makeTenThousandAction(action) {
   }
 }
 
-async function startTenThousandGame() {
+async function startTenThousandGame(openingMinimum) {
   if (!currentRoom || currentRoom.started) return;
   try {
     const response = await api("/api/room/start", {
       code: currentRoom.code,
       host_id: currentRoom.host_id,
       owner_token: await ensureOwnerToken(currentRoom.host_id),
+      ...(Number.isFinite(openingMinimum) ? { opening_minimum: openingMinimum } : {}),
     });
     setRoom(response.room);
     playConfirm();
