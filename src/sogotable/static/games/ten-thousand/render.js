@@ -125,19 +125,27 @@ function trayHtml(seat, game, pendingMove, labelStyle, room) {
   const dice = Array.isArray(seat.dice) ? seat.dice : [];
   const lastMove = game.last_move || {};
   const moveCount = Number(game.move_count || 0);
+  // The straight bet re-rolls a single die and reports it in last_move.rolled_ids,
+  // so only that die tumbles (its move type is "straight_attempt"/"farkle", not a
+  // plain roll). Otherwise every freshly rolled (unscored) die tumbles.
+  const straightRolledIds = Array.isArray(lastMove.rolled_ids) ? lastMove.rolled_ids : null;
   const animate = !pendingMove
     && lastMove.mark === seat.mark
-    && ROLL_MOVE_TYPES.has(lastMove.type)
+    && (ROLL_MOVE_TYPES.has(lastMove.type) || (straightRolledIds && straightRolledIds.length > 0))
     && moveCount !== lastAnimatedMoveCount;
   const rolledIds = animate
-    ? new Set((Array.isArray(lastMove.dice) ? lastMove.dice : []).filter((die) => !die.scored).map((die) => die.id))
+    ? (straightRolledIds && straightRolledIds.length > 0
+        ? new Set(straightRolledIds)
+        : new Set((Array.isArray(lastMove.dice) ? lastMove.dice : []).filter((die) => !die.scored).map((die) => die.id)))
     : new Set();
   if (animate) lastAnimatedMoveCount = moveCount;
 
   // On a farkle, the unscored dice are red — except any that were actually part
   // of a scoring play, which are marked yellow to show the player the move they
   // missed. (Empty when the bust was a true farkle with no play.)
-  const missedIds = showBust ? tenThousandMissedScoringIds(dice) : new Set();
+  // A failed straight bet is a plain bust — every die stays red. Only a declared
+  // farkle shows the yellow "missed scoring play" highlight.
+  const missedIds = (showBust && !seat.farkle_from_straight) ? tenThousandMissedScoringIds(dice) : new Set();
   const diceHtml = dice
     .map((die) => dieHtml(die, {
       rolling: rolledIds.has(die.id),

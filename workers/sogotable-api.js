@@ -1942,6 +1942,7 @@ function newTenThousandSeat(seat) {
     level: tenThousandBotLevel(seat),
     roll_count: 0, // rolls + rerolls this round (drives the bot "play-along" display)
     bot_trajectory: [], // per-roll running-total snapshots for a bot's resolved round
+    farkle_from_straight: false, // a bust from a failed straight bet shows all dice red, no "missed" yellow
   };
 }
 
@@ -1973,6 +1974,7 @@ function tenThousandGameToDict(game) {
       dice: seat.dice,
       roll_count: seat.roll_count || 0,
       bot_trajectory: Array.isArray(seat.bot_trajectory) ? seat.bot_trajectory : [],
+      farkle_from_straight: Boolean(seat.farkle_from_straight),
       scoring_options: tenThousandScoringOptions(seat),
       can_roll: tenThousandCanRoll(game, seat),
       can_reroll: tenThousandCanReroll(game, seat),
@@ -2021,6 +2023,7 @@ function normalizeTenThousandSeat(seat) {
     level: Number.isInteger(source.level) ? source.level : (source.is_bot ? 2 : 0),
     roll_count: clampInteger(source.roll_count, 0, 999999, 0),
     bot_trajectory: normalizeTenThousandTrajectory(source.bot_trajectory),
+    farkle_from_straight: Boolean(source.farkle_from_straight),
   };
 }
 
@@ -2091,10 +2094,14 @@ function makeTenThousandMove(game, mark, action) {
     mark,
     round: game.round,
     move_count: game.move_count,
-    dice: (farkled || type === "roll" || type === "reroll")
+    dice: (farkled || type === "roll" || type === "reroll" || type === "straight_attempt")
       ? seat.dice.map((die) => ({ id: die.id, value: die.value, scored: die.scored }))
       : undefined,
+    // The straight bet re-rolls exactly one die; expose it so the client tumbles
+    // only that die instead of jumping straight to the result.
+    rolled_ids: type === "straight_attempt" && seat.straight_reroll_id ? [seat.straight_reroll_id] : undefined,
   };
+  if (type === "straight_attempt") delete seat.straight_reroll_id;
   maybeAdvanceTenThousandRound(game);
 }
 
@@ -2139,6 +2146,8 @@ function attemptTenThousandStraight(seat, diceIds) {
   }
   seat.roll_count = clampInteger(seat.roll_count, 0, 999999, 0) + 1;
   const reroll = seat.dice.filter((die) => !ids.has(die.id));
+  // The lone re-rolled die — exposed on last_move so only it tumbles, not all six.
+  seat.straight_reroll_id = reroll.length ? reroll[0].id : null;
   tenThousandRollDiceByIds(seat, reroll.map((die) => die.id));
   seat.dice.forEach((die) => { die.rolling = false; });
   // Six distinct faces across six dice can only be 1-2-3-4-5-6, the straight.
@@ -2153,6 +2162,10 @@ function attemptTenThousandStraight(seat, diceIds) {
     seat.finish_state = "active";
   } else {
     resolveTenThousandFarkle(seat, false);
+    // A failed straight is a plain bust: every die stays red. Suppress the
+    // "missed scoring play" yellow highlight — the bet was the straight, so a
+    // leftover 1 or 5 was never a play the player passed up.
+    seat.farkle_from_straight = true;
   }
 }
 
@@ -2177,6 +2190,7 @@ function finishTenThousandRoll(seat) {
   seat.dice.forEach((die) => { die.rolling = false; });
   seat.phase = "rolled";
   seat.finish_state = "active";
+  seat.farkle_from_straight = false;
 }
 
 // The player declares their own farkle (the "Red X"). It always busts the turn,
@@ -2258,6 +2272,7 @@ function startTenThousandRound(game) {
     seat.resolved = false;
     seat.roll_count = 0;
     seat.bot_trajectory = [];
+    seat.farkle_from_straight = false;
   });
   resolveTenThousandBots(game);
 }

@@ -713,6 +713,9 @@ test("10,000 press-for-a-straight: completing the run scores 1,500 with hot dice
   assert.equal(seat.dice.every((die) => die.scored), true); // all six set aside → hot dice
   assert.equal(seat.can_reroll, true);
   assert.equal(seat.can_bank, true);
+  assert.equal(seat.farkle_from_straight, false);
+  // Only the lone re-rolled die is flagged, so the client tumbles just that die.
+  assert.deepEqual(attempt.room.game.last_move.rolled_ids, ["d6"]);
 }));
 
 test("10,000 press-for-a-straight: a missed run busts the turn like a farkle", async () => withMockRandom([0, 0.17, 0.34, 0.51, 0.68, 0.68, 0], async () => {
@@ -729,6 +732,10 @@ test("10,000 press-for-a-straight: a missed run busts the turn like a farkle", a
   assert.equal(seat.phase, "farkled");
   assert.equal(seat.finish_state, "farkled_pending_ack");
   assert.equal(attempt.room.game.last_move.type, "farkle");
+  // The bust came from a straight bet: flagged so the UI keeps every die red
+  // (no "missed scoring" yellow on the leftover 1), and still tumbles only d6.
+  assert.equal(seat.farkle_from_straight, true);
+  assert.deepEqual(attempt.room.game.last_move.rolled_ids, ["d6"]);
 }));
 
 test("10,000 press-for-a-straight rejects keeps that aren't five distinct faces", async () => withMockRandom([0, 0.17, 0.34, 0.51, 0.68, 0.68], async () => {
