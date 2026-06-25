@@ -3297,6 +3297,21 @@ function quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMov
   const ownPawnControl = canSelectedPlayerMove && occupant && selectedSeat && occupant.mark === selectedSeat.mark;
   button.classList.toggle("legal", legal);
   button.classList.toggle("own-pawn-control", ownPawnControl);
+  // Goal-row tint: each player's goal row (the far edge they race toward) is
+  // faintly washed in that player's colour so the destination is visible. A
+  // player's start row is the opponent's goal, so while the home pawn sits on it
+  // its own cell keeps the stronger pawn styling and the rest of the row reads as
+  // the opponent's colour — once the pawn steps off, the whole row does. The wash
+  // is skipped on occupied and legal-move cells so it never hides those cues.
+  const goalOwner = currentRoom.players.find((player) => {
+    const pawn = game.pawns && game.pawns[player.mark];
+    return pawn && Number(pawn.goal) === row;
+  });
+  if (goalOwner && !occupant && !legal) {
+    button.classList.add("goal");
+    button.style.setProperty("--goal-color", safePlayerColor(goalOwner));
+    button.setAttribute("aria-label", `Row ${row + 1}, Column ${col + 1}, ${goalOwner.name}'s goal`);
+  }
   button.disabled = Boolean(pendingMove);
   if (legal) button.addEventListener("click", () => makeQuoridorAction({ type: "move_pawn", row, col }));
   else if (ownPawnControl) {

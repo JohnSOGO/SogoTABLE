@@ -1612,6 +1612,14 @@ button.player-switch-button {
   cursor: pointer;
 }
 
+/* Goal-row tint: a faint wash of the player's colour on the far edge they are
+   racing toward. Subtler than the occupied/legal cues so it reads as ambient
+   context, not an actionable cell. */
+.quoridor-cell.goal {
+  background: color-mix(in srgb, var(--goal-color, var(--accent)) 12%, #f8fafc);
+  border-color: color-mix(in srgb, var(--goal-color, var(--accent)) 38%, #cbd5e1);
+}
+
 .quoridor-wall {
   z-index: 2;
   min-width: 0;
