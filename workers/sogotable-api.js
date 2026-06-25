@@ -1979,6 +1979,7 @@ function tenThousandGameToDict(game) {
       can_roll: tenThousandCanRoll(game, seat),
       can_reroll: tenThousandCanReroll(game, seat),
       can_bank: tenThousandCanBank(game, seat),
+      bank_minimum: tenThousandBankMinimum(game, seat),
     };
   });
   return {
@@ -2082,6 +2083,8 @@ function makeTenThousandMove(game, mark, action) {
   if (type === "roll") rollTenThousandDice(seat);
   else if (type === "select") selectTenThousandDice(seat, action.dice_ids || action.diceIds || []);
   else if (type === "straight_attempt") attemptTenThousandStraight(seat, action.dice_ids || action.diceIds || []);
+  else if (type === "score_and_press") scoreAndPressTenThousand(seat, action.dice_ids || action.diceIds || []);
+  else if (type === "score_and_bank") scoreAndBankTenThousand(game, mark, seat, action.dice_ids || action.diceIds || []);
   else if (type === "reroll") rerollTenThousandDice(seat);
   else if (type === "bank") bankTenThousandScore(game, mark, seat);
   else if (type === "declare_farkle") declareTenThousandFarkle(seat);
@@ -2089,12 +2092,18 @@ function makeTenThousandMove(game, mark, action) {
   else throw new Error("10,000 action is required.");
   game.move_count += 1;
   const farkled = seat.phase === "farkled";
+  // The combined buttons report as their press/bank effect so the client's
+  // animation and sound paths (which key off the move type) behave as before.
+  const reportType = farkled ? "farkle"
+    : type === "score_and_press" ? "reroll"
+    : type === "score_and_bank" ? "bank"
+    : type;
   game.last_move = {
-    type: farkled ? "farkle" : type,
+    type: reportType,
     mark,
     round: game.round,
     move_count: game.move_count,
-    dice: (farkled || type === "roll" || type === "reroll" || type === "straight_attempt")
+    dice: (farkled || reportType === "roll" || reportType === "reroll" || type === "straight_attempt")
       ? seat.dice.map((die) => ({ id: die.id, value: die.value, scored: die.scored }))
       : undefined,
     // The straight bet re-rolls exactly one die; expose it so the client tumbles
@@ -2220,6 +2229,24 @@ function selectTenThousandDice(seat, diceIds) {
   seat.turn_score += score.score;
   seat.phase = "selected";
   seat.finish_state = "active";
+}
+
+// Combined "score the kept dice, then press your luck" — the green dice imply
+// the score, so there is no separate score step. With no dice_ids it is a plain
+// press (the hot-dice re-roll, e.g. after a straight leaves all six set aside).
+// select-then-reroll is atomic: if either step throws, the whole move is
+// rejected and nothing is persisted.
+function scoreAndPressTenThousand(seat, diceIds) {
+  if (Array.isArray(diceIds) && diceIds.length) selectTenThousandDice(seat, diceIds);
+  rerollTenThousandDice(seat);
+}
+
+// Combined "score the kept dice, then bank". With no dice_ids it banks directly
+// (e.g. the hot-dice total after a straight). The opening-minimum check inside
+// bankTenThousandScore still applies and rejects-and-rolls-back if unmet.
+function scoreAndBankTenThousand(game, mark, seat, diceIds) {
+  if (Array.isArray(diceIds) && diceIds.length) selectTenThousandDice(seat, diceIds);
+  bankTenThousandScore(game, mark, seat);
 }
 
 function bankTenThousandScore(game, mark, seat) {

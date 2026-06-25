@@ -77,7 +77,7 @@ and never double-counts a die.
 The rule that *every set-aside die must score* has a single exception. On a roll
 with **all six dice live**, selecting **exactly five dice showing five different
 faces** is a **partial straight** — those five turn **yellow** (not scoring, but
-not an invalid red keep) and the score button becomes a re-roll of the lone
+not an invalid red keep) and the **Press** button becomes a re-roll of the lone
 sixth die. It is **all-or-nothing**:
 
 - The re-rolled die lands the missing face → `1 2 3 4 5 6` straight = **1,500 +

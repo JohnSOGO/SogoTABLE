@@ -755,6 +755,65 @@ test("10,000 press-for-a-straight rejects keeps that aren't five distinct faces"
   assert.equal(seatByMark(kept, "P1").turn_score, 100);
 }));
 
+test("10,000 score_and_press scores the kept dice and re-rolls in one move", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51, 0.68, 0.85, 0.17], async () => {
+  const env = makeEnv();
+  const host = player("press", "Press");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "PRSS" });
+  await post(env, "/api/room/start", { code: "PRSS", host_id: host.id });
+  const rolled = await post(env, "/api/room/move", { code: "PRSS", player_id: host.id, action: { type: "roll" } });
+  assert.deepEqual(seatByMark(rolled, "P1").dice.map((die) => die.value), [1, 1, 1, 2, 3, 4]);
+  // One move: score the three 1s (1,000) and press — d4..d6 re-roll to [5,6,2].
+  const pressed = await post(env, "/api/room/move", { code: "PRSS", player_id: host.id, action: { type: "score_and_press", dice_ids: ["d1", "d2", "d3"] } });
+  const seat = seatByMark(pressed, "P1");
+  assert.equal(seat.turn_score, 1000);
+  assert.equal(seat.phase, "rolled");
+  assert.deepEqual(seat.dice.slice(3).map((die) => die.value), [5, 6, 2]);
+  assert.equal(pressed.room.game.last_move.type, "reroll"); // animates/sounds as a press
+}));
+
+test("10,000 score_and_bank scores the kept dice and banks in one move", async () => withMockRandom([0, 0, 0, 0.17, 0.34, 0.51], async () => {
+  const env = makeEnv();
+  const host = player("sbank", "SBank");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "SBNK" });
+  await post(env, "/api/room/start", { code: "SBNK", host_id: host.id });
+  await post(env, "/api/room/move", { code: "SBNK", player_id: host.id, action: { type: "roll" } }); // [1,1,1,2,3,4]
+  const banked = await post(env, "/api/room/move", { code: "SBNK", player_id: host.id, action: { type: "score_and_bank", dice_ids: ["d1", "d2", "d3"] } });
+  const seat = seatByMark(banked, "P1");
+  assert.equal(seat.score, 1000); // three 1s, banked
+  assert.equal(seat.phase, "done");
+  assert.equal(seat.finish_state, "banked");
+  assert.equal(banked.room.game.last_move.type, "bank");
+}));
+
+test("10,000 score_and_bank below the opening is rejected and rolls back", async () => withMockRandom([0.68, 0.17, 0.34, 0.51, 0.85, 0.85], async () => {
+  const env = makeEnv();
+  const host = player("sbanklow", "SBankLow");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "SBLO" });
+  await post(env, "/api/room/start", { code: "SBLO", host_id: host.id });
+  await post(env, "/api/room/move", { code: "SBLO", player_id: host.id, action: { type: "roll" } }); // [5,2,3,4,6,6]
+  // A lone 5 is 50 — below the 500 opening, so the combined bank is rejected.
+  const low = await post(env, "/api/room/move", { code: "SBLO", player_id: host.id, action: { type: "score_and_bank", dice_ids: ["d1"] } });
+  assert.equal(low.ok, false);
+  // Rollback: the select half did not persist, so the live roll still works.
+  const pressed = await post(env, "/api/room/move", { code: "SBLO", player_id: host.id, action: { type: "score_and_press", dice_ids: ["d1"] } });
+  assert.equal(seatByMark(pressed, "P1").turn_score, 50);
+}));
+
+test("10,000 after a straight, an empty score_and_bank banks the hot-dice total", async () => withMockRandom([0, 0.17, 0.34, 0.51, 0.68, 0.68, 0.85], async () => {
+  const env = makeEnv();
+  const host = player("straightbank", "StraightBank");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "STBK" });
+  await post(env, "/api/room/start", { code: "STBK", host_id: host.id });
+  await post(env, "/api/room/move", { code: "STBK", player_id: host.id, action: { type: "roll" } }); // [1,2,3,4,5,5]
+  const won = await post(env, "/api/room/move", { code: "STBK", player_id: host.id, action: { type: "straight_attempt", dice_ids: ["d1", "d2", "d3", "d4", "d5"] } });
+  assert.equal(seatByMark(won, "P1").turn_score, 1500);
+  assert.equal(seatByMark(won, "P1").phase, "selected"); // hot dice, nothing left to select
+  // No dice to keep — Bank with an empty selection banks the 1,500.
+  const banked = await post(env, "/api/room/move", { code: "STBK", player_id: host.id, action: { type: "score_and_bank", dice_ids: [] } });
+  assert.equal(seatByMark(banked, "P1").score, 1500);
+  assert.equal(seatByMark(banked, "P1").phase, "done");
+}));
+
 test("10,000 multiplayer: barrier waits for all humans before advancing", async () => withMockRandom([0], async () => {
   const env = makeEnv();
   const host = player("host", "Host");

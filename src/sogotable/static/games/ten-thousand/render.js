@@ -164,8 +164,7 @@ function trayHtml(seat, game, pendingMove, labelStyle, room) {
   const label = {
     start: words ? "Start Round" : "🎲🎲🎲🎲🎲🎲",
     bust: words ? "Bust" : "❌",
-    select: words ? "Score" : "✏️📈",
-    reroll: words ? "Reroll" : "🎰🎲",
+    press: words ? "Press" : "🎰🎲",
     bank: words ? "Bank" : "🏦",
   };
   // Collapse to a single full-width button when there is really only one choice:
@@ -177,11 +176,14 @@ function trayHtml(seat, game, pendingMove, labelStyle, room) {
   } else if (showBust) {
     actionsHtml = `<button class="primary tt-ack" type="button" data-action="ack" disabled>You Farkled!</button>`;
   } else {
+    // Two action buttons instead of three: the green (scoring) dice imply the
+    // score, so Press = "score the kept dice and re-roll" and Bank = "score the
+    // kept dice and bank". The Red X (declare farkle) stays. Enabled states are
+    // set in wireTray as the selection changes.
     actionsHtml = `
       <button class="tt-action tt-farkle-x" type="button" data-action="declare-farkle" ${canDeclareFarkle ? "" : "disabled"} aria-label="No scoring play — declare a farkle">${label.bust}</button>
-      <button class="tt-action" type="button" data-action="select" disabled aria-label="Score selected dice">${label.select}</button>
-      <button class="tt-action" type="button" data-action="reroll" ${canAct && seat.can_reroll ? "" : "disabled"} aria-label="Press your luck and roll the remaining dice">${label.reroll}</button>
-      <button class="tt-action" type="button" data-action="bank" ${canAct && seat.can_bank ? "" : "disabled"} aria-label="Bank turn score">${label.bank}</button>`;
+      <button class="tt-action" type="button" data-action="press" disabled aria-label="Score the kept dice and press your luck">${label.press}</button>
+      <button class="tt-action" type="button" data-action="bank" disabled aria-label="Score the kept dice and bank your turn">${label.bank}</button>`;
   }
 
   // Opening rule: a seat that has not yet banked must reach the opening minimum
@@ -225,10 +227,11 @@ function wireTray(host, seat, game, ctx) {
   const { makeMove } = ctx;
   const code = ctx.room && ctx.room.code || "";
   const words = ctx.actionLabels === "words";
-  const selectLabel = words ? "Score" : "✏️📈";
+  const pressLabel = words ? "Press" : "🎰🎲";
   const straightLabel = words ? "Straight" : "🎲✨";
   const selectedDice = tenThousandSelectionSet(code, seat.mark, Number(seat.roll_count || 0));
-  const selectButton = host.querySelector('[data-action="select"]');
+  const pressButton = host.querySelector('[data-action="press"]');
+  const bankButton = host.querySelector('[data-action="bank"]');
   const straightHint = host.querySelector("[data-straight-hint]");
   const turnScoreNode = host.querySelector("[data-turn-score]");
   const dice = Array.isArray(seat.dice) ? seat.dice : [];
@@ -245,6 +248,12 @@ function wireTray(host, seat, game, ctx) {
     const distinctFaces = new Set(selected.map((entry) => entry.value));
     const straightArmed = canAct && allSixLive && selected.length === 5 && distinctFaces.size === 5;
     const scoring = tenThousandSelectionScore(selected);
+    const hasScore = scoring.valid && scoring.score > 0;
+    const projected = Number(seat.turn_score || 0) + scoring.score;
+    const bankMinimum = Number(seat.bank_minimum || 0);
+    // With nothing selected the two buttons fall back to a plain press/bank —
+    // the only time that happens is hot dice after a straight (all six kept).
+    const noSelection = selected.length === 0;
     dieButtons.forEach((button) => {
       const id = button.dataset.dieId;
       const isSelected = selectedDice.has(id);
@@ -258,18 +267,28 @@ function wireTray(host, seat, game, ctx) {
     // guaranteed); otherwise show the live projection of the current selection.
     if (turnScoreNode) turnScoreNode.textContent = fmt(Number(seat.turn_score || 0) + (straightArmed ? 0 : scoring.score));
     if (straightHint) straightHint.hidden = !straightArmed;
-    if (selectButton) {
+    // Press = score the kept (green) dice then re-roll. Five distinct faces turn
+    // it into the straight bet; an empty selection presses the hot dice.
+    if (pressButton) {
       if (straightArmed) {
-        selectButton.disabled = false;
-        selectButton.dataset.mode = "straight";
-        selectButton.textContent = straightLabel;
-        selectButton.setAttribute("aria-label", "Re-roll the last die — press for a 1-2-3-4-5-6 straight or bust");
+        pressButton.disabled = false;
+        pressButton.dataset.mode = "straight";
+        pressButton.textContent = straightLabel;
+        pressButton.setAttribute("aria-label", "Re-roll the last die — press for a 1-2-3-4-5-6 straight or bust");
       } else {
-        selectButton.disabled = !selected.length || !scoring.valid || scoring.score <= 0;
-        selectButton.dataset.mode = "select";
-        selectButton.textContent = selectLabel;
-        selectButton.setAttribute("aria-label", "Score selected dice");
+        pressButton.dataset.mode = "press";
+        pressButton.textContent = pressLabel;
+        pressButton.setAttribute("aria-label", "Score the kept dice and press your luck");
+        pressButton.disabled = !(canAct && (hasScore || (noSelection && seat.can_reroll)));
       }
+    }
+    // Bank = score the kept dice then bank; the projected total must clear the
+    // minimum. An empty selection banks the hot-dice total after a straight.
+    if (bankButton) {
+      bankButton.disabled = !(canAct && (
+        (hasScore && projected >= bankMinimum)
+        || (noSelection && seat.can_bank)
+      ));
     }
   }
 
@@ -294,14 +313,21 @@ function wireTray(host, seat, game, ctx) {
   action('[data-action="ack"]', () => ({ type: "ack_farkle" }));
   action('[data-action="roll"]', () => ({ type: "roll" }));
   action('[data-action="declare-farkle"]', () => { selectedDice.clear(); return { type: "declare_farkle" }; });
-  action('[data-action="reroll"]', () => ({ type: "reroll" }));
-  action('[data-action="bank"]', () => { selectedDice.clear(); return { type: "bank" }; });
-  if (selectButton) selectButton.addEventListener("click", () => {
-    if (selectButton.disabled) return;
+  // Press scores the kept dice and re-rolls in one move (or fires the straight
+  // bet when armed); Bank scores the kept dice and banks. The kept dice ride
+  // along as dice_ids — an empty list is a plain press/bank of hot dice.
+  if (pressButton) pressButton.addEventListener("click", () => {
+    if (pressButton.disabled) return;
     const diceIds = [...selectedDice];
-    const straight = selectButton.dataset.mode === "straight";
+    const straight = pressButton.dataset.mode === "straight";
     selectedDice.clear();
-    makeMove(straight ? { type: "straight_attempt", dice_ids: diceIds } : { type: "select", dice_ids: diceIds });
+    makeMove(straight ? { type: "straight_attempt", dice_ids: diceIds } : { type: "score_and_press", dice_ids: diceIds });
+  });
+  if (bankButton) bankButton.addEventListener("click", () => {
+    if (bankButton.disabled) return;
+    const diceIds = [...selectedDice];
+    selectedDice.clear();
+    makeMove({ type: "score_and_bank", dice_ids: diceIds });
   });
 
   refreshSelection();

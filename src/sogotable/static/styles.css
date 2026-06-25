@@ -2158,7 +2158,7 @@ button.player-switch-button {
 
 .ten-thousand-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -2210,7 +2210,7 @@ button.player-switch-button {
 }
 
 /* Word mode (Game Options): shrink the label to a single non-wrapping line so
-   the four buttons still fit 4-across on the narrowest phones. */
+   the three buttons still fit on the narrowest phones. */
 .ten-thousand-actions.tt-words .tt-action {
   font-size: clamp(0.72rem, 3.4vw, 0.95rem);
   font-weight: 800;
@@ -2637,7 +2637,7 @@ button.player-switch-button {
   }
 
   .ten-thousand-actions {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
 
