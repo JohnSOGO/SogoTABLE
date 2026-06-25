@@ -20,6 +20,13 @@
 - Bank selected turn points, or reroll the remaining dice to press your luck.
 - If all six dice have scored, the player has hot dice and may reroll all six
   while keeping the current turn score.
+- **Press for a straight:** on a roll with all six dice live, selecting exactly
+  five dice that show five different faces arms a straight bet — the five kept
+  dice turn yellow (not scoring, but not an invalid red keep) and the score
+  button becomes a re-roll of the lone sixth die. It is all-or-nothing: landing
+  the missing face completes `1-2-3-4-5-6` for 1,500 and hot dice; any other
+  result busts the turn exactly like a farkle. This is the only way to set aside
+  non-scoring dice, allowed only because the bet's own downside is the bust.
 - A roll with no scoring dice is a farkle: the turn score is lost, farkle count
   increments, the dice stay on their final rolled values, the dice turn red,
   and the player must acknowledge a popup or the in-tray OK button before
@@ -58,8 +65,11 @@ Moves use `/api/room/move` with action objects:
 
 - `{ "type": "roll" }`
 - `{ "type": "select", "dice_ids": ["d1", "d4"] }`
+- `{ "type": "straight_attempt", "dice_ids": ["d1", "d2", "d3", "d4", "d5"] }` —
+  keep five distinct faces, re-roll the sixth, resolve straight-or-bust.
 - `{ "type": "reroll" }`
 - `{ "type": "bank" }`
+- `{ "type": "declare_farkle" }`
 - `{ "type": "ack_farkle" }`
 
 The browser may animate intermediate tumbling faces, but it must settle on the

@@ -2105,6 +2105,16 @@ button.player-switch-button {
   box-shadow: inset 0 0 0 1px rgba(113, 63, 18, 0.18);
 }
 
+/* Five distinct dice kept to press for a six-die straight: yellow — not scoring
+   on their own (not green), but a deliberate all-or-nothing bet, not an invalid
+   keep (not red). */
+.ten-thousand-die.select-straight .die-face {
+  border-color: #eab308;
+  background: linear-gradient(145deg, #fef9c3, #fde047);
+  color: #713f12;
+  box-shadow: inset 0 0 0 1px rgba(113, 63, 18, 0.18);
+}
+
 .ten-thousand-die.selected .die-face,
 .ten-thousand-die.scored .die-face {
   border-color: #8ad3ad;

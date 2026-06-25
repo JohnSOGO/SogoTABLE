@@ -72,6 +72,23 @@ and never double-counts a die.
 - **Hot dice:** if all six dice have been set aside, re-rolling rolls a fresh
   full set of six and your turn score carries over.
 
+### Press for a straight (the one exception)
+
+The rule that *every set-aside die must score* has a single exception. On a roll
+with **all six dice live**, selecting **exactly five dice showing five different
+faces** is a **partial straight** — those five turn **yellow** (not scoring, but
+not an invalid red keep) and the score button becomes a re-roll of the lone
+sixth die. It is **all-or-nothing**:
+
+- The re-rolled die lands the missing face → `1 2 3 4 5 6` straight = **1,500 +
+  hot dice**.
+- Anything else → **bust**, the same as a farkle (the whole *This Turn* is lost
+  and the farkle counter ticks), even if the final dice happen to hold a lesser
+  scoring play. The bet was the straight, not "best available."
+
+The odds are one specific face on one die, so **1 in 6**. It is the only way to
+hold non-scoring dice, allowed only because the downside is the bust itself.
+
 ## Farkle / bust (section 5)
 
 A roll has **no play** when it contains no scoring set — no `1`, no `5`, no

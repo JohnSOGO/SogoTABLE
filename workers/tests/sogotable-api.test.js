@@ -697,6 +697,57 @@ test("10,000 a player may declare a farkle even with a scoring play available", 
   assert.equal(seatByMark(declared, "P1").turn_score, 0);
 }));
 
+test("10,000 press-for-a-straight: completing the run scores 1,500 with hot dice", async () => withMockRandom([0, 0.17, 0.34, 0.51, 0.68, 0.68, 0.85], async () => {
+  const env = makeEnv();
+  const host = player("straight", "Straight");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "STR8" });
+  await post(env, "/api/room/start", { code: "STR8", host_id: host.id });
+  const rolled = await post(env, "/api/room/move", { code: "STR8", player_id: host.id, action: { type: "roll" } });
+  // Five distinct faces (d1..d5) plus a spare 5 on d6 — a partial straight missing the 6.
+  assert.deepEqual(seatByMark(rolled, "P1").dice.map((die) => die.value), [1, 2, 3, 4, 5, 5]);
+  const attempt = await post(env, "/api/room/move", { code: "STR8", player_id: host.id, action: { type: "straight_attempt", dice_ids: ["d1", "d2", "d3", "d4", "d5"] } });
+  const seat = seatByMark(attempt, "P1");
+  assert.deepEqual(seat.dice.map((die) => die.value), [1, 2, 3, 4, 5, 6]); // d6 re-rolled to the 6
+  assert.equal(seat.turn_score, 1500);
+  assert.equal(seat.phase, "selected");
+  assert.equal(seat.dice.every((die) => die.scored), true); // all six set aside → hot dice
+  assert.equal(seat.can_reroll, true);
+  assert.equal(seat.can_bank, true);
+}));
+
+test("10,000 press-for-a-straight: a missed run busts the turn like a farkle", async () => withMockRandom([0, 0.17, 0.34, 0.51, 0.68, 0.68, 0], async () => {
+  const env = makeEnv();
+  const host = player("straightbust", "StraightBust");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "STBX" });
+  await post(env, "/api/room/start", { code: "STBX", host_id: host.id });
+  await post(env, "/api/room/move", { code: "STBX", player_id: host.id, action: { type: "roll" } });
+  const attempt = await post(env, "/api/room/move", { code: "STBX", player_id: host.id, action: { type: "straight_attempt", dice_ids: ["d1", "d2", "d3", "d4", "d5"] } });
+  const seat = seatByMark(attempt, "P1");
+  assert.deepEqual(seat.dice.map((die) => die.value), [1, 2, 3, 4, 5, 1]); // d6 re-rolled to 1 — no 6, no straight
+  assert.equal(seat.turn_score, 0);
+  assert.equal(seat.farkles, 1);
+  assert.equal(seat.phase, "farkled");
+  assert.equal(seat.finish_state, "farkled_pending_ack");
+  assert.equal(attempt.room.game.last_move.type, "farkle");
+}));
+
+test("10,000 press-for-a-straight rejects keeps that aren't five distinct faces", async () => withMockRandom([0, 0.17, 0.34, 0.51, 0.68, 0.68], async () => {
+  const env = makeEnv();
+  const host = player("straightbad", "StraightBad");
+  await post(env, "/api/room/create", { game_id: "10000", player: host, code: "STBD" });
+  await post(env, "/api/room/start", { code: "STBD", host_id: host.id });
+  await post(env, "/api/room/move", { code: "STBD", player_id: host.id, action: { type: "roll" } }); // [1,2,3,4,5,5]
+  // Four kept is not a five-distinct partial straight.
+  const four = await post(env, "/api/room/move", { code: "STBD", player_id: host.id, action: { type: "straight_attempt", dice_ids: ["d1", "d2", "d3", "d4"] } });
+  assert.equal(four.ok, false);
+  // Five kept but d5 and d6 share the face 5 — not five different faces.
+  const dup = await post(env, "/api/room/move", { code: "STBD", player_id: host.id, action: { type: "straight_attempt", dice_ids: ["d2", "d3", "d4", "d5", "d6"] } });
+  assert.equal(dup.ok, false);
+  // The rejected attempts leave the live roll intact, so a normal keep still works.
+  const kept = await post(env, "/api/room/move", { code: "STBD", player_id: host.id, action: { type: "select", dice_ids: ["d1"] } });
+  assert.equal(seatByMark(kept, "P1").turn_score, 100);
+}));
+
 test("10,000 multiplayer: barrier waits for all humans before advancing", async () => withMockRandom([0], async () => {
   const env = makeEnv();
   const host = player("host", "Host");

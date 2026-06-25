@@ -207,6 +207,7 @@ function trayHtml(seat, game, pendingMove, labelStyle, room) {
       </div>
       <div class="ten-thousand-dice" aria-label="Dice">${diceHtml}</div>
       <div class="ten-thousand-actions${words ? " tt-words" : ""}" aria-label="Dice actions">${actionsHtml}</div>
+      <p class="ten-thousand-message tt-straight-hint" data-straight-hint hidden>Going for the straight — re-roll the last die for 1·2·3·4·5·6 (1,500 &amp; hot dice), or bust.</p>
       ${hintHtml}
       ${waitingHtml}
     </section>`;
@@ -215,27 +216,53 @@ function trayHtml(seat, game, pendingMove, labelStyle, room) {
 function wireTray(host, seat, game, ctx) {
   const { makeMove } = ctx;
   const code = ctx.room && ctx.room.code || "";
+  const words = ctx.actionLabels === "words";
+  const selectLabel = words ? "Score" : "✏️📈";
+  const straightLabel = words ? "Straight" : "🎲✨";
   const selectedDice = tenThousandSelectionSet(code, seat.mark, Number(seat.roll_count || 0));
   const selectButton = host.querySelector('[data-action="select"]');
+  const straightHint = host.querySelector("[data-straight-hint]");
   const turnScoreNode = host.querySelector("[data-turn-score]");
   const dice = Array.isArray(seat.dice) ? seat.dice : [];
   const valueById = new Map(dice.map((die) => [die.id, Number(die.value) || 0]));
   const dieButtons = [...host.querySelectorAll(".ten-thousand-die")];
   const canAct = game.status === "playing" && !seat.resolved;
+  // A straight needs all six dice live (it scores every die). The press-for-a-
+  // straight bet is offered only then: exactly five kept dice, all different
+  // faces, leaving one die to re-roll for the missing sixth face.
+  const allSixLive = dice.length === 6 && dice.every((die) => !die.scored);
 
   function refreshSelection() {
     const selected = [...selectedDice].map((id) => ({ id, value: valueById.get(id) }));
+    const distinctFaces = new Set(selected.map((entry) => entry.value));
+    const straightArmed = canAct && allSixLive && selected.length === 5 && distinctFaces.size === 5;
     const scoring = tenThousandSelectionScore(selected);
     dieButtons.forEach((button) => {
       const id = button.dataset.dieId;
       const isSelected = selectedDice.has(id);
-      const scores = isSelected && scoring.scoringIds.has(id);
+      const scores = !straightArmed && isSelected && scoring.scoringIds.has(id);
       button.classList.toggle("pending", isSelected);
       button.classList.toggle("select-score", scores);
-      button.classList.toggle("select-bust", isSelected && !scores);
+      button.classList.toggle("select-straight", straightArmed && isSelected);
+      button.classList.toggle("select-bust", isSelected && !scores && !straightArmed);
     });
-    if (turnScoreNode) turnScoreNode.textContent = fmt(Number(seat.turn_score || 0) + scoring.score);
-    if (selectButton) selectButton.disabled = !selected.length || !scoring.valid || scoring.score <= 0;
+    // The committed turn score holds during a straight bet (the +1,500 is not
+    // guaranteed); otherwise show the live projection of the current selection.
+    if (turnScoreNode) turnScoreNode.textContent = fmt(Number(seat.turn_score || 0) + (straightArmed ? 0 : scoring.score));
+    if (straightHint) straightHint.hidden = !straightArmed;
+    if (selectButton) {
+      if (straightArmed) {
+        selectButton.disabled = false;
+        selectButton.dataset.mode = "straight";
+        selectButton.textContent = straightLabel;
+        selectButton.setAttribute("aria-label", "Re-roll the last die — press for a 1-2-3-4-5-6 straight or bust");
+      } else {
+        selectButton.disabled = !selected.length || !scoring.valid || scoring.score <= 0;
+        selectButton.dataset.mode = "select";
+        selectButton.textContent = selectLabel;
+        selectButton.setAttribute("aria-label", "Score selected dice");
+      }
+    }
   }
 
   dieButtons.forEach((button) => {
@@ -264,8 +291,9 @@ function wireTray(host, seat, game, ctx) {
   if (selectButton) selectButton.addEventListener("click", () => {
     if (selectButton.disabled) return;
     const diceIds = [...selectedDice];
+    const straight = selectButton.dataset.mode === "straight";
     selectedDice.clear();
-    makeMove({ type: "select", dice_ids: diceIds });
+    makeMove(straight ? { type: "straight_attempt", dice_ids: diceIds } : { type: "select", dice_ids: diceIds });
   });
 
   refreshSelection();

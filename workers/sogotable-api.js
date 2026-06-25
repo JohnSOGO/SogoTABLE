@@ -2078,6 +2078,7 @@ function makeTenThousandMove(game, mark, action) {
   if (type === "roll" && game.round_pending_advance) startTenThousandRound(game);
   if (type === "roll") rollTenThousandDice(seat);
   else if (type === "select") selectTenThousandDice(seat, action.dice_ids || action.diceIds || []);
+  else if (type === "straight_attempt") attemptTenThousandStraight(seat, action.dice_ids || action.diceIds || []);
   else if (type === "reroll") rerollTenThousandDice(seat);
   else if (type === "bank") bankTenThousandScore(game, mark, seat);
   else if (type === "declare_farkle") declareTenThousandFarkle(seat);
@@ -2116,6 +2117,43 @@ function rerollTenThousandDice(seat) {
     tenThousandRollDiceByIds(seat, seat.dice.filter((die) => !die.scored).map((die) => die.id));
   }
   finishTenThousandRoll(seat);
+}
+
+// Press for a straight: keep five distinct faces and re-roll the lone sixth die,
+// betting it lands the missing face for a 1-2-3-4-5-6 (1,500 + hot dice). It is
+// all-or-nothing — any other result busts the turn like a farkle. This is the
+// only way to set aside non-scoring dice, allowed only because the bet's own
+// downside (the bust) is the cost. Requires all six dice live, since a straight
+// uses every die.
+function attemptTenThousandStraight(seat, diceIds) {
+  if (seat.phase !== "rolled") throw new Error("Roll before going for a straight.");
+  if (seat.dice.length !== 6 || seat.dice.some((die) => die.scored)) {
+    throw new Error("Going for a straight needs all six dice in play.");
+  }
+  const ids = new Set((Array.isArray(diceIds) ? diceIds : []).map((id) => String(id)));
+  if (ids.size !== 5) throw new Error("Keep five dice to go for a straight.");
+  const kept = seat.dice.filter((die) => ids.has(die.id));
+  if (kept.length !== 5) throw new Error("Kept dice are not available.");
+  if (new Set(kept.map((die) => die.value)).size !== 5) {
+    throw new Error("The five kept dice must show five different faces.");
+  }
+  seat.roll_count = clampInteger(seat.roll_count, 0, 999999, 0) + 1;
+  const reroll = seat.dice.filter((die) => !ids.has(die.id));
+  tenThousandRollDiceByIds(seat, reroll.map((die) => die.id));
+  seat.dice.forEach((die) => { die.rolling = false; });
+  // Six distinct faces across six dice can only be 1-2-3-4-5-6, the straight.
+  // Anything else busts, even if the dice happen to hold a lesser scoring play —
+  // the bet was the straight, not "best available".
+  const isStraight = new Set(seat.dice.map((die) => die.value)).size === 6;
+  if (isStraight) {
+    const score = tenThousandScoreValues(seat.dice.map((die) => die.value));
+    seat.dice.forEach((die) => { die.selected = true; die.scored = true; });
+    seat.turn_score += score.score; // 1,500
+    seat.phase = "selected";
+    seat.finish_state = "active";
+  } else {
+    resolveTenThousandFarkle(seat, false);
+  }
 }
 
 function tenThousandRollDiceByIds(seat, ids) {
