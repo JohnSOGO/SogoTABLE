@@ -2724,8 +2724,12 @@ function renderGame() {
     resetButton.setAttribute("aria-label", resetLabel);
     resetButton.title = resetLabel;
   }
+  // The Sogo close button belongs only to the pre-game lobby/waiting room, not
+  // an active game. Once the room has started, hide it — the superuser can still
+  // close the room from the Current Games list. (The room-super-close buttons in
+  // that list are unaffected.)
   const superCloseButton = document.getElementById("superCloseRoom");
-  if (superCloseButton) superCloseButton.classList.toggle("hidden", !isSogoSuperuserSelected());
+  if (superCloseButton) superCloseButton.classList.toggle("hidden", !isSogoSuperuserSelected() || currentRoom.started);
   document.getElementById("gamePlayersPanel").classList.toggle("hidden", currentRoom.started);
   setGameBoardVisible(true);
   syncBattleshipReviewMark(game);
