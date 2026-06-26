@@ -7,22 +7,6 @@
 // aliases against the runtime games list).
 export function buildRoomRenderKey(room, gameId) {
   if (!room) return "";
-  // NOTE: canonicalGameId returns the opaque id, so this slug check never fires;
-  // 10,000 invalidates via `players_state` below. Preserved as-is to keep the
-  // key byte-identical to the previous in-shell implementation.
-  const tenThousandSeats = gameId === "ten_thousand" && Array.isArray(room.game.players)
-    ? room.game.players.map((seat) => ({
-      mark: seat.mark,
-      phase: seat.phase,
-      resolved: seat.resolved,
-      finish_state: seat.finish_state,
-      score: seat.score,
-      turn_score: seat.turn_score,
-      round_score: seat.round_score,
-      farkles: seat.farkles,
-      roll_count: seat.roll_count,
-    }))
-    : null;
   return JSON.stringify({
     code: room.code,
     revision: room.revision,
@@ -80,7 +64,8 @@ export function buildRoomRenderKey(room, gameId) {
       can_roll: room.game.can_roll,
       can_reroll: room.game.can_reroll,
       can_bank: room.game.can_bank,
-      ten_thousand_seats: tenThousandSeats,
+      // 10,000 seat data (phase/score/turn_score/…) rides in `players_state`
+      // above (room.game.players), which already invalidates the cache per seat.
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,
