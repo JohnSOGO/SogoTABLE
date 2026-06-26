@@ -13,6 +13,7 @@ import { buildRoomRenderKey } from "./games/render-keys.js";
 import { renderBoxesGame } from "./games/boxes/client.js";
 import { renderQuoridorGame, resetQuoridorDraft } from "./games/quoridor/client.js";
 import { renderBattleshipGame, clearBattleshipDraft } from "./games/battleship/client.js";
+import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
   SOGO_SUPERUSER_PASSCODE_KEY,
@@ -181,8 +182,6 @@ const BATTLESHIP_DEFENCE_SETTLE_MS = 250;  // let the defence board settle befor
 let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let playerOwnerTokens = loadPlayerOwnerTokens();
-let pendingConfirmAction = null;
-let pendingPasscodePrompt = null;
 let handledResetRequestKey = "";
 let selectedGameEntryRequestId = 0;
 const realtime = createRealtimeController({
@@ -246,13 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("closeGame").addEventListener("click", closeGame);
   document.getElementById("superCloseRoom").addEventListener("click", closeCurrentRoomAsSuperuser);
   document.getElementById("resetGame").addEventListener("click", resetGame);
-  document.getElementById("confirmYes").addEventListener("click", () => resolveConfirmPrompt(true));
-  document.getElementById("confirmNo").addEventListener("click", () => resolveConfirmPrompt(false));
-  document.getElementById("confirmPrompt").addEventListener("click", closeConfirmPromptOnBackdrop);
-  document.getElementById("passcodeSubmit").addEventListener("click", submitPasscodePrompt);
-  document.getElementById("passcodeCancel").addEventListener("click", cancelPasscodePrompt);
-  document.getElementById("passcodePrompt").addEventListener("click", closePasscodePromptOnBackdrop);
-  document.getElementById("passcodeInput").addEventListener("keydown", onPasscodeInputKey);
+  wirePromptControls();
   const closeWinOverlay = document.getElementById("closeWinOverlay");
   if (closeWinOverlay) closeWinOverlay.addEventListener("click", hideWinOverlay);
   bindRefreshTitleControls();
@@ -1968,103 +1961,6 @@ function clearBattleshipReveals() {
   battleshipResultReveal = null;
   window.clearTimeout(battleshipResultTimer);
   battleshipResultTimer = null;
-}
-
-function confirmAction(title, message) {
-  const prompt = document.getElementById("confirmPrompt");
-  prompt.classList.remove("info-prompt");
-  configureConfirmPromptButtons("Yes", "No", false);
-  document.getElementById("confirmPromptTitle").textContent = title;
-  document.getElementById("confirmPromptText").textContent = message;
-  prompt.classList.remove("hidden");
-  return new Promise((resolve) => {
-    pendingConfirmAction = resolve;
-  });
-}
-
-function showInfoPrompt(title, message) {
-  const prompt = document.getElementById("confirmPrompt");
-  prompt.classList.add("info-prompt");
-  configureConfirmPromptButtons("OK", "", true);
-  document.getElementById("confirmPromptTitle").textContent = title;
-  document.getElementById("confirmPromptText").textContent = message;
-  prompt.classList.remove("hidden");
-  return new Promise((resolve) => {
-    pendingConfirmAction = resolve;
-  });
-}
-
-function configureConfirmPromptButtons(yesText, noText, hideNo) {
-  const yes = document.getElementById("confirmYes");
-  const no = document.getElementById("confirmNo");
-  yes.textContent = yesText;
-  no.textContent = noText;
-  no.classList.toggle("hidden", Boolean(hideNo));
-}
-
-function resolveConfirmPrompt(confirmed) {
-  const prompt = document.getElementById("confirmPrompt");
-  prompt.classList.add("hidden");
-  prompt.classList.remove("info-prompt");
-  if (confirmed) playConfirm();
-  else playCancel();
-  if (!pendingConfirmAction) return;
-  const resolve = pendingConfirmAction;
-  pendingConfirmAction = null;
-  resolve(confirmed);
-}
-
-// A numeric-keypad replacement for window.prompt for the (digits-only) passcode:
-// a password input with inputmode="numeric" opens the number pad on touch
-// devices. Resolves to the entered string, or null if cancelled.
-function promptForPasscode(title = "Enter passcode") {
-  const prompt = document.getElementById("passcodePrompt");
-  const input = document.getElementById("passcodeInput");
-  document.getElementById("passcodePromptTitle").textContent = title;
-  input.value = "";
-  prompt.classList.remove("hidden");
-  setTimeout(() => input.focus(), 0);
-  return new Promise((resolve) => {
-    pendingPasscodePrompt = resolve;
-  });
-}
-
-function resolvePasscodePrompt(value) {
-  document.getElementById("passcodePrompt").classList.add("hidden");
-  if (!pendingPasscodePrompt) return;
-  const resolve = pendingPasscodePrompt;
-  pendingPasscodePrompt = null;
-  if (value === null) playCancel();
-  else playConfirm();
-  resolve(value);
-}
-
-function submitPasscodePrompt() {
-  resolvePasscodePrompt((document.getElementById("passcodeInput").value || "").trim());
-}
-
-function cancelPasscodePrompt() {
-  resolvePasscodePrompt(null);
-}
-
-function closePasscodePromptOnBackdrop(event) {
-  if (event.target.id === "passcodePrompt") cancelPasscodePrompt();
-}
-
-function onPasscodeInputKey(event) {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    submitPasscodePrompt();
-  } else if (event.key === "Escape") {
-    event.preventDefault();
-    cancelPasscodePrompt();
-  }
-}
-
-function closeConfirmPromptOnBackdrop(event) {
-  if (event.target.id !== "confirmPrompt") return;
-  if (event.currentTarget && event.currentTarget.classList.contains("info-prompt")) return;
-  resolveConfirmPrompt(false);
 }
 
 function setRoom(room) {
