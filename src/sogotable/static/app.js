@@ -2951,11 +2951,20 @@ function renderBattleshipSetup(host, game, selectedSeat, playerState) {
 function renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, opponentState, activeView, reveal = null) {
   const panel = document.createElement("section");
   panel.className = "battleship-panel";
+  // Follow the same per-device label preference as 10,000 (Game Options): emoji
+  // by default, plain words when the toggle is on. aria-label keeps the meaning
+  // for screen readers in either mode.
+  const words = actionLabelStyle() === "words";
+  const viewLabel = {
+    auto: words ? "Auto" : "🎯🔄🛡️",
+    offence: words ? "Offence" : "🎯",
+    defence: words ? "Defence" : "🛡️",
+  };
   panel.innerHTML = `
     <div class="battleship-toolbar segmented">
-      <button type="button" data-view="auto" class="${battleshipViewMode === "auto" ? "selected" : ""}">🎯🔄🛡️ Auto</button>
-      <button type="button" data-view="offence" class="${activeView === "offence" ? "active-mode" : ""} ${activeView === "offence" && battleshipViewMode !== "auto" ? "selected" : ""}">🎯 Offence</button>
-      <button type="button" data-view="defence" class="${activeView === "defence" ? "active-mode" : ""} ${activeView === "defence" && battleshipViewMode !== "auto" ? "selected" : ""}">🛡️ Defence</button>
+      <button type="button" data-view="auto" aria-label="Auto" title="Auto" class="${battleshipViewMode === "auto" ? "selected" : ""}">${viewLabel.auto}</button>
+      <button type="button" data-view="offence" aria-label="Offence" title="Offence" class="${activeView === "offence" ? "active-mode" : ""} ${activeView === "offence" && battleshipViewMode !== "auto" ? "selected" : ""}">${viewLabel.offence}</button>
+      <button type="button" data-view="defence" aria-label="Defence" title="Defence" class="${activeView === "defence" ? "active-mode" : ""} ${activeView === "defence" && battleshipViewMode !== "auto" ? "selected" : ""}">${viewLabel.defence}</button>
     </div>
     <div class="battleship-board-title"></div>
     <div class="battleship-grid" role="grid"></div>
