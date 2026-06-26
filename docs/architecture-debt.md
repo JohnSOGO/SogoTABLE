@@ -5,8 +5,8 @@ This ledger records known compromises that are acceptable for the current family
 ## Current Compromises
 
 - The Worker still stores shared app state as one optimistic-lock D1 JSON row. Durable Objects serialize room creation and active room mutations, but roster, lobby, stats, and backfill reads still share the same document.
-- `workers/sogotable-api.js` still contains platform routing, persistence, and Durable Object classes — but **all six games' rules now live in modules** (see the 2026-06-26 review response below); 4299 → 2150 lines (−50%), with no inline game rules left bar the thin dispatch predicates.
-- `src/sogotable/static/app.js` still owns most browser shell state, screen rendering, API orchestration, and most per-game interaction glue — but the registry, review-export, render-keys, storage, and the Dots-and-Boxes client now live in modules; 4389 → 3893 lines.
+- `workers/sogotable-api.js` still contains platform routing, persistence, and Durable Object classes — but **all six games' rules now live in modules** (see the 2026-06-26 review response below); 4299 → 2170 lines (−50%), with no inline game rules left bar the thin dispatch predicates. It still mixes routing/CORS/rate-limit/persistence/auth/lobby/rooms/invites/stats/bot-orchestration/notification fanout in one file — the next extraction target is route handlers by domain (`platform/`, `persistence/`, `domains/`).
+- `src/sogotable/static/app.js` still owns most browser shell state, screen rendering, API orchestration, and most per-game interaction glue — but the registry, review-export, render-keys, storage, and the boxes/quoridor/battleship client adapters are now modules; 4389 → 3295 lines. Still too large for a shell; the next targets are per-domain UI controllers (prompts, players, lobby, rooms, invites, stats).
 - CSS remains in one broad app stylesheet plus a few game-local files.
 - The browser uses the deployed API origin for static local previews. A configurable local API origin is deferred until it unlocks real local multiplayer testing.
 - API errors are still string-based. Typed error codes are deferred until clients need richer recovery behavior.
@@ -36,7 +36,7 @@ An external critical review (`AI/sogotable-critical-review-2026-06-26.md`, ignor
 **Phase 1 — done & verified live:**
 - `games/registry.js` — single source of truth for game metadata; the Worker (esbuild-bundled) and the browser both import it, killing the split-brain `GAME_DEFINITIONS`/`fallbackGames`. A guard test forbids re-hardcoding game ids.
 - Extracted `review-export.js`, `games/render-keys.js`, `storage.js` out of `app.js`.
-- Architecture guard tests (`workers/tests/architecture.test.js`) ratchet line-count ceilings (app 4050, worker 2450, css 2800) and enforce registry single-source. Lower a ceiling whenever code is extracted.
+- Architecture guard tests (`workers/tests/architecture.test.js`) ratchet line-count ceilings (currently app 3350, worker 2200, css 2800) and enforce registry single-source. Lower a ceiling whenever code is extracted, and update these numbers here in the same change.
 
 **Phase 2 — game modules (one vertical slice per game):**
 - **All six games done & live:** Dots and Boxes (`workers/games/boxes/rules.js` + `games/boxes/client.js`), Battleship rules **incl. the per-viewer hidden-information sanitizer** (`workers/games/battleship/rules.js`), 10,000 (`workers/games/ten-thousand/rules.js`), Quoridor (`workers/games/quoridor/rules.js`), and Super-Tic-Tac-Toe + Tactical (`workers/games/super-tic-tac-toe/rules.js` — the trickiest: the default game was woven into `newGame`/`gameToDict`/`makeMove`/`chooseBotMove`; `pushGameEvent`, `WIN_LINES`, and `TACTICAL_PICKUP_CONFIG` moved with the rules). Shared helpers in `workers/games/{bots,util}.js`. The Worker keeps each `is<Game>Game` dispatch predicate, the `makeMove` router, the inline newGame board creation, room-coupled wrappers, and the scored bot.
@@ -45,3 +45,16 @@ An external critical review (`AI/sogotable-critical-review-2026-06-26.md`, ignor
 - **Phase 2 is complete.** Every game's server rules and client UI are modules; the Worker dispatches through the `GAME_HANDLERS` registry. Adding a game is now: a rules module, a client module, a predicate, and one registry row.
 - Optional follow-up: 10,000's residual ~60 lines of sound/farkle glue (shell-integration code; low value).
 - Lesson: when adding a static game-module dir, check its tracked case (`git ls-files`) — a capital-cased lab dir (e.g. `Quoridor/`) collides with a lowercase import on Cloudflare's case-sensitive build and white-screens the app.
+
+### Rerun review (2026-06-26) — next extractions, NOT more games
+
+A rerun review confirmed the cleanup is real (game-rule ownership 8/10) but the system is "less dangerous, not yet modular." Explicit guidance: **do one or two boring extraction PRs before adding game #7.** Agreed next steps, in order (each behavior-preserving, tests pin before/after):
+
+1. **Worker platform/persistence extraction** — move `platform/{http,cors,rate-limit}.js` and `persistence/state.js` (ensureSchema/loadState/saveState/withStateRetry) out of `sogotable-api.js`. Target < 1,900 lines. The Worker is only ~30 lines under its 2,200 guard — this buys headroom before more endpoints land.
+2. **`routeRequest()` policy** — replace the URL-string `readOnlyPost` mutate/notify heuristic with explicit per-route metadata (`{mutates, notify:[...]}`) so endpoints declare their side effects instead of the central dispatcher guessing.
+3. **Browser UI controllers** — extract prompts/passcode/confirm first (low-risk DOM plumbing), then players/lobby/rooms/invites/stats. Target app.js < 2,800.
+4. **Render-key fragments** — each game client exports its own render-key fragment; `buildRoomRenderKey` becomes shell-common + adapter-provided. Kills the dead `gameId === "ten_thousand"` branch in `render-keys.js`.
+5. **Split the worker test file** by domain (2,699 lines → per-domain files) — pure file movement, verified by `npm test`.
+6. **Game adapter contract** — finish what `GAME_HANDLERS` started: fold super-ttt/tactical and the `makeMove`/bot-turn switches into the adapter so adding a game is truly "module + register," no shell touchpoints.
+
+Smaller notes: review-export reflects GitHub `main`, not the deployed SHA — its README should state that caveat (and ideally pin the export to a commit SHA). D1 single-row debt stays acceptable for family scale; keep the exit criteria visible. CSS split is later, not the next fire.
