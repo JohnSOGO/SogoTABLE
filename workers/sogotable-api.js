@@ -719,27 +719,17 @@ async function routeRequest(method, url, payload, data, options = {}) {
       await assertPlayerOwner(data, playerId, payload.owner_token, options);
       const mark = playerMark(room, playerId);
       if (!mark) throw new Error("Player is not in this room.");
-      if (isTenThousandGame(room.game)) {
-        makeTenThousandMove(room.game, mark, payload.action || payload);
+      const moveHandler = GAME_HANDLERS.find((entry) => entry.applyAction && entry.is(room.game));
+      if (moveHandler) {
+        if (moveHandler.preMove) moveHandler.preMove(room);
+        if (moveHandler.enforcesTurnOrder && mark !== room.game.current_player) throw new Error(`It is ${room.game.current_player}'s turn.`);
+        moveHandler.applyAction(room.game, mark, payload);
         bumpRoomRevision(room);
         recordCompletedRoomStats(data, room);
+        if (!moveHandler.resolvesBotsInternally && autoBotMoves) runBotTurns(data, room);
         return { ok: true, room: roomToDict(data, room) };
       }
-      if (isBattleshipGame(room.game)) {
-        ensureBattleshipBotFleets(room);
-        makeBattleshipMove(room.game, mark, payload.action || payload);
-        bumpRoomRevision(room);
-        recordCompletedRoomStats(data, room);
-        if (autoBotMoves) runBotTurns(data, room);
-        return { ok: true, room: roomToDict(data, room) };
-      }
-      if (isQuoridorGame(room.game)) {
-        makeQuoridorMove(room.game, mark, payload.action || payload);
-        bumpRoomRevision(room);
-        recordCompletedRoomStats(data, room);
-        if (autoBotMoves) runBotTurns(data, room);
-        return { ok: true, room: roomToDict(data, room) };
-      }
+      // Super Tic Tac Toe / Tactical — the default macro-board family.
       if (mark !== room.game.current_player) throw new Error(`It is ${room.game.current_player}'s turn.`);
       makeMove(room.game, Number(payload.board), Number(payload.cell), payload.line_id);
       bumpRoomRevision(room);
@@ -1458,8 +1448,8 @@ function runBotTurns(data, room) {
     if (!bot) break;
     const move = chooseBotMove(room.game, bot);
     if (!move) break;
-    if (isBattleshipGame(room.game)) makeBattleshipMove(room.game, bot.mark, move);
-    else if (isQuoridorGame(room.game)) makeQuoridorMove(room.game, bot.mark, move);
+    const moveHandler = GAME_HANDLERS.find((entry) => entry.applyAction && entry.is(room.game));
+    if (moveHandler) moveHandler.applyAction(room.game, bot.mark, move);
     else makeMove(room.game, move.board, move.cell, move.line_id);
     bumpRoomRevision(room);
     recordCompletedRoomStats(data, room);
@@ -1681,11 +1671,21 @@ function pruneLobbyViewers(data) {
 // are the inline default fallthrough (they share board creation and the macro
 // `legal_boards` projection), so they have no row. `bot` is absent where a game
 // resolves bots through its own engine (10,000) or has no entry.
+// applyAction(game, mark, payload) normalises the heterogeneous per-game move
+// signatures so /api/room/move and bot turns dispatch through this table too.
+// Flags capture each game's real differences: enforcesTurnOrder (shell rejects
+// out-of-turn moves vs rules validating internally), preMove (setup before the
+// move, e.g. lazy bot fleets), resolvesBotsInternally (game runs its own bot
+// turns, so the shell skips runBotTurns). Classic/Tactical stay the default.
 const GAME_HANDLERS = [
-  { id: TEN_THOUSAND_GAME_ID, is: isTenThousandGame, create: newTenThousandGame, toDict: tenThousandGameToDict, legalMoves: () => [] },
-  { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves) },
-  { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves) },
-  { id: BOXES_GAME_ID, is: isBoxesGame, create: newBoxesGame, toDict: boxesGameToDict, legalMoves: boxesLegalMoves, bot: (game, bot, moves) => chooseBoxesBotMove(game, moves) },
+  { id: TEN_THOUSAND_GAME_ID, is: isTenThousandGame, create: newTenThousandGame, toDict: tenThousandGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeTenThousandMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
+  { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
+    applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
+  { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
+    applyAction: (game, mark, payload) => makeQuoridorMove(game, mark, payload.action || payload) },
+  { id: BOXES_GAME_ID, is: isBoxesGame, create: newBoxesGame, toDict: boxesGameToDict, legalMoves: boxesLegalMoves, bot: (game, bot, moves) => chooseBoxesBotMove(game, moves),
+    applyAction: (game, mark, payload) => makeBoxesMove(game, payload.line_id), enforcesTurnOrder: true },
 ];
 
 function newGame(gameId = DEFAULT_GAME_ID) {
