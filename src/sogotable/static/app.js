@@ -11,6 +11,7 @@ import { createRealtimeController } from "./realtime.js";
 import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
 import { buildRoomRenderKey } from "./games/render-keys.js";
 import { renderBoxesGame } from "./games/boxes/client.js";
+import { renderQuoridorGame, resetQuoridorDraft } from "./games/quoridor/client.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
   SOGO_SUPERUSER_PASSCODE_KEY,
@@ -171,10 +172,6 @@ let battleshipResultReveal = null;
 let battleshipResultTimer = null;
 let battleshipRevealQueue = [];
 let battleshipReviewMark = "";
-let quoridorMode = "pawn";
-let quoridorDraftWall = null;
-let quoridorWallHoldTimer = null;
-let quoridorWallHoldButton = null;
 let lastTenThousandFarkleNoticeKey = "";
 let lastRenderedRoomKey = "";
 let lastCelebratedWinKey = "";
@@ -1834,8 +1831,7 @@ async function makeQuoridorAction(action) {
       owner_token: await ensureOwnerToken(player.id),
       action,
     });
-    clearQuoridorWallHold();
-    quoridorDraftWall = null;
+    resetQuoridorDraft();
     pendingMove = null;
     setRoom(response.room);
   } catch (error) {
@@ -2460,7 +2456,21 @@ function renderGame() {
     return;
   }
   if (isQuoridorGameState(game)) {
-    renderQuoridorGame(game);
+    renderQuoridorGame({
+      game,
+      room: currentRoom,
+      selectedPlayerId,
+      pendingMove,
+      canRoomSeatMove,
+      setTurnColorVariables,
+      safePlayerColor,
+      escapeHtml,
+      avatarHtml,
+      showTurnStatus,
+      scheduleWinOverlay,
+      makeAction: makeQuoridorAction,
+      rerender: renderGame,
+    });
     return;
   }
   if (isTenThousandGameState(game)) {
@@ -2950,267 +2960,6 @@ function activeBattleshipResultReveal(room, selectedSeat) {
     return null;
   }
   return battleshipResultReveal;
-}
-
-function renderQuoridorGame(game) {
-  clearQuoridorWallHold();
-  const host = document.getElementById("macroBoard");
-  host.className = "macro-board quoridor-room-board";
-  host.innerHTML = "";
-  if (!currentRoom.started) {
-    showTurnStatus(null, "Waiting for opponent.");
-    return;
-  }
-  const currentTurnPlayer = currentRoom.players.find((player) => player.mark === game.current_player);
-  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
-  const canSelectedPlayerMove = canRoomSeatMove(selectedSeat, game);
-  if (!canSelectedPlayerMove || game.status !== "playing" || !quoridorDraftWall || !quoridorWallIsLegalDraft(game, quoridorDraftWall)) {
-    quoridorDraftWall = null;
-  }
-  setTurnColorVariables(host, currentTurnPlayer ? currentTurnPlayer.color : "#1f7a5f");
-  host.classList.toggle("your-turn", canSelectedPlayerMove && game.status === "playing");
-  host.classList.toggle("waiting", game.status === "playing" && !canSelectedPlayerMove);
-  if (game.status === "playing") {
-    showTurnStatus(currentTurnPlayer, canSelectedPlayerMove ? `${selectedSeat.name}'s move.` : `Waiting for ${currentTurnPlayer ? currentTurnPlayer.name : "opponent"}.`);
-  } else {
-    const winner = currentRoom.players.find((player) => player.mark === game.winner);
-    showTurnStatus(winner, `${winner ? winner.name : "Player"} wins.`);
-    scheduleWinOverlay(winner, game.winner);
-  }
-
-  const table = document.createElement("section");
-  table.className = "quoridor-table";
-  const controlsDisabled = !canSelectedPlayerMove || game.status !== "playing" || pendingMove;
-  table.innerHTML = `
-    <div class="quoridor-score-row">
-      ${currentRoom.players.map((player) => quoridorScoreHtml(player, game)).join("")}
-    </div>
-    <div class="quoridor-toolbar" role="group" aria-label="Quoridor move type">
-      <button type="button" data-quoridor-mode="pawn" class="${quoridorMode === "pawn" ? "selected" : ""}" ${controlsDisabled ? "disabled" : ""}>Move Pawn</button>
-      <button type="button" data-quoridor-mode="wall" class="${quoridorMode === "wall" ? "selected" : ""}" ${controlsDisabled ? "disabled" : ""}>Place Wall</button>
-    </div>
-    <div class="quoridor-board" role="grid" aria-label="Quoridor board"></div>
-  `;
-  table.querySelectorAll("[data-quoridor-mode]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const mode = button.dataset.quoridorMode;
-      if (mode === "pawn") {
-        quoridorMode = "pawn";
-        quoridorDraftWall = null;
-      } else if (quoridorMode === "wall" && quoridorDraftWall && canSelectedPlayerMove) {
-        makeQuoridorAction({ type: "place_wall", ...quoridorDraftWall });
-        return;
-      } else {
-        quoridorMode = "wall";
-      }
-      if (currentRoom && isQuoridorGameState(currentRoom.game)) renderQuoridorGame(currentRoom.game);
-    });
-  });
-  renderQuoridorBoard(table.querySelector(".quoridor-board"), game, selectedSeat, canSelectedPlayerMove);
-  host.appendChild(table);
-}
-
-function quoridorScoreHtml(player, game) {
-  const active = game.status === "playing" && player.mark === game.current_player;
-  const walls = Number(game.walls_remaining && game.walls_remaining[player.mark] || 0);
-  const color = safePlayerColor(player);
-  return `
-    <div class="quoridor-score ${active ? "active" : ""}" style="--player-color:${escapeHtml(color)}">
-      ${avatarHtml(player)}
-      <strong>${escapeHtml(player.name)}</strong>
-      <b>${escapeHtml(String(walls))}</b>
-    </div>
-  `;
-}
-
-function renderQuoridorBoard(grid, game, selectedSeat, canSelectedPlayerMove) {
-  const size = Number(game.board_size || 9);
-  const legalPawnMoves = new Set((game.legal_pawn_moves || []).map((move) => `${move.row}:${move.col}`));
-  const legalWalls = new Set((game.legal_walls || []).map((wall) => quoridorWallId(wall.orientation, wall.row, wall.col)));
-  const wallList = [...(game.walls || []), ...(quoridorDraftWall ? [{ ...quoridorDraftWall, temporary: true }] : [])];
-  const currentColor = selectedSeat ? safePlayerColor(selectedSeat) : "#1f7a5f";
-  grid.style.setProperty("--quoridor-active-color", currentColor);
-  grid.innerHTML = "";
-  grid.addEventListener("click", (event) => {
-    if (!canSelectedPlayerMove || pendingMove || quoridorMode === "wall") return;
-    if (event.target.closest(".quoridor-wall-dot")) return;
-    if (event.target.closest(".quoridor-cell.legal")) return;
-    if (event.target.closest(".quoridor-cell.own-pawn-control")) return;
-    quoridorMode = "wall";
-    quoridorDraftWall = null;
-    renderQuoridorGame(currentRoom.game);
-  });
-  for (let row = 0; row < size; row += 1) {
-    for (let col = 0; col < size; col += 1) {
-      grid.appendChild(quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMove, selectedSeat));
-    }
-  }
-  for (let row = 0; row < size - 1; row += 1) {
-    for (let col = 0; col < size - 1; col += 1) {
-      grid.appendChild(quoridorWallVisual("h", row, col, wallList));
-      grid.appendChild(quoridorWallVisual("v", row, col, wallList));
-      if (quoridorMode === "wall") {
-        const dot = quoridorWallDot(row, col, legalWalls, canSelectedPlayerMove);
-        if (dot) grid.appendChild(dot);
-      }
-    }
-  }
-}
-
-function quoridorCellButton(game, row, col, legalPawnMoves, canSelectedPlayerMove, selectedSeat) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "quoridor-cell";
-  button.style.gridRow = String(row * 2 + 1);
-  button.style.gridColumn = String(col * 2 + 1);
-  button.setAttribute("aria-label", `Row ${row + 1}, Column ${col + 1}`);
-  const occupant = currentRoom.players.find((player) => {
-    const pawn = game.pawns && game.pawns[player.mark];
-    return pawn && pawn.row === row && pawn.col === col;
-  });
-  if (occupant) {
-    button.classList.add("occupied");
-    button.style.setProperty("--pawn-color", safePlayerColor(occupant));
-    button.textContent = occupant.icon || "🙂";
-    button.setAttribute("aria-label", `${occupant.name} pawn`);
-  }
-  const legal = canSelectedPlayerMove && quoridorMode === "pawn" && legalPawnMoves.has(`${row}:${col}`);
-  const ownPawnControl = canSelectedPlayerMove && occupant && selectedSeat && occupant.mark === selectedSeat.mark;
-  button.classList.toggle("legal", legal);
-  button.classList.toggle("own-pawn-control", ownPawnControl);
-  // Goal-row tint: each player's goal row (the far edge they race toward) is
-  // faintly washed in that player's colour so the destination is visible. A
-  // player's start row is the opponent's goal, so while the home pawn sits on it
-  // its own cell keeps the stronger pawn styling and the rest of the row reads as
-  // the opponent's colour — once the pawn steps off, the whole row does. The wash
-  // is skipped on occupied and legal-move cells so it never hides those cues.
-  const goalOwner = currentRoom.players.find((player) => {
-    const pawn = game.pawns && game.pawns[player.mark];
-    return pawn && Number(pawn.goal) === row;
-  });
-  if (goalOwner && !occupant && !legal) {
-    button.classList.add("goal");
-    button.style.setProperty("--goal-color", safePlayerColor(goalOwner));
-    button.setAttribute("aria-label", `Row ${row + 1}, Column ${col + 1}, ${goalOwner.name}'s goal`);
-  }
-  button.disabled = Boolean(pendingMove);
-  if (legal) button.addEventListener("click", () => makeQuoridorAction({ type: "move_pawn", row, col }));
-  else if (ownPawnControl) {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      quoridorMode = "pawn";
-      quoridorDraftWall = null;
-      renderQuoridorGame(currentRoom.game);
-    });
-  } else if (canSelectedPlayerMove) {
-    button.addEventListener("click", () => {
-      if (pendingMove || quoridorMode === "wall") return;
-      quoridorMode = "wall";
-      quoridorDraftWall = null;
-      renderQuoridorGame(currentRoom.game);
-    });
-  }
-  return button;
-}
-
-function quoridorWallVisual(orientation, row, col, walls) {
-  const wall = document.createElement("div");
-  const placed = walls.find((item) => item.orientation === orientation && item.row === row && item.col === col);
-  wall.className = `quoridor-wall quoridor-wall-${orientation} ${placed ? "placed" : ""} ${placed && placed.temporary ? "temporary" : ""}`;
-  wall.style.gridRow = orientation === "h" ? String(row * 2 + 2) : `${row * 2 + 1} / span 3`;
-  wall.style.gridColumn = orientation === "h" ? `${col * 2 + 1} / span 3` : String(col * 2 + 2);
-  wall.setAttribute("aria-hidden", "true");
-  return wall;
-}
-
-function quoridorWallDot(row, col, legalWalls, canSelectedPlayerMove) {
-  const horizontalLegal = legalWalls.has(quoridorWallId("h", row, col));
-  const verticalLegal = legalWalls.has(quoridorWallId("v", row, col));
-  const legal = canSelectedPlayerMove && (horizontalLegal || verticalLegal);
-  if (!legal) return null;
-  const button = document.createElement("button");
-  button.type = "button";
-  const selected = quoridorDraftWall && quoridorDraftWall.row === row && quoridorDraftWall.col === col;
-  button.className = `quoridor-wall-dot ${selected ? "selected" : ""}`;
-  button.style.gridRow = String(row * 2 + 2);
-  button.style.gridColumn = String(col * 2 + 2);
-  button.setAttribute("aria-label", `Wall anchor ${row + 1}, ${col + 1}`);
-  button.innerHTML = '<span class="quoridor-wall-hold-progress" aria-hidden="true"></span>';
-  button.disabled = Boolean(pendingMove);
-  button.addEventListener("click", () => {
-    if (button.dataset.wallHold === "committed") {
-      button.dataset.wallHold = "";
-      return;
-    }
-    quoridorDraftWall = nextQuoridorDraftWall(row, col, horizontalLegal, verticalLegal);
-    renderQuoridorGame(currentRoom.game);
-  });
-  if (selected) {
-    button.addEventListener("pointerdown", (event) => startQuoridorWallHold(event, button));
-    button.addEventListener("pointerup", () => cancelQuoridorWallHold(button));
-    button.addEventListener("pointercancel", () => cancelQuoridorWallHold(button));
-    button.addEventListener("pointerleave", () => cancelQuoridorWallHold(button));
-    button.addEventListener("contextmenu", (event) => event.preventDefault());
-  }
-  return button;
-}
-
-function startQuoridorWallHold(event, button) {
-  if (!quoridorDraftWall || pendingMove || !currentRoom || !isQuoridorGameState(currentRoom.game)) return;
-  if (!quoridorWallIsLegalDraft(currentRoom.game, quoridorDraftWall)) return;
-  event.preventDefault();
-  clearQuoridorWallHold();
-  quoridorWallHoldButton = button;
-  button.dataset.wallHold = "pending";
-  button.classList.add("holding");
-  if (event.pointerId !== undefined && button.setPointerCapture) {
-    try {
-      button.setPointerCapture(event.pointerId);
-    } catch {
-      // Pointer capture is best-effort on older mobile browsers.
-    }
-  }
-  quoridorWallHoldTimer = setTimeout(() => {
-    if (!quoridorDraftWall || button.dataset.wallHold !== "pending") return;
-    button.dataset.wallHold = "committed";
-    button.classList.remove("holding");
-    makeQuoridorAction({ type: "place_wall", ...quoridorDraftWall });
-  }, 1000);
-}
-
-function cancelQuoridorWallHold(button) {
-  if (!button || button.dataset.wallHold === "committed") return;
-  clearQuoridorWallHold();
-}
-
-function clearQuoridorWallHold() {
-  if (quoridorWallHoldTimer) clearTimeout(quoridorWallHoldTimer);
-  quoridorWallHoldTimer = null;
-  if (quoridorWallHoldButton) {
-    quoridorWallHoldButton.classList.remove("holding");
-    if (quoridorWallHoldButton.dataset.wallHold !== "committed") quoridorWallHoldButton.dataset.wallHold = "";
-  }
-  quoridorWallHoldButton = null;
-}
-
-function nextQuoridorDraftWall(row, col, horizontalLegal, verticalLegal) {
-  if (quoridorDraftWall && quoridorDraftWall.row === row && quoridorDraftWall.col === col) {
-    const nextOrientation = quoridorDraftWall.orientation === "h" ? "v" : "h";
-    if (nextOrientation === "h" && horizontalLegal) return { orientation: "h", row, col };
-    if (nextOrientation === "v" && verticalLegal) return { orientation: "v", row, col };
-    return { ...quoridorDraftWall };
-  }
-  if (horizontalLegal) return { orientation: "h", row, col };
-  return { orientation: "v", row, col };
-}
-
-function quoridorWallIsLegalDraft(game, wall) {
-  if (!wall) return false;
-  return (game.legal_walls || []).some((item) => item.orientation === wall.orientation && item.row === wall.row && item.col === wall.col);
-}
-
-function quoridorWallId(orientation, row, col) {
-  return `${orientation === "v" ? "v" : "h"}-${Number(row)}-${Number(col)}`;
 }
 
 function canRoomSeatMove(seat, game) {
