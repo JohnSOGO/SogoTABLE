@@ -14,6 +14,7 @@ import { renderBoxesGame } from "./games/boxes/client.js";
 import { renderQuoridorGame, resetQuoridorDraft } from "./games/quoridor/client.js";
 import { renderBattleshipGame, clearBattleshipDraft } from "./games/battleship/client.js";
 import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
+import { wireGameOptions } from "./controllers/game-options.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
   SOGO_SUPERUSER_PASSCODE_KEY,
@@ -231,13 +232,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("openGameStats").addEventListener("click", openGameStatsModal);
   document.getElementById("closeGameStatsModal").addEventListener("click", closeGameStatsModal);
   document.getElementById("gameStatsModal").addEventListener("click", closeGameStatsModalOnBackdrop);
-  document.querySelectorAll("[data-open-menu]").forEach((button) => button.addEventListener("click", openGameOptionsModal));
-  document.getElementById("closeGameOptionsModal").addEventListener("click", closeGameOptionsModal);
-  document.getElementById("gameOptionsModal").addEventListener("click", closeGameOptionsModalOnBackdrop);
-  document.getElementById("optionActionWords").addEventListener("change", onActionWordsToggle);
-  const volumeSlider = document.getElementById("optionVolume");
-  if (volumeSlider) volumeSlider.addEventListener("input", onVolumeOptionInput);
-  document.getElementById("submitBugReport").addEventListener("click", submitBugReport);
+  wireGameOptions({ rerender: renderGame, api, bugContext: bugReportContext });
   document.getElementById("createGame").addEventListener("click", createRoom);
   document.getElementById("refreshGameList").addEventListener("click", refreshGameRooms);
   document.getElementById("acceptInvite").addEventListener("click", () => respondToInvite(true));
@@ -809,52 +804,6 @@ function closeGameStatsModalOnBackdrop(event) {
   if (event.target.id === "gameStatsModal") closeGameStatsModal();
 }
 
-function openGameOptionsModal() {
-  const checkbox = document.getElementById("optionActionWords");
-  if (checkbox) checkbox.checked = actionLabelStyle() === "words";
-  syncVolumeOption();
-  const status = document.getElementById("bugReportStatus");
-  if (status) status.textContent = "";
-  document.getElementById("gameOptionsModal").classList.remove("hidden");
-}
-
-// The sound control now lives in the menu: a 0-5 slider where 0 mutes. Keeps the
-// existing model (enabled flag + 1-5 level) in sync.
-function syncVolumeOption() {
-  const slider = document.getElementById("optionVolume");
-  const value = document.getElementById("optionVolumeValue");
-  const level = isSoundEnabled() ? soundVolumeLevel() : 0;
-  // Don't fight the user's drag; only seed the slider when it isn't being moved.
-  if (slider && document.activeElement !== slider) slider.value = String(level);
-  if (value) value.textContent = level === 0 ? "🔇 Muted" : `🔊 ${level} / 5`;
-}
-
-function onVolumeOptionInput(event) {
-  const level = Math.round(Number(event.target.value) || 0);
-  if (level <= 0) {
-    setSoundEnabled(false);
-  } else {
-    setSoundEnabled(true);
-    setSoundVolumeLevel(level);
-    unlockAudio();
-    playConfirm(); // a beep at the new level so the change is audible
-  }
-  syncVolumeOption();
-}
-
-function closeGameOptionsModal() {
-  document.getElementById("gameOptionsModal").classList.add("hidden");
-}
-
-function closeGameOptionsModalOnBackdrop(event) {
-  if (event.target.id === "gameOptionsModal") closeGameOptionsModal();
-}
-
-function onActionWordsToggle(event) {
-  setActionLabelStyle(event.target.checked);
-  renderGame();
-}
-
 // Captures who/where for a bug report: the device's player and the screen they
 // are on (and the game/room if any), so reports are actionable without asking.
 function bugReportContext() {
@@ -878,28 +827,6 @@ function bugReportContext() {
   };
 }
 
-async function submitBugReport() {
-  const textarea = document.getElementById("bugReportText");
-  const status = document.getElementById("bugReportStatus");
-  const button = document.getElementById("submitBugReport");
-  const description = (textarea.value || "").trim();
-  if (!description) {
-    status.textContent = "Please add a description first.";
-    return;
-  }
-  button.disabled = true;
-  status.textContent = "Sending…";
-  try {
-    await api("/api/bug-report", { ...bugReportContext(), description, user_agent: navigator.userAgent });
-    textarea.value = "";
-    status.textContent = "Thanks — sent!";
-    playConfirm();
-  } catch (error) {
-    status.textContent = error.message || "Could not send the report.";
-  } finally {
-    button.disabled = false;
-  }
-}
 
 function lobbyStatsTable(title, items, valueLabel, valueKey, emptyText) {
   const table = document.createElement("table");
