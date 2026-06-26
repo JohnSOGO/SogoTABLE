@@ -3490,7 +3490,7 @@ function pickupAtCell(game, boardIndex, cellIndex) {
 }
 
 function isTacticalGameState(game) {
-  return Boolean(game && (canonicalGameId(game.game_id) === "d7e4a91f0c23" || Array.isArray(game.pickups)));
+  return Boolean(game && (canonicalGameId(game.game_id) === TACTICAL_GAME_ID || Array.isArray(game.pickups)));
 }
 
 function isBoxesGameState(game) {
