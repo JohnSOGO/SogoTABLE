@@ -15,6 +15,7 @@ import { renderQuoridorGame, resetQuoridorDraft } from "./games/quoridor/client.
 import { renderBattleshipGame, clearBattleshipDraft } from "./games/battleship/client.js";
 import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
 import { wireGameOptions } from "./controllers/game-options.js";
+import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKey, wireGameStats } from "./controllers/game-stats.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
   SOGO_SUPERUSER_PASSCODE_KEY,
@@ -145,12 +146,10 @@ let activeGameRoom = null;
 let currentGameRooms = [];
 let lobbyPlayers = [];
 let availableBots = [];
-let currentGameStats = { high_scores: [], ratings: [] };
 let selectedPlayerStats = [];
 let lastLobbyPlayersKey = "";
 let lastCurrentGameRoomsKey = "";
 let lastActiveGameNoticeKey = "";
-let lastGameStatsKey = "";
 let lastSelectedPlayerStatsKey = "";
 let lastInviteSoundKey = "";
 let lastPlayerJoinedSoundKey = "";
@@ -229,9 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("playerColorNative").addEventListener("input", updateSelectedColorFromNative);
   document.getElementById("closeInvitePlayerModal").addEventListener("click", closeInvitePlayerModal);
   document.getElementById("invitePlayerModal").addEventListener("click", closeInvitePlayerModalOnBackdrop);
-  document.getElementById("openGameStats").addEventListener("click", openGameStatsModal);
-  document.getElementById("closeGameStatsModal").addEventListener("click", closeGameStatsModal);
-  document.getElementById("gameStatsModal").addEventListener("click", closeGameStatsModalOnBackdrop);
+  wireGameStats({ selectedGame, isCurrentSelectedGame, canonicalGameId });
   wireGameOptions({ rerender: renderGame, api, bugContext: bugReportContext });
   document.getElementById("createGame").addEventListener("click", createRoom);
   document.getElementById("refreshGameList").addEventListener("click", refreshGameRooms);
@@ -446,7 +443,7 @@ function renderGameSelected() {
   lastLobbyPlayersKey = "";
   lastCurrentGameRoomsKey = "";
   lastActiveGameNoticeKey = "";
-  lastGameStatsKey = "";
+  resetGameStatsKey();
   renderCurrentGames();
   renderCreateGameButton();
   renderActiveGameNotice();
@@ -543,20 +540,6 @@ async function refreshLobbyPlayers(game = selectedGame()) {
   }
 }
 
-async function refreshGameStats(game = selectedGame()) {
-  if (!game) return;
-  try {
-    const data = await fetchJson(`/api/stats?game_id=${encodeURIComponent(game.id)}`);
-    if (!data.ok) throw new Error(data.error || "Could not load stats.");
-    if (!isCurrentSelectedGame(game)) return;
-    currentGameStats = data.stats || { high_scores: [], ratings: [] };
-    renderGameStats();
-  } catch {
-    if (!isCurrentSelectedGame(game)) return;
-    currentGameStats = { high_scores: [], ratings: [] };
-    renderGameStats();
-  }
-}
 
 async function updateLobbyPresence({ game = selectedGame(), allowHidden = false } = {}) {
   const player = deviceSelectedPlayer();
@@ -567,10 +550,7 @@ async function updateLobbyPresence({ game = selectedGame(), allowHidden = false 
     if (!isCurrentSelectedGame(game)) return;
     lobbyPlayers = response.players;
     renderLobbyPlayers();
-    if (response.stats) {
-      currentGameStats = response.stats;
-      renderGameStats();
-    }
+    if (response.stats) applyGameStats(response.stats);
   } catch {
     refreshLobbyPlayers(game);
   }
@@ -765,44 +745,6 @@ function gameRoomsSignature(rooms) {
   });
 }
 
-function renderGameStats() {
-  const host = document.getElementById("gameStats");
-  if (!host) return;
-  const game = selectedGame();
-  const gameId = canonicalGameId(game && game.id);
-  const nextKey = JSON.stringify({ gameId, stats: currentGameStats || {} });
-  if (nextKey === lastGameStatsKey) return;
-  lastGameStatsKey = nextKey;
-  host.innerHTML = "";
-  if (gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID || gameId === TEN_THOUSAND_GAME_ID) {
-    host.appendChild(lobbyStatsTable("High Scores", currentGameStats.high_scores || [], "Score", "score", "No scores yet."));
-  } else {
-    host.appendChild(lobbyStatsTable("ELO Ratings", currentGameStats.ratings || [], "ELO", "rating", "No ratings yet."));
-  }
-}
-
-function renderGameStatsLink() {
-  const button = document.getElementById("openGameStats");
-  const title = document.getElementById("gameStatsTitle");
-  const gameId = canonicalGameId(selectedGame().id);
-  const label = gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID || gameId === TEN_THOUSAND_GAME_ID ? "High Scores" : "ELO";
-  if (button) button.textContent = label;
-  if (title) title.textContent = label;
-}
-
-async function openGameStatsModal() {
-  renderGameStatsLink();
-  await refreshGameStats();
-  document.getElementById("gameStatsModal").classList.remove("hidden");
-}
-
-function closeGameStatsModal() {
-  document.getElementById("gameStatsModal").classList.add("hidden");
-}
-
-function closeGameStatsModalOnBackdrop(event) {
-  if (event.target.id === "gameStatsModal") closeGameStatsModal();
-}
 
 // Captures who/where for a bug report: the device's player and the screen they
 // are on (and the game/room if any), so reports are actionable without asking.
@@ -828,37 +770,6 @@ function bugReportContext() {
 }
 
 
-function lobbyStatsTable(title, items, valueLabel, valueKey, emptyText) {
-  const table = document.createElement("table");
-  table.className = "lobby-stat-table";
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th scope="col">${escapeHtml(title)}</th>
-        <th scope="col">${escapeHtml(valueLabel)}</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  `;
-  const body = table.querySelector("tbody");
-  const rows = items;
-  if (!rows.length) {
-    const row = document.createElement("tr");
-    row.innerHTML = `<th scope="row">${escapeHtml(emptyText)}</th><td>-</td>`;
-    body.appendChild(row);
-    return table;
-  }
-  rows.forEach((item, index) => {
-    const row = document.createElement("tr");
-    const value = Number(item[valueKey] || (valueKey === "rating" ? 1000 : 0));
-    row.innerHTML = `
-      <th scope="row">${index + 1}. ${escapeHtml(item.player_icon || "")} ${escapeHtml(item.player_name || "Player")}</th>
-      <td>${value}</td>
-    `;
-    body.appendChild(row);
-  });
-  return table;
-}
 
 function roomSummarySignature(room) {
   return {
@@ -2718,10 +2629,7 @@ function handleAppEventMessage(event) {
     lobbyPlayers = message.lobby_players;
     renderLobbyPlayers();
   }
-  if (message.stats) {
-    currentGameStats = message.stats;
-    renderGameStats();
-  }
+  if (message.stats) applyGameStats(message.stats);
   if (
     Array.isArray(message.pending_invites) &&
     message.pending_invites.length &&

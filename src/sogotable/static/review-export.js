@@ -35,6 +35,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/sound.js",
   "src/sogotable/static/controllers/prompts.js",
   "src/sogotable/static/controllers/game-options.js",
+  "src/sogotable/static/controllers/game-stats.js",
   "src/sogotable/static/styles.css",
   "src/sogotable/static/manifest.webmanifest",
   "src/sogotable/static/games/registry.js",
