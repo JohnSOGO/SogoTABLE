@@ -499,6 +499,18 @@ test("Bug reports are stored and listed for the Sogo superuser passcode", async 
   assert.equal(listed.reports[0].description, "Dice did not roll");
   assert.equal(listed.reports[0].screen, "In Game");
   assert.equal(listed.reports[0].room_code, "ABCD");
+
+  // The wrong passcode cannot clear; the correct one empties the store.
+  const wrongClear = await post(env, "/api/bug-reports/clear", { passcode: "0000" });
+  assert.equal(wrongClear.ok, false);
+  const stillThere = await post(env, "/api/bug-reports/list", { passcode: "1234" });
+  assert.equal(stillThere.reports.length, 1);
+
+  const cleared = await post(env, "/api/bug-reports/clear", { passcode: "1234" });
+  assert.equal(cleared.ok, true);
+  assert.equal(cleared.cleared, 1);
+  const afterClear = await post(env, "/api/bug-reports/list", { passcode: "1234" });
+  assert.equal(afterClear.reports.length, 0);
 });
 
 test("rate limits mutating API requests before state writes", async () => {

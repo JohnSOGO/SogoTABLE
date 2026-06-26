@@ -8,7 +8,8 @@
     "test": "npm run test:worker",
     "test:worker": "node --test workers/tests/*.test.js",
     "bench:bots": "node scripts/bench-ten-thousand-bots.mjs",
-    "bugreports": "node scripts/export-bug-reports.mjs"
+    "bugreports": "node scripts/export-bug-reports.mjs",
+    "bugreports:clear": "node scripts/clear-bug-reports.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.0",

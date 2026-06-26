@@ -194,7 +194,7 @@ export default {
 };
 
 async function rateLimitRequest(request, env, url) {
-  if (request.method === "POST" && (url.pathname === "/api/superuser/verify" || url.pathname === "/api/player/reclaim")) {
+  if (request.method === "POST" && (url.pathname === "/api/superuser/verify" || url.pathname === "/api/player/reclaim" || url.pathname === "/api/bug-reports/clear")) {
     const limited = await rateLimitBinding(env.SUPERUSER_RATE_LIMITER, `superuser:${clientRateLimitKey(request)}`);
     if (limited) return rateLimitResponse("Too many superuser attempts. Try again shortly.", SUPERUSER_RATE_LIMIT_RETRY_SECONDS, corsHeadersFor(request));
   }
@@ -628,6 +628,16 @@ async function routeRequest(method, url, payload, data, options = {}) {
         throw new Error("Sogo passcode is incorrect.");
       }
       return { ok: true, reports: Array.isArray(data.bug_reports) ? data.bug_reports : [] };
+    }
+    if (method === "POST" && url.pathname === "/api/bug-reports/clear") {
+      // Admin housekeeping: empty the bug-report store once a batch is handled.
+      // Gated by the Sogo passcode alone, like the export. Mutating (persists).
+      if (!String(superuserPasscode || "").trim() || String(payload.passcode || "") !== String(superuserPasscode)) {
+        throw new Error("Sogo passcode is incorrect.");
+      }
+      const cleared = Array.isArray(data.bug_reports) ? data.bug_reports.length : 0;
+      data.bug_reports = [];
+      return { ok: true, cleared };
     }
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
