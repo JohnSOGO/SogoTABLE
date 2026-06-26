@@ -16,6 +16,30 @@ keeping that shape from rotting as features land.
 This method is adapted from Ozymandias2's modularity doctrine. Ozy is reference
 material only; SogoTable owns its own version.
 
+## Golden Rule
+
+> **The platform owns the table. The game owns the rules. The UI owns the
+> presentation. Persistence owns storage.**
+
+Every modularity decision in this doc reduces to keeping these owners from
+blurring. The boundaries read sharpest as what each owner must **not** touch —
+a violation of this table is wrong until proven otherwise:
+
+| Concern | Owns | Must NOT own |
+|---|---|---|
+| Platform / table | rooms, players, seats, routing, room lifecycle | game-specific rules or scoring |
+| Game rules | legal moves, scoring, win/loss, phase/timing | DOM, network calls, persistence |
+| UI | rendering, button state, animation, local interaction | authoritative move/score/win decisions |
+| Persistence (D1 / Durable Object) | loading/saving durable state | game decision-making |
+| Transport / sync (api-client, Worker routing, room socket) | moving validated requests + snapshots | business rules hidden in messages |
+| Bots | choosing one legal move, submitted through the normal move path | mutating state directly or bypassing validation |
+| Stats | recording outcomes | deciding winners |
+
+The litmus test for any module: name the one concern it owns, then confirm it
+touches nothing in another row's "Owns" column. If you cannot, it is becoming a
+god file — give the stray concern its own owner before it grows. The sections
+below are how this rule is applied and enforced.
+
 ## Core Doctrine
 
 - Give every responsibility exactly one clear owner.

@@ -62,6 +62,9 @@ If the idea is still fuzzy or architecture-shaping, run AREC before implementati
 
 ## Core Doctrine
 
+- **Modularity golden rule:** the platform owns the table, the game owns the
+  rules, the UI owns the presentation, persistence owns storage. (Full ownership
+  table in [Modularity](modularity.md).)
 - Make correct behavior the easy path.
 - Keep rules, transport, and UI separate.
 - Prefer event-driven updates over periodic polling.
