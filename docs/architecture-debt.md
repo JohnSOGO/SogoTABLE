@@ -5,8 +5,8 @@ This ledger records known compromises that are acceptable for the current family
 ## Current Compromises
 
 - The Worker still stores shared app state as one optimistic-lock D1 JSON row. Durable Objects serialize room creation and active room mutations, but roster, lobby, stats, and backfill reads still share the same document.
-- `workers/sogotable-api.js` still contains platform routing, persistence, game rules, bots, projections, and Durable Object classes in one file.
-- `src/sogotable/static/app.js` still owns most browser shell state, screen rendering, API orchestration, local storage, and per-game interaction glue.
+- `workers/sogotable-api.js` still contains platform routing, persistence, Durable Object classes, and the two default games' rules — but four games' rules now live in modules (see the 2026-06-26 review response below); 4299 → 2384 lines.
+- `src/sogotable/static/app.js` still owns most browser shell state, screen rendering, API orchestration, and most per-game interaction glue — but the registry, review-export, render-keys, storage, and the Dots-and-Boxes client now live in modules; 4389 → 3893 lines.
 - CSS remains in one broad app stylesheet plus a few game-local files.
 - The browser uses the deployed API origin for static local previews. A configurable local API origin is deferred until it unlocks real local multiplayer testing.
 - API errors are still string-based. Typed error codes are deferred until clients need richer recovery behavior.
@@ -28,3 +28,19 @@ This ledger records known compromises that are acceptable for the current family
 - Add typed error identifiers when at least two client flows need distinct recovery handling for the same endpoint.
 - Tune rate limits with real traffic evidence before broad public sharing outside the current family playtest group.
 - Automate service-worker cache versioning from build metadata before frequent public releases.
+
+## 2026-06-26 critical review response (in progress)
+
+An external critical review (`AI/sogotable-critical-review-2026-06-26.md`, ignored intake — not committed) flagged the two god-files as the main scaling drag. We accepted the proportionate parts and explicitly **deferred S1-4 (partitioning the single D1 JSON row)** as premature for family-table scale; the optimistic-lock blob stays until public usage forces it. The extraction method and the recurring constant-dependency gotcha are recorded in the agent memory note `game-module-extraction`.
+
+**Phase 1 — done & verified live:**
+- `games/registry.js` — single source of truth for game metadata; the Worker (esbuild-bundled) and the browser both import it, killing the split-brain `GAME_DEFINITIONS`/`fallbackGames`. A guard test forbids re-hardcoding game ids.
+- Extracted `review-export.js`, `games/render-keys.js`, `storage.js` out of `app.js`.
+- Architecture guard tests (`workers/tests/architecture.test.js`) ratchet line-count ceilings (app 4050, worker 2450, css 2800) and enforce registry single-source. Lower a ceiling whenever code is extracted.
+
+**Phase 2 — game modules (one vertical slice per game):**
+- Done & live: Dots and Boxes (`workers/games/boxes/rules.js` + `games/boxes/client.js`), Battleship rules **incl. the per-viewer hidden-information sanitizer** (`workers/games/battleship/rules.js`), 10,000 (`workers/games/ten-thousand/rules.js`), Quoridor (`workers/games/quoridor/rules.js`). Shared helpers in `workers/games/{bots,util}.js`. The Worker keeps each `is<Game>Game` dispatch predicate and room-coupled wrappers.
+- Remaining:
+  - **Super-Tic-Tac-Toe + Tactical worker rules** — the trickiest slice, NOT a clean lift: it is the default game woven directly into the `newGame` (inline object creation), `gameToDict`, and `chooseBotMove` dispatchers, with an interleaved scored bot (`chooseScoredBotMove`/`scoreBotMove`) and `TACTICAL_PICKUP_CONFIG`/`WIN_LINES` shared between bot and rules. Needs real dispatcher refactoring (extract inline creation into a `newSuperTicTacToe` fn; move rules + the two consts to the module and import them back into the kept bot/dispatchers).
+  - Client adapters for Battleship (entangled: the stateful reveal-queue/timers/`battleshipViewMode` globals stay in the shell), 10,000 (render module exists; actions/sound still in the shell), and Quoridor.
+  - Capstone: convert `newGame`/`gameToDict`/`legalMoves`/`chooseBotMove`/`makeMove` from if/else chains into generic registry dispatch once every game is a module.
