@@ -16,6 +16,7 @@ import { renderBattleshipGame, clearBattleshipDraft } from "./games/battleship/c
 import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
 import { wireGameOptions } from "./controllers/game-options.js";
 import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKey, wireGameStats } from "./controllers/game-stats.js";
+import { scheduleWinOverlay, hideWinOverlay, wireWinOverlay, resetWinCelebration } from "./controllers/win-overlay.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
   SOGO_SUPERUSER_PASSCODE_KEY,
@@ -174,12 +175,10 @@ let battleshipRevealQueue = [];
 let battleshipReviewMark = "";
 let lastTenThousandFarkleNoticeKey = "";
 let lastRenderedRoomKey = "";
-let lastCelebratedWinKey = "";
 let pendingMove = null;
 const BATTLESHIP_RADAR_MS = 1000;          // radar scan before the hit/miss lands
 const BATTLESHIP_RESULT_MS = 2000;         // how long the hit/miss stays up
 const BATTLESHIP_DEFENCE_SETTLE_MS = 250;  // let the defence board settle before an incoming reveal
-let winOverlayTimer = null;
 let localGameHomePlayers = loadLocalGameHomePlayers();
 let playerOwnerTokens = loadPlayerOwnerTokens();
 let handledResetRequestKey = "";
@@ -238,8 +237,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("superCloseRoom").addEventListener("click", closeCurrentRoomAsSuperuser);
   document.getElementById("resetGame").addEventListener("click", resetGame);
   wirePromptControls();
-  const closeWinOverlay = document.getElementById("closeWinOverlay");
-  if (closeWinOverlay) closeWinOverlay.addEventListener("click", hideWinOverlay);
+  wireWinOverlay({ getRoom: () => currentRoom });
   bindRefreshTitleControls();
   realtime.connectAppEvents();
 });
@@ -1562,7 +1560,7 @@ async function resetGame() {
     return;
   }
   hideWinOverlay();
-  lastCelebratedWinKey = "";
+  resetWinCelebration();
   lastRenderedRoomKey = "";
   const response = await api("/api/room/reset", { code: currentRoom.code, requester_id: player.id, owner_token: await ensureOwnerToken(player.id) });
   setRoom(response.room);
@@ -2542,47 +2540,6 @@ function isQuoridorGameState(game) {
 
 function isTenThousandGameState(game) {
   return Boolean(game && canonicalGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
-}
-
-function scheduleWinOverlay(player, mark) {
-  const winKey = `${currentRoom.code}:${currentRoom.game.move_count}:${mark}`;
-  if (lastCelebratedWinKey === winKey) return;
-  lastCelebratedWinKey = winKey;
-  if (winOverlayTimer) clearTimeout(winOverlayTimer);
-  winOverlayTimer = setTimeout(() => showWinOverlay(player, mark), 1000);
-}
-
-function showWinOverlay(player, mark) {
-  const overlay = document.getElementById("winOverlay");
-  const message = document.getElementById("winMessage");
-  const winMark = document.getElementById("winMark");
-  winMark.textContent = player ? player.icon : mark || "";
-  winMark.style.background = player ? player.color : "";
-  winMark.style.color = player ? getContrastAwareTextColor(player.color) : "";
-  message.textContent = `${player ? player.name : mark} won!`;
-  renderConfetti();
-  overlay.classList.remove("hidden");
-}
-
-function hideWinOverlay() {
-  if (winOverlayTimer) clearTimeout(winOverlayTimer);
-  winOverlayTimer = null;
-  document.getElementById("winOverlay").classList.add("hidden");
-}
-
-function renderConfetti() {
-  const host = document.getElementById("confetti");
-  host.innerHTML = "";
-  const colors = ["#1f7a5f", "#1e63d6", "#c43d5d", "#facc15", "#8a4bd1"];
-  for (let index = 0; index < 56; index += 1) {
-    const piece = document.createElement("span");
-    piece.style.left = `${Math.random() * 100}%`;
-    piece.style.background = colors[index % colors.length];
-    piece.style.animationDelay = `${Math.random() * 0.45}s`;
-    piece.style.animationDuration = `${1.6 + Math.random() * 0.8}s`;
-    piece.style.transform = `rotate(${Math.random() * 180}deg)`;
-    host.appendChild(piece);
-  }
 }
 
 function startRoomLiveUpdates() {
