@@ -534,6 +534,13 @@ function renderGames() {
   const host = document.getElementById("gamesList");
   host.innerHTML = "";
   const hasPlayer = Boolean(deviceSelectedPlayer());
+  // Hide the games entirely until a player is chosen — the player panel above
+  // guides selection, and an empty greyed-out list reads as broken.
+  const section = document.getElementById("gamesSection");
+  const needPlayer = document.getElementById("gamesNeedPlayer");
+  if (section) section.classList.toggle("hidden", !hasPlayer);
+  if (needPlayer) needPlayer.classList.toggle("hidden", hasPlayer);
+  if (!hasPlayer) return;
   games.forEach((game) => {
     const ready = gameIsReady(game);
     const button = document.createElement("button");
@@ -541,11 +548,8 @@ function renderGames() {
     button.className = `game-card ${game.id === selectedGameId ? "selected" : ""}`;
     button.dataset.gameId = game.id;
     button.textContent = game.name;
-    button.disabled = !hasPlayer || !ready;
-    if (!hasPlayer) {
-      button.title = "Select or create a player first.";
-      button.setAttribute("aria-label", `${game.name}. Select or create a player first.`);
-    } else if (!ready) {
+    button.disabled = !ready;
+    if (!ready) {
       button.title = gameAvailabilityText(game);
       button.setAttribute("aria-label", `${game.name}. ${gameAvailabilityText(game)}`);
     }

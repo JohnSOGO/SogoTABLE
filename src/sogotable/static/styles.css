@@ -409,6 +409,12 @@ p,
   gap: 10px;
 }
 
+.games-need-player {
+  margin: 4px 2px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .section-heading {
   display: grid;
   grid-template-columns: 1fr auto;
