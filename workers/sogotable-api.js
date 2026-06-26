@@ -1594,9 +1594,8 @@ function runBotTurns(data, room) {
 function chooseBotMove(game, bot = null) {
   const moves = legalMoves(game);
   if (!moves.length) return null;
-  if (isBattleshipGame(game)) return chooseBattleshipBotMove(game, bot, moves);
-  if (isQuoridorGame(game)) return chooseQuoridorBotMove(game, bot, moves);
-  if (isBoxesGame(game)) return chooseBoxesBotMove(game, moves);
+  const handler = GAME_HANDLERS.find((entry) => entry.bot && entry.is(game));
+  if (handler) return handler.bot(game, bot, moves);
   if (bot && bot.strategy === "smart") return chooseScoredBotMove(game, bot, moves);
   return moves[Math.floor(Math.random() * moves.length)];
 }
@@ -1744,10 +1743,8 @@ function scorePickup(game, move) {
 }
 
 function legalMoves(game) {
-  if (isTenThousandGame(game)) return []; // dice game; bots resolve via their own engine
-  if (isBattleshipGame(game)) return battleshipLegalMoves(game);
-  if (isQuoridorGame(game)) return quoridorLegalMoves(game);
-  if (isBoxesGame(game)) return boxesLegalMoves(game);
+  const handler = GAME_HANDLERS.find((entry) => entry.is(game));
+  if (handler) return handler.legalMoves(game);
   if (!game || game.status !== "playing") return [];
   const moves = [];
   legalBoards(game).forEach((boardIndex) => {
@@ -1800,12 +1797,24 @@ function pruneLobbyViewers(data) {
   });
 }
 
+// Per-game dispatch table. Now that every game's rules live in a module, the
+// newGame/gameToDict/legalMoves/chooseBotMove dispatchers route through this one
+// table instead of parallel if/else chains — adding a game is one row here (plus
+// its rules module and `is<Game>Game` predicate). Super-Tic-Tac-Toe and Tactical
+// are the inline default fallthrough (they share board creation and the macro
+// `legal_boards` projection), so they have no row. `bot` is absent where a game
+// resolves bots through its own engine (10,000) or has no entry.
+const GAME_HANDLERS = [
+  { id: TEN_THOUSAND_GAME_ID, is: isTenThousandGame, create: newTenThousandGame, toDict: tenThousandGameToDict, legalMoves: () => [] },
+  { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves) },
+  { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves) },
+  { id: BOXES_GAME_ID, is: isBoxesGame, create: newBoxesGame, toDict: boxesGameToDict, legalMoves: boxesLegalMoves, bot: (game, bot, moves) => chooseBoxesBotMove(game, moves) },
+];
+
 function newGame(gameId = DEFAULT_GAME_ID) {
   const canonicalGameId = cleanGameId(gameId);
-  if (canonicalGameId === BATTLESHIP_GAME_ID) return newBattleshipGame();
-  if (canonicalGameId === QUORIDOR_GAME_ID) return newQuoridorGame();
-  if (canonicalGameId === BOXES_GAME_ID) return newBoxesGame();
-  if (canonicalGameId === TEN_THOUSAND_GAME_ID) return newTenThousandGame();
+  const handler = GAME_HANDLERS.find((entry) => entry.id === canonicalGameId);
+  if (handler) return handler.create();
   const game = {
     game_id: canonicalGameId,
     boards: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null)),
@@ -1831,10 +1840,8 @@ function newGame(gameId = DEFAULT_GAME_ID) {
 }
 
 function gameToDict(game) {
-  if (isTenThousandGame(game)) return tenThousandGameToDict(game);
-  if (isBattleshipGame(game)) return battleshipGameToDict(game);
-  if (isQuoridorGame(game)) return quoridorGameToDict(game);
-  if (isBoxesGame(game)) return boxesGameToDict(game);
+  const handler = GAME_HANDLERS.find((entry) => entry.is(game));
+  if (handler) return handler.toDict(game);
   return { ...game, game_id: cleanGameId(game.game_id), legal_boards: legalBoards(game) };
 }
 
