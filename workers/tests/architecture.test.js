@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const lineCount = (rel) => readFileSync(join(root, rel), "utf8").split("\n").length;
 
 const CEILINGS = {
-  "src/sogotable/static/app.js": 3700,
+  "src/sogotable/static/app.js": 3350,
   "workers/sogotable-api.js": 2200,
   "src/sogotable/static/styles.css": 2800,
 };
