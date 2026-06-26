@@ -13,7 +13,7 @@ const lineCount = (rel) => readFileSync(join(root, rel), "utf8").split("\n").len
 
 const CEILINGS = {
   "src/sogotable/static/app.js": 4050,
-  "workers/sogotable-api.js": 3650,
+  "workers/sogotable-api.js": 2900,
   "src/sogotable/static/styles.css": 2800,
 };
 
