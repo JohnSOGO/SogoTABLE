@@ -1,3 +1,7 @@
+// Game metadata is shared with the browser app from one registry module so the
+// two can't drift. esbuild bundles this relative import into the Worker.
+import { GAME_REGISTRY, GAME_IDS } from "../src/sogotable/static/games/registry.js";
+
 const LOBBY_VIEWER_TTL_SECONDS = 45;
 const ROOM_SEAT_COLORS = [
   "#1f7a5f",
@@ -28,70 +32,13 @@ const WIN_LINES = [
   [0, 4, 8],
   [2, 4, 6],
 ];
-const GAME_DEFINITIONS = [
-  {
-    id: "a3f19c6e42b8",
-    name: "Super Tic Tac Toe",
-    summary: "A nested tic tac toe duel where every move sends the next player to a target board.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-    aliases: ["super_tic_tac_toe"],
-  },
-  {
-    id: "d7e4a91f0c23",
-    name: "Super Tic Tactical Toe",
-    summary: "Ultimate tic tac toe with tactical coin and treasure pickups for bonus points.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-    aliases: ["super_tactical_tac_toe"],
-  },
-  {
-    id: "4b7e2d9a6c10",
-    name: "Dots and Boxes",
-    summary: "Claim edges between dots, complete boxes, and keep the turn when you score.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-    aliases: ["boxes", "dots_and_boxes", "dots_and_dashes"],
-  },
-  {
-    id: "9c2f7a81d4e6",
-    name: "Battleship",
-    summary: "Place your fleet, switch between defence and offence, and sink the enemy ships.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-    aliases: ["battleship", "battle_ship"],
-  },
-  {
-    id: "8f5d2c7a1b90",
-    name: "Quoridor",
-    summary: "Race your pawn across the board while placing walls that slow your opponent without blocking every path.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-    aliases: ["quoridor"],
-  },
-  {
-    id: "6d10f4a2c8b3",
-    name: "10,000",
-    summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
-    players: "1+ players",
-    player_count: null,
-    host_start: true,
-    status: "Ready",
-    availability: "ready",
-    aliases: ["ten_thousand", "10000", "dice_10000"],
-  },
-];
-const DEFAULT_GAME_ID = GAME_DEFINITIONS[0].id;
-const TACTICAL_GAME_ID = GAME_DEFINITIONS[1].id;
-const BOXES_GAME_ID = GAME_DEFINITIONS[2].id;
-const BATTLESHIP_GAME_ID = GAME_DEFINITIONS[3].id;
-const QUORIDOR_GAME_ID = GAME_DEFINITIONS[4].id;
-const TEN_THOUSAND_GAME_ID = GAME_DEFINITIONS[5].id;
+const GAME_DEFINITIONS = GAME_REGISTRY;
+const DEFAULT_GAME_ID = GAME_IDS.classic;
+const TACTICAL_GAME_ID = GAME_IDS.tactical;
+const BOXES_GAME_ID = GAME_IDS.boxes;
+const BATTLESHIP_GAME_ID = GAME_IDS.battleship;
+const QUORIDOR_GAME_ID = GAME_IDS.quoridor;
+const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
 const GAME_ID_ALIASES = new Map();
 GAME_DEFINITIONS.forEach((game) => {
   GAME_ID_ALIASES.set(game.id, game.id);

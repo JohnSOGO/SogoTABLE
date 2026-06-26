@@ -8,6 +8,7 @@ import {
 } from "./color-utils.js";
 import { avatarHtml, escapeHtml } from "./html-utils.js";
 import { createRealtimeController } from "./realtime.js";
+import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
 import {
@@ -136,12 +137,12 @@ const REVIEW_EXPORT_FILES = [
   "docs/wu-wei-method.md",
 ];
 const CRC32_TABLE = makeCrc32Table();
-const CLASSIC_GAME_ID = "a3f19c6e42b8";
-const TACTICAL_GAME_ID = "d7e4a91f0c23";
-const BOXES_GAME_ID = "4b7e2d9a6c10";
-const BATTLESHIP_GAME_ID = "9c2f7a81d4e6";
-const QUORIDOR_GAME_ID = "8f5d2c7a1b90";
-const TEN_THOUSAND_GAME_ID = "6d10f4a2c8b3";
+const CLASSIC_GAME_ID = GAME_IDS.classic;
+const TACTICAL_GAME_ID = GAME_IDS.tactical;
+const BOXES_GAME_ID = GAME_IDS.boxes;
+const BATTLESHIP_GAME_ID = GAME_IDS.battleship;
+const QUORIDOR_GAME_ID = GAME_IDS.quoridor;
+const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
 const BATTLESHIP_ATTACK_PHRASES = [
   "Incoming!",
   "Fire!",
@@ -179,64 +180,9 @@ const BATTLESHIP_SUNK_PHRASES = [
   "Sent to the deep.",
   "Confirmed kill.",
 ];
-const fallbackGames = [
-  {
-    id: CLASSIC_GAME_ID,
-    aliases: ["super_tic_tac_toe"],
-    name: "Super Tic Tac Toe",
-    summary: "A nested tic tac toe duel where every move sends the next player to a target board.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-  },
-  {
-    id: TACTICAL_GAME_ID,
-    aliases: ["super_tactical_tac_toe"],
-    name: "Super Tic Tactical Toe",
-    summary: "Ultimate tic tac toe with tactical coin and treasure pickups for bonus points.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-  },
-  {
-    id: BOXES_GAME_ID,
-    aliases: ["boxes", "dots_and_boxes", "dots_and_dashes"],
-    name: "Dots and Boxes",
-    summary: "Claim edges between dots, complete boxes, and keep the turn when you score.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-  },
-  {
-    id: BATTLESHIP_GAME_ID,
-    aliases: ["battleship", "battle_ship"],
-    name: "Battleship",
-    summary: "Place your fleet, switch between defence and offence, and sink the enemy ships.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-  },
-  {
-    id: QUORIDOR_GAME_ID,
-    aliases: ["quoridor"],
-    name: "Quoridor",
-    summary: "Race your pawn across the board while placing walls to slow your opponent.",
-    players: "2 players",
-    status: "Ready",
-    availability: "ready",
-  },
-  {
-    id: TEN_THOUSAND_GAME_ID,
-    aliases: ["ten_thousand", "10000", "dice_10000"],
-    name: "10,000",
-    summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
-    players: "1+ players",
-    player_count: null,
-    host_start: true,
-    status: "Ready",
-    availability: "ready",
-  },
-];
+// Shown only when the games fetch fails; the registry is the single source of
+// truth shared with the Worker (see games/registry.js).
+const fallbackGames = GAME_REGISTRY;
 let games = [...fallbackGames];
 
 migrateStorageNamespace();
