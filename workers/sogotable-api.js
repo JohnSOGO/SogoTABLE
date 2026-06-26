@@ -115,6 +115,15 @@ const OWNER_TOKEN_BYTES = 24;
 const DEFAULT_ELO_RATING = 1000;
 const ELO_K_FACTOR = 32;
 
+// Side-effect policy for the shared-state path: by default any non-GET request
+// mutates the state blob and fans out room/event notifications. POST endpoints
+// that only READ shared state must be declared here so they skip the save +
+// notify — keeping the policy explicit in one place instead of guessed per
+// request. Add a path here only if its handler performs no state mutation.
+const READ_ONLY_POST_PATHS = new Set([
+  "/api/superuser/verify",
+  "/api/bug-reports/list",
+]);
 
 export default {
   async fetch(request, env) {
@@ -156,8 +165,7 @@ export default {
       });
       // Read-only POSTs (passcode/verify, bug-report export) must not rewrite the
       // shared state blob or fan out room/event notifications.
-      const readOnlyPost = url.pathname === "/api/superuser/verify" || url.pathname === "/api/bug-reports/list";
-      if (request.method !== "GET" && !readOnlyPost) {
+      if (request.method !== "GET" && !READ_ONLY_POST_PATHS.has(url.pathname)) {
         await saveState(env, data);
         await notifyRoomObject(env, response);
         await notifyEventHub(env, data, response);
