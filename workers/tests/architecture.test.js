@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -41,4 +42,25 @@ test("architecture: game definitions live only in the shared registry", () => {
     assert.ok(!worker.includes(`"${id}"`), `Worker hardcodes game id ${id}; use GAME_IDS from the registry`);
     assert.ok(!app.includes(`"${id}"`), `App hardcodes game id ${id}; use GAME_IDS from the registry`);
   }
+});
+
+// The Sogo review-export ZIP fetches an allowlist of files from GitHub main and
+// aborts on the first 404. A renamed/moved/deleted source file (or a case change
+// like Quoridor/ -> quoridor/) silently breaks the export. This guard pins every
+// listed path to a tracked file (git is case-sensitive, matching GitHub), so the
+// export can't drift out from under us — when you extract a new module, add it to
+// REVIEW_EXPORT_FILES and this test confirms it resolves.
+test("architecture: review-export allowlist only lists tracked files", () => {
+  const src = readFileSync(join(root, "src/sogotable/static/review-export.js"), "utf8");
+  const start = src.indexOf("REVIEW_EXPORT_FILES = [");
+  const block = src.slice(start, src.indexOf("];", start));
+  const paths = [...block.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(paths.length > 0, "Could not parse REVIEW_EXPORT_FILES");
+  const tracked = new Set(execSync("git ls-files", { cwd: root }).toString().split("\n"));
+  const missing = paths.filter((p) => !tracked.has(p));
+  assert.deepEqual(
+    missing,
+    [],
+    `review-export lists files not tracked in git (the export would 404 on these): ${missing.join(", ")}`,
+  );
 });
