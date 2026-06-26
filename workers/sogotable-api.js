@@ -1,6 +1,11 @@
 // Game metadata is shared with the browser app from one registry module so the
 // two can't drift. esbuild bundles this relative import into the Worker.
 import { GAME_REGISTRY, GAME_IDS } from "../src/sogotable/static/games/registry.js";
+// Platform + persistence helpers (extracted so the Worker entry owns routing, not
+// HTTP/CORS/rate-limit/storage plumbing).
+import { json, readJson, corsHeadersFor } from "./platform/http.js";
+import { rateLimitRequest } from "./platform/rate-limit.js";
+import { loadState, saveState, withStateRetry } from "./persistence/state.js";
 // Per-game rules modules (Phase 2). The Worker keeps the dispatch predicates and
 // routing; each game's server-authoritative rules live in its own module.
 import {
@@ -109,18 +114,7 @@ const RESERVED_TEST_PLAYER_IDS = new Set(RESERVED_TEST_PLAYERS.map((player) => p
 const OWNER_TOKEN_BYTES = 24;
 const DEFAULT_ELO_RATING = 1000;
 const ELO_K_FACTOR = 32;
-const MUTATION_RATE_LIMIT_RETRY_SECONDS = 60;
-const SUPERUSER_RATE_LIMIT_RETRY_SECONDS = 60;
 
-const allowedOrigins = new Set([
-  "https://sogotable.sogodojo.com",
-  "https://sogotable.pages.dev",
-]);
-
-const baseCorsHeaders = {
-  "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
 
 export default {
   async fetch(request, env) {
@@ -175,39 +169,6 @@ export default {
   },
 };
 
-async function rateLimitRequest(request, env, url) {
-  if (request.method === "POST" && (url.pathname === "/api/superuser/verify" || url.pathname === "/api/player/reclaim" || url.pathname === "/api/bug-reports/clear")) {
-    const limited = await rateLimitBinding(env.SUPERUSER_RATE_LIMITER, `superuser:${clientRateLimitKey(request)}`);
-    if (limited) return rateLimitResponse("Too many superuser attempts. Try again shortly.", SUPERUSER_RATE_LIMIT_RETRY_SECONDS, corsHeadersFor(request));
-  }
-  if (!mutationRateLimitedMethod(request.method)) return null;
-  const limited = await rateLimitBinding(env.API_MUTATION_RATE_LIMITER, `mutation:${clientRateLimitKey(request)}`);
-  if (!limited) return null;
-  return rateLimitResponse("Too many requests. Try again shortly.", MUTATION_RATE_LIMIT_RETRY_SECONDS, corsHeadersFor(request));
-}
-
-function mutationRateLimitedMethod(method) {
-  return ["POST", "DELETE"].includes(method);
-}
-
-async function rateLimitBinding(binding, key) {
-  if (!binding || typeof binding.limit !== "function") return false;
-  const outcome = await binding.limit({ key });
-  return outcome && outcome.success === false;
-}
-
-function clientRateLimitKey(request) {
-  const headers = request.headers;
-  const value = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || headers.get("x-real-ip") || "unknown";
-  return String(value).split(",")[0].trim() || "unknown";
-}
-
-function rateLimitResponse(message, retryAfterSeconds, corsHeaders) {
-  return json({ ok: false, error: message }, 429, {
-    ...corsHeaders,
-    "Retry-After": String(retryAfterSeconds),
-  });
-}
 
 export class RoomDurableObject {
   constructor(state, env) {
@@ -1058,92 +1019,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function loadState(env) {
-  await ensureSchema(env);
-  const row = await env.SOGOTABLE_STATE.prepare("SELECT value, version FROM app_state WHERE key = ?").bind("state").first();
-  const data = row ? JSON.parse(row.value) : { players: [], rooms: {}, invites: {}, lobbyViewers: {} };
-  if (!data.stats) data.stats = { high_scores: {}, ratings: {}, personal: {} };
-  if (!data.stats.high_scores) data.stats.high_scores = {};
-  if (!data.stats.ratings) data.stats.ratings = {};
-  if (!data.stats.personal) data.stats.personal = {};
-  Object.defineProperties(data, {
-    __stateExists: { value: Boolean(row), enumerable: false },
-    __version: { value: row ? Number(row.version || 0) : 0, enumerable: false },
-  });
-  return data;
-}
-
-async function saveState(env, data) {
-  await ensureSchema(env);
-  const value = JSON.stringify(data);
-  if (!data.__stateExists) {
-    const inserted = await env.SOGOTABLE_STATE.prepare(
-      "INSERT INTO app_state (key, value, version) VALUES (?, ?, 0) ON CONFLICT(key) DO NOTHING"
-    ).bind("state", value).run();
-    if (writeChanged(inserted)) return;
-    throw new Error("State changed while saving. Please retry.");
-  }
-  const updated = await env.SOGOTABLE_STATE.prepare(
-    "UPDATE app_state SET value = ?, version = version + 1 WHERE key = ? AND version = ?"
-  ).bind(value, "state", data.__version).run();
-  if (!writeChanged(updated)) throw new Error("State changed while saving. Please retry.");
-}
-
-async function withStateRetry(action) {
-  let lastError;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      return await action();
-    } catch (error) {
-      lastError = error;
-      if (!String(error.message || "").includes("State changed while saving")) throw error;
-    }
-  }
-  throw lastError;
-}
-
-async function ensureSchema(env) {
-  await env.SOGOTABLE_STATE.prepare(
-    "CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0)"
-  ).run();
-  try {
-    await env.SOGOTABLE_STATE.prepare(
-      "ALTER TABLE app_state ADD COLUMN version INTEGER NOT NULL DEFAULT 0"
-    ).run();
-  } catch {
-    // Existing databases already have this column after the first migration.
-  }
-}
-
-async function readJson(request) {
-  const text = await request.text();
-  return text ? JSON.parse(text) : {};
-}
-
-function json(payload, status = 200, headers = baseCorsHeaders) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
-  });
-}
-
-function corsHeadersFor(request) {
-  const origin = request.headers.get("Origin");
-  if (!origin) return { ...baseCorsHeaders, "Access-Control-Allow-Origin": "*" };
-  if (
-    allowedOrigins.has(origin) ||
-    /^https:\/\/[a-z0-9-]+\.sogotable\.pages\.dev$/.test(origin) ||
-    /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
-  ) {
-    return { ...baseCorsHeaders, "Access-Control-Allow-Origin": origin, Vary: "Origin" };
-  }
-  return null;
-}
-
-function writeChanged(result) {
-  const changes = result && result.meta && typeof result.meta.changes === "number" ? result.meta.changes : 1;
-  return changes > 0;
-}
 
 function cleanGameId(gameId) {
   const value = String(gameId || DEFAULT_GAME_ID).trim() || DEFAULT_GAME_ID;
