@@ -2953,9 +2953,9 @@ function renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, o
   panel.className = "battleship-panel";
   panel.innerHTML = `
     <div class="battleship-toolbar segmented">
-      <button type="button" data-view="auto" class="${battleshipViewMode === "auto" ? "selected" : ""}">Auto</button>
-      <button type="button" data-view="offence" class="${activeView === "offence" ? "active-mode" : ""} ${activeView === "offence" && battleshipViewMode !== "auto" ? "selected" : ""}">Offence</button>
-      <button type="button" data-view="defence" class="${activeView === "defence" ? "active-mode" : ""} ${activeView === "defence" && battleshipViewMode !== "auto" ? "selected" : ""}">Defence</button>
+      <button type="button" data-view="auto" class="${battleshipViewMode === "auto" ? "selected" : ""}">🎯🔄🛡️ Auto</button>
+      <button type="button" data-view="offence" class="${activeView === "offence" ? "active-mode" : ""} ${activeView === "offence" && battleshipViewMode !== "auto" ? "selected" : ""}">🎯 Offence</button>
+      <button type="button" data-view="defence" class="${activeView === "defence" ? "active-mode" : ""} ${activeView === "defence" && battleshipViewMode !== "auto" ? "selected" : ""}">🛡️ Defence</button>
     </div>
     <div class="battleship-board-title"></div>
     <div class="battleship-grid" role="grid"></div>
