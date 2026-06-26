@@ -11,6 +11,17 @@ import { createRealtimeController } from "./realtime.js";
 import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
 import { buildRoomRenderKey } from "./games/render-keys.js";
 import { downloadReviewZip } from "./review-export.js";
+import {
+  SOGO_SUPERUSER_PASSCODE_KEY,
+  PLAYER_OWNER_TOKEN_STORAGE_KEY,
+  LOCAL_GAME_HOME_PLAYERS_KEY,
+  loadLocalGameHomePlayers,
+  loadPlayerOwnerTokens,
+  actionLabelStyle,
+  setActionLabelStyle,
+  purgeDeprecatedLocalRoster,
+  migrateStorageNamespace,
+} from "./storage.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
 import {
@@ -59,9 +70,6 @@ const paletteColors = [
   "#be123c",
   "#334155",
 ];
-const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
-const SOGO_SUPERUSER_PASSCODE_KEY = "sogotable.sogoSuperuserPasscode";
-const PLAYER_OWNER_TOKEN_STORAGE_KEY = "sogotable.playerOwnerTokens";
 const CLASSIC_GAME_ID = GAME_IDS.classic;
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -811,13 +819,6 @@ function closeGameStatsModalOnBackdrop(event) {
   if (event.target.id === "gameStatsModal") closeGameStatsModal();
 }
 
-// Per-device display preference (like the sound toggle): action buttons show
-// emojis by default, or brief words when the player opts in.
-const ACTION_LABELS_STORAGE_KEY = "sogotable.actionLabels";
-function actionLabelStyle() {
-  return localStorage.getItem(ACTION_LABELS_STORAGE_KEY) === "words" ? "words" : "emoji";
-}
-
 function openGameOptionsModal() {
   const checkbox = document.getElementById("optionActionWords");
   if (checkbox) checkbox.checked = actionLabelStyle() === "words";
@@ -860,7 +861,7 @@ function closeGameOptionsModalOnBackdrop(event) {
 }
 
 function onActionWordsToggle(event) {
-  localStorage.setItem(ACTION_LABELS_STORAGE_KEY, event.target.checked ? "words" : "emoji");
+  setActionLabelStyle(event.target.checked);
   renderGame();
 }
 
@@ -3916,24 +3917,8 @@ async function refreshPlayers() {
   }
 }
 
-function loadLocalGameHomePlayers() {
-  try {
-    return JSON.parse(localStorage.getItem("sogotable.localGameHomePlayers") || "{}");
-  } catch {
-    return {};
-  }
-}
-
 function saveLocalGameHomePlayers() {
-  localStorage.setItem("sogotable.localGameHomePlayers", JSON.stringify(localGameHomePlayers));
-}
-
-function loadPlayerOwnerTokens() {
-  try {
-    return JSON.parse(localStorage.getItem(PLAYER_OWNER_TOKEN_STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
+  localStorage.setItem(LOCAL_GAME_HOME_PLAYERS_KEY, JSON.stringify(localGameHomePlayers));
 }
 
 function savePlayerOwnerTokens() {
@@ -3998,30 +3983,6 @@ function saveSelectedPlayer() {
   sessionStorage.setItem("sogotable.deviceSelectedPlayerId", deviceSelectedPlayerId);
   localStorage.setItem("sogotable.selectedPlayerId", deviceSelectedPlayerId);
   localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
-}
-
-function purgeDeprecatedLocalRoster() {
-  localStorage.removeItem("sogotable.players");
-  localStorage.removeItem("sogotable.playersMigrated");
-  localStorage.removeItem(`${LEGACY_STORAGE_PREFIX}.players`);
-  localStorage.removeItem(`${LEGACY_STORAGE_PREFIX}.playersMigrated`);
-}
-
-function migrateStorageNamespace() {
-  const keys = [
-    "selectedPlayerId",
-    "deviceSelectedPlayerId",
-    "deviceSelectionHash",
-    "selectedGameId",
-    "localGameHomePlayers",
-  ];
-  keys.forEach((key) => {
-    const oldKey = `${LEGACY_STORAGE_PREFIX}.${key}`;
-    const newKey = `sogotable.${key}`;
-    if (localStorage.getItem(newKey) === null && localStorage.getItem(oldKey) !== null) {
-      localStorage.setItem(newKey, localStorage.getItem(oldKey));
-    }
-  });
 }
 
 function showRosterError(message) {
