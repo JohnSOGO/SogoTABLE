@@ -9,6 +9,7 @@ import {
 import { avatarHtml, escapeHtml } from "./html-utils.js";
 import { createRealtimeController } from "./realtime.js";
 import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
+import { buildRoomRenderKey } from "./games/render-keys.js";
 import { downloadReviewZip } from "./review-export.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
@@ -3870,80 +3871,7 @@ function gameAvailabilityText(game) {
 
 function roomRenderKey(room) {
   if (!room) return "";
-  const gameId = canonicalGameId(room.game.game_id);
-  const tenThousandSeats = gameId === "ten_thousand" && Array.isArray(room.game.players)
-    ? room.game.players.map((seat) => ({
-      mark: seat.mark,
-      phase: seat.phase,
-      resolved: seat.resolved,
-      finish_state: seat.finish_state,
-      score: seat.score,
-      turn_score: seat.turn_score,
-      round_score: seat.round_score,
-      farkles: seat.farkles,
-      roll_count: seat.roll_count,
-    }))
-    : null;
-  return JSON.stringify({
-    code: room.code,
-    revision: room.revision,
-    game_epoch: room.game_epoch,
-    started: room.started,
-    status: room.status,
-    local_mode: room.local_mode,
-    players: room.players.map((player) => ({
-      id: player.id,
-      name: player.name,
-      icon: player.icon,
-      color: player.color,
-      mark: player.mark,
-    })),
-    game: {
-      game_id: gameId,
-      boards: room.game.boards,
-      small_winners: room.game.small_winners,
-      current_player: room.game.current_player,
-      next_board: room.game.next_board,
-      status: room.game.status,
-      winner: room.game.winner,
-      line_winner: room.game.line_winner,
-      move_count: room.game.move_count,
-      legal_boards: room.game.legal_boards,
-      lines: room.game.lines,
-      boxes: room.game.boxes,
-      scores: room.game.scores,
-      legal_lines: room.game.legal_lines,
-      last_move: room.game.last_move,
-      events: room.game.events,
-      phase: room.game.phase,
-      board_size: room.game.board_size,
-      fleet: room.game.fleet,
-      players_state: room.game.players,
-      pawns: room.game.pawns,
-      walls_remaining: room.game.walls_remaining,
-      walls: room.game.walls,
-      legal_pawn_moves: room.game.legal_pawn_moves,
-      legal_walls: room.game.legal_walls,
-      pickups: room.game.pickups,
-      last_event: room.game.last_event,
-      score: room.game.score,
-      turn_score: room.game.turn_score,
-      farkles: room.game.farkles,
-      dice: room.game.dice,
-      roll_count: room.game.roll_count,
-      scoring_options: room.game.scoring_options,
-      can_roll: room.game.can_roll,
-      can_reroll: room.game.can_reroll,
-      can_bank: room.game.can_bank,
-      ten_thousand_seats: tenThousandSeats,
-    },
-    latest_invite: room.latest_invite ? {
-      id: room.latest_invite.id,
-      status: room.latest_invite.status,
-      target_name: room.latest_invite.target_name,
-    } : null,
-    reset_request: room.reset_request,
-  });
+  return buildRoomRenderKey(room, canonicalGameId(room.game.game_id));
 }
 
 function moveIntentKey(room, playerId, board, cell, lineId = "") {
