@@ -13,6 +13,8 @@ import { renderTenThousandGame } from "./games/ten-thousand/render.js";
 import {
   isSoundEnabled,
   soundVolumeLevel,
+  setSoundEnabled,
+  setSoundVolumeLevel,
   playBattleshipHit,
   playBattleshipMiss,
   playBank,
@@ -358,6 +360,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("closeGameOptionsModal").addEventListener("click", closeGameOptionsModal);
   document.getElementById("gameOptionsModal").addEventListener("click", closeGameOptionsModalOnBackdrop);
   document.getElementById("optionActionWords").addEventListener("change", onActionWordsToggle);
+  const volumeSlider = document.getElementById("optionVolume");
+  if (volumeSlider) volumeSlider.addEventListener("input", onVolumeOptionInput);
   document.getElementById("submitBugReport").addEventListener("click", submitBugReport);
   document.getElementById("createGame").addEventListener("click", createRoom);
   document.getElementById("refreshGameList").addEventListener("click", refreshGameRooms);
@@ -942,9 +946,34 @@ function actionLabelStyle() {
 function openGameOptionsModal() {
   const checkbox = document.getElementById("optionActionWords");
   if (checkbox) checkbox.checked = actionLabelStyle() === "words";
+  syncVolumeOption();
   const status = document.getElementById("bugReportStatus");
   if (status) status.textContent = "";
   document.getElementById("gameOptionsModal").classList.remove("hidden");
+}
+
+// The sound control now lives in the menu: a 0-5 slider where 0 mutes. Keeps the
+// existing model (enabled flag + 1-5 level) in sync.
+function syncVolumeOption() {
+  const slider = document.getElementById("optionVolume");
+  const value = document.getElementById("optionVolumeValue");
+  const level = isSoundEnabled() ? soundVolumeLevel() : 0;
+  // Don't fight the user's drag; only seed the slider when it isn't being moved.
+  if (slider && document.activeElement !== slider) slider.value = String(level);
+  if (value) value.textContent = level === 0 ? "🔇 Muted" : `🔊 ${level} / 5`;
+}
+
+function onVolumeOptionInput(event) {
+  const level = Math.round(Number(event.target.value) || 0);
+  if (level <= 0) {
+    setSoundEnabled(false);
+  } else {
+    setSoundEnabled(true);
+    setSoundVolumeLevel(level);
+    unlockAudio();
+    playConfirm(); // a beep at the new level so the change is audible
+  }
+  syncVolumeOption();
 }
 
 function closeGameOptionsModal() {

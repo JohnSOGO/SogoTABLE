@@ -2248,6 +2248,29 @@ button.player-switch-button {
   flex: 0 0 auto;
 }
 
+/* The volume row is a slider, not a checkbox: let it stretch and keep the level
+   readout pinned to the right. */
+.game-option-volume,
+.game-option-volume label {
+  cursor: default;
+}
+
+.game-option-volume input[type="range"] {
+  flex: 1 1 auto;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.game-option-value {
+  flex: 0 0 auto;
+  min-width: 72px;
+  text-align: right;
+  font-weight: 700;
+  color: #334155;
+}
+
 .bug-report {
   display: grid;
   gap: 8px;

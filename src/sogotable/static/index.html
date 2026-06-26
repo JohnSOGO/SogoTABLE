@@ -26,7 +26,6 @@
           <button class="ghost icon-button" data-screen="intro" aria-label="Back" title="Back">🔙</button>
           <button class="ghost icon-button" type="button" data-open-menu aria-label="Menu" title="Menu">📜</button>
           <h2>Player & Game Select</h2>
-          <button class="ghost sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Mute sound">🔊</button>
         </header>
         <div class="panel">
           <span class="label">Playing as</span>
@@ -51,7 +50,6 @@
           <button class="ghost icon-button" data-screen="games" aria-label="Back" title="Back">🔙</button>
           <button class="ghost icon-button" type="button" data-open-menu aria-label="Menu" title="Menu">📜</button>
           <h2 id="selectedGameTitle" class="refreshable-title">Super Tic Tac Toe</h2>
-          <button class="ghost sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Mute sound">🔊</button>
         </header>
         <p id="selectedGameDescription" class="game-description"></p>
         <div id="activeGameNotice" class="notice hidden"></div>
@@ -142,6 +140,11 @@
             <button id="closeGameOptionsModal" class="ghost" type="button">Close</button>
           </header>
           <div class="game-options">
+            <div class="game-option game-option-volume">
+              <label for="optionVolume">Sound volume</label>
+              <input id="optionVolume" type="range" min="0" max="5" step="1" aria-label="Sound volume, 0 muted to 5 loudest" />
+              <span id="optionVolumeValue" class="game-option-value" aria-live="polite"></span>
+            </div>
             <label class="game-option">
               <input id="optionActionWords" type="checkbox" />
               <span>Use words on action buttons</span>
@@ -178,7 +181,6 @@
           <div class="header-actions">
             <button id="superCloseRoom" class="ghost danger icon-button hidden" type="button" aria-label="Close room as Sogo" title="Close room as Sogo">X</button>
             <button id="resetGame" class="ghost icon-button" type="button" aria-label="Reset" title="Reset">🔁</button>
-            <button class="ghost sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Mute sound">🔊</button>
           </div>
         </header>
         <div id="gamePlayersPanel" class="panel">
