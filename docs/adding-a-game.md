@@ -63,14 +63,19 @@ Answer these before any code. The answers decide what architecture is required,
 what assets are required, and what runs on the server versus the local game app.
 Capture the answers in the game's `PLAN.md` so the decision is durable.
 
-### A. Seating & timing
+### A. Seating, coupling & timing
 
 - **Who plays:** solo (1) · hot-seat (many on one device) · multi-device (rooms)?
-- **Cadence:** turn-based · live-round · real-time?
-- **Reality check:** today SogoTable is **turn-based multiplayer over rooms**.
-  Solo and real-time gameplay (e.g. the `AI/match-three` demo) are **not
-  supported yet** and require a product decision before you build — they would
-  add a new timing mode to the platform, which is an invariant change. Flag it,
+- **Player coupling — the first question:** do players share *one* game, or play
+  their *own*? See **Sync modes** below.
+  - **Shared-table** — everyone acts on one game state (today's games); within
+    that, timing is `turnBased` or a `liveRound` variant.
+  - **Game-Locked** — each player plays an independent game to completion; the
+    shared truth is a leaderboard, not a board ("multiplayer solitaire").
+- **Reality check:** **shared-table turn-based** is fully built. **Game-Locked**
+  is an adopted category (AREC 2026-06-27) with Yahtzee as the first
+  implementation — it is the supported path for solo-scoring games (Yahtzee,
+  match-three). A genuinely real-time *shared* board is still unbuilt; flag it,
   do not infer it.
 
 ### B. Client vs server split — *the core question*
@@ -135,6 +140,52 @@ game sends to the server. Everything else is local.
   flow**. The default answer is "all of it."
 - If something genuinely cannot reuse the platform path, say *what* and *why* in
   `PLAN.md` — that is an AREC-worthy exception, not a default.
+
+---
+
+## Sync modes — who shares a game
+
+The **first** architecture question (Survey A): how tightly are players coupled in
+time? This axis sits *above* the within-game timing modes (`turnBased` /
+`liveRound` …), which only apply *inside* a shared game.
+
+- **Move/Turn-Locked** — one shared game state; players alternate moves in strict
+  order; the server validates every move and broadcasts the board. All current
+  games. Within this, timing is `turnBased` (or a future `liveRound` variant per
+  [project-memory](project-memory.md)).
+- **Round-Locked** — one shared game, but players sync at the *round* boundary
+  rather than every move (the `liveRound` family).
+- **Game-Locked** — each player plays their **own independent game to completion**
+  at their own pace; the shared truth is a **leaderboard**, not a board. Finals
+  are compared to crown a winner. This is *asynchronous multiplayer solitaire*,
+  and it is the supported path for **solo-scoring games** (Yahtzee, match-three).
+  Adopted via AREC 2026-06-27.
+
+### Building a Game-Locked game
+
+The model is the Phase 0 standalone *promoted directly to multiplayer*:
+
+- **N independent game states + one shared leaderboard projection.** The server
+  stores each player's game state and aggregates posted scores into the
+  leaderboard (the global truth). Lobby/room/players/stats are reused unchanged —
+  Game-Locked is a *room mode*, not a new lobby.
+- **The client owns its whole game** (exactly the standalone). It runs locally and
+  pushes **only the global**: a committed round's score, "I finished," and a tiny
+  fixed set of **significant plays** (e.g. a Yahtzee, a lead change) that fan out
+  to everyone. In-progress turn state (dice, holds, current rolls) **never leaves
+  the client** — the local-first rule is mandatory here.
+- **Softer score authority — a documented family-scale exception.** Because the
+  client runs the game and posts the score, a client could lie. For family play we
+  **accept trusted client-posted scores**; the upgrade path (if it ever matters)
+  is to post the move/RNG log and re-validate server-side. State this in `PLAN.md`.
+- **Per-player resume.** A dropped player resumes *their own* game from a server
+  snapshot; the leaderboard shows them "in progress."
+- **N-player UI shape:** the player's own game up top, a **tip/news strip** for the
+  broadcast significant plays, the **all-player score table at the bottom**, and
+  the player's own big total as the headline number.
+- **Series (optional wrapper — build last):** an ordered array of games; play each
+  Game-Locked; per-game scores accumulate; reveal the winner when the array is
+  exhausted. Do not build the series until single-game Game-Locked is solid.
 
 ---
 
