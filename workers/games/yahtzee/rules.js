@@ -63,8 +63,14 @@ export function makeYahtzeeMove(game, mark, action) {
 
 function maybeCompleteYahtzee(game) {
   if (!game.seat_order || !game.seat_order.length) return;
-  if (!game.seat_order.every((m) => game.players[m].finish_state === "complete")) return;
+  // Bots are paced to the humans (see yahtzeeGameToDict), so the game ends when
+  // every HUMAN seat is done; bots are then revealed complete. A bot-only room
+  // (no humans) completes immediately since the bots already played.
+  const humans = game.seat_order.filter((m) => !game.players[m].is_bot);
+  const done = humans.length ? humans.every((m) => game.players[m].finish_state === "complete") : true;
+  if (!done) return;
   game.status = "complete";
+  for (const m of game.seat_order) game.players[m].finish_state = "complete";
   let best = -1;
   let winner = null;
   for (const m of game.seat_order) {
@@ -76,19 +82,39 @@ function maybeCompleteYahtzee(game) {
 
 // Broadcast projection: per-seat leaderboard data (score, round X/13, status).
 export function yahtzeeGameToDict(game) {
-  const players = (game.seat_order || []).map((mark) => {
+  // The most-advanced HUMAN round paces the bots' displayed progress: a bot only
+  // ever shows the score it had reached at that round — a live race, not an
+  // instant finish. The bot's full game is already played out internally.
+  const seatOrder = game.seat_order || [];
+  const humanRounds = seatOrder
+    .filter((m) => !game.players[m].is_bot)
+    .map((m) => CATEGORY_KEYS.filter((k) => game.players[m].scores[k] != null).length);
+  const pace = humanRounds.length ? Math.max(...humanRounds) : CATEGORY_KEYS.length;
+  const players = seatOrder.map((mark) => {
     const seat = game.players[mark];
+    if (seat.is_bot) {
+      const shown = Math.min((seat.trajectory || []).length, pace);
+      return {
+        mark,
+        name: seat.name,
+        is_bot: true,
+        score: shown > 0 ? seat.trajectory[shown - 1] : 0,
+        round: shown,
+        finish_state: game.status === "complete" ? "complete" : "playing",
+        scores: {},
+      };
+    }
     return {
       mark,
       name: seat.name,
-      is_bot: !!seat.is_bot,
+      is_bot: false,
       score: grandTotal(seat),
       round: CATEGORY_KEYS.filter((k) => seat.scores[k] != null).length,
       finish_state: seat.finish_state,
       scores: seat.scores,
     };
   });
-  return { game_id: game.game_id, seat_order: game.seat_order || [], players, status: game.status, winner: game.winner };
+  return { game_id: game.game_id, seat_order: seatOrder, players, status: game.status, winner: game.winner };
 }
 
 // For stats recording: each seat's grand total keyed by mark.
@@ -101,6 +127,7 @@ export function yahtzeeScoreByMark(game) {
 // --- bot: play a full independent game greedily, then copy the card into the seat -
 function playYahtzeeBotGame(seat, rng = Math.random) {
   const g = newGame([seat.name]);
+  const trajectory = [];
   let guard = 0;
   while (!g.over && guard++ < 60) {
     applyAction(g, { type: "ROLL" }, rng);
@@ -119,8 +146,11 @@ function playYahtzeeBotGame(seat, rng = Math.random) {
     }
     if (best == null) break;
     applyAction(g, { type: "SCORE", category: best }, rng);
+    trajectory.push(grandTotal(g.players[0]));   // cumulative score after this round
   }
   seat.scores = { ...g.players[0].scores };
   seat.yahtzeeBonus = g.players[0].yahtzeeBonus;
-  seat.finish_state = "complete";
+  seat.trajectory = trajectory;
+  // finish_state stays "playing": the bot is revealed (and marked complete) only
+  // when the humans finish, so its displayed progress paces the race.
 }

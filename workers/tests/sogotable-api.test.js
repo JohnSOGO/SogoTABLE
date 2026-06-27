@@ -305,18 +305,31 @@ test("Yahtzee Game-Locked: solo room, host start, score-post to completion", asy
   assert.equal(res.room.game.winner, "P1");
 });
 
-test("Yahtzee Game-Locked: a seated bot finishes its whole game at start", async () => {
+test("Yahtzee Game-Locked: a bot's displayed progress is paced to the human (race)", async () => {
   const env = makeEnv();
   const host = player("h", "Host");
   await post(env, "/api/room/create", { game_id: "yahtzee", player: host, code: "YTZ2" });
   const bots = await get(env, "/api/bots?game_id=yahtzee");
   await post(env, "/api/room/join-bot", { code: "YTZ2", host_id: host.id, bot_id: bots.bots[0].id });
-  const started = await post(env, "/api/room/start", { code: "YTZ2", host_id: host.id });
-  assert.equal(started.ok, true);
-  const botSeat = started.room.game.players.find((s) => s.is_bot);
-  assert.ok(botSeat, "a bot seat exists");
-  assert.equal(botSeat.finish_state, "complete");
+  let res = await post(env, "/api/room/start", { code: "YTZ2", host_id: host.id });
+  // at start the human has scored nothing, so the bot shows round 0 — not finished
+  let botSeat = res.room.game.players.find((s) => s.is_bot);
+  assert.equal(botSeat.round, 0);
+  assert.equal(botSeat.finish_state, "playing");
+  // after the human's first score the bot reveals exactly round 1
+  res = await post(env, "/api/room/move", { code: "YTZ2", player_id: host.id, action: { type: "SCORE", category: "ones", value: 3 } });
+  botSeat = res.room.game.players.find((s) => s.is_bot);
+  assert.equal(botSeat.round, 1);
+  assert.equal(botSeat.finish_state, "playing");
+  // the human finishes all 13 -> bot revealed to round 13 and the game completes
+  const rest = ["twos", "threes", "fours", "fives", "sixes", "threeKind", "fourKind", "fullHouse", "smallStraight", "largeStraight", "yahtzee", "chance"];
+  for (const category of rest) {
+    res = await post(env, "/api/room/move", { code: "YTZ2", player_id: host.id, action: { type: "SCORE", category, value: 5 } });
+  }
+  botSeat = res.room.game.players.find((s) => s.is_bot);
   assert.equal(botSeat.round, 13);
+  assert.equal(botSeat.finish_state, "complete");
+  assert.equal(res.room.game.status, "complete");
 });
 
 const seatByMark = (res, mark) => res.room.game.players.find((seat) => seat.mark === mark);
