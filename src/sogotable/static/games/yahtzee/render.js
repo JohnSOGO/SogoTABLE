@@ -69,6 +69,10 @@ function localMark() {
 function mySeat() {
   return (ctx.game.players || []).find((s) => s.mark === localMark());
 }
+function seatIcon(mark) {
+  const p = (ctx.room.players || []).find((x) => x.mark === mark);
+  return p && p.icon ? ctx.escapeHtml(p.icon) : "";
+}
 function ensureLocalGame() {
   const gi = (ctx.game && ctx.game.game_index) || 1;
   const rKey = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
@@ -267,11 +271,11 @@ function renderBoard() {
     const g = me ? gameIndex : (seat.game_index || gameIndex);
     const complete = seat.finish_state === "complete";
     const waiting = me ? (localGame.over && !seriesComplete) : seat.finish_state === "waiting";
-    return { name: seat.name, isBot: seat.is_bot, me, round, roundScore, overall, g, complete, waiting };
+    return { name: seat.name, isBot: seat.is_bot, mark: seat.mark, me, round, roundScore, overall, g, complete, waiting };
   }).sort((a, b) => b.overall - a.overall);
   q(".board").innerHTML =
     `<table class="lbtable"><thead><tr><th>Player</th><th class="r">Round#</th><th class="r">Round</th><th class="r">Game</th><th class="s">Overall</th></tr></thead><tbody>${
-      rows.map((p) => `<tr class="${p.me ? "me" : ""}"><td>${ctx.escapeHtml(p.name)}${p.isBot ? " 🤖" : ""}</td>` +
+      rows.map((p) => `<tr class="${p.me ? "me" : ""}"><td>${seatIcon(p.mark)} ${ctx.escapeHtml(p.name)}${p.isBot ? " 🤖" : ""}</td>` +
         `<td class="r">${p.complete ? "✅" : (p.waiting ? "⏳" : p.round + "/" + ROUNDS)}</td>` +
         `<td class="r">${p.roundScore}</td>` +
         `<td class="r">${p.g}/${games}</td>` +
