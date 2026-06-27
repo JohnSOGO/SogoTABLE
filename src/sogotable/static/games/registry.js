@@ -16,6 +16,7 @@ export const GAME_IDS = {
   battleship: "9c2f7a81d4e6",
   quoridor: "8f5d2c7a1b90",
   tenThousand: "6d10f4a2c8b3",
+  yahtzee: "2c8a5f1e9d74",
 };
 
 export const GAME_REGISTRY = [
@@ -74,5 +75,16 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["ten_thousand", "10000", "dice_10000"],
+  },
+  {
+    id: GAME_IDS.yahtzee,
+    name: "Yahtzee",
+    summary: "Roll five dice, fill your scorecard, and chase the high score — everyone plays their own game in parallel.",
+    players: "1+ players",
+    player_count: null,
+    host_start: true,
+    status: "Ready",
+    availability: "ready",
+    aliases: ["yahtzee", "yacht"],
   },
 ];

@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   EventHubDurableObject, RoomDurableObject, RoomFactoryDurableObject, tenThousandTest,
   MockHibernatedSocket, MockRateLimitBinding,
-  CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, HEX_ID_PATTERN,
+  CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, HEX_ID_PATTERN,
   makeEnv, makeProductionEnv, makeStrictEnvWithRooms, makeEnvWithRooms, makeEnvWithEvents,
   player, request, get, post, createActiveRoom, withMockRandom, mutateState, stateData,
 } from "./helpers.js";
@@ -262,8 +262,8 @@ test("lists ready games from the hosted game registry", async () => {
   const listed = await get(env, "/api/games");
 
   assert.equal(listed.ok, true);
-  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID]);
-  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready"]);
+  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID]);
+  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready", "ready"]);
   assert.equal(listed.games[0].name, "Super Tic Tac Toe");
   assert.equal(listed.games[1].name, "Super Tic Tactical Toe");
   assert.equal(listed.games[2].name, "Dots and Boxes");
@@ -271,8 +271,52 @@ test("lists ready games from the hosted game registry", async () => {
   assert.equal(listed.games[4].name, "Quoridor");
   assert.equal(listed.games[5].name, "10,000");
   assert.equal(listed.games[5].player_count, null);
+  assert.equal(listed.games[6].name, "Yahtzee");
   assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
+});
+
+test("Yahtzee Game-Locked: solo room, host start, score-post to completion", async () => {
+  const env = makeEnv();
+  const host = player("solo", "Solo Player");
+  const created = await post(env, "/api/room/create", { game_id: "yahtzee", player: host, code: "YTZ1" });
+  assert.equal(created.ok, true);
+  assert.equal(created.room.started, false);
+  assert.equal(created.room.players[0].mark, "P1");
+
+  const started = await post(env, "/api/room/start", { code: "YTZ1", host_id: host.id });
+  assert.equal(started.ok, true);
+  assert.equal(started.room.started, true);
+  assert.equal(started.room.game.game_id, YAHTZEE_GAME_ID);
+  assert.equal(started.room.game.players.length, 1);
+  assert.equal(started.room.game.players[0].finish_state, "playing");
+
+  const cats = ["ones", "twos", "threes", "fours", "fives", "sixes", "threeKind", "fourKind", "fullHouse", "smallStraight", "largeStraight", "yahtzee", "chance"];
+  let res;
+  for (const category of cats) {
+    res = await post(env, "/api/room/move", { code: "YTZ1", player_id: host.id, action: { type: "SCORE", category, value: 10 } });
+    assert.equal(res.ok, true);
+  }
+  const seat = res.room.game.players[0];
+  assert.equal(seat.round, 13);
+  assert.equal(seat.score, 130);
+  assert.equal(seat.finish_state, "complete");
+  assert.equal(res.room.game.status, "complete");
+  assert.equal(res.room.game.winner, "P1");
+});
+
+test("Yahtzee Game-Locked: a seated bot finishes its whole game at start", async () => {
+  const env = makeEnv();
+  const host = player("h", "Host");
+  await post(env, "/api/room/create", { game_id: "yahtzee", player: host, code: "YTZ2" });
+  const bots = await get(env, "/api/bots?game_id=yahtzee");
+  await post(env, "/api/room/join-bot", { code: "YTZ2", host_id: host.id, bot_id: bots.bots[0].id });
+  const started = await post(env, "/api/room/start", { code: "YTZ2", host_id: host.id });
+  assert.equal(started.ok, true);
+  const botSeat = started.room.game.players.find((s) => s.is_bot);
+  assert.ok(botSeat, "a bot seat exists");
+  assert.equal(botSeat.finish_state, "complete");
+  assert.equal(botSeat.round, 13);
 });
 
 const seatByMark = (res, mark) => res.room.game.players.find((seat) => seat.mark === mark);

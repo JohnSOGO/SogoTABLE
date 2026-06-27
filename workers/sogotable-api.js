@@ -47,6 +47,13 @@ import {
   tenThousandHasAnyScoringSet,
 } from "./games/ten-thousand/rules.js";
 import {
+  newYahtzeeGame,
+  initYahtzeeSeats,
+  makeYahtzeeMove,
+  yahtzeeGameToDict,
+  yahtzeeScoreByMark,
+} from "./games/yahtzee/rules.js";
+import {
   newQuoridorGame,
   quoridorGameToDict,
   makeQuoridorMove,
@@ -94,6 +101,7 @@ const BOXES_GAME_ID = GAME_IDS.boxes;
 const BATTLESHIP_GAME_ID = GAME_IDS.battleship;
 const QUORIDOR_GAME_ID = GAME_IDS.quoridor;
 const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
+const YAHTZEE_GAME_ID = GAME_IDS.yahtzee;
 const GAME_ID_ALIASES = new Map();
 GAME_DEFINITIONS.forEach((game) => {
   GAME_ID_ALIASES.set(game.id, game.id);
@@ -1423,6 +1431,7 @@ function startRoom(room) {
   if (room.started) return;
   room.started = true;
   if (isTenThousandGame(room.game)) initTenThousandSeats(room.game, room.players);
+  if (isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
 }
 
 function playerMark(room, playerId) {
@@ -1644,6 +1653,7 @@ function handleResetVote(room, requesterId, approve) {
     if (prevOpeningBase !== undefined) room.game.opening_base = prevOpeningBase;
     initTenThousandSeats(room.game, room.players);
   }
+  if (room.started && isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
   bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
@@ -1680,6 +1690,8 @@ function pruneLobbyViewers(data) {
 const GAME_HANDLERS = [
   { id: TEN_THOUSAND_GAME_ID, is: isTenThousandGame, create: newTenThousandGame, toDict: tenThousandGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeTenThousandMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
+  { id: YAHTZEE_GAME_ID, is: isYahtzeeGame, create: newYahtzeeGame, toDict: yahtzeeGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeYahtzeeMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -1724,6 +1736,10 @@ function gameToDict(game) {
 
 function isTenThousandGame(game) {
   return Boolean(game && cleanGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
+}
+
+function isYahtzeeGame(game) {
+  return Boolean(game && cleanGameId(game.game_id) === YAHTZEE_GAME_ID);
 }
 
 function isBattleshipGame(game) {
@@ -1792,6 +1808,9 @@ function scoreByMarkForRoom(room) {
       scores[mark] = Number(seat && seat.score || 0);
     });
     return scores;
+  }
+  if (isYahtzeeGame(room.game)) {
+    return yahtzeeScoreByMark(room.game);
   }
   if (isBoxesGame(room.game)) {
     return {
