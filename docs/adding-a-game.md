@@ -4,15 +4,56 @@ The front door for "I want to add a game — here are the rules for coding." It 
 a checklist and an AI-handoff brief in one. It does not replace the owner docs;
 it routes to them and names the exact code touchpoints.
 
-Adding a game happens in **two phases**. Do them in order.
+Adding a game has an optional prototype step and **two required phases**:
 
+0. **Prototype** (optional, recommended for novel games) — prove the feel and
+   rules standalone in the `AI/` sandbox, off the server, behind clean hooks.
 1. **Design** — answer the Intake Survey, then run the result through AREC.
 2. **Build** — the vertical slice: rules module + client module + predicate +
    registry row.
 
-Do not write game code until the survey is answered and AREC has passed. The
-survey is what decides the architecture; skipping it is how a game ends up
-fighting the platform instead of reusing it.
+Do not write the **integrated** game (the `rules.js` / `client.js` / registry
+wiring) until the survey is answered and AREC has passed — that gate decides the
+architecture, and skipping it is how a game ends up fighting the platform instead
+of reusing it. A standalone prototype in `AI/` is exempt: it is a lab, and its
+job is to *reach* the gate, not bypass it.
+
+---
+
+## Phase 0 — Prototype standalone first (recommended for novel games)
+
+When a game's *feel* is the real risk (a novel mechanic, not a known classic),
+prove it standalone before paying for integration. Build the UI and rules as a
+self-contained local app in the `AI/<game>/` sandbox — no server, no rooms, no
+lobby, instant reload — and iterate where the loop is cheapest. `AI/match-three/`
+is the worked example: a single `index.html` with a pure `Match3` core and a
+documented path to a module.
+
+This is the development-time twin of the runtime split in Phase 1B: **build off
+the server, with hooks to push to the server once it is "good enough."** For that
+to pay off instead of becoming a rewrite, follow these constraints:
+
+- **The standalone's rules core IS the future `rules.js`** — pure, no DOM, no
+  timers. Lift it at integration; never reimplement it. (match-three's `Match3`
+  core is built exactly this way.)
+- **Plan the hooks up front**, from the Phase 1B actionable-events list: the
+  **action-emit seam** (the points that will call the server / `applyAction`) and
+  the **state-injection seam** (the ctx bag the shell will provide). Don't
+  discover them at integration time.
+- **Flag the server-authority deltas early** — anything the standalone does
+  locally that the server must own after integration: shared RNG (dice/shuffle
+  fairness), move re-validation, and especially **hidden information**. A
+  standalone holds *all* state on the client, which is fine in the lab but fatal
+  for a multiplayer hidden-info game. If the game has hidden info or shared RNG,
+  design those seams before the prototype hardens.
+- **"Good enough" is a gate, not a vibe.** Passing the Intake Survey + AREC is
+  what promotes a prototype out of `AI/`. The standalone proves *feel and rules*;
+  it does **not** skip the survey's invariant checks (e.g. solo/real-time
+  support) or the multiplayer-resilience and hidden-info validation that only
+  happen after integration.
+- **Keep it in the gitignored `AI/<game>/` sandbox** until it is promoted. A
+  standalone is also the cleanest unit to hand to or from another AI session
+  (the match-three demo arrived as a ChatGPT pass).
 
 ---
 
