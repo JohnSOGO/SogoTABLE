@@ -17,6 +17,9 @@ import {
   upperSubtotal, upperBonus, grandTotal, isCardComplete,
   UPPER_BONUS_THRESHOLD, UPPER_BONUS, MAX_ROLLS,
 } from "./rules.js";
+// Shell sound system — every cue is gated by the top-menu sound toggle
+// (isSoundEnabled), so Yahtzee audio is controlled there. No per-game speaker.
+import { playDiceRoll, playScorePick, playClick, playCancel, playWin } from "../../sound.js";
 
 const PIP_MAP = {
   1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8],
@@ -24,53 +27,6 @@ const PIP_MAP = {
 };
 const FIXED_HAND = { fullHouse: 25, smallStraight: 30, largeStraight: 40, yahtzee: 50 };
 const ROUNDS = CATEGORIES.length;
-
-// Self-contained Web Audio SFX (ported verbatim from the standalone).
-const Sound = (() => {
-  let actx = null;
-  let muted = false;
-  function ac() {
-    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state === "suspended") actx.resume();
-    return actx;
-  }
-  function tone(freq, start, dur, { type = "sine", gain = 0.18, glideTo = null } = {}) {
-    const c = ac(); const t0 = c.currentTime + start;
-    const o = c.createOscillator(); const g = c.createGain();
-    o.type = type; o.frequency.setValueAtTime(freq, t0);
-    if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, t0 + dur);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.03);
-  }
-  function noiseHit(start, dur, { gain = 0.2, freq = 1200, q = 1.2 } = {}) {
-    const c = ac(); const t0 = c.currentTime + start;
-    const n = Math.floor(c.sampleRate * dur);
-    const buf = c.createBuffer(1, n, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-    const src = c.createBufferSource(); src.buffer = buf;
-    const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q;
-    const g = c.createGain();
-    g.gain.setValueAtTime(gain, t0);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    src.connect(f).connect(g).connect(c.destination); src.start(t0); src.stop(t0 + dur + 0.03);
-  }
-  const guard = (fn) => (...a) => { if (!muted) try { fn(...a); } catch (_) {} };
-  return {
-    setMuted(m) { muted = m; },
-    isMuted() { return muted; },
-    unlock() { if (!muted) ac(); },
-    roll: guard(() => { for (let i = 0; i < 7; i++) noiseHit(i * 0.05 + Math.random() * 0.02, 0.07, { gain: 0.16, freq: 800 + Math.random() * 1500 }); }),
-    hold: guard(() => tone(880, 0, 0.05, { type: "square", gain: 0.1 })),
-    unhold: guard(() => tone(587, 0, 0.06, { type: "square", gain: 0.1 })),
-    score: guard(() => { tone(523, 0, 0.11, {}); tone(784, 0.085, 0.16, {}); }),
-    zero: guard(() => tone(300, 0, 0.22, { type: "sawtooth", gain: 0.13, glideTo: 150 })),
-    yahtzee: guard(() => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.1, 0.2, { type: "triangle", gain: 0.2 }))),
-    win: guard(() => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i * 0.12, 0.32, { type: "triangle" })); tone(1047, 0.62, 0.7, { gain: 0.12 }); }),
-  };
-})();
 
 // Module state: this device's own game persists across room snapshots.
 let ctx = null;
@@ -83,7 +39,6 @@ let newsMsg = "";
 let tipIndex = 0;
 let tipKey = "";
 let newsTimer = null;
-let soundUnlocked = false;
 
 const q = (sel) => ctx.host.querySelector(sel);
 const qa = (sel) => ctx.host.querySelectorAll(sel);
@@ -173,7 +128,6 @@ function ensureStructure() {
   ctx.host.innerHTML = `<div class="yz-root">
     <div class="yz-head">
       <span class="yz-sub"></span>
-      <button class="yz-mini" data-yz="mute" title="Toggle sound">🔊</button>
     </div>
     <div class="tipstrip" data-yz="tip">…</div>
     <div class="diceArea">
@@ -192,7 +146,6 @@ function ensureStructure() {
     </div>
   </div>`;
   q(".roll").addEventListener("click", doRoll);
-  q('[data-yz="mute"]').addEventListener("click", toggleMute);
   q('[data-yz="dismiss"]').addEventListener("click", () => q('[data-yz="end"]').classList.add("hidden"));
   q('[data-yz="tip"]').addEventListener("click", () => {
     if (newsMsg) return;
@@ -201,8 +154,6 @@ function ensureStructure() {
     tipIndex = (tipIndex + 1) % n;
     renderTip();
   });
-  q('[data-yz="mute"]').textContent = Sound.isMuted() ? "🔇" : "🔊";
-  if (!soundUnlocked) { ctx.host.addEventListener("pointerdown", () => Sound.unlock(), { once: true }); soundUnlocked = true; }
 }
 
 function dieNode(value, idx) {
@@ -337,28 +288,28 @@ function pushNews(msg, ms = 3500) {
 function toggleHold(i) {
   if (!localGame.rolled || localGame.rollsLeft <= 0 || rolling || busy) return;
   localGame.held[i] = !localGame.held[i];
-  (localGame.held[i] ? Sound.hold : Sound.unhold)();
+  playClick();
   render();
 }
 async function doRoll() {
   if (localGame.over || localGame.rollsLeft <= 0 || rolling || busy) return;
   const rerolling = localGame.dice.map((_, i) => !(localGame.rolled && localGame.held[i]));
   applyAction(localGame, { type: "ROLL", held: localGame.held });   // local roll — never posted
-  Sound.roll();
+  playDiceRoll();
   rolling = true;
   render();
   qa(".die").forEach((el, i) => { if (rerolling[i]) el.classList.add("rolling"); });
   await new Promise((r) => setTimeout(r, 430));
   rolling = false;
   render();
-  if (isYahtzee(localGame.dice)) { Sound.yahtzee(); pushNews("⭐ You rolled a YAHTZEE!"); }
+  if (isYahtzee(localGame.dice)) { playWin(); pushNews("⭐ You rolled a YAHTZEE!"); }
 }
 async function scoreCategory(key) {
   if (localGame.over || !localGame.rolled || rolling || busy) return;
   const card = localGame.players[localGame.current];
   if (card.scores[key] != null) return;
   busy = true;
-  if (previewScores(localGame)[key] > 0) Sound.score(); else Sound.zero();
+  if (previewScores(localGame)[key] > 0) playScorePick(); else playCancel();
   const mask = scoringDice(key, localGame.dice);
   qa(".die").forEach((el, i) => { el.classList.remove("held", "rolling"); el.classList.add(mask[i] ? "score" : "noscore"); });
   await new Promise((r) => setTimeout(r, 850));
@@ -372,17 +323,12 @@ async function scoreCategory(key) {
   await ctx.makeMove({ type: "SCORE", category: key, value, yahtzee_bonus: yahtzeeBonus });   // post to the table
 }
 function showEnd() {
-  Sound.win();
+  playWin();
   const score = grandTotal(localGame.players[0]);
   q('[data-yz="finalScore"]').textContent = score;
   q('[data-yz="commLine"]').textContent = "✓ Your final score is in — watch the table.";
   pushNews(`🏁 Your game is done: ${score}.`, 6000);
   q('[data-yz="end"]').classList.remove("hidden");
-}
-function toggleMute() {
-  Sound.setMuted(!Sound.isMuted());
-  q('[data-yz="mute"]').textContent = Sound.isMuted() ? "🔇" : "🔊";
-  Sound.unlock();
 }
 
 // --- scoped styles (the standalone CSS, prefixed under .yz-root) ------------
@@ -390,12 +336,13 @@ function injectStyles() {
   if (document.getElementById("yz-styles")) return;
   const s = document.createElement("style"); s.id = "yz-styles";
   s.textContent = `
+  /* neutralize the tic-tac-toe macro-board grid + square so the tall Yahtzee UI lays out normally */
+  #macroBoard:has(.yz-root){display:block;aspect-ratio:auto;height:auto}
   .yz-root{grid-column:1/-1;width:100%;display:flex;flex-direction:column;gap:12px;
     --bg:#10131c;--panel:#1a1f2e;--ink:#eef1f8;--muted:#8b93a7;--line:#262c3d;--accent:#ffd166;--good:#1f7a44;--hot:#c43d5d;color:var(--ink)}
   .yz-root *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   .yz-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .yz-head .yz-sub{color:var(--muted);font-size:12px}
-  .yz-mini{background:#2a3146;color:var(--ink);border:1px solid #39425c;border-radius:10px;padding:5px 10px;font-size:13px;cursor:pointer}
   .yz-root .tipstrip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 14px;font-size:14px;font-weight:600;color:var(--accent);height:44px;display:flex;align-items:center;justify-content:center;gap:8px;overflow:hidden;cursor:default}
   .yz-root .tipstrip.tappable{cursor:pointer}
   .yz-root .tipstrip:active.tappable{background:#222a3d}
