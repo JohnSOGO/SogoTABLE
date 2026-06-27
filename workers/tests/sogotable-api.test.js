@@ -377,7 +377,9 @@ test("Yahtzee series: the table waits for all humans before advancing (barrier)"
   hostSeat = res.room.game.players.find((s) => s.mark === "P1");
   assert.equal(hostSeat.finish_state, "playing");
   assert.equal(hostSeat.round, 0);
-  assert.equal(hostSeat.overall, 13 * 4); // game 1 banked
+  assert.equal(hostSeat.round_score, 0);          // fresh game-2 card
+  assert.equal(hostSeat.series_past, 13 * 4);     // game 1 banked (the client reads this for "me")
+  assert.equal(hostSeat.overall, 13 * 4);         // and stays in the overall
 });
 
 const seatByMark = (res, mark) => res.room.game.players.find((seat) => seat.mark === mark);

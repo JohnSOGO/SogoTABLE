@@ -128,6 +128,7 @@ export function yahtzeeGameToDict(game) {
       return {
         mark, name: seat.name, is_bot: true,
         game_index: gi, round: shown, round_score: gameScore,
+        series_past: botPastGames(seat, gi),
         overall: botPastGames(seat, gi) + gameScore,
         card_done: true, finish_state: complete ? "complete" : "playing", scores: {},
       };
@@ -137,6 +138,7 @@ export function yahtzeeGameToDict(game) {
     return {
       mark, name: seat.name, is_bot: false,
       game_index: gi, round, round_score: roundScore,
+      series_past: seat.series_past,
       overall: seat.series_past + roundScore,
       card_done: seat.card_done,
       finish_state: complete ? "complete" : (seat.card_done ? "waiting" : "playing"),
