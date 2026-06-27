@@ -74,6 +74,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/ten-thousand/10000_complete_scoring_set.md",
   "src/sogotable/static/games/ten-thousand/render.js",
   "src/sogotable/static/games/ten-thousand/SCORING.md",
+  "docs/adding-a-game.md",
   "docs/ai-difficulty.md",
   "docs/api-contract.md",
   "docs/architecture.md",

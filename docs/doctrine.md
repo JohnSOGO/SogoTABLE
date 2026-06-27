@@ -29,6 +29,7 @@ doctrine index points back to it.
 - [Project Memory](project-memory.md): durable product context, adopted decisions, and long-lived preferences.
 - [Wu Wei Method](wu-wei-method.md): the flow doctrine for shaping the app so correct play is the natural path.
 - [Modularity](modularity.md): the structure doctrine for module ownership, no god files, and growing code by extracting seams.
+- [Adding a Game](adding-a-game.md): the intake survey, build checklist, and AI-handoff brief for a new game module.
 - [AREC](AREC.md): the idea-pressure test used before new concepts become doctrine or architecture.
 - [Bot Behavior](bots/index.md): the durable bot behavior contract, roster expectations, and shared strategy notes.
 - [AI Difficulty Ladder](ai-difficulty.md): the recruitable bot names, difficulty tiers, and global AI naming convention.
@@ -53,6 +54,7 @@ If the idea is still fuzzy or architecture-shaping, run AREC before implementati
 - Product direction or durable preferences -> `docs/project-memory.md`
 - Flow, event-driven behavior, or explicit refresh doctrine -> `docs/wu-wei-method.md`
 - Module ownership, no-god-file discipline, or adding a game as a module -> `docs/modularity.md`
+- Adding a new game end to end (intake survey, then the build checklist) -> `docs/adding-a-game.md`
 - Bot behavior contract or shared strategy guidance -> `docs/bots/index.md`
 - Recruitable bot naming and AI tiers -> `docs/ai-difficulty.md`
 - Screen states, room flow, and modal behavior -> `docs/state-machine.md`
