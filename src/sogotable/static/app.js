@@ -31,6 +31,7 @@ import {
 } from "./storage.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
+import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import {
   isSoundEnabled,
   soundVolumeLevel,
@@ -83,6 +84,7 @@ const BOXES_GAME_ID = GAME_IDS.boxes;
 const BATTLESHIP_GAME_ID = GAME_IDS.battleship;
 const QUORIDOR_GAME_ID = GAME_IDS.quoridor;
 const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
+const YAHTZEE_GAME_ID = GAME_IDS.yahtzee;
 const BATTLESHIP_ATTACK_PHRASES = [
   "Incoming!",
   "Fire!",
@@ -1738,6 +1740,46 @@ async function startTenThousandGame(openingMinimum) {
   }
 }
 
+// Game-Locked Yahtzee: the local player runs their own game on-device and posts
+// only committed category scores; any unfinished seat may score anytime.
+async function makeYahtzeeAction(action) {
+  const player = selectedPlayer();
+  if (!player || !currentRoom || !isYahtzeeGameState(currentRoom.game) || pendingMove) return;
+  pendingMove = {
+    key: moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action)),
+    roomCode: currentRoom.code,
+    moveCount: currentRoom.game.move_count,
+  };
+  try {
+    const response = await api("/api/room/move", {
+      code: currentRoom.code,
+      player_id: player.id,
+      owner_token: await ensureOwnerToken(player.id),
+      action,
+    });
+    pendingMove = null;
+    setRoom(response.room);
+  } catch (error) {
+    pendingMove = null;
+    showTurnStatus(null, error.message);
+  }
+}
+
+async function startYahtzeeGame() {
+  if (!currentRoom || currentRoom.started) return;
+  try {
+    const response = await api("/api/room/start", {
+      code: currentRoom.code,
+      host_id: currentRoom.host_id,
+      owner_token: await ensureOwnerToken(currentRoom.host_id),
+    });
+    setRoom(response.room);
+    playConfirm();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 // A reveal plays in up to three phases: an optional "settle" pause (so the
 // board can switch to the defending view), a radar scan, then the hit/miss
 // result. Reveals are queued so a player's own offence reveal and the incoming
@@ -2245,6 +2287,26 @@ function renderGame() {
     });
     return;
   }
+  if (isYahtzeeGameState(game)) {
+    document.getElementById("gamePlayersPanel").classList.add("hidden");
+    showTurnStatus(null, "");
+    const localSeat = localRoomSeat(currentRoom);
+    renderYahtzeeGame({
+      host: document.getElementById("macroBoard"),
+      game,
+      room: currentRoom,
+      started: currentRoom.started,
+      isHost: currentRoom.host_id === deviceSelectedPlayerId,
+      localPlayerId: localSeat ? localSeat.id : (selectedPlayerId || deviceSelectedPlayerId),
+      pendingMove,
+      makeMove: makeYahtzeeAction,
+      startGame: startYahtzeeGame,
+      addBot: openBotOpponentModal,
+      invitePlayer: openInvitePlayerModal,
+      escapeHtml,
+    });
+    return;
+  }
   if (!currentRoom.started) {
     showTurnStatus(null, "Waiting for opponent.");
     lastLegalBoardsKey = "";
@@ -2540,6 +2602,10 @@ function isQuoridorGameState(game) {
 
 function isTenThousandGameState(game) {
   return Boolean(game && canonicalGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
+}
+
+function isYahtzeeGameState(game) {
+  return Boolean(game && canonicalGameId(game.game_id) === YAHTZEE_GAME_ID);
 }
 
 function startRoomLiveUpdates() {
