@@ -2289,7 +2289,6 @@ function renderGame() {
   }
   if (isYahtzeeGameState(game)) {
     document.getElementById("gamePlayersPanel").classList.add("hidden");
-    document.getElementById("turnStatus").classList.add("hidden");
     const localSeat = localRoomSeat(currentRoom);
     renderYahtzeeGame({
       host: document.getElementById("macroBoard"),

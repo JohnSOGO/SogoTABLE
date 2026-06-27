@@ -27,6 +27,7 @@ const PIP_MAP = {
 };
 const FIXED_HAND = { fullHouse: 25, smallStraight: 30, largeStraight: 40, yahtzee: 50 };
 const ROUNDS = CATEGORIES.length;
+const SERIES_GAMES = 6;
 
 // Module state: this device's own game persists across room snapshots.
 let ctx = null;
@@ -39,6 +40,9 @@ let newsMsg = "";
 let tipIndex = 0;
 let tipKey = "";
 let newsTimer = null;
+let gameIndex = 1;       // which game of the series this device is playing
+let seriesPast = 0;      // banked total from this device's completed games
+let lastSeen = {};       // mark -> {game_index, finish_state}, for cross-player news
 
 const q = (sel) => ctx.host.querySelector(sel);
 const qa = (sel) => ctx.host.querySelectorAll(sel);
@@ -48,6 +52,7 @@ export function renderYahtzeeGame(controllerCtx) {
   injectStyles();
   if (!ctx.started) { renderLobby(); builtKey = ""; return; }
   ensureLocalGame();
+  newsFromSnapshot();
   // A snapshot arriving mid-animation must not clobber the dice feedback; just
   // refresh the live board and let the local turn finish.
   if ((rolling || busy) && q(".diceArea")) { renderBoard(); return; }
@@ -65,13 +70,16 @@ function ensureLocalGame() {
   const key = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
   if (localKey === key && localGame) return;
   localKey = key;
-  localGame = newGame(["You"]);
-  // Rebuild committed scores from the server seat (reconnect / refresh).
+  lastSeen = {};
+  // Restore the series position + current card from the server seat (reconnect).
   const seat = mySeat();
+  gameIndex = seat && seat.game_index ? seat.game_index : 1;
+  seriesPast = seat && seat.series_past ? seat.series_past : 0;
+  localGame = newGame(["You"]);
   if (seat && seat.scores) {
     const card = localGame.players[0];
     for (const k of CATEGORY_KEYS) if (seat.scores[k] != null) card.scores[k] = seat.scores[k];
-    if (isCardComplete(card.scores)) localGame.over = true;
+    if (isCardComplete(card.scores) && gameIndex >= SERIES_GAMES) localGame.over = true;
   }
 }
 
@@ -227,19 +235,39 @@ function renderCard() {
 // the post round-trips; rivals/bots come straight from the server projection.
 function renderBoard() {
   const myMark = localMark();
+  const games = (ctx.game && ctx.game.series_games) || SERIES_GAMES;
   const rows = (ctx.game.players || []).map((seat) => {
     const me = seat.mark === myMark;
-    const round = me ? CATEGORIES.filter((c) => localGame.players[0].scores[c.key] != null).length : seat.round;
-    const total = me ? grandTotal(localGame.players[0]) : seat.score;
-    const series = 0; // series (cumulative Overall) lands with the multi-game wrapper
-    const done = me ? localGame.over : seat.finish_state === "complete";
-    return { name: seat.name, isBot: seat.is_bot, me, round, total, overall: series + total, done };
+    const gi = me ? gameIndex : (seat.game_index || 1);
+    const round = me ? CATEGORIES.filter((c) => localGame.players[0].scores[c.key] != null).length : (seat.round || 0);
+    const overall = me ? seriesPast + grandTotal(localGame.players[0]) : (seat.overall || 0);
+    const done = me ? (gameIndex >= games && localGame.over) : seat.finish_state === "complete";
+    return { name: seat.name, isBot: seat.is_bot, me, gi, round, overall, done };
   }).sort((a, b) => b.overall - a.overall);
   q(".board").innerHTML =
-    `<table class="lbtable"><thead><tr><th>Player</th><th>Status</th><th class="r">Round</th><th class="r">Game</th><th class="s">Overall</th></tr></thead><tbody>${
+    `<table class="lbtable"><thead><tr><th>Player</th><th class="r">Game</th><th class="r">Round</th><th class="s">Overall</th></tr></thead><tbody>${
       rows.map((p) => `<tr class="${p.me ? "me" : ""}"><td>${ctx.escapeHtml(p.name)}${p.isBot ? " 🤖" : ""}</td>` +
-        `<td>${p.done ? "✅ done" : "🎲 play"}</td><td class="r">${p.round}/${ROUNDS}</td><td class="r g">${p.total}</td><td class="s">${p.overall}</td></tr>`).join("")
+        `<td class="r">${p.done ? "✅" : p.gi + "/" + games}</td><td class="r">${p.done ? "—" : p.round + "/" + ROUNDS}</td><td class="s">${p.overall}</td></tr>`).join("")
     }</tbody></table>`;
+}
+
+// Cross-player news: when another seat advances a game or finishes its series,
+// post it over the tip strip (the "global news" tier the local tips defer to).
+function newsFromSnapshot() {
+  const myMark = localMark();
+  const games = (ctx.game && ctx.game.series_games) || SERIES_GAMES;
+  for (const seat of (ctx.game.players || [])) {
+    if (seat.mark === myMark) continue;
+    const prev = lastSeen[seat.mark];
+    if (prev) {
+      if (seat.finish_state === "complete" && prev.finish_state !== "complete") {
+        pushNews(`🏁 ${seat.name} finished the series — ${seat.overall} total!`, 3500);
+      } else if ((seat.game_index || 1) > (prev.game_index || 1)) {
+        pushNews(`✅ ${seat.name} finished game ${prev.game_index} of ${games}.`, 3000);
+      }
+    }
+    lastSeen[seat.mark] = { game_index: seat.game_index || 1, finish_state: seat.finish_state };
+  }
 }
 
 // --- tips ------------------------------------------------------------------
@@ -313,16 +341,24 @@ async function scoreCategory(key) {
   applyAction(localGame, { type: "SCORE", category: key });   // local commit
   const value = card.scores[key];
   const yahtzeeBonus = card.yahtzeeBonus - bonusBefore;
+  const cardComplete = isCardComplete(card.scores);
+  if (cardComplete && gameIndex < SERIES_GAMES) {
+    seriesPast += grandTotal(card);   // bank this game, advance to the next in the series
+    gameIndex += 1;
+    localGame = newGame(["You"]);
+    pushNews(`🎲 Game ${gameIndex} of ${SERIES_GAMES} — good luck!`, 3200);
+  }
   render();
-  if (localGame.over) showEnd();
+  if (cardComplete && gameIndex >= SERIES_GAMES && localGame.over) showEnd();
   await ctx.makeMove({ type: "SCORE", category: key, value, yahtzee_bonus: yahtzeeBonus });   // post to the table
 }
 function showEnd() {
   playWin();
-  const score = grandTotal(localGame.players[0]);
-  q('[data-yz="finalScore"]').textContent = score;
-  q('[data-yz="commLine"]').textContent = "✓ Your final score is in — watch the table.";
-  pushNews(`🏁 Your game is done: ${score}.`, 6000);
+  const total = seriesPast + grandTotal(localGame.players[0]);
+  q('[data-yz="endTitle"]').textContent = "Series complete! 🎲";
+  q('[data-yz="finalScore"]').textContent = total;
+  q('[data-yz="commLine"]').textContent = `✓ ${SERIES_GAMES} games · ${total} total — watch the table.`;
+  pushNews(`🏁 You finished the series: ${total}!`, 6000);
   q('[data-yz="end"]').classList.remove("hidden");
 }
 
@@ -333,11 +369,13 @@ function injectStyles() {
   s.textContent = `
   /* neutralize the tic-tac-toe macro-board grid + square so the tall Yahtzee UI lays out normally */
   #macroBoard:has(.yz-root){display:block;aspect-ratio:auto;height:auto}
+  /* the shell turn-status banner (#turnStatus{display:grid} beats .hidden) would leave a blank band above Yahtzee — collapse it */
+  #turnStatus:has(~ #macroBoard .yz-root){display:none}
   /* light mode — matches the shell + 10,000 (white panels, dark text, red accent) */
-  .yz-root{grid-column:1/-1;width:100%;display:flex;flex-direction:column;gap:12px;
+  .yz-root{grid-column:1/-1;width:100%;display:flex;flex-direction:column;gap:8px;
     --panel:#ffffff;--head:#f6ebeb;--ink:#171717;--muted:#5f5b5b;--line:#e7d4d4;--accent:#d71920;--accentdk:#8f1116;--green:#15803d;color:var(--ink)}
   .yz-root *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  .yz-root .tipstrip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 14px;font-size:14px;font-weight:600;color:var(--accentdk);height:44px;display:flex;align-items:center;justify-content:center;gap:8px;overflow:hidden;cursor:default}
+  .yz-root .tipstrip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 14px;font-size:14px;font-weight:600;color:var(--accentdk);height:38px;display:flex;align-items:center;justify-content:center;gap:8px;overflow:hidden;cursor:default}
   .yz-root .tipstrip.tappable{cursor:pointer}
   .yz-root .tipstrip:active.tappable{background:#fbeeee}
   .yz-root .tipstrip .tiptext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -346,14 +384,14 @@ function injectStyles() {
   .yz-root .lbtable{width:100%;border-collapse:collapse;font-size:13px}
   .yz-root .lbtable th{padding:7px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--head);text-align:left;font-weight:600}
   .yz-root .lbtable th.r,.yz-root .lbtable th.s{text-align:right}
-  .yz-root .lbtable td{padding:9px 10px;border-top:1px solid var(--line);white-space:nowrap}
+  .yz-root .lbtable td{padding:6px 10px;border-top:1px solid var(--line);white-space:nowrap}
   .yz-root .lbtable td.r,.yz-root .lbtable td.s,.yz-root .lbtable td.g{text-align:right;font-variant-numeric:tabular-nums}
   .yz-root .lbtable td.g{color:var(--ink);font-weight:600}
   .yz-root .lbtable td.s{font-weight:800;color:var(--green);font-size:16px}
   .yz-root .lbtable tr.me{background:rgba(215,25,32,.08)}
-  .yz-root .diceArea{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:12px;align-items:center}
+  .yz-root .diceArea{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:8px;align-items:center}
   .yz-root .dice{display:flex;gap:10px;justify-content:center}
-  .yz-root .die{width:min(17vw,60px);height:min(17vw,60px);background:#ffffff;border:1px solid #d9c9c9;border-radius:14%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:9px;gap:3px;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,.14);transition:transform .1s ease}
+  .yz-root .die{width:min(15vw,52px);height:min(15vw,52px);background:#ffffff;border:1px solid #d9c9c9;border-radius:14%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:9px;gap:3px;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,.14);transition:transform .1s ease}
   .yz-root .die .pip{align-self:center;justify-self:center;width:80%;height:80%;border-radius:50%;background:#171717;visibility:hidden}
   .yz-root .die.held{background:#fde68a;border-color:#f59e0b;outline:3px solid #f59e0b;outline-offset:1px}
   .yz-root .die.idle{background:#ece0e0;cursor:default;box-shadow:none}
@@ -369,7 +407,7 @@ function injectStyles() {
   .yz-root .sec + .sec{border-left:1px solid var(--line)}
   .yz-root .sechd{display:flex;justify-content:space-between;gap:6px;padding:7px 11px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;background:var(--head);white-space:nowrap}
   .yz-root .sechd .tag{color:var(--accent);overflow:hidden;text-overflow:ellipsis}
-  .yz-root .row{display:flex;justify-content:space-between;align-items:center;padding:8px 11px;border-top:1px solid var(--line);gap:6px}
+  .yz-root .row{display:flex;justify-content:space-between;align-items:center;padding:6px 11px;border-top:1px solid var(--line);gap:6px}
   .yz-root .row .lbl{font-size:13px;flex:1;min-width:0;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
   .yz-root .row .lbl .cat{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .yz-root .row .lbl .hint{color:var(--muted);font-weight:400;font-size:11px;flex:0 0 auto;white-space:nowrap}

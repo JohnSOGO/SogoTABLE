@@ -276,59 +276,71 @@ test("lists ready games from the hosted game registry", async () => {
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
 });
 
-test("Yahtzee Game-Locked: solo room, host start, score-post to completion", async () => {
+const YZ_CATS = ["ones", "twos", "threes", "fours", "fives", "sixes", "threeKind", "fourKind", "fullHouse", "smallStraight", "largeStraight", "yahtzee", "chance"];
+async function playYahtzeeGame(env, code, playerId, value = 5) {
+  let res;
+  for (const category of YZ_CATS) {
+    res = await post(env, "/api/room/move", { code, player_id: playerId, action: { type: "SCORE", category, value } });
+  }
+  return res;
+}
+
+test("Yahtzee series: solo seat advances through 6 games to completion", async () => {
   const env = makeEnv();
   const host = player("solo", "Solo Player");
   const created = await post(env, "/api/room/create", { game_id: "yahtzee", player: host, code: "YTZ1" });
-  assert.equal(created.ok, true);
-  assert.equal(created.room.started, false);
   assert.equal(created.room.players[0].mark, "P1");
-
   const started = await post(env, "/api/room/start", { code: "YTZ1", host_id: host.id });
-  assert.equal(started.ok, true);
-  assert.equal(started.room.started, true);
   assert.equal(started.room.game.game_id, YAHTZEE_GAME_ID);
-  assert.equal(started.room.game.players.length, 1);
+  assert.equal(started.room.game.players[0].game_index, 1);
   assert.equal(started.room.game.players[0].finish_state, "playing");
 
-  const cats = ["ones", "twos", "threes", "fours", "fives", "sixes", "threeKind", "fourKind", "fullHouse", "smallStraight", "largeStraight", "yahtzee", "chance"];
+  // five full games: the seat advances to game 6 but is not finished
   let res;
-  for (const category of cats) {
-    res = await post(env, "/api/room/move", { code: "YTZ1", player_id: host.id, action: { type: "SCORE", category, value: 10 } });
-    assert.equal(res.ok, true);
-  }
-  const seat = res.room.game.players[0];
+  for (let g = 0; g < 5; g += 1) res = await playYahtzeeGame(env, "YTZ1", host.id, 4);
+  let seat = res.room.game.players[0];
+  assert.equal(seat.game_index, 6);
+  assert.equal(seat.round, 0);
+  assert.equal(seat.finish_state, "playing");
+  assert.equal(seat.overall, 5 * 13 * 4);
+
+  // the sixth game completes the series
+  res = await playYahtzeeGame(env, "YTZ1", host.id, 4);
+  seat = res.room.game.players[0];
+  assert.equal(seat.game_index, 6);
   assert.equal(seat.round, 13);
-  assert.equal(seat.score, 130);
   assert.equal(seat.finish_state, "complete");
+  assert.equal(seat.overall, 6 * 13 * 4);
   assert.equal(res.room.game.status, "complete");
   assert.equal(res.room.game.winner, "P1");
 });
 
-test("Yahtzee Game-Locked: a bot's displayed progress is paced to the human (race)", async () => {
+test("Yahtzee series: a bot is paced to the human across the series", async () => {
   const env = makeEnv();
   const host = player("h", "Host");
   await post(env, "/api/room/create", { game_id: "yahtzee", player: host, code: "YTZ2" });
   const bots = await get(env, "/api/bots?game_id=yahtzee");
   await post(env, "/api/room/join-bot", { code: "YTZ2", host_id: host.id, bot_id: bots.bots[0].id });
   let res = await post(env, "/api/room/start", { code: "YTZ2", host_id: host.id });
-  // at start the human has scored nothing, so the bot shows round 0 — not finished
-  let botSeat = res.room.game.players.find((s) => s.is_bot);
-  assert.equal(botSeat.round, 0);
-  assert.equal(botSeat.finish_state, "playing");
-  // after the human's first score the bot reveals exactly round 1
+  let bot = res.room.game.players.find((s) => s.is_bot);
+  assert.equal(bot.game_index, 1);
+  assert.equal(bot.round, 0);
+  assert.equal(bot.finish_state, "playing");
+
+  // one human score -> bot revealed to exactly game 1, round 1
   res = await post(env, "/api/room/move", { code: "YTZ2", player_id: host.id, action: { type: "SCORE", category: "ones", value: 3 } });
-  botSeat = res.room.game.players.find((s) => s.is_bot);
-  assert.equal(botSeat.round, 1);
-  assert.equal(botSeat.finish_state, "playing");
-  // the human finishes all 13 -> bot revealed to round 13 and the game completes
-  const rest = ["twos", "threes", "fours", "fives", "sixes", "threeKind", "fourKind", "fullHouse", "smallStraight", "largeStraight", "yahtzee", "chance"];
-  for (const category of rest) {
+  bot = res.room.game.players.find((s) => s.is_bot);
+  assert.equal(bot.game_index, 1);
+  assert.equal(bot.round, 1);
+  assert.equal(bot.finish_state, "playing");
+
+  // finish game 1 (12 more), then play games 2..6 -> bot revealed complete
+  for (const category of YZ_CATS.slice(1)) {
     res = await post(env, "/api/room/move", { code: "YTZ2", player_id: host.id, action: { type: "SCORE", category, value: 5 } });
   }
-  botSeat = res.room.game.players.find((s) => s.is_bot);
-  assert.equal(botSeat.round, 13);
-  assert.equal(botSeat.finish_state, "complete");
+  for (let g = 0; g < 5; g += 1) res = await playYahtzeeGame(env, "YTZ2", host.id, 5);
+  bot = res.room.game.players.find((s) => s.is_bot);
+  assert.equal(bot.finish_state, "complete");
   assert.equal(res.room.game.status, "complete");
 });
 
