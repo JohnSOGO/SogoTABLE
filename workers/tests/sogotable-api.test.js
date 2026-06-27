@@ -334,14 +334,50 @@ test("Yahtzee series: a bot is paced to the human across the series", async () =
   assert.equal(bot.round, 1);
   assert.equal(bot.finish_state, "playing");
 
-  // finish game 1 (12 more), then play games 2..6 -> bot revealed complete
+  // finish game 1 (12 more) -> the table advances to game 2 and the bot keeps up
   for (const category of YZ_CATS.slice(1)) {
     res = await post(env, "/api/room/move", { code: "YTZ2", player_id: host.id, action: { type: "SCORE", category, value: 5 } });
   }
+  assert.equal(res.room.game.game_index, 2);
+  bot = res.room.game.players.find((s) => s.is_bot);
+  assert.equal(bot.game_index, 2);
+  assert.equal(bot.round, 0);
+  // play games 2..6 -> bot revealed complete
   for (let g = 0; g < 5; g += 1) res = await playYahtzeeGame(env, "YTZ2", host.id, 5);
   bot = res.room.game.players.find((s) => s.is_bot);
   assert.equal(bot.finish_state, "complete");
   assert.equal(res.room.game.status, "complete");
+});
+
+test("Yahtzee series: the table waits for all humans before advancing (barrier)", async () => {
+  const env = makeEnv();
+  const host = player("h3", "Host");
+  const guest = player("g3", "Guest");
+  await post(env, "/api/players/create", { player: host });
+  await post(env, "/api/players/create", { player: guest });
+  await post(env, "/api/room/create", { game_id: "yahtzee", player: host, code: "YTZ3" });
+  await post(env, "/api/room/join", { code: "YTZ3", player: guest });
+  let res = await post(env, "/api/room/start", { code: "YTZ3", host_id: host.id });
+  assert.equal(res.room.game.game_index, 1);
+  assert.equal(res.room.game.players.length, 2);
+
+  // host finishes game 1; the guest has not -> the barrier holds at game 1
+  res = await playYahtzeeGame(env, "YTZ3", host.id, 4);
+  assert.equal(res.room.game.game_index, 1);
+  let hostSeat = res.room.game.players.find((s) => s.mark === "P1");
+  let guestSeat = res.room.game.players.find((s) => s.mark === "P2");
+  assert.equal(hostSeat.finish_state, "waiting");
+  assert.equal(hostSeat.round, 13);
+  assert.equal(hostSeat.round_score, 13 * 4);
+  assert.equal(guestSeat.finish_state, "playing");
+
+  // the guest finishes game 1 -> the whole table advances to game 2 together
+  res = await playYahtzeeGame(env, "YTZ3", guest.id, 5);
+  assert.equal(res.room.game.game_index, 2);
+  hostSeat = res.room.game.players.find((s) => s.mark === "P1");
+  assert.equal(hostSeat.finish_state, "playing");
+  assert.equal(hostSeat.round, 0);
+  assert.equal(hostSeat.overall, 13 * 4); // game 1 banked
 });
 
 const seatByMark = (res, mark) => res.room.game.players.find((seat) => seat.mark === mark);

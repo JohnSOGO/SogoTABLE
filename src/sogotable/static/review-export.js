@@ -24,6 +24,7 @@ const REVIEW_EXPORT_FILES = [
   "workers/games/ten-thousand/rules.js",
   "workers/games/super-tic-tac-toe/rules.js",
   "workers/games/yahtzee/rules.js",
+  "workers/games/yahtzee/ai.js",
   "src/sogotable/static/index.html",
   "src/sogotable/static/app.js",
   "src/sogotable/static/api-client.js",

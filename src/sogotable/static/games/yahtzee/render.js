@@ -40,9 +40,12 @@ let newsMsg = "";
 let tipIndex = 0;
 let tipKey = "";
 let newsTimer = null;
-let gameIndex = 1;       // which game of the series this device is playing
+let gameIndex = 1;       // the room's current game (1..SERIES_GAMES), server-driven
 let seriesPast = 0;      // banked total from this device's completed games
-let lastSeen = {};       // mark -> {game_index, finish_state}, for cross-player news
+let lastSeen = {};       // mark -> finish_state, for cross-player news
+let roomKey = "";        // room.code:game_epoch — resets per-series news/celebration
+let celebratedGame = 0;  // last game whose start we celebrated
+let shownEnd = false;    // series-complete overlay already shown
 
 const q = (sel) => ctx.host.querySelector(sel);
 const qa = (sel) => ctx.host.querySelectorAll(sel);
@@ -67,19 +70,22 @@ function mySeat() {
   return (ctx.game.players || []).find((s) => s.mark === localMark());
 }
 function ensureLocalGame() {
-  const key = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
+  const gi = (ctx.game && ctx.game.game_index) || 1;
+  const rKey = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
+  if (rKey !== roomKey) { roomKey = rKey; lastSeen = {}; celebratedGame = 0; shownEnd = false; }
+  const key = `${rKey}:${gi}`;
   if (localKey === key && localGame) return;
+  // The room (server) owns the game index; re-seed the local game when the table
+  // advances or on reconnect, restoring this game's committed card from the seat.
   localKey = key;
-  lastSeen = {};
-  // Restore the series position + current card from the server seat (reconnect).
+  gameIndex = gi;
   const seat = mySeat();
-  gameIndex = seat && seat.game_index ? seat.game_index : 1;
   seriesPast = seat && seat.series_past ? seat.series_past : 0;
   localGame = newGame(["You"]);
   if (seat && seat.scores) {
     const card = localGame.players[0];
     for (const k of CATEGORY_KEYS) if (seat.scores[k] != null) card.scores[k] = seat.scores[k];
-    if (isCardComplete(card.scores) && gameIndex >= SERIES_GAMES) localGame.over = true;
+    if (isCardComplete(card.scores)) localGame.over = true; // finished this game, waiting
   }
 }
 
@@ -106,7 +112,7 @@ function renderLobby() {
   ctx.host.innerHTML = `<div class="yz-root"><section class="ten-thousand-lobby">
       <h3>Players</h3>
       <ul class="tt-lobby-roster">${roster}</ul>
-      <p class="ten-thousand-message">Everyone plays their own game in parallel. Invite players or bots, then start whenever you're ready.</p>
+      <p class="ten-thousand-message">A 6-game series — everyone plays their own card, and the table moves to the next game once all players finish. Invite players or bots, then start.</p>
       ${hostControls}
     </section></div>`;
   if (!ctx.isHost) return;
@@ -126,6 +132,21 @@ function render() {
   rollBtn.textContent = localGame.rollsLeft === MAX_ROLLS ? "Roll" : `Roll (${localGame.rollsLeft} left)`;
   rollBtn.disabled = localGame.over || localGame.rollsLeft <= 0 || rolling;
   renderTip();
+  // Big deal when a new game starts (the whole table just advanced).
+  if (gameIndex !== celebratedGame) {
+    celebratedGame = gameIndex;
+    pushNews(`🎲 Game ${gameIndex} of ${SERIES_GAMES} — good luck!`, 2600);
+    tipFlash();
+  }
+  if (ctx.game && ctx.game.status === "complete") showEnd();
+}
+
+// Flash the tip/news strip green for ~1s to mark a new game.
+function tipFlash() {
+  const el = q('[data-yz="tip"]');
+  if (!el) return;
+  el.classList.add("celebrate");
+  setTimeout(() => { const e = q('[data-yz="tip"]'); if (e) e.classList.remove("celebrate"); }, 1100);
 }
 
 function ensureStructure() {
@@ -236,18 +257,25 @@ function renderCard() {
 function renderBoard() {
   const myMark = localMark();
   const games = (ctx.game && ctx.game.series_games) || SERIES_GAMES;
+  const seriesComplete = ctx.game && ctx.game.status === "complete";
   const rows = (ctx.game.players || []).map((seat) => {
     const me = seat.mark === myMark;
-    const gi = me ? gameIndex : (seat.game_index || 1);
-    const round = me ? CATEGORIES.filter((c) => localGame.players[0].scores[c.key] != null).length : (seat.round || 0);
-    const overall = me ? seriesPast + grandTotal(localGame.players[0]) : (seat.overall || 0);
-    const done = me ? (gameIndex >= games && localGame.over) : seat.finish_state === "complete";
-    return { name: seat.name, isBot: seat.is_bot, me, gi, round, overall, done };
+    const card = localGame.players[0];
+    const round = me ? CATEGORIES.filter((c) => card.scores[c.key] != null).length : (seat.round || 0);
+    const roundScore = me ? grandTotal(card) : (seat.round_score || 0);
+    const overall = me ? seriesPast + grandTotal(card) : (seat.overall || 0);
+    const g = me ? gameIndex : (seat.game_index || gameIndex);
+    const complete = seat.finish_state === "complete";
+    const waiting = me ? (localGame.over && !seriesComplete) : seat.finish_state === "waiting";
+    return { name: seat.name, isBot: seat.is_bot, me, round, roundScore, overall, g, complete, waiting };
   }).sort((a, b) => b.overall - a.overall);
   q(".board").innerHTML =
-    `<table class="lbtable"><thead><tr><th>Player</th><th class="r">Game</th><th class="r">Round</th><th class="s">Overall</th></tr></thead><tbody>${
+    `<table class="lbtable"><thead><tr><th>Player</th><th class="r">Round#</th><th class="r">Round</th><th class="r">Game</th><th class="s">Overall</th></tr></thead><tbody>${
       rows.map((p) => `<tr class="${p.me ? "me" : ""}"><td>${ctx.escapeHtml(p.name)}${p.isBot ? " 🤖" : ""}</td>` +
-        `<td class="r">${p.done ? "✅" : p.gi + "/" + games}</td><td class="r">${p.done ? "—" : p.round + "/" + ROUNDS}</td><td class="s">${p.overall}</td></tr>`).join("")
+        `<td class="r">${p.complete ? "✅" : (p.waiting ? "⏳" : p.round + "/" + ROUNDS)}</td>` +
+        `<td class="r">${p.roundScore}</td>` +
+        `<td class="r">${p.g}/${games}</td>` +
+        `<td class="s">${p.overall}</td></tr>`).join("")
     }</tbody></table>`;
 }
 
@@ -255,25 +283,25 @@ function renderBoard() {
 // post it over the tip strip (the "global news" tier the local tips defer to).
 function newsFromSnapshot() {
   const myMark = localMark();
-  const games = (ctx.game && ctx.game.series_games) || SERIES_GAMES;
+  const gi = (ctx.game && ctx.game.game_index) || gameIndex;
   for (const seat of (ctx.game.players || [])) {
     if (seat.mark === myMark) continue;
     const prev = lastSeen[seat.mark];
     if (prev) {
-      if (seat.finish_state === "complete" && prev.finish_state !== "complete") {
+      if (seat.finish_state === "complete" && prev !== "complete") {
         pushNews(`🏁 ${seat.name} finished the series — ${seat.overall} total!`, 3500);
-      } else if ((seat.game_index || 1) > (prev.game_index || 1)) {
-        pushNews(`✅ ${seat.name} finished game ${prev.game_index} of ${games}.`, 3000);
+      } else if (seat.finish_state === "waiting" && prev === "playing") {
+        pushNews(`✅ ${seat.name} finished game ${gi} — waiting on the table.`, 3000);
       }
     }
-    lastSeen[seat.mark] = { game_index: seat.game_index || 1, finish_state: seat.finish_state };
+    lastSeen[seat.mark] = seat.finish_state;
   }
 }
 
 // --- tips ------------------------------------------------------------------
 function localHints() {
   if (!localGame) return ["Loading…"];
-  if (localGame.over) return ["🎲 Game over — your score is in."];
+  if (localGame.over) return [`✓ Game ${gameIndex} done — waiting for the table to finish.`];
   if (rolling) return ["🎲 Rolling…"];
   const p = localGame.players[localGame.current];
   if (!localGame.rolled) {
@@ -338,27 +366,22 @@ async function scoreCategory(key) {
   await new Promise((r) => setTimeout(r, 850));
   busy = false;
   const bonusBefore = card.yahtzeeBonus;
-  applyAction(localGame, { type: "SCORE", category: key });   // local commit
+  applyAction(localGame, { type: "SCORE", category: key });   // local commit (sets over when the card fills)
   const value = card.scores[key];
   const yahtzeeBonus = card.yahtzeeBonus - bonusBefore;
-  const cardComplete = isCardComplete(card.scores);
-  if (cardComplete && gameIndex < SERIES_GAMES) {
-    seriesPast += grandTotal(card);   // bank this game, advance to the next in the series
-    gameIndex += 1;
-    localGame = newGame(["You"]);
-    pushNews(`🎲 Game ${gameIndex} of ${SERIES_GAMES} — good luck!`, 3200);
-  }
-  render();
-  if (cardComplete && gameIndex >= SERIES_GAMES && localGame.over) showEnd();
+  render();   // a filled card shows the waiting state; the server advances the whole table
   await ctx.makeMove({ type: "SCORE", category: key, value, yahtzee_bonus: yahtzeeBonus });   // post to the table
 }
 function showEnd() {
+  if (shownEnd) return;
+  shownEnd = true;
   playWin();
-  const total = seriesPast + grandTotal(localGame.players[0]);
+  const seat = mySeat();
+  const total = seat ? seat.overall : seriesPast + grandTotal(localGame.players[0]);
   q('[data-yz="endTitle"]').textContent = "Series complete! 🎲";
   q('[data-yz="finalScore"]').textContent = total;
-  q('[data-yz="commLine"]').textContent = `✓ ${SERIES_GAMES} games · ${total} total — watch the table.`;
-  pushNews(`🏁 You finished the series: ${total}!`, 6000);
+  q('[data-yz="commLine"]').textContent = `✓ ${SERIES_GAMES} games · ${total} total.`;
+  pushNews(`🏁 Series complete: ${total}!`, 6000);
   q('[data-yz="end"]').classList.remove("hidden");
 }
 
@@ -378,6 +401,7 @@ function injectStyles() {
   .yz-root .tipstrip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 14px;font-size:14px;font-weight:600;color:var(--accentdk);height:38px;display:flex;align-items:center;justify-content:center;gap:8px;overflow:hidden;cursor:default}
   .yz-root .tipstrip.tappable{cursor:pointer}
   .yz-root .tipstrip:active.tappable{background:#fbeeee}
+  .yz-root .tipstrip.celebrate{background:#15803d;color:#ffffff;border-color:#15803d;font-weight:700;transition:background .15s ease,color .15s ease}
   .yz-root .tipstrip .tiptext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .yz-root .tipstrip .tipnav{flex:0 0 auto;color:var(--muted);font-size:12px;font-weight:700}
   .yz-root .board{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
