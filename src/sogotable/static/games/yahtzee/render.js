@@ -411,9 +411,9 @@ function injectStyles() {
   .yz-root .board{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .yz-root .lbtable{width:100%;border-collapse:collapse;font-size:13px}
   .yz-root .lbtable th{padding:7px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--head);text-align:left;font-weight:600}
-  .yz-root .lbtable th.r,.yz-root .lbtable th.s{text-align:right}
+  .yz-root .lbtable th.r,.yz-root .lbtable th.s{text-align:center}
   .yz-root .lbtable td{padding:6px 10px;border-top:1px solid var(--line);white-space:nowrap}
-  .yz-root .lbtable td.r,.yz-root .lbtable td.s,.yz-root .lbtable td.g{text-align:right;font-variant-numeric:tabular-nums}
+  .yz-root .lbtable td.r,.yz-root .lbtable td.s,.yz-root .lbtable td.g{text-align:center;font-variant-numeric:tabular-nums}
   .yz-root .lbtable td.g{color:var(--ink);font-weight:600}
   .yz-root .lbtable td.s{font-weight:800;color:var(--green);font-size:16px}
   .yz-root .lbtable tr.me{background:rgba(215,25,32,.08)}
