@@ -2289,7 +2289,7 @@ function renderGame() {
   }
   if (isYahtzeeGameState(game)) {
     document.getElementById("gamePlayersPanel").classList.add("hidden");
-    showTurnStatus(null, "");
+    showTurnStatus(null, currentRoom.started ? "Fill your scorecard — race the table." : "Lobby — invite players or bots, then start.");
     const localSeat = localRoomSeat(currentRoom);
     renderYahtzeeGame({
       host: document.getElementById("macroBoard"),

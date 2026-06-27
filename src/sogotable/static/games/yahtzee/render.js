@@ -55,23 +55,38 @@ function ensureLocalGame() {
 
 // --- lobby (before host start) ---------------------------------------------
 function renderLobby() {
+  // The standard SogoTable host-start lobby (same shell classes as 10,000), so
+  // inviting players/bots is identical across games.
   const host = ctx.host;
-  const seats = (ctx.room.players || []).map((p) =>
-    `<div class="yz-seat">${ctx.escapeHtml(p.name)}${p.kind === "bot" ? " 🤖" : ""}</div>`).join("");
-  const controls = ctx.isHost
-    ? `<button class="yz-btn" id="yzStart">Start game</button>
-       <button class="yz-btn ghost" id="yzInvite">Invite player</button>
-       <button class="yz-btn ghost" id="yzBot">Add bot</button>`
-    : `<div class="yz-wait">Waiting for the host to start…</div>`;
-  host.innerHTML = `<div class="yz"><div class="yz-lobby">
-    <div class="yz-h">Yahtzee — everyone plays their own game</div>
-    <div class="yz-seats">${seats}</div>
-    <div class="yz-controls">${controls}</div></div></div>`;
-  if (ctx.isHost) {
-    host.querySelector("#yzStart").addEventListener("click", () => ctx.startGame());
-    host.querySelector("#yzInvite").addEventListener("click", () => ctx.invitePlayer());
-    host.querySelector("#yzBot").addEventListener("click", () => ctx.addBot());
-  }
+  const seats = Array.isArray(ctx.room.players) ? ctx.room.players : [];
+  const roster = seats.length
+    ? seats.map((seat, i) => `
+      <li class="tt-lobby-player">
+        <span class="tt-lobby-player-no">${i + 1}</span>
+        <div class="tt-lobby-player-body">
+          <strong>${ctx.escapeHtml(seat.name)}</strong>
+          <span>${ctx.escapeHtml(seat.kind === "bot" ? "Bot" : "Player")} ${ctx.escapeHtml(seat.mark || "")}</span>
+        </div>
+      </li>`).join("")
+    : `<li class="tt-lobby-empty">No players yet.</li>`;
+  const hostControls = ctx.isHost
+    ? `<div class="tt-lobby-actions">
+        <button class="secondary" type="button" data-yz="invite">Invite Remote Opponent</button>
+        <button class="secondary" type="button" data-yz="bot">Invite Bot</button>
+        <button class="primary" type="button" data-yz="start" ${seats.length ? "" : "disabled"}>Start Game</button>
+      </div>`
+    : `<p class="ten-thousand-message">Waiting for the host to start...</p>`;
+  host.innerHTML = `<div class="yz"><section class="ten-thousand-lobby">
+      <h3>Players</h3>
+      <ul class="tt-lobby-roster">${roster}</ul>
+      <p class="ten-thousand-message">Everyone plays their own game in parallel. Invite players or bots, then start whenever you're ready.</p>
+      ${hostControls}
+    </section></div>`;
+  if (!ctx.isHost) return;
+  const wire = (key, fn) => { const b = host.querySelector(`[data-yz="${key}"]`); if (b) b.addEventListener("click", fn); };
+  wire("invite", () => ctx.invitePlayer());
+  wire("bot", () => ctx.addBot());
+  wire("start", () => ctx.startGame());
 }
 
 // --- play (own game + live leaderboard) ------------------------------------
@@ -198,7 +213,7 @@ function injectStyles() {
   if (document.getElementById("yz-styles")) return;
   const s = document.createElement("style"); s.id = "yz-styles";
   s.textContent = `
-  .yz{display:flex;flex-direction:column;gap:10px;--p:#1a1f2e;--ln:#262c3d;--mut:#8b93a7;--acc:#ffd166;--grn:#5ed18a}
+  .yz{display:flex;flex-direction:column;gap:10px;grid-column:1/-1;width:100%;--p:#1a1f2e;--ln:#262c3d;--mut:#8b93a7;--acc:#ffd166;--grn:#5ed18a}
   .yz-tip{background:var(--p);border:1px solid var(--ln);border-radius:12px;height:42px;display:flex;align-items:center;justify-content:center;
     font-size:14px;font-weight:600;color:var(--acc);padding:0 12px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .yz-dicearea{background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px;align-items:center}
