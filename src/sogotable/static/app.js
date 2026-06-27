@@ -2464,7 +2464,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }
