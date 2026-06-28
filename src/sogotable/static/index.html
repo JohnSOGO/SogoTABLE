@@ -97,17 +97,18 @@
               </label>
               <label class="player-icon-field">
                 Icon
-                <input id="playerIconText" class="emoji-input" maxlength="8" aria-label="Player emoji icon" />
+                <input id="playerIconText" class="emoji-input" aria-label="Player emoji icon" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
               </label>
               <div class="player-color-field">
                 <span class="label">Color</span>
                 <div class="color-picker-shell">
-                  <input id="playerColorText" class="color-value" maxlength="7" aria-label="Player color hex value" />
+                  <input id="playerColorText" class="color-value" maxlength="7" aria-label="Player color hex value" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
                   <input id="playerColorNative" class="native-color" type="color" aria-label="Open color picker" />
                 </div>
                 <div id="colorChoices" class="color-palette"></div>
               </div>
             </div>
+            <p class="emoji-hint">Tip: click the Icon field and press <kbd>Win</kbd> + <kbd>.</kbd> for the emoji keyboard.</p>
             <button id="clearPlayerStats" class="secondary danger hidden" type="button">Clear Stats</button>
             <button id="playerFormSubmit" class="primary" type="submit">Create Player</button>
           </form>

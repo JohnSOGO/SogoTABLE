@@ -335,6 +335,31 @@ p,
   justify-self: end;
 }
 
+/* Emoji-keyboard hint: only useful on desktop with a real keyboard + mouse,
+   so it stays hidden on touch devices (where the on-screen keyboard already
+   offers emoji). */
+.emoji-hint {
+  display: none;
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .emoji-hint {
+    display: block;
+  }
+}
+
+.emoji-hint kbd {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .player-icon-field .emoji-input {
   width: 68px;
 }

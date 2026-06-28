@@ -6,7 +6,7 @@ import {
   mixColorWithWhite,
   normalizePlayerColor,
 } from "./color-utils.js";
-import { avatarHtml, escapeHtml } from "./html-utils.js";
+import { avatarHtml, escapeHtml, firstEmoji } from "./html-utils.js";
 import { createRealtimeController } from "./realtime.js";
 import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
 import { renderGameList } from "./games/game-list-view.js";
@@ -851,8 +851,7 @@ function setTurnColorVariables(element, color) {
 }
 
 function updateSelectedIcon(event) {
-  const value = event.target.value.trim();
-  selectedIcon = value;
+  selectedIcon = event.target.value = firstEmoji(event.target.value);
 }
 
 function clearEmojiField(event) {
