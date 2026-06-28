@@ -34,8 +34,11 @@ they encode the same precedence.
 | Mazewright — lobby ("table") **and** live board ("game") | **Yes** | Its `--mw-*` palette has dark + light variants; the light variant inherits the platform tokens. |
 | Battleship board | **Yes** | "Dark ocean" palette: deep-navy water, teal ships, hot-red hits, muted misses, amber radar kept. Injected from `games/battleship/client.js` (`BATTLESHIP_DARK_CSS`), theme-gated; the light naval palette in `styles-games.css` is unchanged. |
 | Quoridor board | **Yes** | Dark slate board/cells; pawn/legal/goal tints re-mixed toward the dark base, walls lightened to read on dark, amber wall cues kept. Injected from `games/quoridor/client.js` (`QUORIDOR_DARK_CSS`), theme-gated; the turn-colored toolbar chip is left as-is (matches the shell). |
-| `#intro` hero | **No (intentional)** | Self-contained brand gradient (red → black, white text) that already reads as dark; theme-independent in both modes. |
-| Other game boards — Super TTT, Boxes, Yahtzee/10,000 dice | **Not yet** | They render as light "play surfaces" on the dark shell (the lit-table look). Per-game board theming is tracked follow-up work; theme each board game-by-game. Pattern: a small theme-gated block injected from the game module (see Battleship/Quoridor), keeping the line-capped shared stylesheet light. |
+| Super Tic Tac Toe board (+ Tactical variant) | **Yes** | Dark board/cells; `--x`/`--o` marks and turn-soft active boards are already theme-aware, amber win/pickup cues kept, pickup tints darkened. Injected from `games/super-tic-tac-toe/render.js` (`SUPER_TTT_DARK_CSS`); the Tactical variant renders through the same module. |
+| Boxes board | **Yes** | Dark score pills / box cells / edges; claimed edges+boxes use the inline player colour, danger box darkened. Injected from `games/boxes/client.js` (`BOXES_DARK_CSS`); the board container was already `var(--surface)`. |
+| Yahtzee | **Yes** | Its self-contained `.yz-root` token palette gets a dark override (re-points `--panel`/`--head`/`--ink`/`--muted`/`--line`/`--accent`/`--green`); **dice stay white** (read as real dice on a dark table); canscore/zeroplay row tints tuned. In `games/yahtzee/render.js` (appended to the injected `.yz-root` styles). |
+| 10,000 (dice) | **Mostly** | Shell surfaces (scoreboard, lobby, message, standings) themed in the shared dark block; **dice keep white faces**; status/notice text colours lifted for contrast. The colour-coded action buttons (green/red/amber) are kept vivid by design. |
+| `#intro` opening screen | **Yes** | Brand red→black hero in both modes; dark mode deepens it (less neon) and lands the tail on the page dark base so it merges into the shell. White primary button keeps a dark-red label; admin action uses the dark danger tokens. Override in `styles.css`. |
 
 The boundary is deliberate: the chrome is token-driven and flips safely, but each
 game board carries a bespoke light palette (often `color-mix(... #fff)`) whose dark
@@ -121,7 +124,9 @@ colors (exit green, gold, start blue, accent indigo).
 - Translucent fills layered over the page gradient: keep the light literal and add
   a dark override rather than tokenizing (tokenizing to a solid changes the light
   look).
-- `#intro` is off-limits for theming — it is the brand hero.
+- `#intro` keeps its brand red→black hero in both modes; dark mode only deepens
+  the gradient and merges its tail into the page dark base (don't flatten it to a
+  neutral surface — it is still the brand hero).
 - Verify contrast: body/emphasis text on its surface should clear WCAG AA
   (`color-utils.js` has luminance/contrast helpers if you need to compute).
 
@@ -148,3 +153,8 @@ colors (exit green, gold, start blue, accent indigo).
 - `games/mazewright/render.js` — `MW_CSS` with dark + light `--mw-*` variants.
 - `games/battleship/client.js` — `BATTLESHIP_DARK_CSS`, injected once; theme-gated dark-ocean board palette (light palette stays in `styles-games.css`).
 - `games/quoridor/client.js` — `QUORIDOR_DARK_CSS`, injected once; theme-gated dark board palette (light palette stays in `styles-games.css`).
+- `games/super-tic-tac-toe/render.js` — `SUPER_TTT_DARK_CSS`, injected once; dark board palette shared with the Tactical variant.
+- `games/boxes/client.js` — `BOXES_DARK_CSS`, injected once; dark board palette (the live Boxes client; `games/boxes/render.js` is an unwired lab).
+- `games/yahtzee/render.js` — dark `:root[data-theme="dark"] .yz-root { … }` override appended to the injected `.yz-root` styles.
+- `styles.css` — `#intro` opening-screen dark override (in the dark-fixups block).
+- `styles-games.css` — 10,000 dice-game dark fixes live in its in-game-shell dark block.

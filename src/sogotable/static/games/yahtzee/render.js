@@ -468,6 +468,18 @@ function injectStyles() {
   .yz-root .finalscore{font-size:56px;font-weight:800;color:var(--green);line-height:1;margin:16px 0 8px;font-variant-numeric:tabular-nums}
   .yz-root .commline{font-size:13px;color:var(--muted)}
   .yz-root .btn{background:var(--head);color:var(--ink);border:1px solid var(--line);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer}
+  /* Dark mode: re-point .yz-root's self-contained token palette to dark values
+     (most surfaces consume these tokens). Dice stay white — they read as real
+     dice on a dark table — and the green/red/amber action+state colours pop on
+     dark, so only the canscore/zeroplay/active tints and the "me" row are tuned. */
+  :root[data-theme="dark"] .yz-root{--panel:#1b212b;--head:#222a36;--ink:#e8eaef;--muted:#9aa3b2;--line:#2c3340;--accent:#ef4d52;--accentdk:#ff8d90;--green:#5fd09a}
+  :root[data-theme="dark"] .yz-root .tipstrip:active.tappable{background:#262f3d}
+  :root[data-theme="dark"] .yz-root .lbtable tr.me{background:rgba(239,77,82,.16)}
+  :root[data-theme="dark"] .yz-root .row.open.canscore{background:#2c2613}
+  :root[data-theme="dark"] .yz-root .row.open.canscore .val{color:#f1dca2}
+  :root[data-theme="dark"] .yz-root .row.open.canscore:active{background:#3a3119}
+  :root[data-theme="dark"] .yz-root .row.open.zeroplay{background:rgba(255,255,255,.04)}
+  :root[data-theme="dark"] .yz-root .row.open.zeroplay:active{background:rgba(255,255,255,.08)}
   `;
   document.head.appendChild(s);
 }
