@@ -75,8 +75,8 @@ function ensureScaffold() {
   ctx.host.innerHTML =
     '<div class="mazewright-root">' +
     '<div class="mw-hud mw-panel"><div class="mw-hudrow"><div class="mw-turn"><span class="mw-dot"></span>' +
-    '<span class="mw-turnname"></span></div><span class="mw-tag"></span><span class="mw-sub"></span></div>' +
-    '<div class="mw-meters"></div></div>' +
+    '<span class="mw-turnname"></span></div><span class="mw-tag"></span><span class="mw-caret">▾</span></div>' +
+    '<div class="mw-sub"></div><div class="mw-meters"></div></div>' +
     '<div class="mw-inventory mw-panel"></div>' +
     '<div class="mw-modes"><button class="mw-mode" data-mode="walls">🧱 Walls</button>' +
     '<button class="mw-mode" data-mode="start">⛳ Start</button>' +
@@ -104,6 +104,7 @@ function ensureScaffold() {
     const btn = e.target.closest(".mw-dbtn");
     if (btn && runState && runState.phase === PHASE.CRAWL) commitRun({ type: "MOVE", dir: btn.dataset.dir });
   });
+  q(".mw-hud").addEventListener("click", () => { const h = q(".mw-hud"); if (h) h.classList.toggle("collapsed"); });
   q(".mw-modes").addEventListener("click", (e) => {
     const btn = e.target.closest(".mw-mode");
     if (!btn) return;
@@ -639,13 +640,17 @@ const MW_CSS = `
  --mw-cellc:#edeef3;--mw-start:#cfe0ff;--mw-exit:#1f9d62;--mw-gold:#b07d12;--mw-accent:#6a5be0;
  --mw-fog:#d9dbe4;--mw-padink:#241f3a;--mw-pad:rgba(106,91,224,.18);--mw-trail:rgba(60,48,110,.7);}
 .mazewright-root .mw-panel{width:100%;max-width:460px;background:var(--mw-panel);border:1px solid var(--mw-grid);border-radius:14px;padding:12px 14px;}
-.mazewright-root .mw-hudrow{display:flex;align-items:center;gap:9px;flex-wrap:nowrap;overflow:hidden;}
+.mazewright-root .mw-hud{cursor:pointer;}
+.mazewright-root .mw-hudrow{display:flex;align-items:center;gap:9px;}
 .mazewright-root .mw-turn{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.02rem;flex:none;}
+.mazewright-root .mw-caret{flex:none;color:var(--mw-muted);font-size:.75rem;display:inline-block;transition:transform .15s;}
+.mazewright-root .mw-hud.collapsed .mw-caret{transform:rotate(-90deg);}
+.mazewright-root .mw-hud.collapsed .mw-sub,.mazewright-root .mw-hud.collapsed .mw-meters{display:none;}
 .mazewright-root .mw-dot{width:14px;height:14px;border-radius:50%;flex:none;background:var(--mw-accent);}
-.mazewright-root .mw-tag{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;padding:4px 9px;border-radius:999px;background:var(--mw-cellc);color:var(--mw-muted);border:1px solid var(--mw-grid);}
+.mazewright-root .mw-tag{margin-left:auto;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;padding:4px 9px;border-radius:999px;background:var(--mw-cellc);color:var(--mw-muted);border:1px solid var(--mw-grid);}
 .mazewright-root .mw-tag.build{color:#d98a4a;border-color:#d98a4a;}
 .mazewright-root .mw-tag.crawl{color:var(--mw-exit);border-color:var(--mw-exit);}
-.mazewright-root .mw-sub{flex:1 1 8ch;min-width:0;color:var(--mw-muted);font-size:.85rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mazewright-root .mw-sub{margin-top:5px;color:var(--mw-muted);font-size:.85rem;}
 .mazewright-root .mw-meters{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;}
 .mazewright-root .mw-meter{font-size:.82rem;padding:5px 10px;border-radius:999px;background:var(--mw-cellc);border:1px solid var(--mw-grid);}
 .mazewright-root .mw-meter b{color:var(--mw-ink);} .mazewright-root .mw-meter.ok{color:var(--mw-gold);border-color:var(--mw-gold);}
