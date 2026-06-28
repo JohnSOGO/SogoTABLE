@@ -2,7 +2,7 @@
 // the bug-report form. Extracted from the shell. Imports its storage/sound deps
 // directly; the shell provides rerender + api + the bug-report context (which
 // reads shell state) via wireGameOptions(ctx).
-import { actionLabelStyle, setActionLabelStyle } from "../storage.js";
+import { actionLabelStyle, setActionLabelStyle, effectiveTheme, setDarkMode, applyTheme } from "../storage.js";
 import { isSoundEnabled, soundVolumeLevel, setSoundEnabled, setSoundVolumeLevel, unlockAudio, playConfirm } from "../sound.js";
 
 let ctx = null;
@@ -10,6 +10,8 @@ let ctx = null;
 function openGameOptionsModal() {
   const checkbox = document.getElementById("optionActionWords");
   if (checkbox) checkbox.checked = actionLabelStyle() === "words";
+  const darkToggle = document.getElementById("optionDarkMode");
+  if (darkToggle) darkToggle.checked = effectiveTheme() === "dark";
   syncVolumeOption();
   const status = document.getElementById("bugReportStatus");
   if (status) status.textContent = "";
@@ -53,6 +55,13 @@ function onActionWordsToggle(event) {
   ctx.rerender();
 }
 
+// Dark mode is pure CSS keyed off the <html data-theme> attribute, so flipping
+// it restyles the live screen (Mazewright) instantly — no rerender needed.
+function onDarkModeToggle(event) {
+  setDarkMode(event.target.checked);
+  applyTheme();
+}
+
 
 async function submitBugReport() {
   const textarea = document.getElementById("bugReportText");
@@ -84,6 +93,8 @@ export function wireGameOptions(controllerCtx) {
   document.getElementById("closeGameOptionsModal").addEventListener("click", closeGameOptionsModal);
   document.getElementById("gameOptionsModal").addEventListener("click", closeGameOptionsModalOnBackdrop);
   document.getElementById("optionActionWords").addEventListener("change", onActionWordsToggle);
+  const darkToggle = document.getElementById("optionDarkMode");
+  if (darkToggle) darkToggle.addEventListener("change", onDarkModeToggle);
   const volumeSlider = document.getElementById("optionVolume");
   if (volumeSlider) volumeSlider.addEventListener("input", onVolumeOptionInput);
   document.getElementById("submitBugReport").addEventListener("click", submitBugReport);

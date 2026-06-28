@@ -403,7 +403,7 @@ function renderBoardInto(state, mode, opts) {
       (cl) => commitBuild({ type: "SET_ITEM", index: i, cell: cl })));
     drawToken(add, g, svg, state, state.pos, meEmoji, meColor, (cl) => commitBuild({ type: "SET_START", cell: cl }));
   } else if (reveal) {
-    for (const k of Object.keys(state.visited)) { const [c, r] = k.split(",").map(Number); add("circle", { cx: cx(c), cy: cy(r), r: size * 0.07, fill: "#fff", "fill-opacity": 0.8 }); }
+    for (const k of Object.keys(state.visited)) { const [c, r] = k.split(",").map(Number); add("circle", { cx: cx(c), cy: cy(r), r: size * 0.07, class: "mw-trail" }); }
     for (const it of state.items) { const el = add("text", { x: cx(it.cell[0]), y: cy(it.cell[1]), class: "mw-emoji" + (it.collected ? "" : " mw-treasure") }); el.textContent = it.type === "diamond" ? "💎" : "🪙"; if (it.collected) el.setAttribute("opacity", "0.4"); }
     add("circle", { cx: cx(state.pos[0]), cy: cy(state.pos[1]), r: size * 0.34, fill: meColor, "fill-opacity": 0.3, stroke: meColor, "stroke-width": 2 });
     add("text", { x: cx(state.pos[0]), y: cy(state.pos[1]), class: "mw-emoji" }).textContent = meEmoji;
@@ -469,9 +469,25 @@ function flash(msg) {
 const MW_CSS = `
 #macroBoard:has(.mazewright-root){display:block;aspect-ratio:auto;background:none;border:none;}
 .mazewright-root{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;
+ padding:14px 10px;border-radius:16px;background:var(--mw-stage);
  --mw-panel:#211d31;--mw-ink:#f3effa;--mw-muted:#9b93b5;--mw-grid:#3a3350;--mw-cellc:#2a2540;
- --mw-start:#33406b;--mw-exit:#46d18a;--mw-gold:#e9c45a;--mw-accent:#7c6cff;color:var(--mw-ink);
- font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+ --mw-start:#33406b;--mw-exit:#46d18a;--mw-gold:#e9c45a;--mw-accent:#7c6cff;
+ --mw-fog:#131019;--mw-stage:#16121f;--mw-padink:#ffffff;--mw-pad:rgba(124,108,255,.25);--mw-trail:rgba(255,255,255,.8);
+ color:var(--mw-ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+/* Theme: the dark dungeon is the default look; light mode is a parchment variant.
+   Both blocks cover the lobby ("table") and the live board ("game"), scoped to
+   .mazewright-root so the rest of the platform stays untouched. data-theme is set
+   on <html> before paint (index.html) from the saved choice or the device. */
+:root[data-theme="light"] .mazewright-root{
+ --mw-panel:#ffffff;--mw-ink:#2a2440;--mw-muted:#6b6486;--mw-grid:#d8d0ee;--mw-cellc:#ece8fa;
+ --mw-start:#bcd0f7;--mw-exit:#1f9d62;--mw-gold:#b07d12;--mw-accent:#6a5be0;
+ --mw-fog:#cfc8e0;--mw-stage:#f3f0fb;--mw-padink:#241f3a;--mw-pad:rgba(106,91,224,.18);--mw-trail:rgba(60,48,110,.7);}
+/* The lobby is shared platform chrome (host-lobby.js) drawn with the platform
+   tokens; in dark mode flip those tokens (scoped here) so the "table" matches the
+   dark board instead of staying light. Light mode keeps the platform defaults. */
+:root[data-theme="dark"] .mazewright-root{--ink:#f3effa;--muted:#9b93b5;--line:#3a3350;--panel:#211d31;--turn-soft:#2a2540;}
+:root[data-theme="dark"] .mazewright-root .ten-thousand-message{background:#1b1727;border-color:#3a3350;}
+:root[data-theme="dark"] .mazewright-root .secondary{background:#2a2540;border-color:#3a3350;color:#cfc6f5;}
 .mazewright-root .mw-panel{width:100%;max-width:460px;background:var(--mw-panel);border:1px solid var(--mw-grid);border-radius:14px;padding:12px 14px;}
 .mazewright-root .mw-hudrow{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .mazewright-root .mw-turn{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.02rem;}
@@ -486,7 +502,7 @@ const MW_CSS = `
 .mazewright-root .mw-board{width:100%;max-width:460px;}
 .mazewright-root svg{width:100%;height:auto;display:block;touch-action:manipulation;}
 .mazewright-root .mw-cell{fill:var(--mw-cellc);} .mazewright-root .mw-cell.start{fill:var(--mw-start);}
-.mazewright-root .mw-cell.tap{cursor:pointer;} .mazewright-root .mw-cell.fog{fill:#131019;}
+.mazewright-root .mw-cell.tap{cursor:pointer;} .mazewright-root .mw-cell.fog{fill:var(--mw-fog);}
 .mazewright-root .mw-cell.seen{fill:var(--mw-cellc);} .mazewright-root .mw-cell.here{fill:var(--mw-start);}
 .mazewright-root .mw-wall,.mazewright-root .mw-perim{stroke:#2a0f0a;stroke-width:.5;}
 .mazewright-root .mw-arch{filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.55));}
@@ -495,11 +511,12 @@ const MW_CSS = `
 .mazewright-root .mw-wall.lit{filter:drop-shadow(0 0 4px #ffd45a);} .mazewright-root .mw-perim.lit{filter:drop-shadow(0 0 5px var(--mw-gold));}
 .mazewright-root .mw-hit{fill:transparent;stroke:none;cursor:pointer;}
 .mazewright-root .mw-emoji{font-size:26px;text-anchor:middle;dominant-baseline:central;pointer-events:none;}
+.mazewright-root .mw-trail{fill:var(--mw-trail);}
 .mazewright-root .mw-treasure{filter:drop-shadow(0 0 4px rgba(120,210,255,.7));}
 .mazewright-root .mw-grab{fill:transparent;cursor:grab;} .mazewright-root .mw-grab:active{cursor:grabbing;}
-.mazewright-root .mw-pad{fill:rgba(124,108,255,.25);stroke:var(--mw-accent);stroke-width:1.5;cursor:pointer;}
+.mazewright-root .mw-pad{fill:var(--mw-pad);stroke:var(--mw-accent);stroke-width:1.5;cursor:pointer;}
 .mazewright-root .mw-pad:hover{fill:rgba(124,108,255,.55);} .mazewright-root .mw-pad.exit{fill:rgba(233,196,90,.5);stroke:var(--mw-gold);}
-.mazewright-root .mw-padarrow{font-size:13px;text-anchor:middle;dominant-baseline:central;fill:#fff;pointer-events:none;}
+.mazewright-root .mw-padarrow{font-size:13px;text-anchor:middle;dominant-baseline:central;fill:var(--mw-padink);pointer-events:none;}
 .mazewright-root .mw-inventory{display:none;font-size:1.1rem;}
 .mazewright-root .mw-invlabel{color:var(--mw-muted);text-transform:uppercase;letter-spacing:1px;font-size:.74rem;margin-right:8px;}
 .mazewright-root .mw-invempty{color:var(--mw-muted);opacity:.65;font-size:.85rem;}

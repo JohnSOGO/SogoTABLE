@@ -5,6 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#ffffff" />
     <title>SogoTable</title>
+    <script>
+      // Resolve the per-device theme before paint so themed screens (Mazewright)
+      // never flash the wrong palette. Stored choice ("dark"/"light") wins; with
+      // no choice we follow the device's prefers-color-scheme. Keep in sync with
+      // storage.js (THEME_STORAGE_KEY + effectiveTheme()).
+      (function () {
+        try {
+          var t = localStorage.getItem("sogotable.theme");
+          if (t !== "dark" && t !== "light") {
+            t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/assets/icon-192.png" />
     <link rel="stylesheet" href="/styles.css" />
@@ -153,6 +170,10 @@
             <label class="game-option">
               <input id="optionActionWords" type="checkbox" />
               <span>Use words on action buttons</span>
+            </label>
+            <label class="game-option">
+              <input id="optionDarkMode" type="checkbox" />
+              <span>Dark mode</span>
             </label>
             <div class="bug-report">
               <label class="bug-report-label" for="bugReportText">Report a bug or request a feature</label>

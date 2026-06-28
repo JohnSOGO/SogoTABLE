@@ -9,6 +9,7 @@ export const SOGO_SUPERUSER_PASSCODE_KEY = "sogotable.sogoSuperuserPasscode";
 export const PLAYER_OWNER_TOKEN_STORAGE_KEY = "sogotable.playerOwnerTokens";
 export const ACTION_LABELS_STORAGE_KEY = "sogotable.actionLabels";
 export const LOCAL_GAME_HOME_PLAYERS_KEY = "sogotable.localGameHomePlayers";
+export const THEME_STORAGE_KEY = "sogotable.theme";
 
 export function loadLocalGameHomePlayers() {
   try {
@@ -34,6 +35,31 @@ export function actionLabelStyle() {
 
 export function setActionLabelStyle(useWords) {
   localStorage.setItem(ACTION_LABELS_STORAGE_KEY, useWords ? "words" : "emoji");
+}
+
+// Per-device dark/light preference. Like the sound + action-label toggles, this
+// is a display preference, not room state. A stored "dark"/"light" is an explicit
+// choice; with none we follow the device's prefers-color-scheme. Currently only
+// Mazewright restyles for it (its lobby + game board), but the attribute is set
+// globally so other screens can opt in later. The early <head> script in
+// index.html applies this on load; mirror any logic change there too.
+export function themePreference() {
+  const value = localStorage.getItem(THEME_STORAGE_KEY);
+  return value === "dark" || value === "light" ? value : "system";
+}
+
+export function effectiveTheme() {
+  const pref = themePreference();
+  if (pref !== "system") return pref;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+export function setDarkMode(useDark) {
+  localStorage.setItem(THEME_STORAGE_KEY, useDark ? "dark" : "light");
+}
+
+export function applyTheme() {
+  document.documentElement.setAttribute("data-theme", effectiveTheme());
 }
 
 // Drop the long-retired local roster keys (players now live in the Worker).
