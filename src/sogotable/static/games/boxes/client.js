@@ -8,7 +8,47 @@
 // `games/boxes/` lab files (render.js/rules.js/state.js), which use a different
 // data model and are not wired into the app.
 
+// Dark-mode board palette. The light board lives in styles-games.css; this
+// theme-gated block re-skins only the dark theme and is injected from the
+// module so the line-capped shared stylesheet stays light (see Battleship/
+// Quoridor). The board container is already var(--surface); claimed edges/boxes
+// use the inline player colour, so only the neutral surfaces and the #fff-mixed
+// tints are darkened here.
+const BOXES_DARK_CSS = `
+:root[data-theme="dark"] .boxes-room-score {
+  background: var(--surface);
+}
+:root[data-theme="dark"] .boxes-room-score.active {
+  background: color-mix(in srgb, var(--player-color) 22%, #141a23);
+}
+:root[data-theme="dark"] .boxes-edge {
+  background: #3a4250;
+}
+:root[data-theme="dark"] .boxes-edge:not(:disabled):hover,
+:root[data-theme="dark"] .boxes-edge:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--turn-color, var(--accent)) 55%, #141a23);
+}
+:root[data-theme="dark"] .boxes-cell {
+  background: #222c3a;
+}
+:root[data-theme="dark"] .boxes-cell.owned {
+  background: color-mix(in srgb, var(--owner-color) 26%, #141a23);
+}
+:root[data-theme="dark"] .boxes-cell.danger {
+  background: #2c2613;
+}`;
+
+// Inject the dark palette once. CSS is theme-gated, so it is inert in light mode.
+function ensureBoxesTheme() {
+  if (document.getElementById("boxes-theme")) return;
+  const styleEl = document.createElement("style");
+  styleEl.id = "boxes-theme";
+  styleEl.textContent = BOXES_DARK_CSS;
+  document.head.appendChild(styleEl);
+}
+
 export function renderBoxesGame(ctx) {
+  ensureBoxesTheme();
   const { host, game, room, selectedPlayerId, pendingMove, canRoomSeatMove, setTurnColorVariables } = ctx;
   host.className = "macro-board";
   host.innerHTML = "";

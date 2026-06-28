@@ -1332,4 +1332,18 @@ button.player-switch-button {
   border-color: var(--line);
 }
 
+/* Opening screen (#intro): deepen the brand hero into the page dark base; keep
+   the primary button's label dark-red; admin action → danger tokens. */
+:root[data-theme="dark"] #intro {
+  background: linear-gradient(160deg, #b3151b 0%, #6d0e12 45%, #0e1117 100%);
+}
+:root[data-theme="dark"] #intro .primary {
+  color: #8f1116;
+}
+:root[data-theme="dark"] #intro .intro-admin-action {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-ink);
+}
+
 /* Game-screen styles live in styles-games.css, linked right after this file. */

@@ -9,6 +9,40 @@ const WIN_LINES = [
   [2, 4, 6],
 ];
 
+// Dark-mode board palette (shared by Super Tic Tac Toe and the Tactical
+// variant, which renders through this module). The light board lives in
+// styles-games.css; this theme-gated block re-skins only the dark theme and is
+// injected from the module so the line-capped shared stylesheet stays light
+// (see Battleship/Quoridor). Marks (--x/--o), turn-soft boards, and the amber
+// win/pickup cues are already theme-aware or pop on dark, so only the neutral
+// board/cell surfaces and the pickup tints are darkened here.
+const SUPER_TTT_DARK_CSS = `
+:root[data-theme="dark"] .small-board {
+  border-color: #3a4456;
+  background: #1b232f;
+}
+:root[data-theme="dark"] .cell {
+  border-color: #33404f;
+  background: #222c3a;
+}
+:root[data-theme="dark"] .cell.pickup {
+  background: #2c2613;
+  border-color: #6a5a26;
+}
+:root[data-theme="dark"] .cell.pickup.treasureChest {
+  background: #241b33;
+  border-color: #5b4a82;
+}`;
+
+// Inject the dark palette once. CSS is theme-gated, so it is inert in light mode.
+function ensureSuperTttTheme() {
+  if (typeof document === "undefined" || document.getElementById("super-ttt-theme")) return;
+  const styleEl = document.createElement("style");
+  styleEl.id = "super-ttt-theme";
+  styleEl.textContent = SUPER_TTT_DARK_CSS;
+  document.head.appendChild(styleEl);
+}
+
 export function renderSuperTicTacToeBoard({
   host,
   room,
@@ -24,6 +58,7 @@ export function renderSuperTicTacToeBoard({
   makeMove,
 }) {
   if (!host || !room || !room.game) return lastLegalBoardsKey;
+  ensureSuperTttTheme();
   const game = room.game;
   host.className = "macro-board";
   host.innerHTML = "";

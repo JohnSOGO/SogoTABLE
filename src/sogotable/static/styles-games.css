@@ -1649,3 +1649,17 @@
 :root[data-theme="dark"] .ten-thousand-scoreboard > div {
   background: var(--surface);
 }
+/* The dice keep their white faces (they read as real dice on the dark table);
+   only the light status/notice text colours are lifted for contrast. */
+:root[data-theme="dark"] .ten-thousand-tray .tt-opening-hint {
+  color: var(--notice-ink);
+  background: var(--notice-bg);
+  border-color: var(--notice-border);
+}
+:root[data-theme="dark"] .tt-status-good {
+  color: #4ade80;
+}
+:root[data-theme="dark"] .tt-status-bad,
+:root[data-theme="dark"] .ten-thousand-standings tr.is-farkle td:nth-child(2) {
+  color: #ff7a7a;
+}
