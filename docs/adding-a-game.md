@@ -287,6 +287,15 @@ game hits (all learned on Yahtzee):
 - **Scope every CSS selector.** A promoted standalone uses generic names (`.row`,
   `.card`, `.die`) that would clobber the shell globally. Wrap the UI in a single
   `.<game>-root` and prefix all rules; inject the stylesheet once.
+- **Theme it for dark and light.** The platform is themed (`data-theme` on
+  `<html>`) and **every shipped board now has a dark variant** — match that. Add a
+  **theme-gated, scoped** dark block — `:root[data-theme="dark"] .<game>-root … {}`
+  or `--token` overrides — **injected from your module** (a `<GAME>_DARK_CSS`
+  string appended to the same injected `<style>`), leaving the light palette and
+  the line-capped shared `styles-games.css` untouched. Don't blanket-darken:
+  physical objects that read naturally light (dice, white pieces) **stay light** by
+  design. If you themed the Phase 0 standalone (you should have), this is a lift,
+  not new work. Full spec + worked examples: [Dark / Light Theme](theme.md).
 - **Manage the shell chrome.** Hide what you don't use (`#gamePlayersPanel`,
   `#gamePlayerSwitch`). `#turnStatus` is styled `#turnStatus{display:grid}`, which
   beats `.hidden` by ID specificity — collapse it with a scoped
@@ -350,6 +359,9 @@ game hits (all learned on Yahtzee):
 - **Multiplayer resilience** — assume reconnects, duplicate tabs, dropped
   sockets, bad codes; fail loud in dev, graceful in prod; use the room WebSocket
   path for active updates; avoid needless polling/writes.
+- **Looks right in both light and dark mode** — board, pieces, and status
+  surfaces; contrast holds both ways; physical pieces (dice) kept light on purpose.
+  ([Dark / Light Theme](theme.md).)
 - **Ship `docs/game-<id>.md`** documenting the game, and link it from the docs.
 
 ---
@@ -380,6 +392,8 @@ Rule), which is exactly why it's safe to ship the moment it's done.
   "adding a game" act.
 - [AREC](AREC.md) — the proposal gate.
 - [State Machine](state-machine.md) — room and screen behavior to reuse.
+- [Dark / Light Theme](theme.md) — the theming spec; new boards must support both
+  modes (theme the Phase 0 standalone so it lifts straight in).
 - [Cloudflare Quota Guardrails](cloudflare-quota.md) — why the client/server
   split matters for cost.
 - [Bot Behavior](bots/index.md) and [AI Difficulty Ladder](ai-difficulty.md).
