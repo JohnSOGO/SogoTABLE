@@ -46,6 +46,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/manifest.webmanifest",
   "src/sogotable/static/games/registry.js",
   "src/sogotable/static/games/render-keys.js",
+  "src/sogotable/static/games/host-lobby.js",
   "src/sogotable/static/games/README.md",
   "src/sogotable/static/games/battleship/client.js",
   "src/sogotable/static/games/battleship/index.js",

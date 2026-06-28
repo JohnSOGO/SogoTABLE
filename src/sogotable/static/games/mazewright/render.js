@@ -9,6 +9,7 @@ import {
   interiorEdges, perimeterEdges, isExit, wallCount, canAddWall, canStartCrawl,
   applyAction, loadRunFromCode,
 } from "./rules.js";
+import { renderHostStartLobby } from "../host-lobby.js";
 
 const PAD = 26, VIEW = 420;
 const DIRS = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
@@ -41,11 +42,11 @@ const q = (sel) => { const r = root(); return r ? r.querySelector(sel) : null; }
 export function renderMazewrightGame(controllerCtx) {
   ctx = controllerCtx;
   injectStyles();
+  if (!ctx.started) { showLobby(); return; }   // shared host-start lobby (overwrites host)
   ensureScaffold();
   const game = ctx.game || {};
   const myMark = localMark();
 
-  if (!ctx.started) { showLobby(); return; }
   const status = game.status;
   if (status === "running") renderRunPhase(game, myMark);
   else if (status === "complete") renderComplete(game, myMark);
@@ -66,7 +67,7 @@ function serverSeat(game, mark) {
 
 // ---------- scaffold + styles ----------
 function ensureScaffold() {
-  if (root()) return;
+  if (ctx.host.querySelector(".mw-board")) return;   // game scaffold present (not the lobby)
   ctx.host.innerHTML =
     '<div class="mazewright-root">' +
     '<div class="mw-hud mw-panel"><div class="mw-hudrow"><div class="mw-turn"><span class="mw-dot"></span>' +
@@ -107,24 +108,13 @@ function injectStyles() {
   document.head.appendChild(css);
 }
 
-// ---------- lobby (room not started) ----------
+// ---------- lobby (room not started) — the shared host-start invite screen ----------
 function showLobby() {
-  setText(".mw-turnname", "Mazewright");
-  tag("Lobby", "build");
-  setText(".mw-sub", ctx.isHost
-    ? "Invite players or bots, then start. Everyone builds a maze, then races every maze blind."
-    : "Waiting for the host to start the dungeon-build…");
-  hide(".mw-inventory"); hide(".mw-board"); hide(".mw-codebar"); hide(".mw-done");
-  const controls = q(".mw-controls");
-  controls.style.display = ctx.isHost ? "flex" : "none";
-  controls.innerHTML = ctx.isHost
-    ? '<button class="mw-invite">Invite player</button><button class="mw-bot">Add bot</button><button class="mw-start mw-go-btn">Start</button>'
-    : "";
-  if (ctx.isHost) {
-    controls.querySelector(".mw-invite").addEventListener("click", () => ctx.invitePlayer && ctx.invitePlayer());
-    controls.querySelector(".mw-bot").addEventListener("click", () => ctx.addBot && ctx.addBot());
-    controls.querySelector(".mw-start").addEventListener("click", () => ctx.startGame && ctx.startGame());
-  }
+  renderHostStartLobby(ctx.host, ctx, {
+    wrap: "mazewright-root",   // so the #macroBoard grid-neutralizer CSS applies
+    heading: "Players",
+    blurb: "Everyone builds their own dungeon, then races every player's maze blind. Invite players or bots, then start.",
+  });
 }
 
 // ---------- build phase ----------

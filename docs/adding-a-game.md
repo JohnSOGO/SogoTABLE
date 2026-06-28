@@ -296,6 +296,19 @@ game hits (all learned on Yahtzee):
   additive, beside the existing games — never replacing them): an import, a
   `<GAME>_GAME_ID` const, an `is<Game>GameState` predicate, a `renderGame` branch,
   and `make<Game>Action` / `start<Game>Game` posters.
+- **The room-create / invite screen MUST match every other game.** When the room
+  is created from the lobby but not yet started, a host-start game owns its own
+  not-started screen (the shell hides `#gamePlayersPanel` and delegates). Do **not**
+  hand-roll a bespoke invite UI — render the shared **host-start lobby template**
+  `games/host-lobby.js` (`renderHostStartLobby(host, ctx, opts)`) so the seated-
+  players roster, the **Invite Remote Opponent / Invite Bot / Start Game** controls,
+  and their look are identical across games. It emits the canonical
+  `.ten-thousand-lobby` / `.tt-lobby-*` markup and wires the ctx `invitePlayer` /
+  `addBot` / `startGame` callbacks; pass `wrap: "<game>-root"` so your macro-board
+  neutralizer applies, plus a `heading`/`blurb`, and `extraHtml` + `getStartArg`
+  for a start option (the 10,000 opening-score select is the worked example).
+  Mazewright uses this template; Yahtzee and 10,000 predate it and carry their own
+  near-identical copies — migrate them to the shared template when next touched.
 
 ---
 
