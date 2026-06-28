@@ -63,7 +63,7 @@ export const GAME_REGISTRY = [
     name: "Battleship",
     summary: "Place your fleet, switch between defence and offence, and sink the enemy ships.",
     players: "2 players",
-    category: "paper",
+    category: "board",
     status: "Ready",
     availability: "ready",
     aliases: ["battleship", "battle_ship"],
