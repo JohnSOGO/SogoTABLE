@@ -99,3 +99,26 @@ npm run test:worker
 After deploy, smoke-test with multiple tabs and idle sockets, then check
 Cloudflare usage. Durable Object duration should stop climbing aggressively while
 clients are idle.
+
+## State-blob growth: finished-game retention
+
+All app state is a single JSON row in D1 (`app_state`), parsed on every read and
+re-serialized on every write. Finished games are invisible to the UI (the lobby
+lists only active/waiting rooms) but were never removed unless a player tapped
+"leave" — which rarely happens — so they accumulated indefinitely. On
+2026-06-27 finished games had grown to ~95 KB / 73% of a 130 KB blob, carried on
+every action, and the stale legacy game shapes inside them surfaced latent
+serialization bugs (e.g. a Yahtzee bot seat missing `gameTotals`).
+
+Adopted fix (`workers/persistence/state.js`, `pruneCompletedRooms`): on load,
+stamp `completed_at` the first time a game is seen finished, then drop it after a
+~3h grace window (rematch/review still works inside the window). Invites pointing
+at removed rooms are dropped too. This is retention only — no game decisions, and
+stats live in `data.stats`, so no scores or history are lost. It piggybacks on
+the existing read/write path (no cron, no extra writes), matching the
+event-driven doctrine above.
+
+To clear an existing backlog, delete finished rooms directly from the state row
+with a version-checked `json_remove(value, '$.rooms."CODE"', ...)` (keep
+active/waiting rooms). Avoid rewriting the whole blob inline — it can exceed
+SQLite's statement-size limit (`SQLITE_TOOBIG`).
