@@ -2722,6 +2722,12 @@ test("Mazewright scoring: the composite champion rewards all-round play over a o
   assert.equal(s.composite.C, 8.5);
   assert.equal(s.winner, "B");                   // champion is the all-rounder, NOT the specialist
   assert.notEqual(s.winner, s.prizes.mazewright);
+  // the breakdown the final screen shows must add up to the composite
+  assert.deepEqual(s.parts.A, { author: 10, runner: 0, treasure: 1.5 });
+  assert.deepEqual(s.parts.B, { author: 2.5, runner: 4.5, treasure: 6 });
+  for (const m of ["A", "B", "C"]) {
+    assert.equal(s.parts[m].author + s.parts[m].runner + s.parts[m].treasure, s.composite[m]);
+  }
 });
 
 test("Mazewright wrapper clamps a bogus POST_RESULT to the feasible band", () => {

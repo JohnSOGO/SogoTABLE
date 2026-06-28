@@ -308,7 +308,7 @@ export function simulateRun(code, rng = Math.random) {
 // Treasure Hunter 3); ties break on most medals, then fewest total runner moves.
 export function computeStandings(runs, shortest, marks, opts = {}) {
   if (!marks || !marks.length) {
-    return { authorPoints: {}, runnerMoves: {}, runnerLoot: {}, composite: {},
+    return { authorPoints: {}, runnerMoves: {}, runnerLoot: {}, composite: {}, parts: {},
       prizes: { mazewright: null, mazerunner: null, treasureHunter: null }, winner: null };
   }
   const cap = opts.excessCap ?? EXCESS_CAP;
@@ -337,15 +337,19 @@ export function computeStandings(runs, shortest, marks, opts = {}) {
   const aRank = rankScores(authorPoints, marks, false);
   const mRank = rankScores(runnerMoves, marks, true);   // fewer moves ranks higher
   const lRank = rankScores(runnerLoot, marks, false);
-  const composite = {};
-  for (const m of marks) composite[m] = w.author * aRank[m] + w.runner * mRank[m] + w.treasure * lRank[m];
+  const composite = {}, parts = {};   // parts = the weighted per-category points that sum to composite (the "show the math")
+  for (const m of marks) {
+    const pa = w.author * aRank[m], pr = w.runner * mRank[m], pt = w.treasure * lRank[m];
+    parts[m] = { author: pa, runner: pr, treasure: pt };
+    composite[m] = pa + pr + pt;
+  }
   const winner = marks.reduce((best, m) => {
     if (best == null) return m;
     if (composite[m] !== composite[best]) return composite[m] > composite[best] ? m : best;
     if ((runnerMoves[m] || 0) !== (runnerMoves[best] || 0)) return (runnerMoves[m] || 0) < (runnerMoves[best] || 0) ? m : best;
     return best;   // stable: the earlier seat keeps the title on a dead tie
   }, null);
-  return { authorPoints, runnerMoves, runnerLoot, composite, prizes, winner };
+  return { authorPoints, runnerMoves, runnerLoot, composite, parts, prizes, winner };
 }
 
 // Per-category rank score in [0, N-1]: how many players you beat, plus half of

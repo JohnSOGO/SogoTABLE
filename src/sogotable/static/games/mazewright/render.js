@@ -310,9 +310,7 @@ function renderComplete(game, myMark) {
   const seatOf = (mark) => serverSeat(game, mark) || {};
   const prof = (mark) => seatProfile(mark);
   const youtag = (mark) => (mark === myMark ? ' <span class="mw-youtag">you</span>' : "");
-  // which medals a player holds (used for the why-line + inline standings icons)
-  const medalIcons = (mark) =>
-    (prizes.mazewright === mark ? "🧱" : "") + (prizes.mazerunner === mark ? "🏃" : "") + (prizes.treasureHunter === mark ? "💎" : "");
+  // which medals a player holds (used for the champion why-line)
   const medalNames = (mark) => [
     prizes.mazewright === mark ? "🧱 Mazewright" : null,
     prizes.mazerunner === mark ? "🏃 Mazerunner" : null,
@@ -332,20 +330,20 @@ function renderComplete(game, myMark) {
       `<div class="mw-heropts"><b>${seatOf(winner).composite || 0}</b> pts</div>` +
       `<div class="mw-herowhy">${why}</div></div>`;
   }
-  // standings: every player sorted by composite, medals inline, "you" neutral
+  // per-player score table — shows the addition math: each weighted category column
+  // sums to the Total. No rank #, trophy, or colour dot (just icon + name), per request.
   const ranked = (game.players || []).slice().sort((a, b) => (b.composite || 0) - (a.composite || 0));
-  const rows = ranked.map((seat, i) => {
+  const trows = ranked.map((seat) => {
     const you = seat.mark === myMark, isChamp = seat.mark === winner;
-    const icons = medalIcons(seat.mark);
-    return `<div class="mw-srow${isChamp ? " champ" : ""}${you ? " you" : ""}">` +
-      `<span class="mw-srank">${isChamp ? "🏆" : i + 1}</span>` +
-      `<span class="mw-sname"><span class="mw-pdot" style="background:${prof(seat.mark).color || "#7c6cff"}"></span>` +
-      `${prof(seat.mark).icon || "🧙"} ${seat.name}${seat.is_bot ? " 🤖" : ""}${youtag(seat.mark)}` +
-      `${icons ? ` <span class="mw-smedals">${icons}</span>` : ""}</span>` +
-      `<span class="mw-spts">${seat.composite || 0}</span></div>`;
+    return `<tr class="${isChamp ? "champ " : ""}${you ? "you" : ""}">` +
+      `<td class="mw-scname">${prof(seat.mark).icon || "🧙"} ${seat.name}${seat.is_bot ? " 🤖" : ""}${youtag(seat.mark)}</td>` +
+      `<td>${seat.pts_author ?? 0}</td><td>${seat.pts_runner ?? 0}</td><td>${seat.pts_treasure ?? 0}</td>` +
+      `<td class="mw-sctotal">${seat.composite ?? 0}</td></tr>`;
   }).join("");
-  html += `<div class="mw-standings"><div class="mw-sthead"><span>#</span><span>Player · medals</span><span>pts</span></div>${rows}</div>`;
-  html += `<div class="mw-legend">🏆 Score = rank in 🧱 maze design ×5 · 🏃 fewest moves ×3 · 💎 treasure ×3</div>`;
+  html += `<table class="mw-sctable"><thead><tr><th class="mw-scname">Player</th>` +
+    `<th title="Maze design ×5">🧱</th><th title="Fewest moves ×3">🏃</th><th title="Treasure ×3">💎</th><th>Total</th></tr></thead>` +
+    `<tbody>${trows}</tbody></table>`;
+  html += `<div class="mw-legend">Each column is your placing in that contest, weighted: 🧱 maze design ×5 · 🏃 fewest moves ×3 · 💎 treasure ×3 — added across the row for your Total.</div>`;
   done.innerHTML = html;
 }
 
@@ -579,17 +577,35 @@ function bindSwipe() {
   const board = q(".mw-board");
   if (!board) return;
   swipeBound = true;
-  let sx = 0, sy = 0, tracking = false;
-  board.addEventListener("pointerdown", (e) => { if (dragging) return; sx = e.clientX; sy = e.clientY; tracking = true; });
-  board.addEventListener("pointercancel", () => { tracking = false; });
-  board.addEventListener("pointerup", (e) => {
-    if (!tracking) return;
-    tracking = false;
-    if (dragging || !runState || runState.phase !== PHASE.CRAWL || !root()) return;
-    const dx = e.clientX - sx, dy = e.clientY - sy;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;   // a tap, not a swipe
+  const inCrawl = () => runState && runState.phase === PHASE.CRAWL && root();
+  const fire = (dx, dy) => {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;   // a tap, not a swipe
     commitRun({ type: "MOVE", dir: Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "E" : "W") : (dy > 0 ? "S" : "N") });
+  };
+  // Mouse: pointer events (touch is handled separately to avoid double-firing).
+  let mx = 0, my = 0, mdown = false;
+  board.addEventListener("pointerdown", (e) => { if (e.pointerType === "touch" || dragging || !inCrawl()) return; mx = e.clientX; my = e.clientY; mdown = true; });
+  board.addEventListener("pointerup", (e) => { if (!mdown) return; mdown = false; if (e.pointerType === "touch" || !inCrawl()) return; fire(e.clientX - mx, e.clientY - my); });
+  // Touch: native touch events. preventDefault once the gesture is clearly a swipe
+  // stops the page from scrolling and stealing it (the tap-doesn't-work bug).
+  let tx = 0, ty = 0, tmoved = false, touching = false;
+  board.addEventListener("touchstart", (e) => {
+    if (dragging || !inCrawl() || e.touches.length !== 1) { touching = false; return; }
+    tx = e.touches[0].clientX; ty = e.touches[0].clientY; touching = true; tmoved = false;
+  }, { passive: true });
+  board.addEventListener("touchmove", (e) => {
+    if (!touching) return;
+    const t = e.touches[0];
+    if (Math.max(Math.abs(t.clientX - tx), Math.abs(t.clientY - ty)) > 10) { tmoved = true; e.preventDefault(); }
+  }, { passive: false });
+  board.addEventListener("touchend", (e) => {
+    if (!touching) return;
+    touching = false;
+    if (!tmoved || !inCrawl()) return;
+    const t = e.changedTouches[0];
+    fire(t.clientX - tx, t.clientY - ty);
   });
+  board.addEventListener("touchcancel", () => { touching = false; });
 }
 
 // ---------- tiny DOM helpers ----------
@@ -696,17 +712,16 @@ const MW_CSS = `
 .mazewright-root .mw-heropts{font-size:1.5rem;font-weight:800;color:var(--mw-gold);margin-top:6px;}
 .mazewright-root .mw-herowhy{color:var(--mw-muted);font-size:.86rem;margin-top:2px;}
 .mazewright-root .mw-youtag{font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:999px;background:var(--mw-accent);color:#fff;vertical-align:middle;}
-.mazewright-root .mw-standings{text-align:left;}
-.mazewright-root .mw-sthead{display:flex;align-items:center;gap:10px;font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--mw-muted);padding:0 10px 6px;}
-.mazewright-root .mw-sthead span:first-child{width:1.5rem;text-align:center;} .mazewright-root .mw-sthead span:nth-child(2){flex:1;}
-.mazewright-root .mw-srow{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:1px solid var(--mw-grid);}
-.mazewright-root .mw-srow+.mw-srow{margin-top:5px;}
-.mazewright-root .mw-srow.champ{border-color:var(--mw-gold);background:rgba(233,196,90,.10);}
-.mazewright-root .mw-srow.you .mw-pdot{box-shadow:0 0 0 2px var(--mw-ink);}
-.mazewright-root .mw-srank{width:1.5rem;text-align:center;font-weight:800;color:var(--mw-muted);}
-.mazewright-root .mw-sname{flex:1;display:flex;align-items:center;gap:7px;font-weight:600;}
-.mazewright-root .mw-smedals{letter-spacing:1px;}
-.mazewright-root .mw-spts{font-weight:800;font-size:1.05rem;}
+/* Per-player score table: icon+name, weighted category columns, Total on the right. */
+.mazewright-root .mw-sctable{width:100%;border-collapse:collapse;font-size:.92rem;}
+.mazewright-root .mw-sctable th{font-size:.78rem;font-weight:600;color:var(--mw-muted);padding:4px 6px;text-align:center;border-bottom:1px solid var(--mw-grid);}
+.mazewright-root .mw-sctable td{padding:9px 6px;text-align:center;border-bottom:1px solid var(--mw-grid);}
+.mazewright-root .mw-sctable .mw-scname{text-align:left;font-weight:600;}
+.mazewright-root .mw-sctable th.mw-scname{font-weight:600;}
+.mazewright-root .mw-sctotal{font-weight:800;font-size:1.05rem;}
+.mazewright-root .mw-sctable tr.champ td{background:rgba(233,196,90,.12);}
+.mazewright-root .mw-sctable tr.champ td:first-child{border-left:3px solid var(--mw-gold);}
+.mazewright-root .mw-sctable tr.you .mw-scname{color:var(--mw-ink);}
 .mazewright-root .mw-legend{margin-top:10px;color:var(--mw-muted);font-size:.76rem;line-height:1.5;text-align:center;}
 .mw-flying{position:fixed;z-index:50;font-size:26px;pointer-events:none;transform:translate(-50%,-50%) scale(1.4);transition:left .6s cubic-bezier(.35,.1,.2,1),top .6s cubic-bezier(.35,.1,.2,1),transform .6s,opacity .6s;filter:drop-shadow(0 0 7px rgba(120,210,255,.9));}
 `;
