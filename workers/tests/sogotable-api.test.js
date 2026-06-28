@@ -10,7 +10,10 @@ import {
 import {
   newMazewrightGame, initMazewrightSeats, makeMazewrightMove, mazewrightGameToDict,
 } from "../games/mazewright/rules.js";
-import { buildRandomMazeCode } from "../../src/sogotable/static/games/mazewright/rules.js";
+import {
+  buildRandomMazeCode, isValidMazeCode, createGame as createMwGame,
+  applyAction as applyMw, mazeCode as mwCode, MIN_WALLS as MW_MIN_WALLS,
+} from "../../src/sogotable/static/games/mazewright/rules.js";
 
 test("creates, lists, and deletes players", async () => {
   const env = makeEnv();
@@ -2635,4 +2638,14 @@ test("Mazewright plays end-to-end over the room API", async () => {
   }
   assert.equal(res.room.game.status, "complete");
   assert.ok(res.room.game.prizes);
+});
+
+test("Mazewright requires at least MIN_WALLS walls to submit", () => {
+  assert.equal(MW_MIN_WALLS, 10);
+  // a maze with an exit + reachable start but no walls is invalid (too trivial)
+  const g = createMwGame();
+  applyMw(g, { type: "TOGGLE_EXIT", cell: [3, 0], dir: "N" });
+  assert.equal(isValidMazeCode(mwCode(g)), false);
+  // auto-built mazes clear the floor and are valid
+  assert.equal(isValidMazeCode(buildRandomMazeCode()), true);
 });

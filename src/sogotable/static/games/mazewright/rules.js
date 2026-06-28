@@ -18,6 +18,7 @@
 export const PHASE = { BUILD: 'build', CRAWL: 'crawl', MAZE_DONE: 'maze_done', OVER: 'over' };
 
 export const MAX_WALLS = 30;
+export const MIN_WALLS = 10;   // a submitted maze needs at least this many walls
 
 const DIRS = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
@@ -320,6 +321,11 @@ export function canStartCrawl(state) {
     pathExists(state, state.start, state.exit.cell);
 }
 
+// Ready to submit: solvable AND at least MIN_WALLS placed (no trivial mazes).
+export function canSubmit(state) {
+  return canStartCrawl(state) && wallCount(state) >= MIN_WALLS;
+}
+
 export function canAddWall(state, edge) {
   if (wallCount(state) >= MAX_WALLS) return false;
   const key = edgeKey(edge[0], edge[1]);
@@ -402,7 +408,7 @@ export function isValidMazeCode(code) {
   try {
     const g = createGame();
     applyMazeCode(g, code);
-    return canStartCrawl(g);
+    return canSubmit(g);   // solvable + at least MIN_WALLS
   } catch (_) { return false; }
 }
 

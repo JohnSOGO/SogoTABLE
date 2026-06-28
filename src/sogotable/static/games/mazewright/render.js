@@ -5,11 +5,12 @@
 //   POST_RESULT  — commit a finished maze's {moves, loot} (run progress)
 // The leaderboard + the three prizes come from the server projection (ctx.game).
 import {
-  PHASE, MAX_WALLS, createGame, edgeKey, mazeCode,
-  interiorEdges, perimeterEdges, isExit, wallCount, canAddWall, canStartCrawl,
+  PHASE, MAX_WALLS, MIN_WALLS, createGame, edgeKey, mazeCode,
+  interiorEdges, perimeterEdges, isExit, wallCount, canAddWall, canSubmit,
   applyAction, loadRunFromCode,
 } from "./rules.js";
 import { renderHostStartLobby } from "../host-lobby.js";
+import { playClick, playConfirm, playCancel, playInvalidMove, playScorePick, playWin } from "../../sound.js";
 
 const PAD = 26, VIEW = 420;
 const DIRS = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
@@ -35,6 +36,7 @@ let runState = null;
 let runLoaded = -1;     // deck index runState is built for
 let dragging = false;
 let posting = false;    // guard against double POST_RESULT
+let wonSound = false;   // play the win fanfare once per game
 
 const root = () => ctx.host.querySelector(".mazewright-root");
 const q = (sel) => { const r = root(); return r ? r.querySelector(sel) : null; };
@@ -125,12 +127,12 @@ function renderBuildPhase(game, myMark) {
   hide(".mw-inventory"); hide(".mw-done");
 
   const rk = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
-  if (rk !== buildKey) { buildKey = rk; buildState = createGame({ seats: [{ name: "You", color: seatProfile(myMark).color, emoji: seatProfile(myMark).emoji }] }); }
+  if (rk !== buildKey) { buildKey = rk; wonSound = false; buildState = createGame({ seats: [{ name: "You", color: seatProfile(myMark).color, emoji: seatProfile(myMark).icon }] }); }
   runState = null; runLoaded = -1;
 
   const me = seatProfile(myMark);
   setDot(me.color || "#7c6cff");
-  setText(".mw-turnname", `${me.emoji || "🧙"} your dungeon`);
+  setText(".mw-turnname", `${me.icon || "🧙"} your dungeon`);
   tag("Build", "build");
 
   if (submitted) {
@@ -143,11 +145,12 @@ function renderBuildPhase(game, myMark) {
   setText(".mw-sub", "Tap a slot to add/remove a wall. Tap a border for the golden exit. Drag your pawn and loot. Then Submit.");
   q(".mw-controls").style.display = "flex";
   q(".mw-controls").innerHTML = '<button class="mw-auto">🎲 Auto map</button><button class="mw-reset">↺ Reset</button>' +
-    '<button class="mw-go" ' + (canStartCrawl(buildState) ? "" : "disabled") + '>Submit my maze</button>';
+    '<button class="mw-go" ' + (canSubmit(buildState) ? "" : "disabled") + '>Submit my maze</button>';
   q(".mw-auto").addEventListener("click", () => commitBuild({ type: "AUTO_BUILD" }));
   q(".mw-reset").addEventListener("click", () => commitBuild({ type: "RESET_BUILD" }));
   q(".mw-go").addEventListener("click", submitMaze);
-  const meters = `<span class="mw-meter">Walls <b>${wallCount(buildState)}</b> / ${MAX_WALLS}</span>` +
+  const walls = wallCount(buildState);
+  const meters = `<span class="mw-meter ${walls >= MIN_WALLS ? "ok" : ""}">Walls <b>${walls}</b> / ${MAX_WALLS} · min ${MIN_WALLS}</span>` +
     `<span class="mw-meter ${buildState.exit ? "ok" : ""}">Exit ${buildState.exit ? "set 🏛️" : "not set"}</span>`;
   q(".mw-meters").innerHTML = meters;
   show(".mw-codebar");
@@ -157,12 +160,18 @@ function renderBuildPhase(game, myMark) {
 }
 
 function commitBuild(action) {
-  try { applyAction(buildState, action); } catch (e) { flash(e.message.replace(/^MW:\s*/, "")); return; }
+  try { applyAction(buildState, action); } catch (e) { playCancel(); flash(e.message.replace(/^MW:\s*/, "")); return; }
+  playClick();
   renderBuildPhase(ctx.game || {}, localMark());
 }
 
 function submitMaze() {
-  if (!buildState || !canStartCrawl(buildState)) { flash("Set an exit your start can reach first."); return; }
+  if (!buildState || !canSubmit(buildState)) {
+    playCancel();
+    flash(`Place at least ${MIN_WALLS} walls and an exit your start can reach.`);
+    return;
+  }
+  playConfirm();
   ctx.makeMove({ type: "SUBMIT_MAZE", code: mazeCode(buildState) });
 }
 
@@ -183,7 +192,7 @@ function renderRunPhase(game, myMark) {
   }
   const idx = Math.min(seat.run_index, deck.length - 1);
   if (runLoaded !== idx || !runState) {
-    runState = createGame({ seats: [{ name: "You", color: seatProfile(myMark).color, emoji: seatProfile(myMark).emoji }] });
+    runState = createGame({ seats: [{ name: "You", color: seatProfile(myMark).color, emoji: seatProfile(myMark).icon }] });
     loadRunFromCode(runState, deck[idx].code, deck[idx].transform);
     runLoaded = idx;
     posting = false;
@@ -196,7 +205,7 @@ function renderRunView(game, myMark, idx, deck) {
   setDot(me.color || "#7c6cff");
   const author = seatProfile(deck[idx].author);
   const mine = deck[idx].author === myMark;
-  setText(".mw-turnname", `Maze ${idx + 1}/${deck.length} · ${author.emoji || "🧙"} ${author.name || "?"}${mine ? " (yours)" : ""}`);
+  setText(".mw-turnname", `Maze ${idx + 1}/${deck.length} · ${author.icon || "🧙"} ${author.name || "?"}${mine ? " (yours)" : ""}`);
   renderInventory();
 
   if (runState.phase === PHASE.MAZE_DONE) {
@@ -208,7 +217,7 @@ function renderRunView(game, myMark, idx, deck) {
     const coin = runState.inventory.filter((x) => x === "coin").length;
     const done = q(".mw-done"); show(".mw-done");
     done.innerHTML = `<div style="font-weight:700;">Maze ${idx + 1}/${deck.length} cleared — ` +
-      `${author.emoji || "🧙"} ${author.name || "?"}${mine ? '<span class="mw-mine"> · your maze!</span>' : "'s maze"}</div>` +
+      `${author.icon || "🧙"} ${author.name || "?"}${mine ? '<span class="mw-mine"> · your maze!</span>' : "'s maze"}</div>` +
       `<div class="mw-help" style="margin-top:4px;">${runState.moves} moves → <b>${runState.moves} pts</b> to ${author.name || "?"} · 💎${dia} 🪙${coin}</div>` +
       `<button class="mw-next mw-go-btn" style="margin-top:12px;">${last ? "Post final result →" : "Next maze →"}</button>`;
     done.querySelector(".mw-next").addEventListener("click", postRunResult);
@@ -222,8 +231,14 @@ function renderRunView(game, myMark, idx, deck) {
 
 function commitRun(action) {
   const before = runState.inventory.length;
+  const posBefore = runState.pos.join(",");
+  const moveBefore = runState.moves;
   try { applyAction(runState, action); } catch (e) { return; }
   const gained = runState.inventory.slice(before);
+  if (runState.phase === PHASE.MAZE_DONE) playConfirm();       // escaped through the arch
+  else if (gained.length) playScorePick();                     // found loot
+  else if (runState.pos.join(",") !== posBefore) playClick();  // stepped
+  else if (runState.moves > moveBefore) playInvalidMove();      // bumped a wall/border
   renderRunView(ctx.game || {}, localMark(), runLoaded, (ctx.game && ctx.game.deck) || []);
   if (gained.length && runState.phase === PHASE.CRAWL) animateCollect(gained);
 }
@@ -239,11 +254,12 @@ function postRunResult() {
 // ---------- complete (prizes) ----------
 function renderComplete(game, myMark) {
   hide(".mw-board"); hide(".mw-inventory"); hide(".mw-codebar"); q(".mw-controls").style.display = "none";
+  if (!wonSound) { wonSound = true; playWin(); }
   setText(".mw-turnname", "🏆 Prizes"); tag("Done", "crawl"); setText(".mw-sub", "");
   q(".mw-meters").innerHTML = "";
   const prizes = game.prizes || {};
   const seatOf = (mark) => serverSeat(game, mark) || {};
-  const who = (mark) => { const p = seatProfile(mark); return `${p.emoji || "🧙"} ${p.name || mark}${mark === myMark ? " (you)" : ""}`; };
+  const who = (mark) => { const p = seatProfile(mark); return `${p.icon || "🧙"} ${p.name || mark}${mark === myMark ? " (you)" : ""}`; };
   const card = (icon, name, mark, detail) =>
     `<div class="mw-prize${mark === myMark ? " mine" : ""}"><span class="mw-pzico">${icon}</span>` +
     `<span class="mw-pzbody"><b>${name}</b><br>${who(mark)} <span class="mw-pzdetail">· ${detail}</span></span></div>`;
@@ -265,7 +281,7 @@ function renderLeaderboard(game, myMark) {
     else if (status === "running") stat = seat.run_done ? "🏁 done" : `maze ${Math.min(seat.run_index + 1, seat.run_total)}/${seat.run_total}`;
     else stat = `🧱${seat.author_points} · 🏃${seat.runner_moves} · 💎${seat.runner_loot}`;
     return `<div class="mw-prow ${you ? "you" : "muted"}${seat.run_done ? " done" : ""}">` +
-      `<span class="mw-pname"><span class="mw-pdot" style="background:${p.color || "#7c6cff"}"></span>${p.emoji || "🧙"} ${seat.name}${you ? " (you)" : ""}${seat.is_bot ? " 🤖" : ""}</span>` +
+      `<span class="mw-pname"><span class="mw-pdot" style="background:${p.color || "#7c6cff"}"></span>${p.icon || "🧙"} ${seat.name}${you ? " (you)" : ""}${seat.is_bot ? " 🤖" : ""}</span>` +
       `<span class="mw-pstat">${stat}</span></div>`;
   }).join("");
   const title = status === "complete" ? "Final standings · 🧱author · 🏃moves · 💎loot"
@@ -340,7 +356,7 @@ function renderBoardInto(state, mode, opts) {
   const lite = (el, on) => el && el.classList.toggle("lit", on);
   const building = mode === "build", reveal = mode === "reveal";
   const me = seatProfile(localMark());
-  const meColor = me.color || "#7c6cff", meEmoji = me.emoji || "🧙";
+  const meColor = me.color || "#7c6cff", meEmoji = me.icon || "🧙";
 
   for (let c = 0; c < state.cols; c++) for (let r = 0; r < state.rows; r++) {
     let cls = "mw-cell";

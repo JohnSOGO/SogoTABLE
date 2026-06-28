@@ -25,7 +25,7 @@ export function renderHostStartLobby(host, ctx, opts = {}) {
       <li class="tt-lobby-player">
         <span class="tt-lobby-player-no">${i + 1}</span>
         <div class="tt-lobby-player-body">
-          <strong>${esc(seat.name)}</strong>
+          <strong>${seat.icon ? esc(seat.icon) + " " : ""}${esc(seat.name)}</strong>
           <span>${esc(seat.kind === "bot" ? "Bot" : "Player")} ${esc(seat.mark || "")}</span>
         </div>
       </li>`).join("")
