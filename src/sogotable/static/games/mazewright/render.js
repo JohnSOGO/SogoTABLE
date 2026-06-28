@@ -349,26 +349,37 @@ function renderComplete(game, myMark) {
   done.innerHTML = html;
 }
 
-// ---------- leaderboard ----------
+// ---------- live scores (bottom of every play screen) ----------
+// Raw running totals, not the rank composite: maze score (points others lose in
+// your maze), total moves, treasure. The server projects these on every score
+// update, so the table fills in as players finish mazes. The complete screen has
+// its own champion + composite card, so this hides there.
 function renderLeaderboard(game, myMark) {
   const status = game.status;
-  if (status === "complete") { const t = q(".mw-table"); if (t) t.style.display = "none"; return; }  // the champion+standings card covers it
+  const table = q(".mw-table");
+  if (!table) return;
+  if (status === "complete") { table.style.display = "none"; return; }
+  table.style.display = "block";
+  const statusChip = (seat) =>
+    status === "building" ? (seat.built ? "ready ✅" : "building…")
+      : seat.run_done ? "🏁" : `maze ${Math.min(seat.run_index + 1, seat.run_total)}/${seat.run_total}`;
   const rows = (game.players || []).map((seat) => {
     const you = seat.mark === myMark;
     const p = seatProfile(seat.mark);
-    let stat;
-    if (status === "building") stat = seat.built ? "maze ready ✅" : "building…";
-    else if (status === "running") stat = seat.run_done ? "🏁 done" : `maze ${Math.min(seat.run_index + 1, seat.run_total)}/${seat.run_total}`;
-    else stat = `🏆${seat.composite} · 🧱${seat.author_points} · 🏃${seat.runner_moves} · 💎${seat.runner_loot}`;
-    return `<div class="mw-prow ${you ? "you" : "muted"}${seat.run_done ? " done" : ""}">` +
-      `<span class="mw-pname"><span class="mw-pdot" style="background:${p.color || "#7c6cff"}"></span>${p.icon || "🧙"} ${seat.name}${you ? " (you)" : ""}${seat.is_bot ? " 🤖" : ""}</span>` +
-      `<span class="mw-pstat">${stat}</span></div>`;
+    return `<tr class="${you ? "you" : ""}">` +
+      `<td class="mw-scname">${p.icon || "🧙"} ${seat.name}${seat.is_bot ? " 🤖" : ""}${you ? ' <span class="mw-youtag">you</span>' : ""}` +
+      ` <span class="mw-pstat">${statusChip(seat)}</span></td>` +
+      `<td data-field="raw-maze">${seat.author_points ?? 0}</td>` +
+      `<td data-field="raw-moves">${seat.runner_moves ?? 0}</td>` +
+      `<td data-field="raw-loot">${seat.runner_loot ?? 0}</td></tr>`;
   }).join("");
-  const title = status === "complete" ? "Final standings · 🏆score · 🧱author · 🏃moves · 💎loot"
-    : status === "running" ? "Run progress · each on their own race"
-    : "Builders · each making a dungeon";
-  const table = q(".mw-table"); table.style.display = "block";
-  table.innerHTML = `<div class="mw-ptitle">${title}</div>${rows}`;
+  const title = status === "running"
+    ? "Live scores · filling in as players finish mazes"
+    : "Live scores · tally once the running starts";
+  table.innerHTML = `<div class="mw-ptitle">${title}</div>` +
+    `<table class="mw-sctable"><thead><tr><th class="mw-scname">Player</th>` +
+    `<th title="Points others lose in your maze">🧱</th><th title="Your total moves">🏃</th>` +
+    `<th title="Treasure you grabbed">💎</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderInventory() {
