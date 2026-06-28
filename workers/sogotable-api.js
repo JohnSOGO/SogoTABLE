@@ -153,12 +153,12 @@ export default {
       if (request.method === "POST") payload = await readJson(request);
       if (request.method === "POST" && roomFactoryPath(url.pathname)) {
         if (!env.ROOM_FACTORY && !directRoomAuthorityAllowed(env)) {
-          return json({ ok: false, error: "Room authority unavailable." }, 503, corsHeaders);
+          return json({ ok: false, error: "Table authority unavailable." }, 503, corsHeaders);
         }
       }
       if (request.method === "POST" && roomAuthorityPath(url.pathname)) {
         if (!env.ROOM_OBJECT && !directRoomAuthorityAllowed(env)) {
-          return json({ ok: false, error: "Room authority unavailable." }, 503, corsHeaders);
+          return json({ ok: false, error: "Table authority unavailable." }, 503, corsHeaders);
         }
       }
       if (request.method === "POST" && roomFactoryPath(url.pathname) && env.ROOM_FACTORY) {
@@ -272,7 +272,7 @@ export class RoomDurableObject {
       const botResponse = await this.runDelayedBotTurns(response);
       return json(botResponse || response);
     } catch (error) {
-      return json({ ok: false, error: error.message || "Room action failed." }, 400);
+      return json({ ok: false, error: error.message || "Table action failed." }, 400);
     }
   }
 
@@ -325,9 +325,9 @@ export class RoomFactoryDurableObject {
 
   async fetch(request) {
     const url = new URL(request.url);
-    if (request.method !== "POST" || url.pathname !== "/__room_create") return json({ ok: false, error: "Unhandled room factory request." }, 404);
+    if (request.method !== "POST" || url.pathname !== "/__room_create") return json({ ok: false, error: "Unhandled table factory request." }, 404);
     const { pathname, payload } = await request.json();
-    if (pathname !== "/api/room/create") return json({ ok: false, error: "Unhandled room factory action." }, 404);
+    if (pathname !== "/api/room/create") return json({ ok: false, error: "Unhandled table factory action." }, 404);
     try {
       const response = await withStateRetry(async () => {
         const data = await loadState(this.env);
@@ -344,7 +344,7 @@ export class RoomFactoryDurableObject {
       });
       return json(response);
     } catch (error) {
-      return json({ ok: false, error: error.message || "Room factory action failed." }, 400);
+      return json({ ok: false, error: error.message || "Table factory action failed." }, 400);
     }
   }
 }
@@ -607,7 +607,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
       if (!playerId) throw new Error("Player id is required.");
       await assertPlayerOwner(data, playerId, payload.owner_token, options);
-      if (playerHasUnfinishedRoom(data, playerId)) throw new Error("Player is seated in an unfinished room.");
+      if (playerHasUnfinishedRoom(data, playerId)) throw new Error("Player is seated at an unfinished table.");
       data.players = data.players.filter((player) => player.id !== playerId);
       delete data.lobbyViewers[playerId];
       Object.keys(data.invites).forEach((inviteId) => {
@@ -642,7 +642,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "GET" && url.pathname === "/api/room") {
       const code = cleanRoomCode(url.searchParams.get("code") || "");
       const room = data.rooms[code];
-      if (!room) return { ok: false, error: "Room not found." };
+      if (!room) return { ok: false, error: "Table not found." };
       return { ok: true, room: roomToDict(data, room) };
     }
     if (method === "POST" && url.pathname === "/api/room/create") {
@@ -652,7 +652,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const existing = activeRoomForPlayer(data, player.id, gameId);
       if (existing) return { ok: true, room: roomToDict(data, existing), existing: true };
       const code = payload.code ? cleanRoomCode(payload.code) : newRoomCode(data);
-      if (data.rooms[code]) throw new Error("Room code is already in use.");
+      if (data.rooms[code]) throw new Error("Table code is already in use.");
       const room = {
         code,
         host_id: player.id,
@@ -687,9 +687,9 @@ async function routeRequest(method, url, payload, data, options = {}) {
       await assertPlayerOwner(data, hostId, payload.owner_token, options);
       if (isSoloGameId(room.game_id)) throw new Error("Solo games do not use bot opponents.");
       if (hostId !== room.host_id) throw new Error("Only the host can invite a bot.");
-      if (roomStatus(room) !== "waiting_for_player") throw new Error("Bot can only join a waiting room.");
+      if (roomStatus(room) !== "waiting_for_player") throw new Error("Bot can only join a waiting table.");
       const playerCount = playerCountForGame(room.game_id);
-      if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error("Room is full.");
+      if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error("Table is full.");
       const bot = botPlayerFromId(payload.bot_id);
       addPlayerToRoom(room, bot);
       activateRoomIfReady(room);
@@ -733,11 +733,11 @@ async function routeRequest(method, url, payload, data, options = {}) {
     }
     if (method === "POST" && url.pathname === "/api/room/move") {
       const room = roomFromPayload(data, payload);
-      if (!room.started) throw new Error("Room is waiting for another player.");
+      if (!room.started) throw new Error("Table is waiting for another player.");
       const playerId = String(payload.player_id || "");
       await assertPlayerOwner(data, playerId, payload.owner_token, options);
       const mark = playerMark(room, playerId);
-      if (!mark) throw new Error("Player is not in this room.");
+      if (!mark) throw new Error("Player is not at this table.");
       const moveHandler = GAME_HANDLERS.find((entry) => entry.applyAction && entry.is(room.game));
       if (moveHandler) {
         if (moveHandler.preMove) moveHandler.preMove(room);
@@ -785,9 +785,9 @@ async function routeRequest(method, url, payload, data, options = {}) {
       await assertPlayerOwner(data, hostId, payload.owner_token, options);
       if (hostId !== room.host_id) throw new Error("Only the host can invite a player.");
       const playerCount = playerCountForGame(room.game_id);
-      if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error("Room is full.");
+      if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error("Table is full.");
       const target = playerFromPayload(payload.player || {});
-      if (target.id === hostId) throw new Error("Host is already in the room.");
+      if (target.id === hostId) throw new Error("Host is already at the table.");
       const host = room.players.find((player) => player.id === room.host_id);
       const invite = {
         id: `${room.code}:${target.id}`,
@@ -816,7 +816,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const room = data.rooms[invite.room_code];
       if (!room) {
         invite.status = "expired";
-        throw new Error("Room not found.");
+        throw new Error("Table not found.");
       }
       addPlayerToRoom(room, player);
       activateRoomIfReady(room);
@@ -846,7 +846,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
 }
 
 function roomSocket(request, env, url) {
-  if (!env.ROOM_OBJECT) return json({ ok: false, error: "Room live updates are not configured." }, 503);
+  if (!env.ROOM_OBJECT) return json({ ok: false, error: "Table live updates are not configured." }, 503);
   const code = cleanRoomCode(url.searchParams.get("code") || "");
   return env.ROOM_OBJECT.getByName(code).fetch(request);
 }
@@ -1019,7 +1019,7 @@ function safeSend(session, message) {
     session.send(JSON.stringify(message));
   } catch {
     try {
-      session.close(1011, "Unable to send room update.");
+      session.close(1011, "Unable to send table update.");
     } catch {
       // The connection is already gone.
     }
@@ -1266,7 +1266,7 @@ function refreshPlayerStats(data, player) {
 
 function cleanRoomCode(code) {
   const value = String(code || "").trim().toUpperCase();
-  if (!/^[A-Z0-9]{4}$/.test(value)) throw new Error("Room code must be 4 letters or numbers.");
+  if (!/^[A-Z0-9]{4}$/.test(value)) throw new Error("Table code must be 4 letters or numbers.");
   return value;
 }
 
@@ -1282,7 +1282,7 @@ function newRoomCode(data) {
 function roomFromPayload(data, payload) {
   const code = cleanRoomCode(payload.code || "");
   const room = data.rooms[code];
-  if (!room) throw new Error("Room not found.");
+  if (!room) throw new Error("Table not found.");
   return room;
 }
 
@@ -1417,7 +1417,7 @@ function playerHasUnfinishedRoom(data, playerId) {
 function addPlayerToRoom(room, player) {
   if (room.players.some((seat) => seat.id === player.id)) return;
   const playerCount = playerCountForGame(room.game_id);
-  if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error(playerCount === 2 ? "Room already has two players." : "Room is full.");
+  if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error(playerCount === 2 ? "Table already has two players." : "Table is full.");
   const mark = gameUsesHostStart(room.game_id)
     ? `P${room.players.length + 1}`
     : (playerCount === 1 ? "X" : room.players.length ? "X" : "");

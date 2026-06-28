@@ -1025,7 +1025,7 @@ test("player delete is blocked while seated and cleans pending player state othe
   const invites = await get(env, `/api/invites?player_id=${encodeURIComponent(guest.id)}`);
 
   assert.equal(blocked.ok, false);
-  assert.equal(blocked.error, "Player is seated in an unfinished room.");
+  assert.equal(blocked.error, "Player is seated at an unfinished table.");
   assert.equal(invite.ok, true);
   assert.equal(deleted.ok, true);
   assert.equal(lobby.players.some((item) => item.id === guest.id), false);
@@ -1102,7 +1102,7 @@ test("creates a room, joins a second player, and rejects a third player", async 
 
   const third = await post(env, "/api/room/join", { code: room.code, player: player("third", "Third", "#c43d5d") });
   assert.equal(third.ok, false);
-  assert.equal(third.error, "Room already has two players.");
+  assert.equal(third.error, "Table already has two players.");
 });
 
 test("lists bots and lets the host seat a bot opponent", async () => withMockRandom([0], async () => {
@@ -1138,7 +1138,7 @@ test("rejects bot seating by non-hosts and in active rooms", async () => withMoc
   assert.equal(nonHost.ok, false);
   assert.equal(nonHost.error, "Only the host can invite a bot.");
   assert.equal(fullRoom.ok, false);
-  assert.equal(fullRoom.error, "Bot can only join a waiting room.");
+  assert.equal(fullRoom.error, "Bot can only join a waiting table.");
 }));
 
 test("bot responds with a legal move through the normal move pipeline", async () => withMockRandom([0, 0], async () => {
@@ -1924,7 +1924,7 @@ test("room authority paths fail closed when ROOM_OBJECT is unavailable", async (
     const { response, json } = await request(env, "POST", item.path, item.body);
     assert.equal(response.status, 503, item.path);
     assert.equal(json.ok, false, item.path);
-    assert.equal(json.error, "Room authority unavailable.", item.path);
+    assert.equal(json.error, "Table authority unavailable.", item.path);
     assert.equal(env.SOGOTABLE_STATE.writeCount, 0, item.path);
   }
 });
@@ -1945,7 +1945,7 @@ test("room factory serializes duplicate room creation", async () => {
   assert.equal(successes.length, 1);
   assert.equal(successes[0].room.code, "DUPE");
   assert.equal(failures.length, 1);
-  assert.equal(failures[0].error, "Room code is already in use.");
+  assert.equal(failures[0].error, "Table code is already in use.");
 });
 
 test("room object serializes concurrent invite creation", async () => {

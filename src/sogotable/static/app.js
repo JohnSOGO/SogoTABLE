@@ -198,7 +198,7 @@ const realtime = createRealtimeController({
   getRoomPlayerId: () => deviceSelectedPlayerId || selectedPlayerId || "",
   onAppMessage: handleAppEventMessage,
   onRoomMessage: handleRoomSocketMessage,
-  onRoomReconnect: () => showTurnStatus(null, "Reconnecting to room..."),
+  onRoomReconnect: () => showTurnStatus(null, "Reconnecting to table..."),
   refreshRoom,
   shouldReconnectRoom: () => Boolean(currentRoom),
 });
@@ -407,7 +407,7 @@ async function enterSelectedGameScreen() {
 
 function bindRefreshTitleControls() {
   bindRefreshTitleControl("selectedGameTitle", "Refresh game view", refreshSelectedGameView);
-  bindRefreshTitleControl("roomTitle", "Refresh room view", refreshCurrentRoomView);
+  bindRefreshTitleControl("roomTitle", "Refresh table view", refreshCurrentRoomView);
 }
 
 function bindRefreshTitleControl(elementId, label, refreshAction) {
@@ -668,7 +668,7 @@ function renderRoomSummaryList(host, rooms, emptyText) {
         <span>Code ${escapeHtml(room.code)}</span>
       </div>
       <button type="button" class="${canReenter || canJoin ? "secondary" : "ghost"}">${escapeHtml(actionText)}</button>
-      <button type="button" class="ghost danger room-super-close ${canSuperClose ? "" : "hidden"}" aria-label="Close room ${escapeHtml(room.code)} as Sogo" title="Close room as Sogo">X</button>
+      <button type="button" class="ghost danger room-super-close ${canSuperClose ? "" : "hidden"}" aria-label="Close table ${escapeHtml(room.code)} as Sogo" title="Close table as Sogo">X</button>
       <div class="room-summary-players">${room.players.map((player) => avatarHtml(player)).join("")}</div>
     `;
     const button = card.querySelector("button");
@@ -1526,7 +1526,7 @@ async function closeRoomAsSuperuser(code) {
   if (!player || !isSogoSuperuser(player)) return;
   const passcode = await ensureSogoSuperuserPasscode(player);
   if (!passcode) return;
-  const confirmed = await confirmAction("Close room?", `Close room ${code} for everyone?`);
+  const confirmed = await confirmAction("Close table?", `Close table ${code} for everyone?`);
   if (!confirmed) return;
   try {
     await api("/api/room/close", { code, requester_id: player.id, passcode, owner_token: await ensureOwnerToken(player.id) });
@@ -2219,7 +2219,7 @@ function renderGame() {
   const game = currentRoom.game;
   const meta = document.getElementById("gameMeta");
   const resetButton = document.getElementById("resetGame");
-  meta.textContent = `Room ${currentRoom.code}`;
+  meta.textContent = `Table ${currentRoom.code}`;
   if (resetButton) {
     const resetLabel = isCompletedRoom(currentRoom) ? "Play Again" : "Reset";
     resetButton.textContent = "🔁";
@@ -2675,7 +2675,7 @@ async function refreshRooms() {
   try {
     await refreshCurrentRoomSummary();
   } catch {
-    if (currentRoom) showTurnStatus(null, "Room refresh failed.");
+    if (currentRoom) showTurnStatus(null, "Table refresh failed.");
   }
 }
 
@@ -2707,7 +2707,7 @@ async function refreshRoom() {
       await refreshHostInviteStatus();
     } else leaveClosedRoom();
   } catch {
-    showTurnStatus(null, "Room refresh failed.");
+    showTurnStatus(null, "Table refresh failed.");
   }
 }
 

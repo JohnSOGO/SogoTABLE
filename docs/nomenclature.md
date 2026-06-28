@@ -29,6 +29,13 @@ In the current hosted app, a `Room` is the multiplayer transport/session
 container with a room code. The `Table` is the game-state concept inside that
 room: the thing players are gathered around and playing on.
 
+**User-facing copy says "Table" (adopted 2026-06-28).** All visible UI text and
+user-facing error messages (e.g. "Table is full.", "Table code", "Close table?")
+say *Table*, never *Room*. `Room` survives only as an internal term: code
+identifiers, API paths (`/api/room/*`), the `room_code` field, WebSocket message
+types (`room_snapshot`), Durable Object names, and CSS classes/IDs. Do not rename
+those — see Legacy Compatibility below.
+
 ### Board
 
 The board is the main visible play surface.

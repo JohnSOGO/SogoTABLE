@@ -988,8 +988,12 @@ unavailable in production, those room-authority POST paths fail closed with HTTP
 `503`:
 
 ```json
-{ "ok": false, "error": "Room authority unavailable." }
+{ "ok": false, "error": "Table authority unavailable." }
 ```
+
+User-facing `error` strings say **"Table"** (the product term players see), even
+though the transport container is internally a *room* — see `docs/nomenclature.md`.
+Endpoints, fields (`room_code`), and Durable Object names keep the `room` term.
 
 They must not fall back to direct Worker mutation routing, because that would
 bypass the room object's serialization and live snapshot contract.
