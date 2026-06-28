@@ -218,7 +218,7 @@ function renderRunView(game, myMark, idx, deck) {
     const done = q(".mw-done"); show(".mw-done");
     done.innerHTML = `<div style="font-weight:700;">Maze ${idx + 1}/${deck.length} cleared — ` +
       `${author.icon || "🧙"} ${author.name || "?"}${mine ? '<span class="mw-mine"> · your maze!</span>' : "'s maze"}</div>` +
-      `<div class="mw-help" style="margin-top:4px;">${runState.moves} moves → <b>${runState.moves} pts</b> to ${author.name || "?"} · 💎${dia} 🪙${coin}</div>` +
+      `<div class="mw-help" style="margin-top:4px;">Escaped in <b>${runState.moves}</b> moves · 💎${dia} 🪙${coin}</div>` +
       `<button class="mw-next mw-go-btn" style="margin-top:12px;">${last ? "Post final result →" : "Next maze →"}</button>`;
     done.querySelector(".mw-next").addEventListener("click", postRunResult);
     return;
@@ -264,8 +264,9 @@ function renderComplete(game, myMark) {
     `<div class="mw-prize${mark === myMark ? " mine" : ""}"><span class="mw-pzico">${icon}</span>` +
     `<span class="mw-pzbody"><b>${name}</b><br>${who(mark)} <span class="mw-pzdetail">· ${detail}</span></span></div>`;
   const done = q(".mw-done"); show(".mw-done");
-  done.innerHTML =
-    card("🧱", "Mazewright", prizes.mazewright, `${seatOf(prizes.mazewright).author_points || 0} moves lost in their maze`) +
+  const champ = game.winner ? `<div class="mw-champ">🏆 <b>${who(game.winner)}</b> wins the dungeon!</div>` : "";
+  done.innerHTML = champ +
+    card("🧱", "Mazewright", prizes.mazewright, `${seatOf(prizes.mazewright).author_points || 0} maze score`) +
     card("🏃", "Mazerunner", prizes.mazerunner, `${seatOf(prizes.mazerunner).runner_moves || 0} moves total`) +
     card("💎", "Treasure Hunter", prizes.treasureHunter, `${seatOf(prizes.treasureHunter).runner_loot || 0} loot`);
 }

@@ -13,6 +13,8 @@ import {
 import {
   buildRandomMazeCode, isValidMazeCode, createGame as createMwGame,
   applyAction as applyMw, mazeCode as mwCode, MIN_WALLS as MW_MIN_WALLS,
+  allLootReachable as mwAllLootReachable, computeStandings as mwComputeStandings,
+  shortestPathFromCode as mwShortestPath, edgeKey as mwEdgeKey,
 } from "../../src/sogotable/static/games/mazewright/rules.js";
 
 test("creates, lists, and deletes players", async () => {
@@ -2648,4 +2650,73 @@ test("Mazewright requires at least MIN_WALLS walls to submit", () => {
   assert.equal(isValidMazeCode(mwCode(g)), false);
   // auto-built mazes clear the floor and are valid
   assert.equal(isValidMazeCode(buildRandomMazeCode()), true);
+});
+
+test("Mazewright validation: a maze with walled-off loot is rejected", () => {
+  const g = createMwGame();                     // start is the centre, board open
+  g.items[0] = { type: "diamond", cell: [0, 0] };
+  assert.equal(mwAllLootReachable(g), true);    // open board: every loot reachable
+  g.walls[mwEdgeKey([0, 0], [1, 0])] = true;
+  g.walls[mwEdgeKey([0, 0], [0, 1])] = true;    // corner now fully sealed
+  assert.equal(mwAllLootReachable(g), false);
+
+  // round-trip through a maze code: sealing one loot turns a valid maze invalid
+  const valid = buildRandomMazeCode();
+  assert.equal(isValidMazeCode(valid), true);
+  const decoded = createMwGame();
+  applyMw(decoded, { type: "LOAD_CODE", code: valid });
+  const cell = decoded.items[0].cell;
+  for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const nc = cell[0] + dc, nr = cell[1] + dr;
+    if (nc >= 0 && nr >= 0 && nc < decoded.cols && nr < decoded.rows) decoded.walls[mwEdgeKey(cell, [nc, nr])] = true;
+  }
+  assert.equal(mwAllLootReachable(decoded), false);
+  assert.equal(isValidMazeCode(mwCode(decoded)), false);
+});
+
+test("Mazewright scoring: a self-run never credits the maze author", () => {
+  // P1 wanders 50 moves in their OWN maze; that must not pad P1's author score.
+  const shortest = { P1: 5, P2: 5 };
+  const runs = [
+    { runner: "P1", author: "P1", moves: 50, loot: 5 },   // self-run — ignored for author
+    { runner: "P2", author: "P1", moves: 12, loot: 1 },   // P2 ran P1's maze
+  ];
+  const s = mwComputeStandings(runs, shortest, ["P1", "P2"]);
+  assert.equal(s.authorPoints.P1, 9);   // only P2's run: clamp(12-5)=7 + 2*1 loot
+  assert.equal(s.authorPoints.P2, 0);
+});
+
+test("Mazewright scoring: excess is capped and the winner is the 5/3/3 composite", () => {
+  const shortest = { A: 4, B: 4, C: 4 };
+  const runs = [
+    { runner: "C", author: "A", moves: 30, loot: 0 },   // A author: excess capped at 20
+    { runner: "B", author: "A", moves: 6, loot: 5 },    // A author: clamp(2)=2 + 2*5 loot = 12
+    { runner: "A", author: "B", moves: 9, loot: 0 },    // B author: clamp(5)=5
+    { runner: "C", author: "B", moves: 9, loot: 0 },    // B author: clamp(5)=5
+    { runner: "A", author: "C", moves: 9, loot: 0 },    // C author: clamp(5)=5
+    { runner: "B", author: "C", moves: 5, loot: 0 },    // C author: clamp(1)=1
+  ];
+  const s = mwComputeStandings(runs, shortest, ["A", "B", "C"]);
+  assert.equal(s.authorPoints.A, 32);            // 20 (capped) + 12 — confusion, not tedium
+  assert.equal(s.prizes.mazewright, "A");        // most confusing maze
+  assert.equal(s.prizes.mazerunner, "B");        // fewest total runner moves (6+5=11)
+  assert.equal(s.prizes.treasureHunter, "B");    // most loot grabbed (5)
+  assert.equal(s.winner, "B");                   // runner+treasure (3+3=6) beats wright-only (5)
+});
+
+test("Mazewright wrapper clamps a bogus POST_RESULT to the feasible band", () => {
+  const game = newMazewrightGame();
+  initMazewrightSeats(game, [
+    { mark: "P1", name: "A", kind: "human" },
+    { mark: "P2", name: "B", kind: "human" },
+  ]);
+  makeMazewrightMove(game, "P1", { type: "SUBMIT_MAZE", code: buildRandomMazeCode() });
+  makeMazewrightMove(game, "P2", { type: "SUBMIT_MAZE", code: buildRandomMazeCode() });
+  assert.equal(game.status, "running");
+  const author = game.deck[0].author;
+  const floor = Math.max(1, mwShortestPath(game.players[author].maze));
+  makeMazewrightMove(game, "P1", { type: "POST_RESULT", moves: 0, loot: 999 });
+  const r = game.players.P1.results[0];
+  assert.equal(r.moves, floor);   // floored to the shortest escape — no 2-move "win"
+  assert.equal(r.loot, 5);        // capped at the five hidden items — no loot:999
 });

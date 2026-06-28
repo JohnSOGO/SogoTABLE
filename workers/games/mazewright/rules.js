@@ -17,6 +17,8 @@ import {
   simulateRun,
   isValidMazeCode,
   randomTransform,
+  shortestPathFromCode,
+  computeStandings,
 } from "../../../src/sogotable/static/games/mazewright/rules.js";
 
 export const MAZEWRIGHT_GAME_ID = GAME_IDS.mazewright;
@@ -107,10 +109,16 @@ function postResult(game, mark, action) {
   if (!seat || seat.is_bot || game.status !== "running" || seat.runDone) return;
   const idx = seat.runIndex;
   if (!game.deck || idx >= game.deck.length) return;
+  // Family-trust, but no neon "front door": clamp the client-reported result to
+  // the feasible band. moves can't beat the maze's shortest escape; loot can't
+  // exceed the five hidden items. (Author can't inflate their own score either:
+  // self-runs are excluded in computeStandings.)
+  const author = game.deck[idx].author;
+  const floor = Math.max(1, shortestPathFromCode(game.players[author].maze));
   seat.results.push({
-    author: game.deck[idx].author,
-    moves: Math.max(0, Math.round(Number(action.moves) || 0)),
-    loot: Math.max(0, Math.round(Number(action.loot) || 0)),
+    author,
+    moves: Math.max(floor, Math.round(Number(action.moves) || 0)),
+    loot: Math.min(5, Math.max(0, Math.round(Number(action.loot) || 0))),
   });
   seat.runIndex += 1;
   if (seat.runIndex >= game.deck.length) seat.runDone = true;
@@ -125,34 +133,26 @@ function maybeComplete(game) {
   game.status = "complete";
 }
 
-function tallies(game) {
-  const authorPoints = {};
-  const runnerMoves = {};
-  const runnerLoot = {};
-  for (const m of game.seat_order) {
+// Project the room's posted results into the representation-neutral shape the
+// shared scorer consumes, then defer to computeStandings (the one true tally).
+// Works on partial results too, so the live leaderboard shows standings forming.
+function standings(game) {
+  const runs = [];
+  const shortest = {};
+  for (const m of game.seat_order || []) {
     const seat = game.players[m];
-    let moves = 0, loot = 0;
     for (const r of seat.results) {
-      moves += r.moves; loot += r.loot;
-      authorPoints[r.author] = (authorPoints[r.author] || 0) + r.moves;
+      if (shortest[r.author] === undefined) shortest[r.author] = shortestPathFromCode(game.players[r.author].maze);
+      runs.push({ runner: m, author: r.author, moves: r.moves, loot: r.loot });
     }
-    runnerMoves[m] = moves;
-    runnerLoot[m] = loot;
   }
-  return { authorPoints, runnerMoves, runnerLoot };
+  return computeStandings(runs, shortest, game.seat_order || []);
 }
 
 function computePrizes(game) {
-  const { authorPoints, runnerMoves, runnerLoot } = tallies(game);
-  const marks = game.seat_order;
-  const argmax = (score) => marks.reduce((best, m) => ((score[m] || 0) > (score[best] || 0) ? m : best), marks[0]);
-  const argmin = (score) => marks.reduce((best, m) => ((score[m] || 0) < (score[best] || 0) ? m : best), marks[0]);
-  game.prizes = {
-    mazewright: argmax(authorPoints),
-    mazerunner: argmin(runnerMoves),
-    treasureHunter: argmax(runnerLoot),
-  };
-  game.winner = game.prizes.mazewright;
+  const s = standings(game);
+  game.prizes = s.prizes;
+  game.winner = s.winner;   // 5/3/3 medal composite, not Mazewright-only
 }
 
 export function makeMazewrightMove(game, mark, action) {
@@ -164,7 +164,7 @@ export function makeMazewrightMove(game, mark, action) {
 
 // ---- leaderboard projection (identical for every viewer; mazes are public) ----
 export function mazewrightGameToDict(game) {
-  const { authorPoints, runnerMoves, runnerLoot } = tallies(game);
+  const { authorPoints, runnerMoves, runnerLoot } = standings(game);
   const complete = game.status === "complete";
   const total = game.deck ? game.deck.length : (game.seat_order ? game.seat_order.length : 0);
   const players = (game.seat_order || []).map((mark) => {
@@ -208,7 +208,7 @@ export function mazewrightGameToDict(game) {
 
 // Stats: a player's "score" is their total loot collected (Treasure Hunter metric).
 export function mazewrightScoreByMark(game) {
-  const { runnerLoot } = tallies(game);
+  const { runnerLoot } = standings(game);
   const scores = {};
   for (const mark of game.seat_order || []) scores[mark] = runnerLoot[mark] || 0;
   return scores;
