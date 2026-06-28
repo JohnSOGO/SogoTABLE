@@ -209,7 +209,7 @@ p,
 }
 
 .player-stats-body {
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 .topbar,
@@ -519,8 +519,15 @@ button.compact {
 
 .player-stats {
   display: grid;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 4px;
+  /* Pull the "Player Stats" toggle up close under the player name row,
+     overriding the panel grid gap. */
+  margin-top: -8px;
+}
+
+/* Tighten the space below the player stats inside the player panel. */
+#games > .panel {
+  padding-bottom: 6px;
 }
 
 .player-stat-table {
