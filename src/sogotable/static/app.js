@@ -1,4 +1,5 @@
-import { api, fetchJson } from "./api-client.js";
+import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError } from "./api-client.js";
+import { wireHouses, renderHouseControls, playerModalDisplayName } from "./controllers/houses.js";
 import {
   colorWithAlpha,
   getContrastAwareTextColor,
@@ -219,6 +220,11 @@ document.addEventListener("DOMContentLoaded", () => {
   renderCurrentPlayer();
   document.getElementById("playerForm").addEventListener("submit", createPlayer);
   document.getElementById("clearPlayerStats").addEventListener("click", clearEditingPlayerStats);
+  wireHouses({
+    getPlayers: () => players,
+    ensureOwnerToken,
+    setPlayers: (next) => { players = next; renderPlayers(); },
+  });
   document.getElementById("openEditPlayerModal").addEventListener("click", openSelectedPlayerEditor);
   document.getElementById("openSelectPlayerModal").addEventListener("click", () => openPlayerModal("select"));
   document.getElementById("openCreatePlayerModal").addEventListener("click", () => openPlayerModal("create"));
@@ -940,6 +946,7 @@ function setPlayerFormMode(mode) {
   if (title) title.textContent = editing ? "Edit Player" : "Create New Player";
   if (submit) submit.textContent = editing ? "Save Changes" : "Create Player";
   if (clearStats) clearStats.classList.toggle("hidden", !editing);
+  renderHouseControls(editing ? players.find((player) => player.id === editingPlayerId) : null);
 }
 
 function renderPlayers() {
@@ -963,7 +970,7 @@ function renderPlayers() {
     card.className = `player-card ${player.id === deviceSelectedPlayerId ? "selected" : ""} ${editing ? "editing" : ""}`;
     card.innerHTML = `
       ${avatarHtml(player)}
-      <strong>${escapeHtml(player.name)}</strong>
+      <strong>${escapeHtml(playerModalDisplayName(player))}</strong>
       <div class="player-actions ${editing ? "hidden" : ""}">
         <button type="button" class="secondary edit-player">Edit</button>
         ${showUnlock ? '<button type="button" class="secondary unlock-player">Unlock</button>' : ""}
@@ -3030,25 +3037,6 @@ async function movePlayerHere(id) {
     if (token) return token;
     throw reclaimErr;
   }
-}
-
-function isAlreadyClaimedError(error) {
-  return String(error && error.message || "").toLowerCase().includes("already claimed");
-}
-
-// True when an action was rejected because the player has no owner token on the
-// server at all (unclaimed) — e.g. the Sogo admin unlocked it. Any token stored on
-// this device is stale; drop it and re-claim (no passcode needed for an unclaimed
-// player, so this works from any device after an unlock).
-function isUnclaimedError(error) {
-  return String(error && error.message || "").toLowerCase().includes("must be claimed");
-}
-
-// True when an action was rejected because this device's owner token for the
-// player no longer matches the server — e.g. the player was reclaimed on a
-// different device, invalidating the token stored here.
-function isStaleOwnerTokenError(error) {
-  return String(error && error.message || "").toLowerCase().includes("owner token is incorrect");
 }
 
 function playerDisplayName(playerId) {

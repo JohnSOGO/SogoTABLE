@@ -893,6 +893,43 @@ button.compact {
   display: none;
 }
 
+.house-controls,
+.house-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.house-controls.hidden {
+  display: none;
+}
+
+.house-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.house-buttons button {
+  width: auto;
+  flex: 1;
+}
+
+.house-options {
+  display: grid;
+  gap: 6px;
+}
+
+.house-name-field {
+  display: grid;
+  gap: 4px;
+}
+
+.house-current,
+.house-empty {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--accent-strong);
+}
+
 .player-card {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) max-content;

@@ -39,3 +39,25 @@ function apiUrl(url) {
   if (typeof url === "string" && url.startsWith("/api/")) return `${HOSTED_API_ORIGIN}${url}`;
   return url;
 }
+
+// Classifiers for the player-ownership errors the Worker returns, so callers can
+// react (re-claim, move device, drop a stale token) without matching strings
+// inline. They only read error.message — no app state.
+export function isAlreadyClaimedError(error) {
+  return String(error && error.message || "").toLowerCase().includes("already claimed");
+}
+
+// True when an action was rejected because the player has no owner token on the
+// server at all (unclaimed) — e.g. the Sogo admin unlocked it. Any token stored on
+// this device is stale; drop it and re-claim (no passcode needed for an unclaimed
+// player, so this works from any device after an unlock).
+export function isUnclaimedError(error) {
+  return String(error && error.message || "").toLowerCase().includes("must be claimed");
+}
+
+// True when an action was rejected because this device's owner token for the
+// player no longer matches the server — e.g. the player was reclaimed on a
+// different device, invalidating the token stored here.
+export function isStaleOwnerTokenError(error) {
+  return String(error && error.message || "").toLowerCase().includes("owner token is incorrect");
+}

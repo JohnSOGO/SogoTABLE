@@ -503,6 +503,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (existing) {
         await assertPlayerOwner(data, player.id, payload.owner_token, options);
         player.owner_token_hash = existing.owner_token_hash;
+        if (!player.house_id && existing.house_id) { player.house_id = existing.house_id; player.house_name = existing.house_name; }
       } else {
         ownerToken = generateOwnerToken();
         player.owner_token_hash = await ownerTokenHash(ownerToken);
@@ -1088,6 +1089,12 @@ function playerFromPayload(payload) {
     kind: player.kind === "bot" ? "bot" : "human",
   };
   if (player.bot_id) clean.bot_id = String(player.bot_id).trim().slice(0, 80);
+  // House (clan) membership rides on the player object. Carried only when present
+  // so a plain profile edit can't blank it (the create route restores it too).
+  if (player.house_id) {
+    clean.house_id = String(player.house_id).trim().slice(0, 80);
+    clean.house_name = String(player.house_name || "").trim().slice(0, 24);
+  }
   if (!clean.id || !clean.name) throw new Error("Player id and name are required.");
   return clean;
 }

@@ -23,6 +23,27 @@ test("creates, lists, and deletes players", async () => {
   assert.deepEqual(deleted.players, []);
 });
 
+test("house membership rides on the player and survives a profile edit", async () => {
+  const env = makeProductionEnv();
+  const created = await post(env, "/api/players/create", { player: player("p1", "One") });
+  const joined = await post(env, "/api/players/create", {
+    player: { ...player("p1", "One"), house_id: "h-dragons", house_name: "Dragons" },
+    owner_token: created.owner_token,
+  });
+  // A later edit that omits the House must not blank it.
+  const renamed = await post(env, "/api/players/create", {
+    player: player("p1", "Uno"),
+    owner_token: created.owner_token,
+  });
+  const listed = await get(env, "/api/players");
+
+  assert.equal(joined.player.house_id, "h-dragons");
+  assert.equal(joined.player.house_name, "Dragons");
+  assert.equal(renamed.player.name, "Uno");
+  assert.equal(renamed.player.house_id, "h-dragons");
+  assert.equal(listed.players[0].house_name, "Dragons");
+});
+
 test("player owner tokens are returned once and protect profile mutations", async () => {
   const env = makeProductionEnv();
   const created = await post(env, "/api/players/create", { player: player("p1", "Player One") });
