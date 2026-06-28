@@ -9,6 +9,7 @@ import {
 import { avatarHtml, escapeHtml } from "./html-utils.js";
 import { createRealtimeController } from "./realtime.js";
 import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
+import { renderGameList } from "./games/game-list-view.js";
 import { buildRoomRenderKey } from "./games/render-keys.js";
 import { renderBoxesGame } from "./games/boxes/client.js";
 import { renderQuoridorGame, resetQuoridorDraft } from "./games/quoridor/client.js";
@@ -402,20 +403,11 @@ function renderGames() {
   if (section) section.classList.toggle("hidden", !hasPlayer);
   if (needPlayer) needPlayer.classList.toggle("hidden", hasPlayer);
   if (!hasPlayer) return;
-  games.forEach((game) => {
-    const ready = gameIsReady(game);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `game-card ${game.id === selectedGameId ? "selected" : ""}`;
-    button.dataset.gameId = game.id;
-    button.textContent = game.name;
-    button.disabled = !ready;
-    if (!ready) {
-      button.title = gameAvailabilityText(game);
-      button.setAttribute("aria-label", `${game.name}. ${gameAvailabilityText(game)}`);
-    }
-    button.addEventListener("click", () => {
-      if (!ready) return;
+  renderGameList(host, games, {
+    selectedGameId,
+    isReady: gameIsReady,
+    availabilityText: gameAvailabilityText,
+    onSelect: (game) => {
       selectedGameId = game.id;
       currentRoom = null;
       activeGameRoom = null;
@@ -423,8 +415,7 @@ function renderGames() {
       renderGames();
       renderSelectedGame();
       showScreen("gameSelected");
-    });
-    host.appendChild(button);
+    },
   });
 }
 

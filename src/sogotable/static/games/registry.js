@@ -19,12 +19,21 @@ export const GAME_IDS = {
   yahtzee: "2c8a5f1e9d74",
 };
 
+// Display categories for the game-select screen, in the order they appear.
+// Each game's `category` field points at one of these ids.
+export const GAME_CATEGORIES = [
+  { id: "paper", label: "Pen and Paper Games" },
+  { id: "dice", label: "Dice Games" },
+  { id: "board", label: "Board Games" },
+];
+
 export const GAME_REGISTRY = [
   {
     id: GAME_IDS.classic,
     name: "Super Tic Tac Toe",
     summary: "A nested tic tac toe duel where every move sends the next player to a target board.",
     players: "2 players",
+    category: "paper",
     status: "Ready",
     availability: "ready",
     aliases: ["super_tic_tac_toe"],
@@ -34,6 +43,7 @@ export const GAME_REGISTRY = [
     name: "Super Tic Tactical Toe",
     summary: "Ultimate tic tac toe with tactical coin and treasure pickups for bonus points.",
     players: "2 players",
+    category: "paper",
     status: "Ready",
     availability: "ready",
     aliases: ["super_tactical_tac_toe"],
@@ -43,6 +53,7 @@ export const GAME_REGISTRY = [
     name: "Dots and Boxes",
     summary: "Claim edges between dots, complete boxes, and keep the turn when you score.",
     players: "2 players",
+    category: "paper",
     status: "Ready",
     availability: "ready",
     aliases: ["boxes", "dots_and_boxes", "dots_and_dashes"],
@@ -52,6 +63,7 @@ export const GAME_REGISTRY = [
     name: "Battleship",
     summary: "Place your fleet, switch between defence and offence, and sink the enemy ships.",
     players: "2 players",
+    category: "paper",
     status: "Ready",
     availability: "ready",
     aliases: ["battleship", "battle_ship"],
@@ -61,6 +73,7 @@ export const GAME_REGISTRY = [
     name: "Quoridor",
     summary: "Race your pawn across the board while placing walls that slow your opponent without blocking every path.",
     players: "2 players",
+    category: "board",
     status: "Ready",
     availability: "ready",
     aliases: ["quoridor"],
@@ -72,6 +85,7 @@ export const GAME_REGISTRY = [
     players: "1+ players",
     player_count: null,
     host_start: true,
+    category: "dice",
     status: "Ready",
     availability: "ready",
     aliases: ["ten_thousand", "10000", "dice_10000"],
@@ -83,6 +97,7 @@ export const GAME_REGISTRY = [
     players: "1+ players",
     player_count: null,
     host_start: true,
+    category: "dice",
     status: "Ready",
     availability: "ready",
     aliases: ["yahtzee", "yacht"],

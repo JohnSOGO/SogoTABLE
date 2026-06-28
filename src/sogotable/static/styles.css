@@ -406,6 +406,25 @@ p,
 
 .games-list {
   display: grid;
+  gap: 18px;
+}
+
+.games-group {
+  display: grid;
+  gap: 10px;
+}
+
+.games-group-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.games-grid {
+  display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
 }
