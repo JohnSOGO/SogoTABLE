@@ -230,6 +230,7 @@ document.addEventListener("DOMContentLoaded", () => {
     unclaimPlayer: unclaimPlayerAsSuperuser,
     getDeviceSelectedPlayerId: () => deviceSelectedPlayerId,
     isSuperuserSelected: isSogoSuperuserSelected,
+    setPlayerFormVisible,
     rerender: renderPlayers,
   });
   document.getElementById("openEditPlayerModal").addEventListener("click", openSelectedPlayerEditor);
@@ -373,10 +374,8 @@ function showScreen(name) {
   if (name === "game") startRoomLiveUpdates();
 }
 
-// SOGO is remembered/auto-selected like any player, but the superuser passcode is
-// enforced once on entry to the app (the Start Playing step after the intro). Pass
-// it and SOGO's admin powers unlock for the session; cancel and SOGO is deselected
-// so nobody acts as the admin without it.
+// SOGO is remembered/auto-selected like any player; its superuser passcode is
+// enforced once on entry (Start Playing). Cancel it and SOGO is deselected.
 async function gateSuperuserOnEntry() {
   const player = deviceSelectedPlayer();
   if (!isSogoSuperuser(player) || hasSogoSuperuserPasscode()) return;
@@ -1198,6 +1197,7 @@ async function selectPlayer(playerId, options = {}) {
     clearSogoSuperuserPasscode();
   }
   setDeviceSelectedPlayer(playerId);
+  void ensureOwnerToken(playerId).catch(() => {}); // claim on select; House/edit need no separate claim
   renderPlayers();
   renderSelectedPlayer();
   renderCurrentPlayer();

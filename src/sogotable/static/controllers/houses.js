@@ -43,6 +43,9 @@ export function renderHouseControls(player) {
   if (panelMode === "create") renderCreatePanel(host);
   else if (panelMode === "join") renderJoinPanel(host);
   else renderIdle(host);
+  // While creating/joining a House, hide the Edit Player form so only the House
+  // controls show; restore it once back to idle.
+  if (ctx.setPlayerFormVisible) ctx.setPlayerFormVisible(panelMode === "idle");
 }
 
 function renderIdle(host) {
