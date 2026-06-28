@@ -104,8 +104,10 @@ function completeSeries(game) {
 }
 
 function humanOverall(seat) { return seat.series_past + grandTotal(seat); }
-function botPastGames(seat, gi) { return seat.gameTotals.slice(0, gi - 1).reduce((a, b) => a + b, 0); }
-function botFinalOverall(seat) { return seat.gameTotals.reduce((a, b) => a + b, 0); }
+// Guard gameTotals: legacy bot seats (from rooms predating its init) can lack it,
+// and serialization (yahtzeeGameToDict) must never throw on stored game state.
+function botPastGames(seat, gi) { return (seat.gameTotals || []).slice(0, gi - 1).reduce((a, b) => a + b, 0); }
+function botFinalOverall(seat) { return (seat.gameTotals || []).reduce((a, b) => a + b, 0); }
 function finalOverall(game, mark) {
   const seat = game.players[mark];
   return seat.is_bot ? botFinalOverall(seat) : humanOverall(seat);

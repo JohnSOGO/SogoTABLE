@@ -341,6 +341,27 @@ test("Yahtzee series: solo seat advances through 6 games to completion", async (
   assert.equal(res.room.game.winner, "P1");
 });
 
+test("editing a player seated in a Yahtzee room serializes a legacy bot seat without gameTotals", async () => {
+  // Regression: refreshActiveRoomPlayer re-serializes every room the edited player
+  // is seated in. yahtzeeGameToDict reads bot seat gameTotals; legacy bot seats
+  // (from rooms predating its init) lack it, so the profile edit threw
+  // "Cannot read properties of undefined (reading 'slice')".
+  const env = makeEnv();
+  const host = player("h", "Host");
+  await post(env, "/api/room/create", { game_id: "yahtzee", player: host, code: "YTZL" });
+  const bots = await get(env, "/api/bots?game_id=yahtzee");
+  await post(env, "/api/room/join-bot", { code: "YTZL", host_id: host.id, bot_id: bots.bots[0].id });
+  await post(env, "/api/room/start", { code: "YTZL", host_id: host.id });
+  // Simulate the legacy seat shape that has no gameTotals array.
+  mutateState(env, (data) => {
+    Object.values(data.rooms.YTZL.game.players).forEach((seat) => { if (seat.is_bot) delete seat.gameTotals; });
+  });
+
+  const edited = await post(env, "/api/players/create", { player: player("h", "Host Renamed") });
+  assert.equal(edited.ok, true);
+  assert.equal(edited.error, undefined);
+});
+
 test("Yahtzee series: a bot is paced to the human across the series", async () => {
   const env = makeEnv();
   const host = player("h", "Host");
