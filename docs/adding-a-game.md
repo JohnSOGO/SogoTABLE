@@ -341,6 +341,25 @@ game hits (all learned on Yahtzee):
 
 ---
 
+## Shipping — just push it
+
+This is a low-traffic family site that sits idle most of the time, so shipping a
+finished game does **not** need a staging dance or a "wait for off-hours" hold.
+**Once the standalone UI is developed and the vertical slice is integrated with the
+full test suite green, push the game straight to `main` and finish it off:**
+
+- Merge the work to `main` (Cloudflare Pages auto-builds the static client on push).
+- Run `npm run deploy:brain` to deploy the Worker brain (the new `GAME_HANDLERS`
+  row only goes live with this — a static push alone won't ship it).
+- A new game adds an opt-in entry to the lobby; it doesn't touch existing games'
+  state or rooms, so it won't disrupt anyone mid-game. Don't gate the ship on
+  asking permission — the gate is **green tests + AREC**, not deploy timing.
+
+Adding a *new* game is additive and independently removable (the modularity Golden
+Rule), which is exactly why it's safe to ship the moment it's done.
+
+---
+
 ## Where to go deeper
 
 - [Wu Wei Method](wu-wei-method.md) — the canonical flow a game must follow.
