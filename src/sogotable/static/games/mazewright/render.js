@@ -349,16 +349,15 @@ function renderComplete(game, myMark) {
   done.innerHTML = html;
 }
 
-// ---------- live scores (bottom of every play screen) ----------
+// ---------- live scores (bottom of every screen, including the end) ----------
 // Raw running totals, not the rank composite: maze score (points others lose in
 // your maze), total moves, treasure. The server projects these on every score
-// update, so the table fills in as players finish mazes. The complete screen has
-// its own champion + composite card, so this hides there.
+// update, so the table fills in as players finish mazes. On the complete screen it
+// sits below the champion + composite card as the raw breakdown.
 function renderLeaderboard(game, myMark) {
   const status = game.status;
   const table = q(".mw-table");
   if (!table) return;
-  if (status === "complete") { table.style.display = "none"; return; }
   table.style.display = "block";
   const statusChip = (seat) =>
     status === "building" ? (seat.built ? "ready ✅" : "building…")
@@ -373,8 +372,8 @@ function renderLeaderboard(game, myMark) {
       `<td data-field="raw-moves">${seat.runner_moves ?? 0}</td>` +
       `<td data-field="raw-loot">${seat.runner_loot ?? 0}</td></tr>`;
   }).join("");
-  const title = status === "running"
-    ? "Live scores · filling in as players finish mazes"
+  const title = status === "complete" ? "Raw scores"
+    : status === "running" ? "Live scores · filling in as players finish mazes"
     : "Live scores · tally once the running starts";
   table.innerHTML = `<div class="mw-ptitle">${title}</div>` +
     `<table class="mw-sctable"><thead><tr><th class="mw-scname">Player</th>` +
