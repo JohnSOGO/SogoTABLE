@@ -151,6 +151,8 @@ let currentGameRooms = [];
 let lobbyPlayers = [];
 let availableBots = [];
 let selectedPlayerStats = [];
+let playerStatsCollapsed = true;
+let playerStatsCollapsePlayerId = "";
 let lastLobbyPlayersKey = "";
 let lastCurrentGameRoomsKey = "";
 let lastActiveGameNoticeKey = "";
@@ -1065,6 +1067,11 @@ function renderSelectedPlayer() {
 
 async function refreshSelectedPlayerStats() {
   const playerId = deviceSelectedPlayerId;
+  if (playerId !== playerStatsCollapsePlayerId) {
+    // A freshly selected player starts with stats hidden behind the toggle.
+    playerStatsCollapsed = true;
+    playerStatsCollapsePlayerId = playerId || "";
+  }
   const requestId = selectedPlayerStatsRequestId + 1;
   selectedPlayerStatsRequestId = requestId;
   if (!playerId) {
@@ -1095,15 +1102,16 @@ function renderSelectedPlayerStats(message = "") {
     lastSelectedPlayerStatsKey = "hidden";
     return;
   }
-  const nextKey = JSON.stringify({ playerId: player.id, message, stats: selectedPlayerStats });
+  const nextKey = JSON.stringify({ playerId: player.id, message, stats: selectedPlayerStats, collapsed: playerStatsCollapsed });
   if (nextKey === lastSelectedPlayerStatsKey) return;
   lastSelectedPlayerStatsKey = nextKey;
   host.classList.remove("hidden");
+  const toggle = `<button type="button" class="player-stats-toggle label" aria-expanded="${!playerStatsCollapsed}">Player Stats</button>`;
+  let body;
   if (message) {
-    host.innerHTML = `<span class="label">Player Stats</span><p>${escapeHtml(message)}</p>`;
-    return;
-  }
-  const rows = (selectedPlayerStats || []).map((item) => `
+    body = `<p>${escapeHtml(message)}</p>`;
+  } else {
+    const rows = (selectedPlayerStats || []).map((item) => `
     <tr>
       <th scope="row">${escapeHtml(item.game_name || "Game")}</th>
       <td>${Number(item.games_played || 0)}</td>
@@ -1112,8 +1120,7 @@ function renderSelectedPlayerStats(message = "") {
       <td>${Number(item.elo || 1000)}</td>
     </tr>
   `).join("");
-  host.innerHTML = `
-    <span class="label">Player Stats</span>
+    body = `
     <table class="player-stat-table">
       <thead>
         <tr>
@@ -1127,6 +1134,15 @@ function renderSelectedPlayerStats(message = "") {
       <tbody>${rows}</tbody>
     </table>
   `;
+  }
+  host.innerHTML = `${toggle}<div class="player-stats-body${playerStatsCollapsed ? " hidden" : ""}">${body}</div>`;
+  const toggleButton = host.querySelector(".player-stats-toggle");
+  if (toggleButton) {
+    toggleButton.addEventListener("click", () => {
+      playerStatsCollapsed = !playerStatsCollapsed;
+      renderSelectedPlayerStats(message);
+    });
+  }
 }
 
 function renderCurrentPlayer() {

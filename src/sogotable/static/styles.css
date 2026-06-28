@@ -186,6 +186,32 @@ p,
   color: var(--muted);
 }
 
+.player-stats-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.player-stats-toggle::before {
+  content: "\25B8"; /* right-pointing triangle when collapsed */
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+
+.player-stats-toggle[aria-expanded="true"]::before {
+  transform: rotate(90deg);
+}
+
+.player-stats-body {
+  margin-top: 6px;
+}
+
 .topbar,
 .game-header {
   display: grid;
