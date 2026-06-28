@@ -304,8 +304,8 @@ export function simulateRun(code, rng = Math.random) {
 // Author credit rewards *confusion*, not tedium: a runner's excess moves over the
 // shortest escape (capped per runner so one wanderer can't dominate) plus a bonus
 // when the maze baits them into grabbing loot. A self-run never credits its author.
-// The overall winner is a 5/3/3 medal composite (Mazewright 5, Mazerunner 3,
-// Treasure Hunter 3); ties break on most medals, then fewest total runner moves.
+// The overall winner is a 5/3/3 rank-weighted composite (see the champion block
+// below); ties break on fewest total runner moves.
 export function computeStandings(runs, shortest, marks, opts = {}) {
   if (!marks || !marks.length) {
     return { authorPoints: {}, runnerMoves: {}, runnerLoot: {}, composite: {}, parts: {},
@@ -314,11 +314,14 @@ export function computeStandings(runs, shortest, marks, opts = {}) {
   const cap = opts.excessCap ?? EXCESS_CAP;
   const lootBonus = opts.lootBonus ?? LOOT_BONUS;
   const authorPoints = {}, runnerMoves = {}, runnerLoot = {};
-  for (const m of marks) { authorPoints[m] = 0; runnerMoves[m] = 0; runnerLoot[m] = 0; }
+  const authorRuns = {}, runnerRuns = {};   // contest participation per category
+  for (const m of marks) { authorPoints[m] = 0; runnerMoves[m] = 0; runnerLoot[m] = 0; authorRuns[m] = 0; runnerRuns[m] = 0; }
   for (const r of runs || []) {
+    runnerRuns[r.runner] = (runnerRuns[r.runner] || 0) + 1;
     runnerMoves[r.runner] = (runnerMoves[r.runner] || 0) + r.moves;
     runnerLoot[r.runner] = (runnerLoot[r.runner] || 0) + r.loot;
     if (r.runner === r.author) continue;                 // self-runs never score the author
+    authorRuns[r.author] = (authorRuns[r.author] || 0) + 1;   // an opponent ran your maze
     const excess = Math.max(0, Math.min(cap, r.moves - (shortest[r.author] || 0)));
     authorPoints[r.author] = (authorPoints[r.author] || 0) + excess + lootBonus * r.loot;
   }
@@ -330,13 +333,22 @@ export function computeStandings(runs, shortest, marks, opts = {}) {
     treasureHunter: argmax(runnerLoot),
   };
   // Overall champion: a rank-weighted composite across ALL three fields, so an
-  // all-round 2nd-place player beats a one-category specialist. Each player earns
-  // a per-category rank score in [0, N-1] (best = N-1; ties share the average),
-  // weighted 5/3/3 to keep the medal emphasis (Mazewright counts most).
+  // all-round 2nd-place player beats a one-category specialist. Rank is by *place*
+  // (1st = N … last = 1), but only if you actually had a contest there: Mazewright
+  // needs an opponent to have run your maze, so a solo player ranks 0 in it (you
+  // can't score on your own maze) yet still ranks 1st in Running + Treasure. Weighted
+  // 5/3/3. (The +1 place shift is constant across participants, so it never changes
+  // who wins — it just stops a sole player or a category-of-one reading as 0.)
   const w = opts.weights ?? WIN_WEIGHTS;
-  const aRank = rankScores(authorPoints, marks, false);
-  const mRank = rankScores(runnerMoves, marks, true);   // fewer moves ranks higher
-  const lRank = rankScores(runnerLoot, marks, false);
+  const aPlace = rankScores(authorPoints, marks, false);
+  const mPlace = rankScores(runnerMoves, marks, true);   // fewer moves ranks higher
+  const lPlace = rankScores(runnerLoot, marks, false);
+  const aRank = {}, mRank = {}, lRank = {};
+  for (const m of marks) {
+    aRank[m] = authorRuns[m] > 0 ? aPlace[m] : 0;   // no opponent ran your maze (solo) → no Mazewright rank
+    mRank[m] = runnerRuns[m] > 0 ? mPlace[m] : 0;
+    lRank[m] = runnerRuns[m] > 0 ? lPlace[m] : 0;
+  }
   const composite = {}, parts = {};   // parts = the weighted per-category points that sum to composite (the "show the math")
   for (const m of marks) {
     const pa = w.author * aRank[m], pr = w.runner * mRank[m], pt = w.treasure * lRank[m];
@@ -352,8 +364,9 @@ export function computeStandings(runs, shortest, marks, opts = {}) {
   return { authorPoints, runnerMoves, runnerLoot, composite, parts, prizes, winner };
 }
 
-// Per-category rank score in [0, N-1]: how many players you beat, plus half of
-// those you tie. Best (unique) = N-1, worst = 0; symmetric ties average out.
+// Per-category place score in [1, N]: how many players you beat, plus half of
+// those you tie, plus 1 for your own place. 1st (unique) = N, last = 1; symmetric
+// ties average out. (computeStandings zeroes this for a category you didn't contest.)
 function rankScores(values, marks, lowerBetter) {
   const out = {};
   for (const m of marks) {
@@ -364,7 +377,7 @@ function rankScores(values, marks, lowerBetter) {
       if (a === b) ties++;
       else if (lowerBetter ? a < b : a > b) beats++;
     }
-    out[m] = beats + ties / 2;
+    out[m] = beats + ties / 2 + 1;
   }
   return out;
 }

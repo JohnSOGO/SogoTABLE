@@ -2717,17 +2717,28 @@ test("Mazewright scoring: the composite champion rewards all-round play over a o
   ];
   const s = mwComputeStandings(runs, shortest, ["A", "B", "C"]);
   assert.equal(s.prizes.mazewright, "A");        // A still takes the maze-building medal
-  assert.equal(s.composite.A, 11.5);             // 5·rank2 + 3·rank0 + 3·rank0.5
-  assert.equal(s.composite.B, 13);               // 2nd-ish everywhere wins the title
-  assert.equal(s.composite.C, 8.5);
+  assert.equal(s.composite.A, 22.5);             // 5·place3 + 3·place1 + 3·place1.5 (places are 1..N now)
+  assert.equal(s.composite.B, 24);               // 2nd-ish everywhere wins the title
+  assert.equal(s.composite.C, 19.5);
   assert.equal(s.winner, "B");                   // champion is the all-rounder, NOT the specialist
   assert.notEqual(s.winner, s.prizes.mazewright);
   // the breakdown the final screen shows must add up to the composite
-  assert.deepEqual(s.parts.A, { author: 10, runner: 0, treasure: 1.5 });
-  assert.deepEqual(s.parts.B, { author: 2.5, runner: 4.5, treasure: 6 });
+  assert.deepEqual(s.parts.A, { author: 15, runner: 3, treasure: 4.5 });
+  assert.deepEqual(s.parts.B, { author: 7.5, runner: 7.5, treasure: 9 });
   for (const m of ["A", "B", "C"]) {
     assert.equal(s.parts[m].author + s.parts[m].runner + s.parts[m].treasure, s.composite[m]);
   }
+});
+
+test("Mazewright scoring: a solo player ranks 0/1/1 — no Mazewright without an opponent", () => {
+  // One player who ran (only) their own maze: you can't score Mazewright on your own
+  // maze (no opponent ran it → rank 0), but you legitimately place 1st in Running and
+  // Treasure (rank 1 of 1).
+  const s = mwComputeStandings([{ runner: "P1", author: "P1", moves: 12, loot: 3 }], { P1: 5 }, ["P1"]);
+  assert.equal(s.authorPoints.P1, 0);            // self-run never credits the author
+  assert.deepEqual(s.parts.P1, { author: 0, runner: 3, treasure: 3 });  // ranks 0/1/1 × 5/3/3
+  assert.equal(s.composite.P1, 6);
+  assert.equal(s.winner, "P1");
 });
 
 test("Mazewright wrapper clamps a bogus POST_RESULT to the feasible band", () => {
