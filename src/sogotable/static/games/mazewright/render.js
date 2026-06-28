@@ -33,6 +33,7 @@ let buildState = null;
 let buildKey = "";      // room:epoch — rebuild buildState on a new game
 let buildMode = "walls"; // walls | start | loot | exit — explicit edit mode
 let selectedItem = null; // loot index picked up in Loot mode (tap-to-place)
+let scoreView = "raw";   // raw | rank | weighted — tappable score-table lens
 let runState = null;
 let runLoaded = -1;     // deck index runState is built for
 let dragging = false;
@@ -105,6 +106,10 @@ function ensureScaffold() {
     if (btn && runState && runState.phase === PHASE.CRAWL) commitRun({ type: "MOVE", dir: btn.dataset.dir });
   });
   q(".mw-hud").addEventListener("click", () => { const h = q(".mw-hud"); if (h) h.classList.toggle("collapsed"); });
+  q(".mw-table").addEventListener("click", () => {
+    scoreView = scoreView === "raw" ? "rank" : scoreView === "rank" ? "weighted" : "raw";
+    renderLeaderboard(ctx.game || {}, localMark());
+  });
   q(".mw-modes").addEventListener("click", (e) => {
     const btn = e.target.closest(".mw-mode");
     if (!btn) return;
@@ -350,10 +355,14 @@ function renderComplete(game, myMark) {
 }
 
 // ---------- live scores (bottom of every screen, including the end) ----------
-// Raw running totals, not the rank composite: maze score (points others lose in
-// your maze), total moves, treasure. The server projects these on every score
-// update, so the table fills in as players finish mazes. On the complete screen it
-// sits below the champion + composite card as the raw breakdown.
+// One table, three tappable lenses on the same standings (scoreView):
+//   raw      — the actual tallies (maze score / moves / treasure)
+//   rank     — each player's placing per contest (best = N-1, ties share .5)
+//   weighted — rank × 5/3/3, summing to the composite Total that picks the champion
+// Everything derives from fields already in the projection (raw stats + the weighted
+// pts_*; rank = pts / weight), so this is render-only — no server change.
+const fmt = (x) => Math.round((Number(x) || 0) * 10) / 10;
+
 function renderLeaderboard(game, myMark) {
   const status = game.status;
   const table = q(".mw-table");
@@ -362,23 +371,38 @@ function renderLeaderboard(game, myMark) {
   const statusChip = (seat) =>
     status === "building" ? (seat.built ? "ready ✅" : "building…")
       : seat.run_done ? "🏁" : `maze ${Math.min(seat.run_index + 1, seat.run_total)}/${seat.run_total}`;
-  const rows = (game.players || []).map((seat) => {
+
+  // per-view column values + the optional total column
+  const aRank = (s) => fmt((s.pts_author ?? 0) / 5), mRank = (s) => fmt((s.pts_runner ?? 0) / 3), tRank = (s) => fmt((s.pts_treasure ?? 0) / 3);
+  const VIEWS = {
+    raw: { label: "Raw", cols: (s) => [s.author_points ?? 0, s.runner_moves ?? 0, s.runner_loot ?? 0], total: null },
+    rank: { label: "Rank", cols: (s) => [aRank(s), mRank(s), tRank(s)], totalHead: "Σ", total: (s) => fmt(aRank(s) + mRank(s) + tRank(s)) },
+    weighted: { label: "Weighted", cols: (s) => [fmt(s.pts_author), fmt(s.pts_runner), fmt(s.pts_treasure)], totalHead: "Total", total: (s) => fmt(s.composite) },
+  };
+  const view = VIEWS[scoreView] || VIEWS.raw;
+  const hasTotal = !!view.total;
+
+  const players = (game.players || []);
+  const ranked = scoreView === "raw" ? players : players.slice().sort((a, b) => (view.total ? view.total(b) - view.total(a) : 0));
+  const rows = ranked.map((seat) => {
     const you = seat.mark === myMark;
     const p = seatProfile(seat.mark);
+    const [c1, c2, c3] = view.cols(seat);
     return `<tr class="${you ? "you" : ""}">` +
       `<td class="mw-scname">${p.icon || "🧙"} ${seat.name}${seat.is_bot ? " 🤖" : ""}${you ? ' <span class="mw-youtag">you</span>' : ""}` +
       ` <span class="mw-pstat">${statusChip(seat)}</span></td>` +
-      `<td data-field="raw-maze">${seat.author_points ?? 0}</td>` +
-      `<td data-field="raw-moves">${seat.runner_moves ?? 0}</td>` +
-      `<td data-field="raw-loot">${seat.runner_loot ?? 0}</td></tr>`;
+      `<td>${c1}</td><td>${c2}</td><td>${c3}</td>` +
+      (hasTotal ? `<td class="mw-sctotal">${view.total(seat)}</td>` : "") + `</tr>`;
   }).join("");
-  const title = status === "complete" ? "Raw scores"
-    : status === "running" ? "Live scores · filling in as players finish mazes"
-    : "Live scores · tally once the running starts";
-  table.innerHTML = `<div class="mw-ptitle">${title}</div>` +
+
+  const note = scoreView === "raw" ? "the actual tallies"
+    : scoreView === "rank" ? "your placing in each contest (top = best)"
+    : "rank × 5/3/3 → Total (decides the champion)";
+  table.innerHTML =
+    `<div class="mw-ptitle">Scores · <b>${view.label}</b> — ${note} <span class="mw-viewhint">tap: Raw→Rank→Weighted</span></div>` +
     `<table class="mw-sctable"><thead><tr><th class="mw-scname">Player</th>` +
-    `<th title="Points others lose in your maze">🧱</th><th title="Your total moves">🏃</th>` +
-    `<th title="Treasure you grabbed">💎</th></tr></thead><tbody>${rows}</tbody></table>`;
+    `<th title="Maze design">🧱</th><th title="Running">🏃</th><th title="Treasure">💎</th>` +
+    (hasTotal ? `<th>${view.totalHead}</th>` : "") + `</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderInventory() {
@@ -713,8 +737,9 @@ const MW_CSS = `
 .mazewright-root .mw-done{display:none;text-align:center;} .mazewright-root .mw-mine{color:var(--mw-gold);font-weight:800;}
 .mazewright-root .mw-champ{font-size:1.05rem;margin-bottom:11px;padding:11px;border-radius:11px;background:var(--mw-cellc);border:1px solid var(--mw-gold);color:var(--mw-ink);}
 .mazewright-root .mw-help{color:var(--mw-muted);font-size:.84rem;line-height:1.5;}
-.mazewright-root .mw-table{display:none;}
+.mazewright-root .mw-table{display:none;cursor:pointer;}
 .mazewright-root .mw-ptitle{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--mw-muted);margin-bottom:8px;}
+.mazewright-root .mw-viewhint{text-transform:none;letter-spacing:0;color:var(--mw-accent);font-weight:600;margin-left:4px;}
 .mazewright-root .mw-prow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid transparent;}
 .mazewright-root .mw-prow+.mw-prow{margin-top:5px;} .mazewright-root .mw-prow.you{background:var(--mw-cellc);border-color:var(--mw-ink);}
 .mazewright-root .mw-prow.muted{opacity:.6;} .mazewright-root .mw-prow.done .mw-pstat{color:var(--mw-exit);}
