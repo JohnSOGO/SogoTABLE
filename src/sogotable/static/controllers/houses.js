@@ -6,20 +6,24 @@
 // it. House membership is surfaced ONLY in the player modal; every other screen
 // shows the bare player name.
 import { api } from "../api-client.js";
-import { escapeHtml } from "../html-utils.js";
+import { avatarHtml, escapeHtml } from "../html-utils.js";
 
-// ctx (from wireHouses): { getPlayers(), ensureOwnerToken(id), setPlayers(list) }.
+// ctx (from wireHouses): { getPlayers(), ensureOwnerToken(id), setPlayers(list),
+// selectPlayer(id), editPlayer(id), deletePlayer(id), unclaimPlayer(id),
+// getDeviceSelectedPlayerId(), isSuperuserSelected(), rerender() }.
 let ctx = null;
 let editingPlayer = null; // the player whose House we are editing, or null
 let panelMode = "idle"; // "idle" | "create" | "join"
+const NO_HOUSE = "__no_house__";
+let pickerHouseId = null; // null = show House list; NO_HOUSE / a house id = drilled in
 
 export function wireHouses(context) {
   ctx = context;
 }
 
-// Modal-only display: "Name house of House" when in a clan, else just the name.
+// Modal-only display: "Name House Of House" when in a clan, else just the name.
 export function playerModalDisplayName(player) {
-  if (player && player.house_name) return `${player.name} house of ${player.house_name}`;
+  if (player && player.house_name) return `${player.name} House Of ${player.house_name}`;
   return player ? player.name : "";
 }
 
@@ -43,7 +47,7 @@ export function renderHouseControls(player) {
 
 function renderIdle(host) {
   const current = editingPlayer.house_name
-    ? `<p class="house-current">In House of ${escapeHtml(editingPlayer.house_name)}</p>`
+    ? `<p class="house-current">In House Of ${escapeHtml(editingPlayer.house_name)}</p>`
     : "";
   host.innerHTML = `
     ${current}
@@ -145,4 +149,93 @@ async function saveHouse(houseId, houseName) {
   } catch (error) {
     alert(error.message);
   }
+}
+
+// Reset the picker to the top (House list). Called when the modal opens/closes so
+// it never reopens drilled into a stale House.
+export function resetPlayerPicker() {
+  pickerHouseId = null;
+}
+
+// Player selection, organised by House. With no Houses yet it's a flat roster
+// (no needless drill-down). Once Houses exist, the top level lists Houses (plus a
+// "No House" group); tapping one drills into its members, where you pick a player.
+export function renderPlayerPicker(host) {
+  const players = ctx.getPlayers();
+  if (!players.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "Create a player to start.";
+    host.appendChild(empty);
+    return;
+  }
+  const houses = listHouses();
+  if (!houses.length) {
+    players.forEach((player) => host.appendChild(buildPlayerCard(player)));
+    return;
+  }
+  const noHouse = players.filter((player) => !player.house_id);
+  if (pickerHouseId) {
+    const members = pickerHouseId === NO_HOUSE
+      ? noHouse
+      : players.filter((player) => player.house_id === pickerHouseId);
+    const houseName = (houses.find((house) => house.id === pickerHouseId) || {}).name;
+    const title = pickerHouseId === NO_HOUSE ? "No House" : `House Of ${houseName}`;
+    host.appendChild(pickerHeader(title));
+    if (!members.length) {
+      const empty = document.createElement("p");
+      empty.textContent = "No players in this House yet.";
+      host.appendChild(empty);
+    }
+    members.forEach((player) => host.appendChild(buildPlayerCard(player)));
+    return;
+  }
+  houses.forEach((house) => {
+    const count = players.filter((player) => player.house_id === house.id).length;
+    host.appendChild(houseRow(`🏠 ${house.name}`, count, () => { pickerHouseId = house.id; ctx.rerender(); }));
+  });
+  if (noHouse.length) {
+    host.appendChild(houseRow("No House", noHouse.length, () => { pickerHouseId = NO_HOUSE; ctx.rerender(); }));
+  }
+}
+
+function houseRow(label, count, onClick) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "house-row";
+  row.innerHTML = `<span class="house-row-name">${escapeHtml(label)}</span><span class="house-row-count">${count} ▸</span>`;
+  row.addEventListener("click", onClick);
+  return row;
+}
+
+function pickerHeader(title) {
+  const wrap = document.createElement("div");
+  wrap.className = "house-picker-header";
+  wrap.innerHTML = `<button type="button" class="secondary house-back">← Houses</button><span class="house-picker-title">${escapeHtml(title)}</span>`;
+  wrap.querySelector(".house-back").addEventListener("click", () => { pickerHouseId = null; ctx.rerender(); });
+  return wrap;
+}
+
+// Shared roster card (select + edit modes). In edit mode the actions are hidden
+// and the card is inert; otherwise tapping selects, with Edit/Unlock/Delete.
+export function buildPlayerCard(player, { editing = false } = {}) {
+  const showUnlock = ctx.isSuperuserSelected() && player.claimed;
+  const card = document.createElement("div");
+  card.className = `player-card ${player.id === ctx.getDeviceSelectedPlayerId() ? "selected" : ""} ${editing ? "editing" : ""}`;
+  card.innerHTML = `
+    ${avatarHtml(player)}
+    <strong>${escapeHtml(playerModalDisplayName(player))}</strong>
+    <div class="player-actions ${editing ? "hidden" : ""}">
+      <button type="button" class="secondary edit-player">Edit</button>
+      ${showUnlock ? '<button type="button" class="secondary unlock-player">Unlock</button>' : ""}
+      <button type="button" class="delete-player">Delete</button>
+    </div>
+  `;
+  if (editing) return card;
+  card.addEventListener("click", () => ctx.selectPlayer(player.id));
+  card.querySelector(".edit-player").addEventListener("click", (event) => { event.stopPropagation(); ctx.editPlayer(player.id); });
+  if (showUnlock) {
+    card.querySelector(".unlock-player").addEventListener("click", (event) => { event.stopPropagation(); ctx.unclaimPlayer(player.id); });
+  }
+  card.querySelector(".delete-player").addEventListener("click", (event) => { event.stopPropagation(); ctx.deletePlayer(player.id); });
+  return card;
 }

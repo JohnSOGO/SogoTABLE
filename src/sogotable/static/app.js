@@ -1,5 +1,5 @@
 import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError } from "./api-client.js";
-import { wireHouses, renderHouseControls, playerModalDisplayName } from "./controllers/houses.js";
+import { wireHouses, renderHouseControls, renderPlayerPicker, buildPlayerCard, resetPlayerPicker } from "./controllers/houses.js";
 import {
   colorWithAlpha,
   getContrastAwareTextColor,
@@ -224,6 +224,13 @@ document.addEventListener("DOMContentLoaded", () => {
     getPlayers: () => players,
     ensureOwnerToken,
     setPlayers: (next) => { players = next; renderPlayers(); },
+    selectPlayer: (id) => { void selectPlayer(id, { closeModal: true }); },
+    editPlayer,
+    deletePlayer,
+    unclaimPlayer: unclaimPlayerAsSuperuser,
+    getDeviceSelectedPlayerId: () => deviceSelectedPlayerId,
+    isSuperuserSelected: isSogoSuperuserSelected,
+    rerender: renderPlayers,
   });
   document.getElementById("openEditPlayerModal").addEventListener("click", openSelectedPlayerEditor);
   document.getElementById("openSelectPlayerModal").addEventListener("click", () => openPlayerModal("select"));
@@ -362,7 +369,28 @@ function showScreen(name) {
   }
   if (name === "intro") renderIntroAdminActions();
   setActiveScreen(name);
+  if (name === "games") void gateSuperuserOnEntry();
   if (name === "game") startRoomLiveUpdates();
+}
+
+// SOGO is remembered/auto-selected like any player, but the superuser passcode is
+// enforced once on entry to the app (the Start Playing step after the intro). Pass
+// it and SOGO's admin powers unlock for the session; cancel and SOGO is deselected
+// so nobody acts as the admin without it.
+async function gateSuperuserOnEntry() {
+  const player = deviceSelectedPlayer();
+  if (!isSogoSuperuser(player) || hasSogoSuperuserPasscode()) return;
+  const ok = await ensureSogoSuperuserPasscode(player);
+  if (!ok) {
+    deviceSelectedPlayerId = "";
+    selectedPlayerId = "";
+    saveSelectedPlayer();
+  }
+  renderPlayers();
+  renderSelectedPlayer();
+  renderCurrentPlayer();
+  renderGames();
+  renderCreateGameButton();
 }
 
 async function enterSelectedGameScreen() {
@@ -952,50 +980,14 @@ function setPlayerFormMode(mode) {
 function renderPlayers() {
   const host = document.getElementById("playerList");
   host.innerHTML = "";
-  const visiblePlayers = playerModalMode === "edit" && editingPlayerId
-    ? players.filter((player) => player.id === editingPlayerId)
-    : players;
-  if (!visiblePlayers.length) {
-    const empty = document.createElement("p");
-    empty.textContent = "Create a player to start.";
-    host.appendChild(empty);
+  // Edit mode shows just the edited player's (inert) card; every other mode is the
+  // House-organised selection picker (owned by the houses controller).
+  if (playerModalMode === "edit" && editingPlayerId) {
+    const player = players.find((item) => item.id === editingPlayerId);
+    if (player) host.appendChild(buildPlayerCard(player, { editing: true }));
     return;
   }
-  visiblePlayers.forEach((player) => {
-    const editing = playerModalMode === "edit" && player.id === editingPlayerId;
-    // The Sogo superuser can release a claimed player so a device that lost its
-    // owner token can re-claim it (the cause of "Player is already claimed").
-    const showUnlock = isSogoSuperuserSelected() && player.claimed;
-    const card = document.createElement("div");
-    card.className = `player-card ${player.id === deviceSelectedPlayerId ? "selected" : ""} ${editing ? "editing" : ""}`;
-    card.innerHTML = `
-      ${avatarHtml(player)}
-      <strong>${escapeHtml(playerModalDisplayName(player))}</strong>
-      <div class="player-actions ${editing ? "hidden" : ""}">
-        <button type="button" class="secondary edit-player">Edit</button>
-        ${showUnlock ? '<button type="button" class="secondary unlock-player">Unlock</button>' : ""}
-        <button type="button" class="delete-player">Delete</button>
-      </div>
-    `;
-    card.addEventListener("click", () => {
-      void selectPlayer(player.id, { closeModal: true });
-    });
-    card.querySelector(".edit-player").addEventListener("click", (event) => {
-      event.stopPropagation();
-      editPlayer(player.id);
-    });
-    if (showUnlock) {
-      card.querySelector(".unlock-player").addEventListener("click", (event) => {
-        event.stopPropagation();
-        unclaimPlayerAsSuperuser(player.id);
-      });
-    }
-    card.querySelector(".delete-player").addEventListener("click", (event) => {
-      event.stopPropagation();
-      deletePlayer(player.id);
-    });
-    host.appendChild(card);
-  });
+  renderPlayerPicker(host);
 }
 
 async function unclaimPlayerAsSuperuser(playerId) {
@@ -1250,6 +1242,7 @@ function finishPlayerDelete(playerId) {
 
 function openPlayerModal(mode = "select") {
   playerModalMode = mode;
+  resetPlayerPicker();
   setExistingPlayersVisible(mode !== "create");
   setPlayerFormVisible(mode !== "select");
   document.getElementById("playerModal").classList.remove("hidden");
@@ -1266,6 +1259,7 @@ function openPlayerModal(mode = "select") {
 
 function closePlayerModal() {
   resetPlayerForm();
+  resetPlayerPicker();
   playerModalMode = "select";
   setExistingPlayersVisible(true);
   setPlayerFormVisible(true);
@@ -2814,12 +2808,6 @@ function clearSogoSuperuserPasscode() {
   sessionStorage.removeItem(SOGO_SUPERUSER_PASSCODE_KEY);
 }
 
-function clearLockedSogoSelection() {
-  if (!isSogoSuperuser(deviceSelectedPlayer()) || hasSogoSuperuserPasscode()) return;
-  deviceSelectedPlayerId = "";
-  if (isSogoSuperuser(players.find((player) => player.id === selectedPlayerId))) selectedPlayerId = "";
-}
-
 function setDeviceSelectedPlayer(playerId) {
   const nextPlayer = players.find((player) => player.id === playerId) || null;
   if (!isSogoSuperuser(nextPlayer)) clearSogoSuperuserPasscode();
@@ -2968,7 +2956,6 @@ async function refreshPlayers() {
     playerApiAvailable = true;
     players = data.players;
     if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
-    clearLockedSogoSelection();
     saveSelectedPlayer();
     renderPlayers();
     renderSelectedPlayer();

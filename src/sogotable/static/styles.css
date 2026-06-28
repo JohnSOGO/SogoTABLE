@@ -930,6 +930,44 @@ button.compact {
   color: var(--accent-strong);
 }
 
+.house-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 54px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 700;
+}
+
+.house-row-count {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.house-picker-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.house-picker-header .house-back {
+  width: auto;
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.house-picker-title {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .player-card {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) max-content;
