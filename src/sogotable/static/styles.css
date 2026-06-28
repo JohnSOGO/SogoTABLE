@@ -335,22 +335,35 @@ p,
   justify-self: end;
 }
 
-/* Emoji-keyboard hint: only useful on desktop with a real keyboard + mouse,
-   so it stays hidden on touch devices (where the on-screen keyboard already
-   offers emoji). */
+/* Desktop-only emoji-keyboard hint; hidden on touch devices. It flashes
+   yellow when the Icon field is hovered/focused, and shows the OS-appropriate
+   shortcut (Windows default; the .is-mac root swaps to the macOS combo). */
 .emoji-hint {
   display: none;
   margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
   font-size: 12px;
   opacity: 0.72;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
-
 @media (hover: hover) and (pointer: fine) {
-  .emoji-hint {
-    display: block;
-  }
+  .emoji-hint { display: block; }
 }
-
+.player-create-row:has(.player-icon-field:hover) ~ .emoji-hint,
+.player-create-row:has(.player-icon-field:focus-within) ~ .emoji-hint {
+  background: #ffe14d;
+  color: #1a1a1a;
+  opacity: 1;
+}
+.player-create-row:has(.player-icon-field:hover) ~ .emoji-hint kbd,
+.player-create-row:has(.player-icon-field:focus-within) ~ .emoji-hint kbd {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.1);
+}
+.kbd-mac { display: none; }
+html.is-mac .kbd-win { display: none; }
+html.is-mac .kbd-mac { display: inline; }
 .emoji-hint kbd {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 11px;

@@ -206,6 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
   purgeDeprecatedLocalRoster();
   registerServiceWorker();
   refreshRevisionSummary();
+  document.documentElement.classList.toggle("is-mac", /Mac|iP(hone|ad|od)/i.test(navigator.platform || navigator.userAgent || ""));
   bindNavigation();
   bindSoundControls();
   bindTouchZoomGuard();
