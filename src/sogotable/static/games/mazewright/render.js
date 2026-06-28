@@ -39,7 +39,6 @@ let runLoaded = -1;     // deck index runState is built for
 let dragging = false;
 let posting = false;    // guard against double POST_RESULT
 let wonSound = false;   // play the win fanfare once per game
-let swipeBound = false; // one-time board swipe binding
 
 const root = () => ctx.host.querySelector(".mazewright-root");
 const q = (sel) => { const r = root(); return r ? r.querySelector(sel) : null; };
@@ -609,10 +608,11 @@ function setDpad(on) {
 // build-phase token drags (the `dragging` flag), and ignores taps under the
 // threshold so the on-board arrow pads still register as clicks.
 function bindSwipe() {
-  if (swipeBound) return;
+  // Bind to the CURRENT board element. ensureScaffold rebuilds the scaffold (a fresh
+  // board) after every lobby → new game, and calls this once per build — so no global
+  // "already bound" guard (that guard left the new board's swipe dead after game 1).
   const board = q(".mw-board");
   if (!board) return;
-  swipeBound = true;
   const inCrawl = () => runState && runState.phase === PHASE.CRAWL && root();
   const fire = (dx, dy) => {
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;   // a tap, not a swipe
