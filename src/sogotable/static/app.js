@@ -2996,14 +2996,6 @@ function rememberOwnerToken(playerId, ownerToken) {
 async function ensureOwnerToken(playerId) {
   const id = String(playerId || "").trim();
   if (!id) throw new Error("Player id is required.");
-  // If the server's last-known view says this player is unclaimed (e.g. the Sogo
-  // admin just unlocked it), any token stored on this device is stale — drop it so
-  // we re-claim below instead of sending a dead token.
-  const known = (players || []).find((p) => p.id === id);
-  if (known && known.claimed === false && playerOwnerTokens[id]) {
-    delete playerOwnerTokens[id];
-    savePlayerOwnerTokens();
-  }
   if (playerOwnerTokens[id]) return playerOwnerTokens[id];
   try {
     const response = await api("/api/player/claim", { player_id: id });
