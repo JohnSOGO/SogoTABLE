@@ -19,6 +19,8 @@ export const PHASE = { BUILD: 'build', CRAWL: 'crawl', MAZE_DONE: 'maze_done', O
 
 export const MAX_WALLS = 30;
 export const MIN_WALLS = 10;   // a submitted maze needs at least this many walls
+export const EXCESS_CAP = 20;  // per-runner author credit ceiling (excess over the shortest escape)
+export const LOOT_BONUS = 2;   // author credit per loot a runner is baited into grabbing
 
 const DIRS = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
@@ -269,17 +271,74 @@ function bfsDist(st, from, to) {
   return -1;
 }
 
+// SERVER: shortest escape length for a maze code — steps to the exit cell plus
+// the final step out through the arch. The author-score baseline and the floor a
+// posted run can't undercut. Transform-invariant (rotation/reflection preserve it).
+export function shortestPathFromCode(code) {
+  const g = createGame();
+  applyMazeCode(g, code);
+  const d = bfsDist(g, g.start, g.exit ? g.exit.cell : g.start);
+  return d < 0 ? 0 : d + 1;
+}
+
 // SERVER: simulate a bot running a maze code under fog -> {moves, loot}.
 export function simulateRun(code, rng = Math.random) {
   const g = createGame();
   applyMazeCode(g, code);
   const sp = bfsDist(g, g.start, g.exit ? g.exit.cell : g.start);
-  const base = sp < 0 ? 20 : sp;
+  const base = sp < 0 ? 20 : sp + 1;   // +1 for the step out, matching the run floor
   const walls = Object.keys(g.walls).length;
   const moves = Math.max(base, Math.round(base * (1.3 + rng() * 1.4) + walls * (0.3 + rng() * 0.5)));
   let loot = 0;
   for (let i = 0; i < g.items.length; i++) if (rng() < 0.45) loot++;
   return { moves, loot };
+}
+
+// ---------- shared scoring: the single prize + winner calculation ----------
+// The Worker seat-wrapper AND the offline standalone both call this so hosted and
+// local play can never drift. Inputs are representation-neutral:
+//   runs:     [{ runner, author, moves, loot }] — every player's result on every maze
+//   shortest: { [author]: shortestEscapeLength } — see shortestPathFromCode()
+//   marks:    stable player ordering (deterministic argmax/argmin + tie-breaks)
+// Author credit rewards *confusion*, not tedium: a runner's excess moves over the
+// shortest escape (capped per runner so one wanderer can't dominate) plus a bonus
+// when the maze baits them into grabbing loot. A self-run never credits its author.
+// The overall winner is a 5/3/3 medal composite (Mazewright 5, Mazerunner 3,
+// Treasure Hunter 3); ties break on most medals, then fewest total runner moves.
+export function computeStandings(runs, shortest, marks, opts = {}) {
+  if (!marks || !marks.length) {
+    return { authorPoints: {}, runnerMoves: {}, runnerLoot: {},
+      prizes: { mazewright: null, mazerunner: null, treasureHunter: null }, winner: null };
+  }
+  const cap = opts.excessCap ?? EXCESS_CAP;
+  const lootBonus = opts.lootBonus ?? LOOT_BONUS;
+  const authorPoints = {}, runnerMoves = {}, runnerLoot = {};
+  for (const m of marks) { authorPoints[m] = 0; runnerMoves[m] = 0; runnerLoot[m] = 0; }
+  for (const r of runs || []) {
+    runnerMoves[r.runner] = (runnerMoves[r.runner] || 0) + r.moves;
+    runnerLoot[r.runner] = (runnerLoot[r.runner] || 0) + r.loot;
+    if (r.runner === r.author) continue;                 // self-runs never score the author
+    const excess = Math.max(0, Math.min(cap, r.moves - (shortest[r.author] || 0)));
+    authorPoints[r.author] = (authorPoints[r.author] || 0) + excess + lootBonus * r.loot;
+  }
+  const argmax = (score) => marks.reduce((b, m) => ((score[m] || 0) > (score[b] || 0) ? m : b), marks[0]);
+  const argmin = (score) => marks.reduce((b, m) => ((score[m] || 0) < (score[b] || 0) ? m : b), marks[0]);
+  const prizes = {
+    mazewright: argmax(authorPoints),
+    mazerunner: argmin(runnerMoves),
+    treasureHunter: argmax(runnerLoot),
+  };
+  const medalPts = (m) => (prizes.mazewright === m ? 5 : 0) + (prizes.mazerunner === m ? 3 : 0) + (prizes.treasureHunter === m ? 3 : 0);
+  const medalCnt = (m) => (prizes.mazewright === m ? 1 : 0) + (prizes.mazerunner === m ? 1 : 0) + (prizes.treasureHunter === m ? 1 : 0);
+  const winner = marks.reduce((best, m) => {
+    if (best == null) return m;
+    const dp = medalPts(m) - medalPts(best);
+    if (dp !== 0) return dp > 0 ? m : best;
+    const dc = medalCnt(m) - medalCnt(best);
+    if (dc !== 0) return dc > 0 ? m : best;
+    return (runnerMoves[m] || 0) < (runnerMoves[best] || 0) ? m : best;
+  }, null);
+  return { authorPoints, runnerMoves, runnerLoot, prizes, winner };
 }
 
 // ---------- enumerations (UI hitboxes + tests) ----------
@@ -321,9 +380,14 @@ export function canStartCrawl(state) {
     pathExists(state, state.start, state.exit.cell);
 }
 
-// Ready to submit: solvable AND at least MIN_WALLS placed (no trivial mazes).
+// Every hidden loot must be reachable from the start, or Treasure Hunter is rigged.
+export function allLootReachable(state) {
+  return (state.items || []).every((it) => pathExists(state, state.start, it.cell));
+}
+
+// Ready to submit: solvable, all loot reachable, AND at least MIN_WALLS placed.
 export function canSubmit(state) {
-  return canStartCrawl(state) && wallCount(state) >= MIN_WALLS;
+  return canStartCrawl(state) && allLootReachable(state) && wallCount(state) >= MIN_WALLS;
 }
 
 export function canAddWall(state, edge) {
@@ -332,6 +396,7 @@ export function canAddWall(state, edge) {
   if (state.walls[key]) return false;
   if (state.exit && state.start &&
       !pathExists(state, state.start, state.exit.cell, key)) return false;
+  if (state.start && (state.items || []).some((it) => !pathExists(state, state.start, it.cell, key))) return false;
   return true;
 }
 
@@ -432,6 +497,9 @@ export function applyAction(state, action, rng = Math.random) {
         if (wallCount(state) >= MAX_WALLS) throw new Error(`MW: ${MAX_WALLS}-wall limit reached`);
         if (state.exit && state.start && !pathExists(state, state.start, state.exit.cell, key)) {
           throw new Error('MW: that wall would seal the start off from the exit');
+        }
+        if (state.start && (state.items || []).some((it) => !pathExists(state, state.start, it.cell, key))) {
+          throw new Error('MW: that wall would trap the treasure');
         }
         state.walls[key] = true;
       }
@@ -579,27 +647,21 @@ function finalizeSeries(state, rng) {
       }
     }
   }
-  const authorPoints = {};
+  // Feed the shared scorer the same way the Worker does, so offline standings and
+  // hosted standings are computed by one function (no drift).
+  const runs = [], shortest = {};
   for (let m = 0; m < M; m++) {
-    const a = state.series[m].author;
-    let sum = 0; for (let p = 0; p < N; p++) sum += moves[p][m];
-    authorPoints[a] = (authorPoints[a] || 0) + sum;
+    const author = state.series[m].author;
+    shortest[author] = shortestPathFromCode(mazeCodeOfDesign(state, state.series[m]));
+    for (let p = 0; p < N; p++) runs.push({ runner: p, author, moves: moves[p][m], loot: loot[p][m] });
   }
-  const runners = state.players.map((p) => ({
-    id: p.id,
-    totalMoves: moves[p.id].reduce((a, b) => a + b, 0),
-    totalLoot: loot[p.id].reduce((a, b) => a + b, 0),
-  }));
-  const authors = state.players.map((p) => ({ id: p.id, points: authorPoints[p.id] || 0 }));
-  const argmax = (arr, k) => arr.reduce((best, x) => (x[k] > best[k] ? x : best)).id;
-  const argmin = (arr, k) => arr.reduce((best, x) => (x[k] < best[k] ? x : best)).id;
+  const marks = state.players.map((p) => p.id);
+  const s = computeStandings(runs, shortest, marks);
   state.standings = {
-    runners, authors,
-    prizes: {
-      mazewright: argmax(authors, 'points'),
-      mazerunner: argmin(runners, 'totalMoves'),
-      treasureHunter: argmax(runners, 'totalLoot'),
-    },
+    runners: state.players.map((p) => ({ id: p.id, totalMoves: s.runnerMoves[p.id] || 0, totalLoot: s.runnerLoot[p.id] || 0 })),
+    authors: state.players.map((p) => ({ id: p.id, points: s.authorPoints[p.id] || 0 })),
+    prizes: s.prizes,
+    winner: s.winner,
   };
 }
 function mazeCodeOfDesign(state, design) {

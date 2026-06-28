@@ -7,7 +7,7 @@
 import {
   PHASE, MAX_WALLS, MIN_WALLS, createGame, edgeKey, mazeCode,
   interiorEdges, perimeterEdges, isExit, wallCount, canAddWall, canSubmit,
-  applyAction, loadRunFromCode,
+  allLootReachable, applyAction, loadRunFromCode,
 } from "./rules.js";
 import { renderHostStartLobby } from "../host-lobby.js";
 import { playClick, playConfirm, playCancel, playInvalidMove, playScorePick, playWin } from "../../sound.js";
@@ -32,11 +32,13 @@ let styled = false;
 let keyBound = false;
 let buildState = null;
 let buildKey = "";      // room:epoch — rebuild buildState on a new game
+let buildMode = "walls"; // walls | start | loot | exit — explicit edit mode
 let runState = null;
 let runLoaded = -1;     // deck index runState is built for
 let dragging = false;
 let posting = false;    // guard against double POST_RESULT
 let wonSound = false;   // play the win fanfare once per game
+let swipeBound = false; // one-time board swipe binding
 
 const root = () => ctx.host.querySelector(".mazewright-root");
 const q = (sel) => { const r = root(); return r ? r.querySelector(sel) : null; };
@@ -76,12 +78,21 @@ function ensureScaffold() {
     '<span class="mw-turnname"></span></div><span class="mw-tag"></span></div>' +
     '<div class="mw-sub"></div><div class="mw-meters"></div></div>' +
     '<div class="mw-inventory mw-panel"></div>' +
+    '<div class="mw-modes"><button class="mw-mode" data-mode="walls">🧱 Walls</button>' +
+    '<button class="mw-mode" data-mode="start">⛳ Start</button>' +
+    '<button class="mw-mode" data-mode="loot">💎 Loot</button>' +
+    '<button class="mw-mode" data-mode="exit">🏛️ Exit</button></div>' +
     '<div class="mw-board"></div>' +
+    '<div class="mw-dpad"><button class="mw-dbtn n" data-dir="N" aria-label="Move up">▲</button>' +
+    '<button class="mw-dbtn w" data-dir="W" aria-label="Move left">◀</button>' +
+    '<button class="mw-dbtn e" data-dir="E" aria-label="Move right">▶</button>' +
+    '<button class="mw-dbtn s" data-dir="S" aria-label="Move down">▼</button></div>' +
     '<div class="mw-controls"><button class="mw-auto">🎲 Auto map</button>' +
     '<button class="mw-reset">↺ Reset</button><button class="mw-go">Submit my maze</button></div>' +
-    '<div class="mw-codebar mw-panel"><span class="mw-codelabel">🔑 Maze code</span>' +
+    '<details class="mw-advanced mw-panel"><summary>⚙️ Advanced · share or paste a maze code</summary>' +
+    '<div class="mw-codebar"><span class="mw-codelabel">🔑 Maze code</span>' +
     '<input class="mw-codeinput" spellcheck="false" autocomplete="off" />' +
-    '<button class="mw-codeload">Load</button></div>' +
+    '<button class="mw-codeload">Load</button></div></details>' +
     '<div class="mw-done mw-panel"></div>' +
     '<div class="mw-table mw-panel"></div></div>';
   q(".mw-auto").addEventListener("click", () => commitBuild({ type: "AUTO_BUILD" }));
@@ -89,6 +100,18 @@ function ensureScaffold() {
   q(".mw-go").addEventListener("click", submitMaze);
   q(".mw-codeload").addEventListener("click", () => commitBuild({ type: "LOAD_CODE", code: q(".mw-codeinput").value }));
   q(".mw-codeinput").addEventListener("keydown", (e) => { if (e.key === "Enter") commitBuild({ type: "LOAD_CODE", code: e.target.value }); });
+  q(".mw-dpad").addEventListener("click", (e) => {
+    const btn = e.target.closest(".mw-dbtn");
+    if (btn && runState && runState.phase === PHASE.CRAWL) commitRun({ type: "MOVE", dir: btn.dataset.dir });
+  });
+  q(".mw-modes").addEventListener("click", (e) => {
+    const btn = e.target.closest(".mw-mode");
+    if (!btn) return;
+    buildMode = btn.dataset.mode;
+    playClick();
+    renderBuildPhase(ctx.game || {}, localMark());
+  });
+  bindSwipe();
   if (!keyBound) {
     keyBound = true;
     window.addEventListener("keydown", (e) => {
@@ -123,7 +146,7 @@ function showLobby() {
 function renderBuildPhase(game, myMark) {
   const seat = serverSeat(game, myMark);
   const submitted = seat && seat.built;
-  show(".mw-board");
+  show(".mw-board"); setDpad(false);
   hide(".mw-inventory"); hide(".mw-done");
 
   const rk = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
@@ -138,11 +161,19 @@ function renderBuildPhase(game, myMark) {
   if (submitted) {
     setText(".mw-sub", "Maze locked in — waiting for the other builders…");
     q(".mw-controls").style.display = "none";
-    hide(".mw-codebar");
+    hide(".mw-advanced"); hide(".mw-modes");
     renderBoardInto(buildState, "build", { readOnly: true });
     return;
   }
-  setText(".mw-sub", "Tap a slot to add/remove a wall. Tap a border for the golden exit. Drag your pawn and loot. Then Submit.");
+  const modes = q(".mw-modes"); modes.style.display = "flex";
+  modes.querySelectorAll(".mw-mode").forEach((b) => b.classList.toggle("active", b.dataset.mode === buildMode));
+  const hints = {
+    walls: "Walls mode — tap a slot between cells to add or remove a wall.",
+    start: "Start mode — tap a cell (or drag your pawn) to set where you begin.",
+    loot: "Loot mode — drag the 💎 and 🪙 to hide your treasure.",
+    exit: "Exit mode — tap a border edge to set the golden escape arch.",
+  };
+  setText(".mw-sub", hints[buildMode]);
   q(".mw-controls").style.display = "flex";
   q(".mw-controls").innerHTML = '<button class="mw-auto">🎲 Auto map</button><button class="mw-reset">↺ Reset</button>' +
     '<button class="mw-go" ' + (canSubmit(buildState) ? "" : "disabled") + '>Submit my maze</button>';
@@ -150,10 +181,12 @@ function renderBuildPhase(game, myMark) {
   q(".mw-reset").addEventListener("click", () => commitBuild({ type: "RESET_BUILD" }));
   q(".mw-go").addEventListener("click", submitMaze);
   const walls = wallCount(buildState);
+  const lootOk = allLootReachable(buildState);
   const meters = `<span class="mw-meter ${walls >= MIN_WALLS ? "ok" : ""}">Walls <b>${walls}</b> / ${MAX_WALLS} · min ${MIN_WALLS}</span>` +
-    `<span class="mw-meter ${buildState.exit ? "ok" : ""}">Exit ${buildState.exit ? "set 🏛️" : "not set"}</span>`;
+    `<span class="mw-meter ${buildState.exit ? "ok" : ""}">Exit ${buildState.exit ? "set 🏛️" : "not set"}</span>` +
+    `<span class="mw-meter ${lootOk ? "ok" : ""}">Treasure ${lootOk ? "reachable 💎" : "blocked"}</span>`;
   q(".mw-meters").innerHTML = meters;
-  show(".mw-codebar");
+  show(".mw-advanced");
   const input = q(".mw-codeinput");
   if (document.activeElement !== input) input.value = mazeCode(buildState);
   renderBoardInto(buildState, "build", {});
@@ -168,7 +201,7 @@ function commitBuild(action) {
 function submitMaze() {
   if (!buildState || !canSubmit(buildState)) {
     playCancel();
-    flash(`Place at least ${MIN_WALLS} walls and an exit your start can reach.`);
+    flash(`Need ${MIN_WALLS}+ walls, an exit your start can reach, and every treasure reachable.`);
     return;
   }
   playConfirm();
@@ -181,12 +214,12 @@ function renderRunPhase(game, myMark) {
   const deck = game.deck || [];
   show(".mw-board"); show(".mw-inventory");
   q(".mw-controls").style.display = "none";
-  hide(".mw-codebar");
+  hide(".mw-advanced"); hide(".mw-modes");
 
   if (!seat || seat.run_done) {
     setText(".mw-turnname", "🏁 all mazes run"); tag("Done", "crawl");
     setText(".mw-sub", "You're out of every dungeon — waiting for the others to finish…");
-    hide(".mw-done"); hide(".mw-inventory");
+    hide(".mw-done"); hide(".mw-inventory"); setDpad(false);
     q(".mw-board").innerHTML = "";
     return;
   }
@@ -209,6 +242,7 @@ function renderRunView(game, myMark, idx, deck) {
   renderInventory();
 
   if (runState.phase === PHASE.MAZE_DONE) {
+    setDpad(false);
     tag("Revealed", "crawl");
     setText(".mw-sub", "Maze revealed — see whose dungeon you escaped, then continue.");
     renderBoardInto(runState, "reveal", {});
@@ -218,14 +252,14 @@ function renderRunView(game, myMark, idx, deck) {
     const done = q(".mw-done"); show(".mw-done");
     done.innerHTML = `<div style="font-weight:700;">Maze ${idx + 1}/${deck.length} cleared — ` +
       `${author.icon || "🧙"} ${author.name || "?"}${mine ? '<span class="mw-mine"> · your maze!</span>' : "'s maze"}</div>` +
-      `<div class="mw-help" style="margin-top:4px;">${runState.moves} moves → <b>${runState.moves} pts</b> to ${author.name || "?"} · 💎${dia} 🪙${coin}</div>` +
+      `<div class="mw-help" style="margin-top:4px;">Escaped in <b>${runState.moves}</b> moves · 💎${dia} 🪙${coin}</div>` +
       `<button class="mw-next mw-go-btn" style="margin-top:12px;">${last ? "Post final result →" : "Next maze →"}</button>`;
     done.querySelector(".mw-next").addEventListener("click", postRunResult);
     return;
   }
-  hide(".mw-done");
+  hide(".mw-done"); setDpad(true);
   tag("Crawl", "crawl");
-  setText(".mw-sub", "It's dark — move with the pads or arrow keys. Walls reveal on a bump; the arch shows when you reach it.");
+  setText(".mw-sub", "It's dark — swipe the board, tap the arrows, or use arrow keys. Walls reveal on a bump; the arch shows when you reach it.");
   renderBoardInto(runState, "crawl", {});
 }
 
@@ -253,7 +287,7 @@ function postRunResult() {
 
 // ---------- complete (prizes) ----------
 function renderComplete(game, myMark) {
-  hide(".mw-board"); hide(".mw-inventory"); hide(".mw-codebar"); q(".mw-controls").style.display = "none";
+  hide(".mw-board"); hide(".mw-inventory"); hide(".mw-advanced"); hide(".mw-modes"); setDpad(false); q(".mw-controls").style.display = "none";
   if (!wonSound) { wonSound = true; playWin(); }
   setText(".mw-turnname", "🏆 Prizes"); tag("Done", "crawl"); setText(".mw-sub", "");
   q(".mw-meters").innerHTML = "";
@@ -264,8 +298,9 @@ function renderComplete(game, myMark) {
     `<div class="mw-prize${mark === myMark ? " mine" : ""}"><span class="mw-pzico">${icon}</span>` +
     `<span class="mw-pzbody"><b>${name}</b><br>${who(mark)} <span class="mw-pzdetail">· ${detail}</span></span></div>`;
   const done = q(".mw-done"); show(".mw-done");
-  done.innerHTML =
-    card("🧱", "Mazewright", prizes.mazewright, `${seatOf(prizes.mazewright).author_points || 0} moves lost in their maze`) +
+  const champ = game.winner ? `<div class="mw-champ">🏆 <b>${who(game.winner)}</b> wins the dungeon!</div>` : "";
+  done.innerHTML = champ +
+    card("🧱", "Mazewright", prizes.mazewright, `${seatOf(prizes.mazewright).author_points || 0} maze score`) +
     card("🏃", "Mazerunner", prizes.mazerunner, `${seatOf(prizes.mazerunner).runner_moves || 0} moves total`) +
     card("💎", "Treasure Hunter", prizes.treasureHunter, `${seatOf(prizes.treasureHunter).runner_loot || 0} loot`);
 }
@@ -360,11 +395,12 @@ function renderBoardInto(state, mode, opts) {
 
   for (let c = 0; c < state.cols; c++) for (let r = 0; r < state.rows; r++) {
     let cls = "mw-cell";
-    if (building) { if (c === state.start[0] && r === state.start[1]) cls += " start"; if (!opts.readOnly) cls += " tap"; }
+    const startTap = building && !opts.readOnly && buildMode === "start";
+    if (building) { if (c === state.start[0] && r === state.start[1]) cls += " start"; if (startTap) cls += " tap"; }
     else { const here = c === state.pos[0] && r === state.pos[1]; const seen = state.visited[`${c},${r}`];
       cls += here ? " here" : (seen ? " seen" : (reveal ? "" : " fog")); }
     const cell = add("rect", { x: x(c) + 1.5, y: y(r) + 1.5, width: size - 3, height: size - 3, rx: 4, class: cls });
-    if (building && !opts.readOnly) cell.addEventListener("click", () => commitBuild({ type: "SET_START", cell: [c, r] }));
+    if (startTap) cell.addEventListener("click", () => commitBuild({ type: "SET_START", cell: [c, r] }));
   }
   if (building || reveal) {
     for (const { cell, dir } of perimeterEdges(state)) {
@@ -383,7 +419,10 @@ function renderBoardInto(state, mode, opts) {
   }
 
   if (building && !opts.readOnly) {
-    for (const edge of interiorEdges(state)) {
+    // Each edit mode lights up only its own hitboxes, so a wall tap can't become a
+    // stray start move and vice-versa (the overloaded-controls fix). Tokens always
+    // show; they're only draggable in their mode.
+    if (buildMode === "walls") for (const edge of interiorEdges(state)) {
       const key = edgeKey(edge[0], edge[1]); const s = interiorSeg(g, edge[0], edge[1]); const [mx, my] = mid(s);
       const target = add("rect", { ...brickRect(s, 7), rx: 1.5, fill: "url(#mwbrick)", class: state.walls[key] ? "mw-wall" : "mw-wallprev" });
       const hit = add("circle", { cx: mx, cy: my, r: size * 0.26, class: "mw-hit" });
@@ -391,7 +430,7 @@ function renderBoardInto(state, mode, opts) {
       hit.addEventListener("mouseleave", () => lite(target, false));
       hit.addEventListener("click", () => commitBuild({ type: "TOGGLE_WALL", edge }));
     }
-    for (const { cell, dir } of perimeterEdges(state)) {
+    if (buildMode === "exit") for (const { cell, dir } of perimeterEdges(state)) {
       const s = perimSeg(g, cell, dir); const [mx, my] = mid(s);
       const target = add("rect", { ...brickRect(s, 9), rx: 1.5, class: "mw-exitprev" });
       const hit = add("circle", { cx: mx, cy: my, r: size * 0.24, class: "mw-hit" });
@@ -400,8 +439,9 @@ function renderBoardInto(state, mode, opts) {
       hit.addEventListener("click", () => commitBuild({ type: "TOGGLE_EXIT", cell, dir }));
     }
     state.items.forEach((it, i) => drawToken(add, g, svg, state, it.cell, it.type === "diamond" ? "💎" : "🪙", null,
-      (cl) => commitBuild({ type: "SET_ITEM", index: i, cell: cl })));
-    drawToken(add, g, svg, state, state.pos, meEmoji, meColor, (cl) => commitBuild({ type: "SET_START", cell: cl }));
+      buildMode === "loot" ? (cl) => commitBuild({ type: "SET_ITEM", index: i, cell: cl }) : null));
+    drawToken(add, g, svg, state, state.pos, meEmoji, meColor,
+      buildMode === "start" ? (cl) => commitBuild({ type: "SET_START", cell: cl }) : null);
   } else if (reveal) {
     for (const k of Object.keys(state.visited)) { const [c, r] = k.split(",").map(Number); add("circle", { cx: cx(c), cy: cy(r), r: size * 0.07, class: "mw-trail" }); }
     for (const it of state.items) { const el = add("text", { x: cx(it.cell[0]), y: cy(it.cell[1]), class: "mw-emoji" + (it.collected ? "" : " mw-treasure") }); el.textContent = it.type === "diamond" ? "💎" : "🪙"; if (it.collected) el.setAttribute("opacity", "0.4"); }
@@ -430,6 +470,7 @@ function drawToken(add, g, svg, state, cell, glyph, color, onDrop) {
   const tx = g.cx(cell[0]), ty = g.cy(cell[1]);
   if (color) add("circle", { cx: tx, cy: ty, r: g.size * 0.34, fill: color, "fill-opacity": 0.28, stroke: color, "stroke-width": 2 });
   const glyphEl = add("text", { x: tx, y: ty, class: "mw-emoji" + (color ? "" : " mw-treasure") }); glyphEl.textContent = glyph;
+  if (!onDrop) return;   // static token (not this edit mode) — show it, but no drag handle
   const grab = add("circle", { cx: tx, cy: ty, r: g.size * 0.36, class: "mw-grab" });
   grab.addEventListener("pointerdown", (e) => { e.preventDefault(); dragging = true; try { grab.setPointerCapture(e.pointerId); } catch (_) {} });
   grab.addEventListener("pointermove", (e) => { if (!dragging) return; const cl = eventToCell(state, svg, e); if (cl) { glyphEl.setAttribute("x", g.cx(cl[0])); glyphEl.setAttribute("y", g.cy(cl[1])); } });
@@ -451,6 +492,30 @@ function animateCollect(types) {
       el.style.transform = "translate(-50%, -50%) scale(0.7)"; el.style.opacity = "0.3";
     }));
     setTimeout(() => el.remove(), 1300);
+  });
+}
+
+// ---------- crawl movement: D-pad + full-board swipe ----------
+function setDpad(on) { const e = q(".mw-dpad"); if (e) e.style.display = on ? "grid" : "none"; }
+
+// One-time swipe gesture on the board. Only fires during a crawl, ignores the
+// build-phase token drags (the `dragging` flag), and ignores taps under the
+// threshold so the on-board arrow pads still register as clicks.
+function bindSwipe() {
+  if (swipeBound) return;
+  const board = q(".mw-board");
+  if (!board) return;
+  swipeBound = true;
+  let sx = 0, sy = 0, tracking = false;
+  board.addEventListener("pointerdown", (e) => { if (dragging) return; sx = e.clientX; sy = e.clientY; tracking = true; });
+  board.addEventListener("pointercancel", () => { tracking = false; });
+  board.addEventListener("pointerup", (e) => {
+    if (!tracking) return;
+    tracking = false;
+    if (dragging || !runState || runState.phase !== PHASE.CRAWL || !root()) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;   // a tap, not a swipe
+    commitRun({ type: "MOVE", dir: Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "E" : "W") : (dy > 0 ? "S" : "N") });
   });
 }
 
@@ -494,6 +559,9 @@ const MW_CSS = `
 .mazewright-root .mw-meters{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;}
 .mazewright-root .mw-meter{font-size:.82rem;padding:5px 10px;border-radius:999px;background:var(--mw-cellc);border:1px solid var(--mw-grid);}
 .mazewright-root .mw-meter b{color:var(--mw-ink);} .mazewright-root .mw-meter.ok{color:var(--mw-gold);border-color:var(--mw-gold);}
+.mazewright-root .mw-modes{display:none;width:100%;max-width:460px;gap:6px;}
+.mazewright-root .mw-mode{flex:1;padding:9px 4px;border-radius:10px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid var(--mw-grid);background:var(--mw-cellc);color:var(--mw-muted);}
+.mazewright-root .mw-mode.active{color:var(--mw-ink);border-color:var(--mw-accent);background:var(--mw-pad);}
 .mazewright-root .mw-board{width:100%;max-width:460px;}
 .mazewright-root svg{width:100%;height:auto;display:block;touch-action:manipulation;}
 .mazewright-root .mw-cell{fill:var(--mw-cellc);} .mazewright-root .mw-cell.start{fill:var(--mw-start);}
@@ -512,6 +580,11 @@ const MW_CSS = `
 .mazewright-root .mw-pad{fill:var(--mw-pad);stroke:var(--mw-accent);stroke-width:1.5;cursor:pointer;}
 .mazewright-root .mw-pad:hover{fill:rgba(124,108,255,.55);} .mazewright-root .mw-pad.exit{fill:rgba(233,196,90,.5);stroke:var(--mw-gold);}
 .mazewright-root .mw-padarrow{font-size:13px;text-anchor:middle;dominant-baseline:central;fill:var(--mw-padink);pointer-events:none;}
+.mazewright-root .mw-dpad{display:none;grid-template-columns:repeat(3,3.6rem);grid-template-rows:repeat(3,3.6rem);gap:8px;justify-content:center;touch-action:none;}
+.mazewright-root .mw-dbtn{font-size:1.4rem;line-height:1;border-radius:14px;border:1px solid var(--mw-grid);background:var(--mw-cellc);color:var(--mw-ink);cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;}
+.mazewright-root .mw-dbtn:active{background:var(--mw-pad);border-color:var(--mw-accent);}
+.mazewright-root .mw-dbtn.n{grid-area:1/2;} .mazewright-root .mw-dbtn.w{grid-area:2/1;}
+.mazewright-root .mw-dbtn.e{grid-area:2/3;} .mazewright-root .mw-dbtn.s{grid-area:3/2;}
 .mazewright-root .mw-inventory{display:none;font-size:1.1rem;}
 .mazewright-root .mw-invlabel{color:var(--mw-muted);text-transform:uppercase;letter-spacing:1px;font-size:.74rem;margin-right:8px;}
 .mazewright-root .mw-invempty{color:var(--mw-muted);opacity:.65;font-size:.85rem;}
@@ -519,11 +592,16 @@ const MW_CSS = `
 .mazewright-root .mw-controls button{flex:1;padding:12px;border-radius:10px;font-weight:700;cursor:pointer;border:1px solid var(--mw-grid);background:var(--mw-cellc);color:var(--mw-ink);}
 .mazewright-root .mw-go,.mazewright-root .mw-go-btn{background:var(--mw-exit);border-color:var(--mw-exit);color:#0c2417;}
 .mazewright-root .mw-go:disabled{opacity:.4;cursor:not-allowed;}
-.mazewright-root .mw-codebar{display:none;align-items:center;gap:8px;}
+.mazewright-root .mw-advanced{display:none;width:100%;max-width:460px;padding:0;overflow:hidden;}
+.mazewright-root .mw-advanced summary{cursor:pointer;padding:11px 14px;font-size:.8rem;color:var(--mw-muted);list-style:none;user-select:none;}
+.mazewright-root .mw-advanced summary::-webkit-details-marker{display:none;}
+.mazewright-root .mw-advanced[open] summary{border-bottom:1px solid var(--mw-grid);color:var(--mw-ink);}
+.mazewright-root .mw-codebar{display:flex;align-items:center;gap:8px;padding:12px 14px;}
 .mazewright-root .mw-codelabel{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--mw-muted);white-space:nowrap;}
 .mazewright-root .mw-codeinput{flex:1;min-width:0;font-family:ui-monospace,monospace;font-size:.82rem;padding:8px 9px;border-radius:8px;border:1px solid var(--mw-grid);background:var(--mw-cellc);color:var(--mw-ink);}
 .mazewright-root .mw-codebar button{padding:8px 13px;border-radius:8px;border:1px solid var(--mw-grid);background:var(--mw-cellc);color:var(--mw-ink);font-weight:700;cursor:pointer;}
 .mazewright-root .mw-done{display:none;text-align:center;} .mazewright-root .mw-mine{color:var(--mw-gold);font-weight:800;}
+.mazewright-root .mw-champ{font-size:1.05rem;margin-bottom:11px;padding:11px;border-radius:11px;background:var(--mw-cellc);border:1px solid var(--mw-gold);color:var(--mw-ink);}
 .mazewright-root .mw-help{color:var(--mw-muted);font-size:.84rem;line-height:1.5;}
 .mazewright-root .mw-table{display:none;}
 .mazewright-root .mw-ptitle{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--mw-muted);margin-bottom:8px;}

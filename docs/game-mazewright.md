@@ -14,32 +14,60 @@ player plays on their own device (no hot-seat / local opponent).
 
 ## Flow — three phases (the room state machine)
 
-1. **BUILD (barrier).** Each player builds a maze on their own device: tap wall
-   slots (≤ 30 walls), set the golden exit, drag the pawn + loot. Submitting
-   sends only the compact **maze code** (`SUBMIT_MAZE`). The room advances when
-   **every human** has submitted. A live, shareable maze code lets you copy/paste
-   an exact dungeon.
+1. **BUILD (barrier).** Each player builds a maze on their own device using an
+   explicit **edit-mode toolbar** (Walls / Start / Loot / Exit) so each mode lights
+   up only its own hitboxes — no overloaded taps. Walls ≤ 30, one golden exit, drag
+   the pawn + loot. Submitting sends only the compact **maze code** (`SUBMIT_MAZE`);
+   the room advances when **every human** has submitted. Copy/paste of an exact
+   dungeon lives behind a collapsed **Advanced** drawer so the default flow is
+   build-first, not paste-first.
 2. **RUN (async).** The server distributes every maze (the deck) with a
    server-chosen **invert + ±90° rotation** per maze, so even your own dungeon is
-   disorienting. Each player runs every maze under fog — moving blind, walls
+   disorienting. Each player runs every maze under fog — moving blind via
+   **full-board swipe, a large D-pad, on-board pads, or arrow keys**, walls
    revealing on a bump, the arch appearing when reached, loot flying into the
    inventory — and posts only the committed result `{moves, loot}`
    (`POST_RESULT`). In-progress crawling never leaves the device.
-3. **TALLY.** When all humans finish, the server awards three prizes:
-   - 🧱 **Mazewright** — most moves players cumulatively lost in *their* maze.
+3. **TALLY.** When all humans finish, the server awards three prizes and one
+   overall champion:
+   - 🧱 **Mazewright** — highest **maze score** (see below).
    - 🏃 **Mazerunner** — fewest total moves across all mazes.
    - 💎 **Treasure Hunter** — most loot collected.
+   - 🏆 **Champion** — a **5/3/3 medal composite** (Mazewright 5, Mazerunner 3,
+     Treasure Hunter 3). Ties break on most medals, then fewest total moves. This
+     is `game.winner`, so running and treasure matter, not just authoring.
 
-A **move** = a step OR a wall discovery (a bump). The maze author scores one
-point for every move each player takes in their dungeon — the more lost a player
-gets, the more the author scores.
+### Maze score — reward confusion, not tedium
 
-## Scoring authority — family-trust
+A **move** = a step OR a wall discovery (a bump). The author does **not** earn a
+flat point per move (that rewarded boring, tediously-long corridors). Instead,
+for each *other* player who runs the maze:
 
-Clients report their own move/loot counts and the server accepts them as-is (a
-documented **family-scale exception** — no replay/anti-cheat). The maze code +
-server-seeded transform make a future move-log re-validation possible if it ever
-matters, but it is intentionally not built.
+```
+authorScore += clamp(runnerMoves − shortestEscape, 0, 20) + 2 × lootGrabbed
+```
+
+So the author is paid for **excess** moves over the shortest escape (the runner
+getting *lost*, capped per runner so one wanderer can't dominate) plus a bonus
+when the maze baits a runner into grabbing loot. A **self-run never credits its
+author** — you can't pad your own score by wandering your own dungeon. This is
+the one shared `computeStandings()` in the core, called by both the Worker and the
+offline standalone so hosted and local scoring never drift.
+
+`shortestEscape` is transform-invariant (rotation/reflection preserve distances),
+so the server-chosen transform is purely UX disorientation — never treat it as
+anti-cheat.
+
+## Scoring authority — family-trust, but no open front door
+
+Crawling is local-first; clients post their own `{moves, loot}`. The server does
+**not** replay move logs (a documented **family-scale exception**), but it does
+**clamp posted results to the feasible band** using the maze it already holds:
+`moves` can't beat the maze's shortest escape, and `loot` is capped at the five
+hidden items. Submission is likewise validated: a maze must be solvable **and have
+every loot reachable from the start** (`canSubmit`), and wall placement is guarded
+so you can't trap the treasure mid-build. Full move-log re-validation remains
+possible from the maze code if it ever matters, but is intentionally not built.
 
 ## Architecture (where the code lives)
 
