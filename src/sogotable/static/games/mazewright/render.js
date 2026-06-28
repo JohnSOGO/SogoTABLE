@@ -161,7 +161,7 @@ function renderBuildPhase(game, myMark) {
   tag("Build", "build");
 
   if (submitted) {
-    setText(".mw-sub", "Maze locked in — waiting for the other builders…");
+    setText(".mw-sub", "Locked in — waiting for the others…");
     q(".mw-controls").style.display = "none";
     hide(".mw-advanced"); hide(".mw-modes");
     renderBoardInto(buildState, "build", { readOnly: true });
@@ -170,12 +170,10 @@ function renderBuildPhase(game, myMark) {
   const modes = q(".mw-modes"); modes.style.display = "flex";
   modes.querySelectorAll(".mw-mode").forEach((b) => b.classList.toggle("active", b.dataset.mode === buildMode));
   const hints = {
-    walls: "Walls mode — tap a slot between cells to add or remove a wall.",
-    start: "Start mode — tap a cell (or drag your pawn) to set where you begin.",
-    loot: selectedItem != null
-      ? "Tap a cell to drop the 💎 — or tap it again to cancel."
-      : "Loot mode — tap a 💎 to pick it up, then tap a cell to hide it.",
-    exit: "Exit mode — tap a border edge to set the golden escape arch.",
+    walls: "Tap between two cells to add/remove a wall.",
+    start: "Tap a cell to set your start.",
+    loot: selectedItem != null ? "Tap a cell to drop the 💎 (tap again to cancel)." : "Tap a 💎, then a cell to hide it.",
+    exit: "Tap a border edge to set the exit.",
   };
   setText(".mw-sub", hints[buildMode]);
   q(".mw-controls").style.display = "flex";
@@ -208,14 +206,14 @@ function commitBuild(action) {
   renderBuildPhase(ctx.game || {}, localMark());
   // Re-run validation after EVERY edit (walls, start, loot, paste): a dragged loot
   // or moved start can strand treasure the wall guard never saw. Flag it loudly.
-  if (!allLootReachable(buildState)) { playCancel(); flash("A treasure is walled off — clear a path to it before you submit."); }
+  if (!allLootReachable(buildState)) { playCancel(); flash("A treasure is walled off — clear a path."); }
   else if (buildState.exit && !pathExists(buildState, buildState.start, buildState.exit.cell)) { playCancel(); flash("Your start can't reach the exit."); }
 }
 
 function submitMaze() {
   if (!buildState || !canSubmit(buildState)) {
     playCancel();
-    flash(`Need ${MIN_WALLS}+ walls, an exit your start can reach, and every treasure reachable.`);
+    flash(`Need ${MIN_WALLS}+ walls, a reachable exit & treasure.`);
     return;
   }
   playConfirm();
@@ -234,7 +232,7 @@ function renderRunPhase(game, myMark) {
 
   if (!seat || seat.run_done) {
     setText(".mw-turnname", "🏁 all mazes run"); tag("Done", "crawl");
-    setText(".mw-sub", "You're out of every dungeon — waiting for the others to finish…");
+    setText(".mw-sub", "All mazes done — waiting for the others…");
     hide(".mw-done"); hide(".mw-inventory"); setDpad(false);
     q(".mw-board").innerHTML = "";
     return;
@@ -260,7 +258,7 @@ function renderRunView(game, myMark, idx, deck) {
   if (runState.phase === PHASE.MAZE_DONE) {
     setDpad(false);
     tag("Revealed", "crawl");
-    setText(".mw-sub", "Maze revealed — see whose dungeon you escaped, then continue.");
+    setText(".mw-sub", "Maze revealed — continue below.");
     renderBoardInto(runState, "reveal", {});
     const last = idx + 1 >= deck.length;
     const done = q(".mw-done"); show(".mw-done");
@@ -274,8 +272,8 @@ function renderRunView(game, myMark, idx, deck) {
   hide(".mw-done"); setDpad(true);
   tag("Crawl", "crawl");
   setText(".mw-sub", isTouchDevice()
-    ? "It's dark — swipe the maze to move (or tap the arrows). Walls reveal on a bump; the arch shows when you reach it."
-    : "It's dark — use the arrow keys to move (or drag the maze with the mouse). Walls reveal on a bump; the arch shows when you reach it.");
+    ? "Swipe the maze to move · walls reveal on a bump."
+    : "Arrow keys to move · walls reveal on a bump.");
   renderBoardInto(runState, "crawl", {});
 }
 
@@ -641,13 +639,13 @@ const MW_CSS = `
  --mw-cellc:#edeef3;--mw-start:#cfe0ff;--mw-exit:#1f9d62;--mw-gold:#b07d12;--mw-accent:#6a5be0;
  --mw-fog:#d9dbe4;--mw-padink:#241f3a;--mw-pad:rgba(106,91,224,.18);--mw-trail:rgba(60,48,110,.7);}
 .mazewright-root .mw-panel{width:100%;max-width:460px;background:var(--mw-panel);border:1px solid var(--mw-grid);border-radius:14px;padding:12px 14px;}
-.mazewright-root .mw-hudrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.mazewright-root .mw-hudrow{display:flex;align-items:center;gap:9px;flex-wrap:nowrap;overflow:hidden;}
 .mazewright-root .mw-turn{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.02rem;flex:none;}
 .mazewright-root .mw-dot{width:14px;height:14px;border-radius:50%;flex:none;background:var(--mw-accent);}
 .mazewright-root .mw-tag{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;padding:4px 9px;border-radius:999px;background:var(--mw-cellc);color:var(--mw-muted);border:1px solid var(--mw-grid);}
 .mazewright-root .mw-tag.build{color:#d98a4a;border-color:#d98a4a;}
 .mazewright-root .mw-tag.crawl{color:var(--mw-exit);border-color:var(--mw-exit);}
-.mazewright-root .mw-sub{flex:1 1 12ch;color:var(--mw-muted);font-size:.85rem;margin:0;}
+.mazewright-root .mw-sub{flex:1 1 8ch;min-width:0;color:var(--mw-muted);font-size:.85rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .mazewright-root .mw-meters{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;}
 .mazewright-root .mw-meter{font-size:.82rem;padding:5px 10px;border-radius:999px;background:var(--mw-cellc);border:1px solid var(--mw-grid);}
 .mazewright-root .mw-meter b{color:var(--mw-ink);} .mazewright-root .mw-meter.ok{color:var(--mw-gold);border-color:var(--mw-gold);}
