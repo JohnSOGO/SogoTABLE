@@ -100,9 +100,14 @@ function ensureScaffold() {
   q(".mw-go").addEventListener("click", submitMaze);
   q(".mw-codeload").addEventListener("click", () => commitBuild({ type: "LOAD_CODE", code: q(".mw-codeinput").value }));
   q(".mw-codeinput").addEventListener("keydown", (e) => { if (e.key === "Enter") commitBuild({ type: "LOAD_CODE", code: e.target.value }); });
-  q(".mw-dpad").addEventListener("click", (e) => {
+  // pointerdown, not click: rapid taps fire every press immediately. The browser's
+  // double-tap detection swallows fast consecutive `click`s (moves once then stalls);
+  // pointerdown/touchstart aren't debounced that way. No click listener → no double-move.
+  q(".mw-dpad").addEventListener("pointerdown", (e) => {
     const btn = e.target.closest(".mw-dbtn");
-    if (btn && runState && runState.phase === PHASE.CRAWL) commitRun({ type: "MOVE", dir: btn.dataset.dir });
+    if (!btn) return;
+    e.preventDefault();   // act on press, suppress the lagged synthetic click
+    if (runState && runState.phase === PHASE.CRAWL) commitRun({ type: "MOVE", dir: btn.dataset.dir });
   });
   q(".mw-hud").addEventListener("click", () => { const h = q(".mw-hud"); if (h) h.classList.toggle("collapsed"); });
   q(".mw-table").addEventListener("click", () => {
