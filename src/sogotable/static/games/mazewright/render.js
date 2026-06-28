@@ -33,6 +33,7 @@ let keyBound = false;
 let buildState = null;
 let buildKey = "";      // room:epoch — rebuild buildState on a new game
 let buildMode = "walls"; // walls | start | loot | exit — explicit edit mode
+let selectedItem = null; // loot index picked up in Loot mode (tap-to-place)
 let runState = null;
 let runLoaded = -1;     // deck index runState is built for
 let dragging = false;
@@ -108,6 +109,7 @@ function ensureScaffold() {
     const btn = e.target.closest(".mw-mode");
     if (!btn) return;
     buildMode = btn.dataset.mode;
+    selectedItem = null;   // dropping a held gem doesn't carry across modes
     playClick();
     renderBuildPhase(ctx.game || {}, localMark());
   });
@@ -150,7 +152,7 @@ function renderBuildPhase(game, myMark) {
   hide(".mw-inventory"); hide(".mw-done");
 
   const rk = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
-  if (rk !== buildKey) { buildKey = rk; wonSound = false; buildState = createGame({ seats: [{ name: "You", color: seatProfile(myMark).color, emoji: seatProfile(myMark).icon }] }); }
+  if (rk !== buildKey) { buildKey = rk; wonSound = false; selectedItem = null; buildState = createGame({ seats: [{ name: "You", color: seatProfile(myMark).color, emoji: seatProfile(myMark).icon }] }); }
   runState = null; runLoaded = -1;
 
   const me = seatProfile(myMark);
@@ -170,7 +172,9 @@ function renderBuildPhase(game, myMark) {
   const hints = {
     walls: "Walls mode — tap a slot between cells to add or remove a wall.",
     start: "Start mode — tap a cell (or drag your pawn) to set where you begin.",
-    loot: "Loot mode — drag the 💎 and 🪙 to hide your treasure.",
+    loot: selectedItem != null
+      ? "Tap a cell to drop the 💎 — or tap it again to cancel."
+      : "Loot mode — tap a 💎 to pick it up, then tap a cell to hide it.",
     exit: "Exit mode — tap a border edge to set the golden escape arch.",
   };
   setText(".mw-sub", hints[buildMode]);
@@ -190,6 +194,12 @@ function renderBuildPhase(game, myMark) {
   const input = q(".mw-codeinput");
   if (document.activeElement !== input) input.value = mazeCode(buildState);
   renderBoardInto(buildState, "build", {});
+}
+
+function selectItem(i) {
+  selectedItem = i;
+  playClick();
+  renderBuildPhase(ctx.game || {}, localMark());
 }
 
 function commitBuild(action) {
@@ -252,12 +262,10 @@ function renderRunView(game, myMark, idx, deck) {
     setText(".mw-sub", "Maze revealed — see whose dungeon you escaped, then continue.");
     renderBoardInto(runState, "reveal", {});
     const last = idx + 1 >= deck.length;
-    const dia = runState.inventory.filter((x) => x === "diamond" || x === "gem").length;
-    const coin = runState.inventory.filter((x) => x === "coin").length;
     const done = q(".mw-done"); show(".mw-done");
     done.innerHTML = `<div style="font-weight:700;">Maze ${idx + 1}/${deck.length} cleared — ` +
       `${author.icon || "🧙"} ${author.name || "?"}${mine ? '<span class="mw-mine"> · your maze!</span>' : "'s maze"}</div>` +
-      `<div class="mw-help" style="margin-top:4px;">Escaped in <b>${runState.moves}</b> moves · 💎${dia} 🪙${coin}</div>` +
+      `<div class="mw-help" style="margin-top:4px;">Escaped in <b>${runState.moves}</b> moves · 💎${runState.inventory.length}</div>` +
       `<button class="mw-next mw-go-btn" style="margin-top:12px;">${last ? "Post final result →" : "Next maze →"}</button>`;
     done.querySelector(".mw-next").addEventListener("click", postRunResult);
     return;
@@ -303,7 +311,7 @@ function renderComplete(game, myMark) {
     `<div class="mw-prize${mark === myMark ? " mine" : ""}"><span class="mw-pzico">${icon}</span>` +
     `<span class="mw-pzbody"><b>${name}</b><br>${who(mark)} <span class="mw-pzdetail">· ${detail}</span></span></div>`;
   const done = q(".mw-done"); show(".mw-done");
-  const champ = game.winner ? `<div class="mw-champ">🏆 <b>${who(game.winner)}</b> wins the dungeon!</div>` : "";
+  const champ = game.winner ? `<div class="mw-champ">🏆 <b>${who(game.winner)}</b> wins the dungeon · <b>${seatOf(game.winner).composite || 0}</b> pts</div>` : "";
   done.innerHTML = champ +
     card("🧱", "Mazewright", prizes.mazewright, `${seatOf(prizes.mazewright).author_points || 0} maze score`) +
     card("🏃", "Mazerunner", prizes.mazerunner, `${seatOf(prizes.mazerunner).runner_moves || 0} moves total`) +
@@ -319,12 +327,12 @@ function renderLeaderboard(game, myMark) {
     let stat;
     if (status === "building") stat = seat.built ? "maze ready ✅" : "building…";
     else if (status === "running") stat = seat.run_done ? "🏁 done" : `maze ${Math.min(seat.run_index + 1, seat.run_total)}/${seat.run_total}`;
-    else stat = `🧱${seat.author_points} · 🏃${seat.runner_moves} · 💎${seat.runner_loot}`;
+    else stat = `🏆${seat.composite} · 🧱${seat.author_points} · 🏃${seat.runner_moves} · 💎${seat.runner_loot}`;
     return `<div class="mw-prow ${you ? "you" : "muted"}${seat.run_done ? " done" : ""}">` +
       `<span class="mw-pname"><span class="mw-pdot" style="background:${p.color || "#7c6cff"}"></span>${p.icon || "🧙"} ${seat.name}${you ? " (you)" : ""}${seat.is_bot ? " 🤖" : ""}</span>` +
       `<span class="mw-pstat">${stat}</span></div>`;
   }).join("");
-  const title = status === "complete" ? "Final standings · 🧱author · 🏃moves · 💎loot"
+  const title = status === "complete" ? "Final standings · 🏆score · 🧱author · 🏃moves · 💎loot"
     : status === "running" ? "Run progress · each on their own race"
     : "Builders · each making a dungeon";
   const table = q(".mw-table"); table.style.display = "block";
@@ -398,14 +406,17 @@ function renderBoardInto(state, mode, opts) {
   const me = seatProfile(localMark());
   const meColor = me.color || "#7c6cff", meEmoji = me.icon || "🧙";
 
+  const editable = building && !opts.readOnly;
+  const startTap = editable && buildMode === "start";
+  const lootPlace = editable && buildMode === "loot" && selectedItem != null;   // a gem is picked up
   for (let c = 0; c < state.cols; c++) for (let r = 0; r < state.rows; r++) {
     let cls = "mw-cell";
-    const startTap = building && !opts.readOnly && buildMode === "start";
-    if (building) { if (c === state.start[0] && r === state.start[1]) cls += " start"; if (startTap) cls += " tap"; }
+    if (building) { if (c === state.start[0] && r === state.start[1]) cls += " start"; if (startTap || lootPlace) cls += " tap"; }
     else { const here = c === state.pos[0] && r === state.pos[1]; const seen = state.visited[`${c},${r}`];
       cls += here ? " here" : (seen ? " seen" : (reveal ? "" : " fog")); }
     const cell = add("rect", { x: x(c) + 1.5, y: y(r) + 1.5, width: size - 3, height: size - 3, rx: 4, class: cls });
     if (startTap) cell.addEventListener("click", () => commitBuild({ type: "SET_START", cell: [c, r] }));
+    else if (lootPlace) cell.addEventListener("click", () => { const idx = selectedItem; selectedItem = null; commitBuild({ type: "SET_ITEM", index: idx, cell: [c, r] }); });
   }
   if (building || reveal) {
     for (const { cell, dir } of perimeterEdges(state)) {
@@ -443,8 +454,18 @@ function renderBoardInto(state, mode, opts) {
       hit.addEventListener("mouseleave", () => lite(target, false));
       hit.addEventListener("click", () => commitBuild({ type: "TOGGLE_EXIT", cell, dir }));
     }
-    state.items.forEach((it, i) => drawToken(add, g, svg, state, it.cell, it.type === "diamond" ? "💎" : "🪙", null,
-      buildMode === "loot" ? (cl) => commitBuild({ type: "SET_ITEM", index: i, cell: cl }) : null));
+    // Loot: tap a gem to pick it up (highlight), tap a cell to drop it — friendlier
+    // on a phone than dragging. In other modes the gems are just shown, static.
+    state.items.forEach((it, i) => {
+      const glyph = it.type === "diamond" ? "💎" : "🪙";
+      const selected = buildMode === "loot" && selectedItem === i;
+      if (selected) add("circle", { cx: cx(it.cell[0]), cy: cy(it.cell[1]), r: size * 0.40, class: "mw-selring" });
+      add("text", { x: cx(it.cell[0]), y: cy(it.cell[1]), class: "mw-emoji mw-treasure" }).textContent = glyph;
+      if (buildMode === "loot") {
+        const hit = add("circle", { cx: cx(it.cell[0]), cy: cy(it.cell[1]), r: size * 0.36, class: "mw-hit" });
+        hit.addEventListener("click", (e) => { e.stopPropagation(); selectItem(selected ? null : i); });
+      }
+    });
     drawToken(add, g, svg, state, state.pos, meEmoji, meColor,
       buildMode === "start" ? (cl) => commitBuild({ type: "SET_START", cell: cl }) : null);
     // flag anything the start can't reach — recomputed every render, so it tracks
@@ -463,6 +484,10 @@ function renderBoardInto(state, mode, opts) {
     add("circle", { cx: cx(state.pos[0]), cy: cy(state.pos[1]), r: size * 0.34, fill: meColor, "fill-opacity": 0.28, stroke: meColor, "stroke-width": 2 });
     add("text", { x: cx(state.pos[0]), y: cy(state.pos[1]), class: "mw-emoji" }).textContent = meEmoji;
   } else {
+    // Crawl: show the uncollected gems through the fog so the runner can decide to
+    // chase the shiny or bolt for the exit (the Treasure Hunter tension).
+    for (const it of state.items) if (!it.collected)
+      add("text", { x: cx(it.cell[0]), y: cy(it.cell[1]), class: "mw-emoji mw-treasure" }).textContent = "💎";
     const px = cx(state.pos[0]), py = cy(state.pos[1]);
     add("circle", { cx: px, cy: py, r: size * 0.34, fill: meColor, "fill-opacity": 0.3, stroke: meColor, "stroke-width": 2 });
     add("text", { x: px, y: py, class: "mw-emoji" }).textContent = meEmoji;
@@ -582,6 +607,7 @@ const MW_CSS = `
 .mazewright-root .mw-board.crawling,.mazewright-root .mw-board.crawling svg{touch-action:none;}
 .mazewright-root svg{width:100%;height:auto;display:block;touch-action:manipulation;}
 .mazewright-root .mw-warnring{fill:none;stroke:#e85d75;stroke-width:2.5;stroke-dasharray:4 3;pointer-events:none;}
+.mazewright-root .mw-selring{fill:var(--mw-pad);stroke:var(--mw-gold);stroke-width:2.5;pointer-events:none;}
 .mazewright-root .mw-cell{fill:var(--mw-cellc);} .mazewright-root .mw-cell.start{fill:var(--mw-start);}
 .mazewright-root .mw-cell.tap{cursor:pointer;} .mazewright-root .mw-cell.fog{fill:var(--mw-fog);}
 .mazewright-root .mw-cell.seen{fill:var(--mw-cellc);} .mazewright-root .mw-cell.here{fill:var(--mw-start);}

@@ -2701,7 +2701,27 @@ test("Mazewright scoring: excess is capped and the winner is the 5/3/3 composite
   assert.equal(s.prizes.mazewright, "A");        // most confusing maze
   assert.equal(s.prizes.mazerunner, "B");        // fewest total runner moves (6+5=11)
   assert.equal(s.prizes.treasureHunter, "B");    // most loot grabbed (5)
-  assert.equal(s.winner, "B");                   // runner+treasure (3+3=6) beats wright-only (5)
+  assert.equal(s.winner, "B");                   // all-round leader on the rank composite
+});
+
+test("Mazewright scoring: the composite champion rewards all-round play over a one-trick specialist", () => {
+  const shortest = { A: 4, B: 4, C: 4 };
+  const runs = [
+    // A authors a brutal maze (both rivals capped) but is a terrible runner with no loot
+    { runner: "B", author: "A", moves: 24, loot: 4 },
+    { runner: "C", author: "A", moves: 24, loot: 0 },
+    { runner: "A", author: "B", moves: 40, loot: 0 },
+    { runner: "C", author: "B", moves: 6, loot: 0 },
+    { runner: "A", author: "C", moves: 40, loot: 0 },
+    { runner: "B", author: "C", moves: 6, loot: 0 },
+  ];
+  const s = mwComputeStandings(runs, shortest, ["A", "B", "C"]);
+  assert.equal(s.prizes.mazewright, "A");        // A still takes the maze-building medal
+  assert.equal(s.composite.A, 11.5);             // 5·rank2 + 3·rank0 + 3·rank0.5
+  assert.equal(s.composite.B, 13);               // 2nd-ish everywhere wins the title
+  assert.equal(s.composite.C, 8.5);
+  assert.equal(s.winner, "B");                   // champion is the all-rounder, NOT the specialist
+  assert.notEqual(s.winner, s.prizes.mazewright);
 });
 
 test("Mazewright wrapper clamps a bogus POST_RESULT to the feasible band", () => {

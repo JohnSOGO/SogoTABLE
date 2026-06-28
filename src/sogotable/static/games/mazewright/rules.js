@@ -21,6 +21,7 @@ export const MAX_WALLS = 30;
 export const MIN_WALLS = 10;   // a submitted maze needs at least this many walls
 export const EXCESS_CAP = 20;  // per-runner author credit ceiling (excess over the shortest escape)
 export const LOOT_BONUS = 2;   // author credit per loot a runner is baited into grabbing
+export const WIN_WEIGHTS = { author: 5, runner: 3, treasure: 3 }; // champion = rank-weighted composite
 
 const DIRS = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
@@ -34,8 +35,8 @@ function defaultItems(cols, rows) {
     { type: 'diamond', cell: [1, 1] },
     { type: 'diamond', cell: [cols - 2, 1] },
     { type: 'diamond', cell: [Math.floor(cols / 2), rows - 2] },
-    { type: 'coin', cell: [1, rows - 2] },
-    { type: 'coin', cell: [cols - 2, rows - 2] },
+    { type: 'diamond', cell: [1, rows - 2] },
+    { type: 'diamond', cell: [cols - 2, rows - 2] },
   ];
 }
 
@@ -221,7 +222,7 @@ function autoBuild(state, rng) {
   const per = perimeterEdges(state);
   const e = per[Math.floor(rng() * per.length)];
   state.exit = { cell: [e.cell[0], e.cell[1]], dir: e.dir };
-  const types = ['diamond', 'diamond', 'diamond', 'coin', 'coin'];
+  const types = ['diamond', 'diamond', 'diamond', 'diamond', 'diamond'];
   const used = new Set([state.start.join(',')]);
   state.items = types.map((type) => {
     let cell;
@@ -307,7 +308,7 @@ export function simulateRun(code, rng = Math.random) {
 // Treasure Hunter 3); ties break on most medals, then fewest total runner moves.
 export function computeStandings(runs, shortest, marks, opts = {}) {
   if (!marks || !marks.length) {
-    return { authorPoints: {}, runnerMoves: {}, runnerLoot: {},
+    return { authorPoints: {}, runnerMoves: {}, runnerLoot: {}, composite: {},
       prizes: { mazewright: null, mazerunner: null, treasureHunter: null }, winner: null };
   }
   const cap = opts.excessCap ?? EXCESS_CAP;
@@ -328,17 +329,40 @@ export function computeStandings(runs, shortest, marks, opts = {}) {
     mazerunner: argmin(runnerMoves),
     treasureHunter: argmax(runnerLoot),
   };
-  const medalPts = (m) => (prizes.mazewright === m ? 5 : 0) + (prizes.mazerunner === m ? 3 : 0) + (prizes.treasureHunter === m ? 3 : 0);
-  const medalCnt = (m) => (prizes.mazewright === m ? 1 : 0) + (prizes.mazerunner === m ? 1 : 0) + (prizes.treasureHunter === m ? 1 : 0);
+  // Overall champion: a rank-weighted composite across ALL three fields, so an
+  // all-round 2nd-place player beats a one-category specialist. Each player earns
+  // a per-category rank score in [0, N-1] (best = N-1; ties share the average),
+  // weighted 5/3/3 to keep the medal emphasis (Mazewright counts most).
+  const w = opts.weights ?? WIN_WEIGHTS;
+  const aRank = rankScores(authorPoints, marks, false);
+  const mRank = rankScores(runnerMoves, marks, true);   // fewer moves ranks higher
+  const lRank = rankScores(runnerLoot, marks, false);
+  const composite = {};
+  for (const m of marks) composite[m] = w.author * aRank[m] + w.runner * mRank[m] + w.treasure * lRank[m];
   const winner = marks.reduce((best, m) => {
     if (best == null) return m;
-    const dp = medalPts(m) - medalPts(best);
-    if (dp !== 0) return dp > 0 ? m : best;
-    const dc = medalCnt(m) - medalCnt(best);
-    if (dc !== 0) return dc > 0 ? m : best;
-    return (runnerMoves[m] || 0) < (runnerMoves[best] || 0) ? m : best;
+    if (composite[m] !== composite[best]) return composite[m] > composite[best] ? m : best;
+    if ((runnerMoves[m] || 0) !== (runnerMoves[best] || 0)) return (runnerMoves[m] || 0) < (runnerMoves[best] || 0) ? m : best;
+    return best;   // stable: the earlier seat keeps the title on a dead tie
   }, null);
-  return { authorPoints, runnerMoves, runnerLoot, prizes, winner };
+  return { authorPoints, runnerMoves, runnerLoot, composite, prizes, winner };
+}
+
+// Per-category rank score in [0, N-1]: how many players you beat, plus half of
+// those you tie. Best (unique) = N-1, worst = 0; symmetric ties average out.
+function rankScores(values, marks, lowerBetter) {
+  const out = {};
+  for (const m of marks) {
+    let beats = 0, ties = 0;
+    for (const o of marks) {
+      if (o === m) continue;
+      const a = values[m] || 0, b = values[o] || 0;
+      if (a === b) ties++;
+      else if (lowerBetter ? a < b : a > b) beats++;
+    }
+    out[m] = beats + ties / 2;
+  }
+  return out;
 }
 
 // ---------- enumerations (UI hitboxes + tests) ----------
@@ -460,7 +484,7 @@ export function applyMazeCode(state, code) {
   const cell = (i) => [i % cols, Math.floor(i / cols)];
   state.start = cell(bytes[1]); state.pos = [state.start[0], state.start[1]];
   state.exit = bytes[2] === 255 ? null : { cell: cell(Math.floor(bytes[2] / 4)), dir: DIR_LIST[bytes[2] % 4] };
-  const types = ['diamond', 'diamond', 'diamond', 'coin', 'coin'];
+  const types = ['diamond', 'diamond', 'diamond', 'diamond', 'diamond'];
   state.items = types.map((type, i) => ({ type, cell: cell(bytes[3 + i]) }));
   const edges = interiorEdges(state);
   const wallBytes = bytes.slice(8);
@@ -660,6 +684,7 @@ function finalizeSeries(state, rng) {
   state.standings = {
     runners: state.players.map((p) => ({ id: p.id, totalMoves: s.runnerMoves[p.id] || 0, totalLoot: s.runnerLoot[p.id] || 0 })),
     authors: state.players.map((p) => ({ id: p.id, points: s.authorPoints[p.id] || 0 })),
+    composite: s.composite,
     prizes: s.prizes,
     winner: s.winner,
   };
