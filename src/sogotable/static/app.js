@@ -1462,6 +1462,9 @@ async function respondToInvite(accept) {
 }
 
 async function createRoom() {
+  await attemptCreateRoom(false);
+}
+async function attemptCreateRoom(retried) {
   const player = deviceSelectedPlayer();
   if (!player) return alert("Select a player first.");
   try {
@@ -1474,6 +1477,13 @@ async function createRoom() {
     showScreen("game");
     playRoomCreated();
   } catch (error) {
+    // A stale token for a player the Sogo admin just unlocked — drop it and
+    // re-claim once (an unclaimed player re-claims with no passcode), then retry.
+    if (!retried && isUnclaimedError(error)) {
+      delete playerOwnerTokens[player.id];
+      savePlayerOwnerTokens();
+      return attemptCreateRoom(true);
+    }
     playerApiAvailable = false;
     renderCreateGameButton();
     alert(error.message);
@@ -2986,6 +2996,14 @@ function rememberOwnerToken(playerId, ownerToken) {
 async function ensureOwnerToken(playerId) {
   const id = String(playerId || "").trim();
   if (!id) throw new Error("Player id is required.");
+  // If the server's last-known view says this player is unclaimed (e.g. the Sogo
+  // admin just unlocked it), any token stored on this device is stale — drop it so
+  // we re-claim below instead of sending a dead token.
+  const known = (players || []).find((p) => p.id === id);
+  if (known && known.claimed === false && playerOwnerTokens[id]) {
+    delete playerOwnerTokens[id];
+    savePlayerOwnerTokens();
+  }
   if (playerOwnerTokens[id]) return playerOwnerTokens[id];
   try {
     const response = await api("/api/player/claim", { player_id: id });
@@ -3006,6 +3024,14 @@ async function ensureOwnerToken(playerId) {
 
 function isAlreadyClaimedError(error) {
   return String(error && error.message || "").toLowerCase().includes("already claimed");
+}
+
+// True when an action was rejected because the player has no owner token on the
+// server at all (unclaimed) — e.g. the Sogo admin unlocked it. Any token stored on
+// this device is stale; drop it and re-claim (no passcode needed for an unclaimed
+// player, so this works from any device after an unlock).
+function isUnclaimedError(error) {
+  return String(error && error.message || "").toLowerCase().includes("must be claimed");
 }
 
 // True when an action was rejected because this device's owner token for the
