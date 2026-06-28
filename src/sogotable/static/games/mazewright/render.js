@@ -336,12 +336,14 @@ function renderComplete(game, myMark) {
   const trows = ranked.map((seat) => {
     const you = seat.mark === myMark, isChamp = seat.mark === winner;
     return `<tr class="${isChamp ? "champ " : ""}${you ? "you" : ""}">` +
-      `<td class="mw-scname">${prof(seat.mark).icon || "🧙"} ${seat.name}${seat.is_bot ? " 🤖" : ""}${youtag(seat.mark)}</td>` +
-      `<td>${seat.pts_author ?? 0}</td><td>${seat.pts_runner ?? 0}</td><td>${seat.pts_treasure ?? 0}</td>` +
-      `<td class="mw-sctotal">${seat.composite ?? 0}</td></tr>`;
+      `<td class="mw-scname" data-field="player-name">${prof(seat.mark).icon || "🧙"} ${seat.name}${seat.is_bot ? " 🤖" : ""}${youtag(seat.mark)}</td>` +
+      `<td data-field="pts-maze">${seat.pts_author ?? 0}</td><td data-field="pts-runner">${seat.pts_runner ?? 0}</td>` +
+      `<td data-field="pts-treasure">${seat.pts_treasure ?? 0}</td>` +
+      `<td class="mw-sctotal" data-field="pts-total">${seat.composite ?? 0}</td></tr>`;
   }).join("");
   html += `<table class="mw-sctable"><thead><tr><th class="mw-scname">Player</th>` +
-    `<th title="Maze design ×5">🧱</th><th title="Fewest moves ×3">🏃</th><th title="Treasure ×3">💎</th><th>Total</th></tr></thead>` +
+    `<th data-field="col-maze" title="Maze design ×5">🧱</th><th data-field="col-runner" title="Fewest moves ×3">🏃</th>` +
+    `<th data-field="col-treasure" title="Treasure ×3">💎</th><th data-field="col-total">Total</th></tr></thead>` +
     `<tbody>${trows}</tbody></table>`;
   html += `<div class="mw-legend">Each column is your placing in that contest, weighted: 🧱 maze design ×5 · 🏃 fewest moves ×3 · 💎 treasure ×3 — added across the row for your Total.</div>`;
   done.innerHTML = html;
