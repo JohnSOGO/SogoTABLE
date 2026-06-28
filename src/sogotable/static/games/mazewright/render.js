@@ -635,11 +635,13 @@ function flash(msg) {
 const MW_CSS = `
 #macroBoard:has(.mazewright-root){display:block;aspect-ratio:auto;background:none;border:none;}
 .mazewright-root{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;
+ user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
  padding:14px 10px;border-radius:16px;background:var(--mw-stage);
  --mw-panel:#211d31;--mw-ink:#f3effa;--mw-muted:#9b93b5;--mw-grid:#3a3350;--mw-cellc:#2a2540;
  --mw-start:#33406b;--mw-exit:#46d18a;--mw-gold:#e9c45a;--mw-accent:#7c6cff;
  --mw-fog:#131019;--mw-stage:#16121f;--mw-padink:#ffffff;--mw-pad:rgba(124,108,255,.25);--mw-trail:rgba(255,255,255,.8);
  color:var(--mw-ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+.mazewright-root input,.mazewright-root textarea{user-select:text;-webkit-user-select:text;-webkit-touch-callout:default;}
 /* Theme: the dark dungeon is the board's default; light mode echoes the platform
    light scheme (neutral tokens pulled straight from the shell). The lobby
    ("table") follows the global theme like every other game now — only the board
