@@ -97,36 +97,41 @@ test("Sogo superuser unclaim releases a player for re-claiming", async () => {
   assert.equal(typeof reclaimed.owner_token, "string");
 });
 
-test("Passcode reclaim lets a second device take over a claimed player", async () => {
+test("Reclaim moves a regular player with no passcode; only Sogo needs one", async () => {
   const env = makeProductionEnv();
   // Toast is claimed on creation; deviceA holds its only owner token.
   const deviceA = await post(env, "/api/players/create", { player: player("toast", "Toast") });
   assert.equal(typeof deviceA.owner_token, "string");
 
-  // A second device with no token is blocked by the ordinary claim path.
+  // The ordinary claim path still blocks a second device.
   const blocked = await post(env, "/api/player/claim", { player_id: "toast" });
   assert.equal(blocked.error, "Player is already claimed.");
 
-  // Reclaim requires the Sogo passcode.
-  const wrongPass = await post(env, "/api/player/reclaim", { player_id: "toast", passcode: "0000" });
-  assert.equal(wrongPass.ok, false);
-  assert.equal(wrongPass.error, "Sogo passcode is incorrect.");
-
-  // With the passcode, the second device gets a fresh owner token.
-  const deviceB = await post(env, "/api/player/reclaim", { player_id: "toast", passcode: "1234" });
+  // A regular player moves to a new device with NO passcode (family trust).
+  const deviceB = await post(env, "/api/player/reclaim", { player_id: "toast" });
   assert.equal(deviceB.ok, true);
   assert.equal(deviceB.player.claimed, true);
   assert.equal(typeof deviceB.owner_token, "string");
   assert.notEqual(deviceB.owner_token, deviceA.owner_token);
 
-  // The takeover invalidates deviceA's token but authorizes deviceB's.
+  // The move invalidates deviceA's token but authorizes deviceB's.
   const oldTokenAction = await post(env, "/api/players/create", { player: player("toast", "Toast A"), owner_token: deviceA.owner_token });
   assert.equal(oldTokenAction.ok, false);
   const newTokenAction = await post(env, "/api/players/create", { player: player("toast", "Toast B"), owner_token: deviceB.owner_token });
   assert.equal(newTokenAction.ok, true);
 
-  // An unknown player cannot be reclaimed even with the passcode.
-  const missing = await post(env, "/api/player/reclaim", { player_id: "ghost", passcode: "1234" });
+  // The Sogo ADMIN account still requires the passcode.
+  await post(env, "/api/players/create", { player: player("sogo-id", "Sogo") });
+  const sogoNoPass = await post(env, "/api/player/reclaim", { player_id: "sogo-id" });
+  assert.equal(sogoNoPass.ok, false);
+  assert.equal(sogoNoPass.error, "Sogo passcode is incorrect.");
+  const sogoWrong = await post(env, "/api/player/reclaim", { player_id: "sogo-id", passcode: "0000" });
+  assert.equal(sogoWrong.error, "Sogo passcode is incorrect.");
+  const sogoOk = await post(env, "/api/player/reclaim", { player_id: "sogo-id", passcode: "1234" });
+  assert.equal(sogoOk.ok, true);
+
+  // An unknown player cannot be reclaimed.
+  const missing = await post(env, "/api/player/reclaim", { player_id: "ghost" });
   assert.equal(missing.ok, false);
   assert.equal(missing.error, "Player not found.");
 });

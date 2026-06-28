@@ -3002,15 +3002,29 @@ async function ensureOwnerToken(playerId) {
     rememberOwnerToken(id, response.owner_token);
     return response.owner_token;
   } catch (error) {
-    // The player exists but was claimed on another device, so this device holds
-    // no owner token for it. Offer the passcode-gated takeover so the action can
-    // proceed here instead of failing silently with a dead-button feel.
-    if (isAlreadyClaimedError(error)) {
-      const token = await reclaimOwnerToken(id);
-      if (token) return token;
-      throw new Error(`${playerDisplayName(id)} is claimed on another device. Enter the Sogo passcode to use this player here.`);
-    }
+    // The player is claimed elsewhere (or this device lost its token). Offer to
+    // move them here — no passcode for regular players, only the Sogo admin.
+    if (isAlreadyClaimedError(error)) return movePlayerHere(id);
     throw error;
+  }
+}
+
+// Offer to move a player claimed on another device (or whose token this device
+// lost) to this device. Regular players bind with no passcode (the family trusts
+// each other); only the Sogo admin account still requires the passcode.
+async function movePlayerHere(id) {
+  const name = playerDisplayName(id);
+  const move = await confirmAction(`Move ${name} to this device?`, `${name} is in use on another device. Bind ${name} here so you can play as them?`);
+  if (!move) throw new Error(`${name} stays on the other device.`);
+  try {
+    const response = await api("/api/player/reclaim", { player_id: id });
+    rememberOwnerToken(id, response.owner_token);
+    return response.owner_token;
+  } catch (reclaimErr) {
+    // The server still requires the passcode — the Sogo admin account.
+    const token = await reclaimOwnerToken(id);
+    if (token) return token;
+    throw reclaimErr;
   }
 }
 

@@ -537,19 +537,19 @@ async function routeRequest(method, url, payload, data, options = {}) {
       return { ok: true, player: publicPlayer(target), players: publicPlayers(data) };
     }
     if (method === "POST" && url.pathname === "/api/player/reclaim") {
-      // Passcode-gated takeover: lets a second device act as a player that was
-      // already claimed elsewhere, by proving knowledge of the shared Sogo
-      // passcode. Unlike /claim it accepts an already-claimed player, and unlike
-      // /unclaim it does NOT require the caller to be the superuser — the whole
-      // point is for any family device that knows the passcode to recover a
-      // player whose owner token it never held. Issues a fresh owner token,
-      // which invalidates the previous device's token for that player.
-      if (!String(superuserPasscode || "").trim() || String(payload.passcode || "") !== String(superuserPasscode)) {
-        throw new Error("Sogo passcode is incorrect.");
-      }
+      // Takeover: lets a device act as a player already claimed elsewhere (or whose
+      // token this device lost), issuing a fresh owner token that invalidates the
+      // previous one. Only the Sogo ADMIN account is passcode-protected; any other
+      // player can be moved to a device freely (the family trusts each other), so a
+      // device that confirms the move re-binds with no passcode.
       const playerId = String(payload.player_id || payload.id || "").trim();
       const player = data.players.find((item) => item.id === playerId);
       if (!player) throw new Error("Player not found.");
+      if (isSogoSuperuser(data, playerId, superuserPlayerIds)) {
+        if (!String(superuserPasscode || "").trim() || String(payload.passcode || "") !== String(superuserPasscode)) {
+          throw new Error("Sogo passcode is incorrect.");
+        }
+      }
       const ownerToken = generateOwnerToken();
       player.owner_token_hash = await ownerTokenHash(ownerToken);
       return { ok: true, player: publicPlayer(player), owner_token: ownerToken };
