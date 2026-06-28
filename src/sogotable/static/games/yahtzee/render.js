@@ -1,8 +1,8 @@
 // Yahtzee — Game-Locked client renderer.
 //
 // This is a FAITHFUL port of the standalone UI we iterated on (AI/Yahtzee): the
-// same dice, scorecard (Faces/Hands with the scoring legend, bonus row, yellow/
-// grey/green states, blank-in-place), tip strip (tap-to-cycle), sounds, and end
+// same dice, scorecard (Faces/Hands with the scoring legend, bonus row, scorable/
+// grey/scored states, blank-in-place), tip strip (tap-to-cycle), sounds, and end
 // overlay. All of it is scoped under `.yz-root` so the standalone's generic class
 // names (.row/.card/.die/...) never touch the app shell.
 //
@@ -315,7 +315,7 @@ function localHints() {
   const preview = previewScores(localGame);
   const anyPositive = CATEGORIES.some((c) => p.scores[c.key] == null && preview[c.key] > 0);
   const tips = [localGame.rollsLeft > 0 ? "Hold the dice you want, then roll again." : "No rolls left — pick a box to score."];
-  if (anyPositive) tips.push("Tap a yellow box to score points.");
+  if (anyPositive) tips.push("Tap a green box to score points.");
   tips.push("Tap a grey box to take a zero.");
   return tips;
 }
@@ -442,9 +442,9 @@ function injectStyles() {
   .yz-root .row .val{font-variant-numeric:tabular-nums;font-weight:700;min-width:32px;text-align:right;flex:0 0 auto}
   .yz-root .row.open{cursor:pointer}
   .yz-root .row.open .val{color:var(--muted);font-weight:600}
-  .yz-root .row.open.canscore{background:#fef3c7}
-  .yz-root .row.open.canscore .val{color:#b45309}
-  .yz-root .row.open.canscore:active{background:#fde68a}
+  .yz-root .row.open.canscore{background:#dcfce7}
+  .yz-root .row.open.canscore .val{color:#15803d}
+  .yz-root .row.open.canscore:active{background:#bbf7d0}
   .yz-root .row.open.zeroplay{background:rgba(0,0,0,.035)}
   .yz-root .row.open.zeroplay .val{color:var(--muted)}
   .yz-root .row.open.zeroplay:active{background:rgba(0,0,0,.07)}
@@ -475,9 +475,9 @@ function injectStyles() {
   :root[data-theme="dark"] .yz-root{--panel:#1b212b;--head:#222a36;--ink:#e8eaef;--muted:#9aa3b2;--line:#2c3340;--accent:#ef4d52;--accentdk:#ff8d90;--green:#5fd09a}
   :root[data-theme="dark"] .yz-root .tipstrip:active.tappable{background:#262f3d}
   :root[data-theme="dark"] .yz-root .lbtable tr.me{background:rgba(239,77,82,.16)}
-  :root[data-theme="dark"] .yz-root .row.open.canscore{background:#2c2613}
-  :root[data-theme="dark"] .yz-root .row.open.canscore .val{color:#f1dca2}
-  :root[data-theme="dark"] .yz-root .row.open.canscore:active{background:#3a3119}
+  :root[data-theme="dark"] .yz-root .row.open.canscore{background:#14271b}
+  :root[data-theme="dark"] .yz-root .row.open.canscore .val{color:#9fe3bf}
+  :root[data-theme="dark"] .yz-root .row.open.canscore:active{background:#1d3a28}
   :root[data-theme="dark"] .yz-root .row.open.zeroplay{background:rgba(255,255,255,.04)}
   :root[data-theme="dark"] .yz-root .row.open.zeroplay:active{background:rgba(255,255,255,.08)}
   `;
