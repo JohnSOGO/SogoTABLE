@@ -341,6 +341,32 @@ test("Yahtzee series: solo seat advances through 6 games to completion", async (
   assert.equal(res.room.game.winner, "P1");
 });
 
+test("finished games are garbage-collected after the grace window", async () => {
+  const env = makeEnv();
+  await post(env, "/api/players/create", { player: player("p1", "P1") });
+  const HOUR = 60 * 60 * 1000;
+  const now = Date.now();
+  mutateState(env, (data) => {
+    data.rooms = {
+      OLD: { code: "OLD", game: { status: "x_won" }, players: [], completed_at: now - 4 * HOUR },
+      NEW: { code: "NEW", game: { status: "complete" }, players: [], completed_at: now - 1 * HOUR },
+      FRESH: { code: "FRESH", game: { status: "draw" }, players: [] }, // finished, not yet stamped
+      ACT: { code: "ACT", game: { status: "playing" }, players: [], started: true },
+    };
+    data.invites = { i1: { id: "i1", room_code: "OLD" }, i2: { id: "i2", room_code: "ACT" } };
+  });
+  // Any mutation reloads state (prune runs) and persists the result.
+  await post(env, "/api/players/create", { player: player("p2", "P2") });
+  const data = stateData(env);
+  assert.equal("OLD" in data.rooms, false, "finished game past the window is pruned");
+  assert.equal("NEW" in data.rooms, true, "finished game within the window is kept");
+  assert.equal("FRESH" in data.rooms, true, "just-finished game is kept (clock just started)");
+  assert.ok(data.rooms.FRESH.completed_at, "just-finished game gets a completed_at stamp");
+  assert.equal("ACT" in data.rooms, true, "active game is never pruned");
+  assert.equal("i1" in data.invites, false, "invite to a pruned room is dropped");
+  assert.equal("i2" in data.invites, true, "invite to a live room is kept");
+});
+
 test("editing a player seated in a Yahtzee room serializes a legacy bot seat without gameTotals", async () => {
   // Regression: refreshActiveRoomPlayer re-serializes every room the edited player
   // is seated in. yahtzeeGameToDict reads bot seat gameTotals; legacy bot seats

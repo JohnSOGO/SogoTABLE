@@ -3,6 +3,33 @@
 // decisions. The Worker imports loadState/saveState/withStateRetry; ensureSchema
 // and writeChanged stay module-private.
 
+// Finished games are invisible to the UI (the lobby only lists active/waiting)
+// but stay in the single state blob forever unless a player explicitly leaves,
+// so they accumulate and bloat every read/write. Garbage-collect them on load:
+// keep a finished game a short grace window (rematch/review still works), then
+// drop it. This is data-lifecycle/retention only — it makes no game decisions,
+// and stats live in data.stats so no scores or history are lost.
+const COMPLETED_ROOM_TTL_MS = 3 * 60 * 60 * 1000; // ~3 hours
+const COMPLETED_ROOM_STATUSES = new Set(["x_won", "o_won", "draw", "complete"]);
+
+function pruneCompletedRooms(data, now) {
+  if (!data.rooms) return;
+  for (const [code, room] of Object.entries(data.rooms)) {
+    const status = room && room.game && room.game.status;
+    if (!COMPLETED_ROOM_STATUSES.has(status)) continue;
+    // Start the clock the first time we see a game finished (older rooms have no
+    // stamp); drop it once the grace window has elapsed.
+    if (!room.completed_at) { room.completed_at = now; continue; }
+    if (room.completed_at < now - COMPLETED_ROOM_TTL_MS) delete data.rooms[code];
+  }
+  // Drop invites that point at a room we just removed (or any missing room).
+  if (data.invites) {
+    for (const [id, invite] of Object.entries(data.invites)) {
+      if (invite && invite.room_code && !data.rooms[invite.room_code]) delete data.invites[id];
+    }
+  }
+}
+
 async function loadState(env) {
   await ensureSchema(env);
   const row = await env.SOGOTABLE_STATE.prepare("SELECT value, version FROM app_state WHERE key = ?").bind("state").first();
@@ -11,6 +38,7 @@ async function loadState(env) {
   if (!data.stats.high_scores) data.stats.high_scores = {};
   if (!data.stats.ratings) data.stats.ratings = {};
   if (!data.stats.personal) data.stats.personal = {};
+  pruneCompletedRooms(data, Date.now());
   Object.defineProperties(data, {
     __stateExists: { value: Boolean(row), enumerable: false },
     __version: { value: row ? Number(row.version || 0) : 0, enumerable: false },
