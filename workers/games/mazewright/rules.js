@@ -164,7 +164,7 @@ export function makeMazewrightMove(game, mark, action) {
 
 // ---- leaderboard projection (identical for every viewer; mazes are public) ----
 export function mazewrightGameToDict(game) {
-  const { authorPoints, runnerMoves, runnerLoot } = standings(game);
+  const { authorPoints, runnerMoves, runnerLoot, composite } = standings(game);
   const complete = game.status === "complete";
   const total = game.deck ? game.deck.length : (game.seat_order ? game.seat_order.length : 0);
   const players = (game.seat_order || []).map((mark) => {
@@ -184,6 +184,7 @@ export function mazewrightGameToDict(game) {
       runner_moves: runnerMoves[mark] || 0,
       runner_loot: runnerLoot[mark] || 0,
       author_points: authorPoints[mark] || 0,
+      composite: Math.round((composite[mark] || 0) * 10) / 10,
       finish_state,
     };
   });

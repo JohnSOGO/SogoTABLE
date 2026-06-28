@@ -9,7 +9,7 @@ player plays on their own device (no hot-seat / local opponent).
 
 - **Board:** a 7×7 fog-of-war dungeon with a brick perimeter.
 - **Players:** 1+ (host-start, like 10,000 / Yahtzee). Bots supported.
-- **Loot:** the wright hides **3 💎 + 2 🪙** in their maze.
+- **Loot:** the wright hides **5 💎** in their maze.
 - **Exit:** one **golden archway** on the perimeter.
 
 ## Flow — three phases (the room state machine)
@@ -17,7 +17,8 @@ player plays on their own device (no hot-seat / local opponent).
 1. **BUILD (barrier).** Each player builds a maze on their own device using an
    explicit **edit-mode toolbar** (Walls / Start / Loot / Exit) so each mode lights
    up only its own hitboxes — no overloaded taps. Walls ≤ 30, one golden exit, drag
-   the pawn + loot. Submitting sends only the compact **maze code** (`SUBMIT_MAZE`);
+   the pawn, and **tap-to-pick / tap-to-drop** the gems. Submitting sends only the
+   compact **maze code** (`SUBMIT_MAZE`);
    the room advances when **every human** has submitted. Copy/paste of an exact
    dungeon lives behind a collapsed **Advanced** drawer so the default flow is
    build-first, not paste-first.
@@ -25,17 +26,24 @@ player plays on their own device (no hot-seat / local opponent).
    server-chosen **invert + ±90° rotation** per maze, so even your own dungeon is
    disorienting. Each player runs every maze under fog — moving blind via
    **full-board swipe, a large D-pad, on-board pads, or arrow keys**, walls
-   revealing on a bump, the arch appearing when reached, loot flying into the
-   inventory — and posts only the committed result `{moves, loot}`
-   (`POST_RESULT`). In-progress crawling never leaves the device.
+   revealing on a bump, the arch appearing when reached. The **uncollected gems
+   show through the fog** so the runner can weigh chasing the shiny vs. bolting for
+   the exit; grabbed gems fly into the inventory. Each player posts only the
+   committed result `{moves, loot}` (`POST_RESULT`). In-progress crawling never
+   leaves the device.
 3. **TALLY.** When all humans finish, the server awards three prizes and one
    overall champion:
    - 🧱 **Mazewright** — highest **maze score** (see below).
    - 🏃 **Mazerunner** — fewest total moves across all mazes.
    - 💎 **Treasure Hunter** — most loot collected.
-   - 🏆 **Champion** — a **5/3/3 medal composite** (Mazewright 5, Mazerunner 3,
-     Treasure Hunter 3). Ties break on most medals, then fewest total moves. This
-     is `game.winner`, so running and treasure matter, not just authoring.
+   - 🏆 **Champion** — a **rank-weighted composite of all three fields**. Each
+     player earns a per-category rank score in `[0, N−1]` (best = N−1; ties share
+     the average), weighted **5 author / 3 runner / 3 treasure**:
+     `composite = 5·authorRank + 3·runnerRank + 3·treasureRank`. Ties break on
+     fewest total moves, then seat order. This is `game.winner`, so an all-round
+     2nd-place player beats a one-category specialist — running and treasure matter,
+     not just authoring. (Earlier this was a medal-only composite that paid out only
+     for *winning* a category; the rank version rewards 2nd/3rd place too.)
 
 ### Maze score — reward confusion, not tedium
 

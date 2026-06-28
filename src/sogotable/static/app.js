@@ -2300,7 +2300,8 @@ function renderGame() {
     return;
   }
   if (isYahtzeeGameState(game) || isMazewrightGameState(game)) {
-    document.getElementById("gamePlayersPanel").classList.add("hidden");
+    // Game-Locked games own their HUD; hide the players panel + the empty shell turn strip.
+    ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
     (isMazewrightGameState(game) ? renderMazewrightGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
