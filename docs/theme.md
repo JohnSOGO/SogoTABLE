@@ -32,8 +32,9 @@ they encode the same precedence.
 |---|---|---|
 | Platform shell — body background, headers, panels, modals, game list, player setup, rosters, lobby | **Yes** | Driven by the token override block. |
 | Mazewright — lobby ("table") **and** live board ("game") | **Yes** | Its `--mw-*` palette has dark + light variants; the light variant inherits the platform tokens. |
+| Battleship board | **Yes** | "Dark ocean" palette: deep-navy water, teal ships, hot-red hits, muted misses, amber radar kept. Injected from `games/battleship/client.js` (`BATTLESHIP_DARK_CSS`), theme-gated; the light naval palette in `styles-games.css` is unchanged. |
 | `#intro` hero | **No (intentional)** | Self-contained brand gradient (red → black, white text) that already reads as dark; theme-independent in both modes. |
-| Other game boards — Super TTT, Battleship, Quoridor, Boxes, Yahtzee/10,000 dice | **Not yet** | They render as light "play surfaces" on the dark shell (the lit-table look). Per-game board theming is tracked follow-up work; do it game-by-game using the tokens below. |
+| Other game boards — Super TTT, Quoridor, Boxes, Yahtzee/10,000 dice | **Not yet** | They render as light "play surfaces" on the dark shell (the lit-table look). Per-game board theming is tracked follow-up work; theme each board game-by-game. Pattern: a small theme-gated block injected from the game module (see Battleship), keeping the line-capped shared stylesheet light. |
 
 The boundary is deliberate: the chrome is token-driven and flips safely, but each
 game board carries a bespoke light palette (often `color-mix(... #fff)`) whose dark
@@ -144,3 +145,4 @@ colors (exit green, gold, start blue, accent indigo).
 - `styles-games.css` — consumes tokens; small dark block for in-game shell
   surfaces (lobby, win card/overlay, menu inputs).
 - `games/mazewright/render.js` — `MW_CSS` with dark + light `--mw-*` variants.
+- `games/battleship/client.js` — `BATTLESHIP_DARK_CSS`, injected once; theme-gated dark-ocean board palette (light palette stays in `styles-games.css`).
