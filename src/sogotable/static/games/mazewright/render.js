@@ -7,7 +7,7 @@
 import {
   PHASE, MAX_WALLS, MIN_WALLS, createGame, edgeKey, mazeCode,
   interiorEdges, perimeterEdges, isExit, wallCount, canAddWall, canSubmit,
-  allLootReachable, applyAction, loadRunFromCode,
+  allLootReachable, pathExists, applyAction, loadRunFromCode,
 } from "./rules.js";
 import { renderHostStartLobby } from "../host-lobby.js";
 import { playClick, playConfirm, playCancel, playInvalidMove, playScorePick, playWin } from "../../sound.js";
@@ -196,6 +196,10 @@ function commitBuild(action) {
   try { applyAction(buildState, action); } catch (e) { playCancel(); flash(e.message.replace(/^MW:\s*/, "")); return; }
   playClick();
   renderBuildPhase(ctx.game || {}, localMark());
+  // Re-run validation after EVERY edit (walls, start, loot, paste): a dragged loot
+  // or moved start can strand treasure the wall guard never saw. Flag it loudly.
+  if (!allLootReachable(buildState)) { playCancel(); flash("A treasure is walled off — clear a path to it before you submit."); }
+  else if (buildState.exit && !pathExists(buildState, buildState.start, buildState.exit.cell)) { playCancel(); flash("Your start can't reach the exit."); }
 }
 
 function submitMaze() {
@@ -215,6 +219,7 @@ function renderRunPhase(game, myMark) {
   show(".mw-board"); show(".mw-inventory");
   q(".mw-controls").style.display = "none";
   hide(".mw-advanced"); hide(".mw-modes");
+  q(".mw-meters").innerHTML = "";   // drop the build meters once we're crawling
 
   if (!seat || seat.run_done) {
     setText(".mw-turnname", "🏁 all mazes run"); tag("Done", "crawl");
@@ -442,6 +447,12 @@ function renderBoardInto(state, mode, opts) {
       buildMode === "loot" ? (cl) => commitBuild({ type: "SET_ITEM", index: i, cell: cl }) : null));
     drawToken(add, g, svg, state, state.pos, meEmoji, meColor,
       buildMode === "start" ? (cl) => commitBuild({ type: "SET_START", cell: cl }) : null);
+    // flag anything the start can't reach — recomputed every render, so it tracks
+    // every wall/loot/start edit (the walled-off-diamond case)
+    for (const it of state.items) if (!pathExists(state, state.start, it.cell))
+      add("circle", { cx: cx(it.cell[0]), cy: cy(it.cell[1]), r: size * 0.42, class: "mw-warnring" });
+    if (state.exit && !pathExists(state, state.start, state.exit.cell))
+      add("circle", { cx: cx(state.exit.cell[0]), cy: cy(state.exit.cell[1]), r: size * 0.42, class: "mw-warnring" });
   } else if (reveal) {
     for (const k of Object.keys(state.visited)) { const [c, r] = k.split(",").map(Number); add("circle", { cx: cx(c), cy: cy(r), r: size * 0.07, class: "mw-trail" }); }
     for (const it of state.items) { const el = add("text", { x: cx(it.cell[0]), y: cy(it.cell[1]), class: "mw-emoji" + (it.collected ? "" : " mw-treasure") }); el.textContent = it.type === "diamond" ? "💎" : "🪙"; if (it.collected) el.setAttribute("opacity", "0.4"); }
@@ -496,7 +507,12 @@ function animateCollect(types) {
 }
 
 // ---------- crawl movement: D-pad + full-board swipe ----------
-function setDpad(on) { const e = q(".mw-dpad"); if (e) e.style.display = on ? "grid" : "none"; }
+function setDpad(on) {
+  const e = q(".mw-dpad"); if (e) e.style.display = on ? "grid" : "none";
+  // touch-action:none on the board only while crawling, so a swipe is captured as
+  // a move instead of scrolling the page (and build-phase page scroll still works).
+  const b = q(".mw-board"); if (b) b.classList.toggle("crawling", on);
+}
 
 // One-time swipe gesture on the board. Only fires during a crawl, ignores the
 // build-phase token drags (the `dragging` flag), and ignores taps under the
@@ -563,7 +579,9 @@ const MW_CSS = `
 .mazewright-root .mw-mode{flex:1;padding:9px 4px;border-radius:10px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid var(--mw-grid);background:var(--mw-cellc);color:var(--mw-muted);}
 .mazewright-root .mw-mode.active{color:var(--mw-ink);border-color:var(--mw-accent);background:var(--mw-pad);}
 .mazewright-root .mw-board{width:100%;max-width:460px;}
+.mazewright-root .mw-board.crawling,.mazewright-root .mw-board.crawling svg{touch-action:none;}
 .mazewright-root svg{width:100%;height:auto;display:block;touch-action:manipulation;}
+.mazewright-root .mw-warnring{fill:none;stroke:#e85d75;stroke-width:2.5;stroke-dasharray:4 3;pointer-events:none;}
 .mazewright-root .mw-cell{fill:var(--mw-cellc);} .mazewright-root .mw-cell.start{fill:var(--mw-start);}
 .mazewright-root .mw-cell.tap{cursor:pointer;} .mazewright-root .mw-cell.fog{fill:var(--mw-fog);}
 .mazewright-root .mw-cell.seen{fill:var(--mw-cellc);} .mazewright-root .mw-cell.here{fill:var(--mw-start);}
