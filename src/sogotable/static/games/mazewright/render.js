@@ -13,7 +13,6 @@ import { renderHostStartLobby } from "../host-lobby.js";
 import { playClick, playConfirm, playCancel, playInvalidMove, playScorePick, playWin } from "../../sound.js";
 
 const PAD = 26, VIEW = 420;
-const DIRS = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 const SVG_DEFS =
   '<defs><pattern id="mwbrick" width="14" height="8" patternUnits="userSpaceOnUse">' +
   '<rect width="14" height="8" fill="#4a1d14"/>' +
@@ -274,7 +273,9 @@ function renderRunView(game, myMark, idx, deck) {
   }
   hide(".mw-done"); setDpad(true);
   tag("Crawl", "crawl");
-  setText(".mw-sub", "It's dark — swipe the board, tap the arrows, or use arrow keys. Walls reveal on a bump; the arch shows when you reach it.");
+  setText(".mw-sub", isTouchDevice()
+    ? "It's dark — swipe the maze to move (or tap the arrows). Walls reveal on a bump; the arch shows when you reach it."
+    : "It's dark — use the arrow keys to move (or drag the maze with the mouse). Walls reveal on a bump; the arch shows when you reach it.");
   renderBoardInto(runState, "crawl", {});
 }
 
@@ -517,19 +518,12 @@ function renderBoardInto(state, mode, opts) {
     add("text", { x: cx(state.pos[0]), y: cy(state.pos[1]), class: "mw-emoji" }).textContent = meEmoji;
   } else {
     // Crawl: show the uncollected gems through the fog so the runner can decide to
-    // chase the shiny or bolt for the exit (the Treasure Hunter tension).
+    // chase the shiny or bolt for the exit (the Treasure Hunter tension). Movement
+    // is swipe / D-pad / arrow keys — no on-pawn pads (they looked goofy).
     for (const it of state.items) if (!it.collected)
       add("text", { x: cx(it.cell[0]), y: cy(it.cell[1]), class: "mw-emoji mw-treasure" }).textContent = "💎";
-    const px = cx(state.pos[0]), py = cy(state.pos[1]);
-    add("circle", { cx: px, cy: py, r: size * 0.34, fill: meColor, "fill-opacity": 0.3, stroke: meColor, "stroke-width": 2 });
-    add("text", { x: px, y: py, class: "mw-emoji" }).textContent = meEmoji;
-    const onExit = state.exit && state.pos[0] === state.exit.cell[0] && state.pos[1] === state.exit.cell[1];
-    for (const [dir, [dc, dr]] of Object.entries(DIRS)) {
-      const padx = px + dc * size * 0.5, pady = py + dr * size * 0.5;
-      const pad = add("circle", { cx: padx, cy: pady, r: size * 0.15, class: "mw-pad" + (onExit && dir === state.exit.dir ? " exit" : "") });
-      pad.addEventListener("click", () => commitRun({ type: "MOVE", dir }));
-      add("text", { x: padx, y: pady, class: "mw-padarrow" }).textContent = { N: "▲", E: "▶", S: "▼", W: "◀" }[dir];
-    }
+    add("circle", { cx: cx(state.pos[0]), cy: cy(state.pos[1]), r: size * 0.34, fill: meColor, "fill-opacity": 0.3, stroke: meColor, "stroke-width": 2 });
+    add("text", { x: cx(state.pos[0]), y: cy(state.pos[1]), class: "mw-emoji" }).textContent = meEmoji;
   }
   const wrap = q(".mw-board"); wrap.innerHTML = ""; wrap.appendChild(svg);
 }
@@ -564,10 +558,17 @@ function animateCollect(types) {
 }
 
 // ---------- crawl movement: D-pad + full-board swipe ----------
+// Phone / tablet (coarse pointer or touch). Used to gate the D-pad + pick the tip.
+function isTouchDevice() {
+  return (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ||
+    navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+}
+
 function setDpad(on) {
-  const e = q(".mw-dpad"); if (e) e.style.display = on ? "grid" : "none";
-  // touch-action:none on the board only while crawling, so a swipe is captured as
-  // a move instead of scrolling the page (and build-phase page scroll still works).
+  // D-pad is for touch only; PCs use swipe + arrow keys. The crawling class (which
+  // sets touch-action:none so a swipe is captured, not a page scroll) applies during
+  // any crawl regardless of device.
+  const e = q(".mw-dpad"); if (e) e.style.display = (on && isTouchDevice()) ? "grid" : "none";
   const b = q(".mw-board"); if (b) b.classList.toggle("crawling", on);
 }
 
