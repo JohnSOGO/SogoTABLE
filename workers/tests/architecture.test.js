@@ -6,16 +6,19 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 // Ratchet guards (from the 2026-06-26 architecture review): the two god-files
-// and the stylesheet must not silently regrow. When you extract code out of one,
+// and the stylesheets must not silently regrow. When you extract code out of one,
 // LOWER its ceiling to lock the win in. If a new feature pushes a file over its
 // ceiling, that is the signal to extract something first, not to bump the limit.
+// styles.css was split into styles.css (platform chrome) + styles-games.css
+// (game-screen visuals) on 2026-06-27 to make room without regrowth.
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const lineCount = (rel) => readFileSync(join(root, rel), "utf8").split("\n").length;
 
 const CEILINGS = {
   "src/sogotable/static/app.js": 3085,
   "workers/sogotable-api.js": 2075,
-  "src/sogotable/static/styles.css": 2800,
+  "src/sogotable/static/styles.css": 1350,
+  "src/sogotable/static/styles-games.css": 1700,
 };
 
 for (const [rel, ceiling] of Object.entries(CEILINGS)) {

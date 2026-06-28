@@ -1,4 +1,4 @@
-const CACHE_NAME = "sogotable-static-v96";
+const CACHE_NAME = "sogotable-static-v97";
 const STATIC_ASSETS = [
   "/assets/intro-screen.png",
   "/assets/icon-192.png",
@@ -37,6 +37,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname === "/realtime.js" ||
     url.pathname === "/sound.js" ||
     url.pathname === "/styles.css" ||
+    url.pathname === "/styles-games.css" ||
     url.pathname === "/manifest.webmanifest" ||
     url.pathname === "/revision.json" ||
     url.pathname.startsWith("/games/")

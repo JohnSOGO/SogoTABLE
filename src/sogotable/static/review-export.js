@@ -40,6 +40,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/controllers/game-stats.js",
   "src/sogotable/static/controllers/win-overlay.js",
   "src/sogotable/static/styles.css",
+  "src/sogotable/static/styles-games.css",
   "src/sogotable/static/manifest.webmanifest",
   "src/sogotable/static/games/registry.js",
   "src/sogotable/static/games/render-keys.js",
