@@ -474,20 +474,15 @@ const MW_CSS = `
  --mw-start:#33406b;--mw-exit:#46d18a;--mw-gold:#e9c45a;--mw-accent:#7c6cff;
  --mw-fog:#131019;--mw-stage:#16121f;--mw-padink:#ffffff;--mw-pad:rgba(124,108,255,.25);--mw-trail:rgba(255,255,255,.8);
  color:var(--mw-ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
-/* Theme: the dark dungeon is the default look; light mode is a parchment variant.
-   Both blocks cover the lobby ("table") and the live board ("game"), scoped to
-   .mazewright-root so the rest of the platform stays untouched. data-theme is set
-   on <html> before paint (index.html) from the saved choice or the device. */
+/* Theme: the dark dungeon is the board's default; light mode echoes the platform
+   light scheme (neutral tokens pulled straight from the shell). The lobby
+   ("table") follows the global theme like every other game now — only the board
+   palette is game-specific. data-theme is set on <html> before paint (see
+   index.html + docs/theme.md). */
 :root[data-theme="light"] .mazewright-root{
- --mw-panel:#ffffff;--mw-ink:#2a2440;--mw-muted:#6b6486;--mw-grid:#d8d0ee;--mw-cellc:#ece8fa;
- --mw-start:#bcd0f7;--mw-exit:#1f9d62;--mw-gold:#b07d12;--mw-accent:#6a5be0;
- --mw-fog:#cfc8e0;--mw-stage:#f3f0fb;--mw-padink:#241f3a;--mw-pad:rgba(106,91,224,.18);--mw-trail:rgba(60,48,110,.7);}
-/* The lobby is shared platform chrome (host-lobby.js) drawn with the platform
-   tokens; in dark mode flip those tokens (scoped here) so the "table" matches the
-   dark board instead of staying light. Light mode keeps the platform defaults. */
-:root[data-theme="dark"] .mazewright-root{--ink:#f3effa;--muted:#9b93b5;--line:#3a3350;--panel:#211d31;--turn-soft:#2a2540;}
-:root[data-theme="dark"] .mazewright-root .ten-thousand-message{background:#1b1727;border-color:#3a3350;}
-:root[data-theme="dark"] .mazewright-root .secondary{background:#2a2540;border-color:#3a3350;color:#cfc6f5;}
+ --mw-stage:var(--bg);--mw-panel:var(--panel);--mw-ink:var(--ink);--mw-muted:var(--muted);--mw-grid:var(--line);
+ --mw-cellc:#edeef3;--mw-start:#cfe0ff;--mw-exit:#1f9d62;--mw-gold:#b07d12;--mw-accent:#6a5be0;
+ --mw-fog:#d9dbe4;--mw-padink:#241f3a;--mw-pad:rgba(106,91,224,.18);--mw-trail:rgba(60,48,110,.7);}
 .mazewright-root .mw-panel{width:100%;max-width:460px;background:var(--mw-panel);border:1px solid var(--mw-grid);border-radius:14px;padding:12px 14px;}
 .mazewright-root .mw-hudrow{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .mazewright-root .mw-turn{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.02rem;}

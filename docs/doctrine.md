@@ -62,6 +62,7 @@ If the idea is still fuzzy or architecture-shaping, run AREC before implementati
 - Screen states, room flow, and modal behavior -> `docs/state-machine.md`
 - Runtime ownership, browser vs Worker boundaries, or system shape -> `docs/architecture.md`
 - Polling, WebSockets, Durable Objects, or quota-sensitive behavior -> `docs/cloudflare-quota.md`
+- Colors, dark/light theme, or adding theme-sensitive styles -> `docs/theme.md`
 - Risky or ambiguous idea proposals -> `docs/AREC.md`
 
 ## Core Doctrine

@@ -59,7 +59,10 @@ export function setDarkMode(useDark) {
 }
 
 export function applyTheme() {
-  document.documentElement.setAttribute("data-theme", effectiveTheme());
+  const theme = effectiveTheme();
+  document.documentElement.setAttribute("data-theme", theme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", theme === "dark" ? "#14181f" : "#ffffff");
 }
 
 // Drop the long-retired local roster keys (players now live in the Worker).
