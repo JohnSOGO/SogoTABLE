@@ -149,6 +149,7 @@ function renderBuildPhase(game, myMark) {
   const seat = serverSeat(game, myMark);
   const submitted = seat && seat.built;
   show(".mw-board"); setDpad(false);
+  q(".mw-hud").style.display = "";   // restored after a complete screen (rematch)
   hide(".mw-inventory"); hide(".mw-done");
 
   const rk = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
@@ -228,6 +229,7 @@ function renderRunPhase(game, myMark) {
   const deck = game.deck || [];
   show(".mw-board"); show(".mw-inventory");
   q(".mw-controls").style.display = "none";
+  q(".mw-hud").style.display = "";   // restored after a complete screen (rematch)
   hide(".mw-advanced"); hide(".mw-modes");
   q(".mw-meters").innerHTML = "";   // drop the build meters once we're crawling
 
@@ -298,29 +300,59 @@ function postRunResult() {
   ctx.makeMove({ type: "POST_RESULT", moves: runState.moves, loot });
 }
 
-// ---------- complete (prizes) ----------
+// ---------- complete (champion + standings) ----------
 function renderComplete(game, myMark) {
   hide(".mw-board"); hide(".mw-inventory"); hide(".mw-advanced"); hide(".mw-modes"); setDpad(false); q(".mw-controls").style.display = "none";
+  q(".mw-hud").style.display = "none";   // the champion hero replaces the HUD strip here
   if (!wonSound) { wonSound = true; playWin(); }
-  setText(".mw-turnname", "🏆 Prizes"); tag("Done", "crawl"); setText(".mw-sub", "");
-  q(".mw-meters").innerHTML = "";
   const prizes = game.prizes || {};
+  const winner = game.winner;
   const seatOf = (mark) => serverSeat(game, mark) || {};
-  const who = (mark) => { const p = seatProfile(mark); return `${p.icon || "🧙"} ${p.name || mark}${mark === myMark ? " (you)" : ""}`; };
-  const card = (icon, name, mark, detail) =>
-    `<div class="mw-prize${mark === myMark ? " mine" : ""}"><span class="mw-pzico">${icon}</span>` +
-    `<span class="mw-pzbody"><b>${name}</b><br>${who(mark)} <span class="mw-pzdetail">· ${detail}</span></span></div>`;
+  const prof = (mark) => seatProfile(mark);
+  const youtag = (mark) => (mark === myMark ? ' <span class="mw-youtag">you</span>' : "");
+  // which medals a player holds (used for the why-line + inline standings icons)
+  const medalIcons = (mark) =>
+    (prizes.mazewright === mark ? "🧱" : "") + (prizes.mazerunner === mark ? "🏃" : "") + (prizes.treasureHunter === mark ? "💎" : "");
+  const medalNames = (mark) => [
+    prizes.mazewright === mark ? "🧱 Mazewright" : null,
+    prizes.mazerunner === mark ? "🏃 Mazerunner" : null,
+    prizes.treasureHunter === mark ? "💎 Treasure Hunter" : null,
+  ].filter(Boolean);
+
   const done = q(".mw-done"); show(".mw-done");
-  const champ = game.winner ? `<div class="mw-champ">🏆 <b>${who(game.winner)}</b> wins the dungeon · <b>${seatOf(game.winner).composite || 0}</b> pts</div>` : "";
-  done.innerHTML = champ +
-    card("🧱", "Mazewright", prizes.mazewright, `${seatOf(prizes.mazewright).author_points || 0} maze score`) +
-    card("🏃", "Mazerunner", prizes.mazerunner, `${seatOf(prizes.mazerunner).runner_moves || 0} moves total`) +
-    card("💎", "Treasure Hunter", prizes.treasureHunter, `${seatOf(prizes.treasureHunter).runner_loot || 0} loot`);
+  let html = "";
+  if (winner) {
+    const wp = prof(winner);
+    const won = medalNames(winner);
+    const why = won.length ? `Won ${won.join(" + ")}` : "Best all-rounder across every maze";
+    html += `<div class="mw-hero${winner === myMark ? " you" : ""}">` +
+      `<div class="mw-herocrown">🏆</div>` +
+      `<div class="mw-heroname"><span class="mw-heroav" style="background:${wp.color || "#7c6cff"}">${wp.icon || "🧙"}</span>` +
+      `<b>${wp.name || winner}</b>${youtag(winner)}</div>` +
+      `<div class="mw-heropts"><b>${seatOf(winner).composite || 0}</b> pts</div>` +
+      `<div class="mw-herowhy">${why}</div></div>`;
+  }
+  // standings: every player sorted by composite, medals inline, "you" neutral
+  const ranked = (game.players || []).slice().sort((a, b) => (b.composite || 0) - (a.composite || 0));
+  const rows = ranked.map((seat, i) => {
+    const you = seat.mark === myMark, isChamp = seat.mark === winner;
+    const icons = medalIcons(seat.mark);
+    return `<div class="mw-srow${isChamp ? " champ" : ""}${you ? " you" : ""}">` +
+      `<span class="mw-srank">${isChamp ? "🏆" : i + 1}</span>` +
+      `<span class="mw-sname"><span class="mw-pdot" style="background:${prof(seat.mark).color || "#7c6cff"}"></span>` +
+      `${prof(seat.mark).icon || "🧙"} ${seat.name}${seat.is_bot ? " 🤖" : ""}${youtag(seat.mark)}` +
+      `${icons ? ` <span class="mw-smedals">${icons}</span>` : ""}</span>` +
+      `<span class="mw-spts">${seat.composite || 0}</span></div>`;
+  }).join("");
+  html += `<div class="mw-standings"><div class="mw-sthead"><span>#</span><span>Player · medals</span><span>pts</span></div>${rows}</div>`;
+  html += `<div class="mw-legend">🏆 Score = rank in 🧱 maze design ×5 · 🏃 fewest moves ×3 · 💎 treasure ×3</div>`;
+  done.innerHTML = html;
 }
 
 // ---------- leaderboard ----------
 function renderLeaderboard(game, myMark) {
   const status = game.status;
+  if (status === "complete") { const t = q(".mw-table"); if (t) t.style.display = "none"; return; }  // the champion+standings card covers it
   const rows = (game.players || []).map((seat) => {
     const you = seat.mark === myMark;
     const p = seatProfile(seat.mark);
@@ -655,9 +687,26 @@ const MW_CSS = `
 .mazewright-root .mw-pname{display:flex;align-items:center;gap:8px;font-weight:600;}
 .mazewright-root .mw-pdot{width:11px;height:11px;border-radius:50%;flex:none;}
 .mazewright-root .mw-pstat{font-size:.82rem;color:var(--mw-muted);white-space:nowrap;} .mazewright-root .mw-prow.you .mw-pstat{color:var(--mw-ink);}
-.mazewright-root .mw-prize{display:flex;align-items:center;gap:11px;text-align:left;margin:8px 0;padding:10px 12px;border-radius:11px;background:var(--mw-cellc);border:1px solid var(--mw-grid);}
-.mazewright-root .mw-prize.mine{border-color:var(--mw-gold);}
-.mazewright-root .mw-pzico{font-size:1.7rem;flex:none;} .mazewright-root .mw-pzbody{font-size:.92rem;line-height:1.35;}
-.mazewright-root .mw-pzdetail{color:var(--mw-muted);font-size:.82rem;}
+/* Final screen: champion hero (gold = champion ONLY) + standings; "you" is a
+   neutral accent chip, never gold, so the two stop competing. */
+.mazewright-root .mw-hero{text-align:center;padding:16px 14px;border-radius:14px;margin-bottom:12px;background:linear-gradient(180deg,rgba(233,196,90,.18),rgba(233,196,90,.05));border:1px solid var(--mw-gold);}
+.mazewright-root .mw-herocrown{font-size:2.2rem;line-height:1;}
+.mazewright-root .mw-heroname{display:flex;align-items:center;justify-content:center;gap:8px;font-size:1.25rem;margin-top:4px;}
+.mazewright-root .mw-heroav{width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:1.05rem;}
+.mazewright-root .mw-heropts{font-size:1.5rem;font-weight:800;color:var(--mw-gold);margin-top:6px;}
+.mazewright-root .mw-herowhy{color:var(--mw-muted);font-size:.86rem;margin-top:2px;}
+.mazewright-root .mw-youtag{font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:999px;background:var(--mw-accent);color:#fff;vertical-align:middle;}
+.mazewright-root .mw-standings{text-align:left;}
+.mazewright-root .mw-sthead{display:flex;align-items:center;gap:10px;font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--mw-muted);padding:0 10px 6px;}
+.mazewright-root .mw-sthead span:first-child{width:1.5rem;text-align:center;} .mazewright-root .mw-sthead span:nth-child(2){flex:1;}
+.mazewright-root .mw-srow{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:1px solid var(--mw-grid);}
+.mazewright-root .mw-srow+.mw-srow{margin-top:5px;}
+.mazewright-root .mw-srow.champ{border-color:var(--mw-gold);background:rgba(233,196,90,.10);}
+.mazewright-root .mw-srow.you .mw-pdot{box-shadow:0 0 0 2px var(--mw-ink);}
+.mazewright-root .mw-srank{width:1.5rem;text-align:center;font-weight:800;color:var(--mw-muted);}
+.mazewright-root .mw-sname{flex:1;display:flex;align-items:center;gap:7px;font-weight:600;}
+.mazewright-root .mw-smedals{letter-spacing:1px;}
+.mazewright-root .mw-spts{font-weight:800;font-size:1.05rem;}
+.mazewright-root .mw-legend{margin-top:10px;color:var(--mw-muted);font-size:.76rem;line-height:1.5;text-align:center;}
 .mw-flying{position:fixed;z-index:50;font-size:26px;pointer-events:none;transform:translate(-50%,-50%) scale(1.4);transition:left .6s cubic-bezier(.35,.1,.2,1),top .6s cubic-bezier(.35,.1,.2,1),transform .6s,opacity .6s;filter:drop-shadow(0 0 7px rgba(120,210,255,.9));}
 `;
