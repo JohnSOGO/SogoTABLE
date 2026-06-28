@@ -1067,8 +1067,7 @@ function renderSelectedPlayer() {
 
 async function refreshSelectedPlayerStats() {
   const playerId = deviceSelectedPlayerId;
-  if (playerId !== playerStatsCollapsePlayerId) {
-    // A freshly selected player starts with stats hidden behind the toggle.
+  if (playerId !== playerStatsCollapsePlayerId) { // a freshly selected player starts collapsed
     playerStatsCollapsed = true;
     playerStatsCollapsePlayerId = playerId || "";
   }
@@ -1106,7 +1105,6 @@ function renderSelectedPlayerStats(message = "") {
   if (nextKey === lastSelectedPlayerStatsKey) return;
   lastSelectedPlayerStatsKey = nextKey;
   host.classList.remove("hidden");
-  const toggle = `<button type="button" class="player-stats-toggle label" aria-expanded="${!playerStatsCollapsed}">Player Stats</button>`;
   let body;
   if (message) {
     body = `<p>${escapeHtml(message)}</p>`;
@@ -1135,14 +1133,12 @@ function renderSelectedPlayerStats(message = "") {
     </table>
   `;
   }
-  host.innerHTML = `${toggle}<div class="player-stats-body${playerStatsCollapsed ? " hidden" : ""}">${body}</div>`;
+  host.innerHTML = `<button type="button" class="player-stats-toggle label" aria-expanded="${!playerStatsCollapsed}">Player Stats</button><div class="player-stats-body${playerStatsCollapsed ? " hidden" : ""}">${body}</div>`;
   const toggleButton = host.querySelector(".player-stats-toggle");
-  if (toggleButton) {
-    toggleButton.addEventListener("click", () => {
-      playerStatsCollapsed = !playerStatsCollapsed;
-      renderSelectedPlayerStats(message);
-    });
-  }
+  if (toggleButton) toggleButton.onclick = () => {
+    playerStatsCollapsed = !playerStatsCollapsed;
+    renderSelectedPlayerStats(message);
+  };
 }
 
 function renderCurrentPlayer() {
