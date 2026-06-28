@@ -73,6 +73,16 @@ Conventions:
 - **Scope every CSS selector** under a single `.<game>-root` wrapper. A promoted
   standalone with generic names (`.row`, `.card`, `.cell`) would clobber the shell
   globally. Inject one scoped stylesheet.
+- **Support light *and* dark from the start.** SogoTable is themed: the shell sets
+  `data-theme="dark"|"light"` on `<html>` and every shipped board now has a dark
+  variant. Build the standalone with **both palettes**, not one — drive colours
+  from tokens and/or a scoped `:root[data-theme="dark"] .<game>-root { … }` override
+  (the same theme-gated block that lifts straight into your module), and add a tiny
+  dev toggle or read `prefers-color-scheme` so you can exercise both in the lab.
+  Doing it here means dark mode ships with the game instead of being a follow-up
+  pass. Don't blanket-darken — physical objects that read naturally light on a dark
+  surface (dice, white pieces) **stay light** by design. Check contrast both ways.
+  Spec + per-game pattern: [docs/theme.md](theme.md).
 - **Emoji over binaries** on the critical path; keep large art out of the
   prototype.
 
@@ -177,6 +187,9 @@ gate. Never commit anything under `AI/`.
 - [ ] Plain-data state; RNG behind a seam; hidden-info/authority deltas noted in
       `PLAN.md`.
 - [ ] All CSS scoped under `.<game>-root`; mobile-first; emoji over binaries.
+- [ ] Works in **both light and dark** (`data-theme`) — tokens or a scoped dark
+      override; contrast checked both ways; physical pieces (dice) kept light on
+      purpose. ([theme.md](theme.md))
 - [ ] `node --test` green; illegal actions throw.
 - [ ] `PLAN.md` answers the Intake Survey; promote only after AREC.
 
@@ -192,3 +205,5 @@ gate. Never commit anything under `AI/`.
 - [Wu Wei Method](wu-wei-method.md) — the flow a game must follow.
 - [State Machine](state-machine.md) — the room/screen behavior your game mounts
   into.
+- [Dark / Light Theme](theme.md) — the theming spec; a standalone should support
+  both palettes so dark mode lifts into the module with the rest of the UI.

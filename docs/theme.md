@@ -130,16 +130,25 @@ colors (exit green, gold, start blue, accent indigo).
 - Verify contrast: body/emphasis text on its surface should clear WCAG AA
   (`color-utils.js` has luminance/contrast helpers if you need to compute).
 
-## Extending to a game board (future work)
+## Theming a game board (standard procedure)
+
+Every shipped board now supports dark mode, and **a new game must too** — theme
+it during the Phase 0 offline UI build so it lifts in with the rest of the UI
+(see [adding-a-game.md](adding-a-game.md) / [offline-ui.md](offline-ui.md)). The
+recipe:
 
 1. Identify the board's surface, line, and text colors (often `#fff`,
    `#f8fafc`, `color-mix(... #fff)`).
 2. Replace surfaces with `var(--surface)` / `var(--surface-sunken)` and `#fff`
-   mix targets with a token so dark mixes toward dark.
-3. Add a `:root[data-theme="dark"] .<game>-… { … }` block only for values that
-   can't be tokenized cleanly.
-4. Check every text-on-surface pair for contrast in both modes.
-5. Update the scope table above.
+   mix targets with a token (or a dark base) so dark mixes toward dark.
+3. Add a theme-gated `:root[data-theme="dark"] .<game>-… { … }` block for values
+   that can't be tokenized cleanly, **injected from the game module** (a
+   `<GAME>_DARK_CSS` string) — not in the line-capped shared stylesheet. This is
+   the pattern every current board uses.
+4. Keep physical pieces that read naturally light (dice, white tokens) light —
+   don't blanket-darken.
+5. Check every text-on-surface pair for contrast in both modes.
+6. Update the scope table above.
 
 ## Files
 
