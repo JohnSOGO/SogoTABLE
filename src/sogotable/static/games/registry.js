@@ -17,6 +17,7 @@ export const GAME_IDS = {
   quoridor: "8f5d2c7a1b90",
   tenThousand: "6d10f4a2c8b3",
   yahtzee: "2c8a5f1e9d74",
+  mazewright: "5e3b9a7c1f04",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -101,5 +102,17 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["yahtzee", "yacht"],
+  },
+  {
+    id: GAME_IDS.mazewright,
+    name: "Mazewright",
+    summary: "Build a fog-of-war dungeon, then everyone races each other's blind — fewest moves and most loot win the prizes.",
+    players: "1+ players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["mazewright", "maze_wright", "dungeon_master"],
   },
 ];

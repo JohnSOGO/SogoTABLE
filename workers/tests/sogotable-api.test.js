@@ -3,10 +3,14 @@ import test from "node:test";
 import {
   EventHubDurableObject, RoomDurableObject, RoomFactoryDurableObject, tenThousandTest,
   MockHibernatedSocket, MockRateLimitBinding,
-  CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, HEX_ID_PATTERN,
+  CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID, HEX_ID_PATTERN,
   makeEnv, makeProductionEnv, makeStrictEnvWithRooms, makeEnvWithRooms, makeEnvWithEvents,
   player, request, get, post, createActiveRoom, withMockRandom, mutateState, stateData,
 } from "./helpers.js";
+import {
+  newMazewrightGame, initMazewrightSeats, makeMazewrightMove, mazewrightGameToDict,
+} from "../games/mazewright/rules.js";
+import { buildRandomMazeCode } from "../../src/sogotable/static/games/mazewright/rules.js";
 
 test("creates, lists, and deletes players", async () => {
   const env = makeEnv();
@@ -288,8 +292,8 @@ test("lists ready games from the hosted game registry", async () => {
   const listed = await get(env, "/api/games");
 
   assert.equal(listed.ok, true);
-  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID]);
-  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready", "ready"]);
+  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID]);
+  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready"]);
   assert.equal(listed.games[0].name, "Super Tic Tac Toe");
   assert.equal(listed.games[1].name, "Super Tic Tactical Toe");
   assert.equal(listed.games[2].name, "Dots and Boxes");
@@ -298,6 +302,7 @@ test("lists ready games from the hosted game registry", async () => {
   assert.equal(listed.games[5].name, "10,000");
   assert.equal(listed.games[5].player_count, null);
   assert.equal(listed.games[6].name, "Yahtzee");
+  assert.equal(listed.games[7].name, "Mazewright");
   assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
 });
@@ -2559,4 +2564,75 @@ test("routes tactical lobby snapshots through the tactical event hub", async () 
   assert.equal(tacticalHub.snapshots.at(-1).game_id, TACTICAL_GAME_ID);
   assert.deepEqual(tacticalHub.snapshots.at(-1).lobby_players.map((item) => item.id), ["host"]);
   assert.equal(classicHub.snapshots.length, 0);
+});
+
+// ---------- Mazewright (Game-Locked build-then-run) ----------
+
+test("Mazewright wrapper: build barrier, bot pre-resolve, run, three prizes", () => {
+  const game = newMazewrightGame();
+  initMazewrightSeats(game, [
+    { mark: "P1", name: "A", kind: "human" },
+    { mark: "P2", name: "B", kind: "human" },
+    { mark: "P3", name: "Bot", kind: "bot", level: 2 },
+  ]);
+  assert.equal(game.status, "building");
+  assert.equal(game.players.P3.built, true);          // bot maze pre-built
+  assert.equal(game.players.P1.built, false);
+
+  makeMazewrightMove(game, "P1", { type: "SUBMIT_MAZE", code: buildRandomMazeCode() });
+  assert.equal(game.status, "building");               // still waiting on P2
+  makeMazewrightMove(game, "P2", { type: "SUBMIT_MAZE", code: buildRandomMazeCode() });
+  assert.equal(game.status, "running");                // build barrier passed
+  assert.equal(game.deck.length, 3);                   // one maze per player
+  assert.equal(game.players.P3.runDone, true);         // bot runs pre-resolved
+
+  for (const m of ["P1", "P2"]) {
+    for (let i = 0; i < 3; i++) makeMazewrightMove(game, m, { type: "POST_RESULT", moves: 10 + i, loot: i % 2 });
+  }
+  assert.equal(game.status, "complete");
+  assert.ok(game.prizes);
+  for (const k of ["mazewright", "mazerunner", "treasureHunter"]) {
+    assert.ok(game.seat_order.includes(game.prizes[k]));
+  }
+  const dict = mazewrightGameToDict(game);
+  assert.equal(dict.status, "complete");
+  assert.equal(dict.deck.length, 3);
+  assert.ok(dict.deck.every((entry) => typeof entry.code === "string" && entry.transform));
+  assert.equal(dict.players.length, 3);
+});
+
+test("Mazewright wrapper rejects an invalid maze code at the barrier", () => {
+  const game = newMazewrightGame();
+  initMazewrightSeats(game, [
+    { mark: "P1", name: "A", kind: "human" },
+    { mark: "P2", name: "B", kind: "human" },
+  ]);
+  makeMazewrightMove(game, "P1", { type: "SUBMIT_MAZE", code: "!!not-a-code!!" });
+  assert.equal(game.players.P1.built, false);          // malformed code rejected
+  assert.equal(game.status, "building");
+});
+
+test("Mazewright plays end-to-end over the room API", async () => {
+  const env = makeEnv();
+  const host = player("mw-host", "Host");
+  const guest = player("mw-guest", "Guest");
+  await post(env, "/api/room/create", { game_id: "mazewright", player: host, code: "MAZE" });
+  await post(env, "/api/room/join", { code: "MAZE", player: guest });
+  const started = await post(env, "/api/room/start", { code: "MAZE", host_id: host.id });
+  assert.equal(started.room.game.game_id, MAZEWRIGHT_GAME_ID);
+  assert.equal(started.room.game.status, "building");
+
+  let res = await post(env, "/api/room/move", { code: "MAZE", player_id: host.id, action: { type: "SUBMIT_MAZE", code: buildRandomMazeCode() } });
+  assert.equal(res.room.game.status, "building");
+  res = await post(env, "/api/room/move", { code: "MAZE", player_id: guest.id, action: { type: "SUBMIT_MAZE", code: buildRandomMazeCode() } });
+  assert.equal(res.room.game.status, "running");
+  assert.equal(res.room.game.deck.length, 2);
+
+  for (const p of [host, guest]) {
+    for (let i = 0; i < 2; i++) {
+      res = await post(env, "/api/room/move", { code: "MAZE", player_id: p.id, action: { type: "POST_RESULT", moves: 8 + i, loot: 1 } });
+    }
+  }
+  assert.equal(res.room.game.status, "complete");
+  assert.ok(res.room.game.prizes);
 });

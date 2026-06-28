@@ -34,6 +34,7 @@ import {
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
 import { renderYahtzeeGame } from "./games/yahtzee/render.js";
+import { renderMazewrightGame } from "./games/mazewright/render.js";
 import {
   isSoundEnabled,
   soundVolumeLevel,
@@ -568,7 +569,6 @@ async function refreshLobbyPlayers(game = selectedGame()) {
   }
 }
 
-
 async function updateLobbyPresence({ game = selectedGame(), allowHidden = false } = {}) {
   const player = deviceSelectedPlayer();
   const gameSelectedScreen = document.getElementById("gameSelected");
@@ -773,7 +773,6 @@ function gameRoomsSignature(rooms) {
   });
 }
 
-
 // Captures who/where for a bug report: the device's player and the screen they
 // are on (and the game/room if any), so reports are actionable without asking.
 function bugReportContext() {
@@ -796,8 +795,6 @@ function bugReportContext() {
     player_name: player ? player.name : "",
   };
 }
-
-
 
 function roomSummarySignature(room) {
   return {
@@ -1757,9 +1754,9 @@ async function startTenThousandGame(openingMinimum) {
 
 // Game-Locked Yahtzee: the local player runs their own game on-device and posts
 // only committed category scores; any unfinished seat may score anytime.
-async function makeYahtzeeAction(action) {
+async function postRoomAction(action) {
   const player = selectedPlayer();
-  if (!player || !currentRoom || !isYahtzeeGameState(currentRoom.game) || pendingMove) return;
+  if (!player || !currentRoom || !currentRoom.game || pendingMove) return;
   pendingMove = {
     key: moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action)),
     roomCode: currentRoom.code,
@@ -2302,10 +2299,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game)) {
     document.getElementById("gamePlayersPanel").classList.add("hidden");
     const localSeat = localRoomSeat(currentRoom);
-    renderYahtzeeGame({
+    (isMazewrightGameState(game) ? renderMazewrightGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
@@ -2313,7 +2310,7 @@ function renderGame() {
       isHost: currentRoom.host_id === deviceSelectedPlayerId,
       localPlayerId: localSeat ? localSeat.id : (selectedPlayerId || deviceSelectedPlayerId),
       pendingMove,
-      makeMove: makeYahtzeeAction,
+      makeMove: postRoomAction,
       startGame: startYahtzeeGame,
       addBot: openBotOpponentModal,
       invitePlayer: openInvitePlayerModal,
@@ -2386,7 +2383,6 @@ function isCompletedRoom(room) {
   return Boolean(room && (room.status === "completed" || ["x_won", "o_won", "draw"].includes(room.game.status)));
 }
 
-
 function battleshipViewerSeat(room) {
   if (!room || !Array.isArray(room.players)) return null;
   return room.players.find((player) => player.id === deviceSelectedPlayerId && player.mark)
@@ -2402,7 +2398,6 @@ function battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, cur
   return currentTurnPlayer || selectedSeat;
 }
 
-
 function randomBattleshipPhrase(phrases) {
   return phrases[Math.floor(Math.random() * phrases.length)] || "";
 }
@@ -2411,7 +2406,6 @@ function randomBattleshipResultPhrase(hit, sunk) {
   if (sunk) return randomBattleshipPhrase(BATTLESHIP_SUNK_PHRASES);
   return randomBattleshipPhrase(hit ? BATTLESHIP_HIT_PHRASES : BATTLESHIP_MISS_PHRASES);
 }
-
 
 function activeBattleshipResultReveal(room, selectedSeat) {
   if (!room || !selectedSeat || !battleshipResultReveal) return null;
@@ -2478,7 +2472,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }
@@ -2621,6 +2615,7 @@ function isTenThousandGameState(game) {
 function isYahtzeeGameState(game) {
   return Boolean(game && canonicalGameId(game.game_id) === YAHTZEE_GAME_ID);
 }
+function isMazewrightGameState(game) { return Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.mazewright); }
 
 function startRoomLiveUpdates() {
   if (!currentRoom) return;
@@ -3056,4 +3051,4 @@ function showRosterError(message) {
 function saveSelectedGame() {
   localStorage.setItem("sogotable.selectedGameId", selectedGameId);
 }
-
+

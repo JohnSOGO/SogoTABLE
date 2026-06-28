@@ -73,6 +73,16 @@ import {
   tacticalBoardFilledWinner,
   tacticalLineWinner,
 } from "./games/super-tic-tac-toe/rules.js";
+import { chooseScoredBotMove } from "./games/super-tic-tac-toe/bot.js";
+import {
+  MAZEWRIGHT_GAME_ID,
+  isMazewrightGame,
+  newMazewrightGame,
+  initMazewrightSeats,
+  makeMazewrightMove,
+  mazewrightGameToDict,
+  mazewrightScoreByMark,
+} from "./games/mazewright/rules.js";
 
 const LOBBY_VIEWER_TTL_SECONDS = 45;
 const ROOM_SEAT_COLORS = [
@@ -1440,6 +1450,7 @@ function startRoom(room) {
   room.started = true;
   if (isTenThousandGame(room.game)) initTenThousandSeats(room.game, room.players);
   if (isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
+  if (isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
 }
 
 function playerMark(room, playerId) {
@@ -1484,147 +1495,6 @@ function chooseBotMove(game, bot = null) {
   return moves[Math.floor(Math.random() * moves.length)];
 }
 
-function chooseScoredBotMove(game, bot, moves) {
-  const player = game.current_player;
-  const scoredMoves = moves.map((move) => ({
-    move,
-    score: scoreBotMove(game, move, player),
-  }));
-  const bestScore = Math.max(...scoredMoves.map((item) => item.score));
-  const bestMoves = scoredMoves.filter((item) => item.score === bestScore);
-  return bestMoves[Math.floor(Math.random() * bestMoves.length)].move;
-}
-
-function scoreBotMove(game, move, player) {
-  const opponent = otherMark(player);
-  const preview = previewMove(game, move, player);
-  let score = 100;
-  if (preview.winner === player) score += 100000;
-  if (blocksOpponentGameWin(game, move, opponent)) score += 50000;
-  if (preview.capturedBoard && preview.boardWinner === player) score += 10000;
-  if (blocksOpponentZoneWin(game, move, opponent)) score += 7000;
-  score += scoreThreats(preview.game, player, opponent);
-  score += scoreZoneShape(move.board);
-  score += scoreCellShape(move.cell);
-  score += scoreDestination(preview.game, player, opponent);
-  score += scorePickup(game, move);
-  if (preview.game.small_winners[move.board] === "D") score -= 3000;
-  return score;
-}
-
-function previewMove(game, move, player) {
-  const next = cloneGameForPreview(game);
-  const previousBoardResult = next.small_winners[move.board];
-  const pickup = isTacticalGame(next) ? pickupAt(next, move.board, move.cell) : null;
-  if (pickup) {
-    ensureTacticalState(next);
-    const config = TACTICAL_PICKUP_CONFIG[pickup.type];
-    if (config) next.scores[player] = Number(next.scores[player] || 0) + config.points;
-    next.pickups = next.pickups.filter((item) => item.id !== pickup.id);
-  }
-  next.boards[move.board][move.cell] = player;
-  next.move_count = Number(next.move_count || 0) + 1;
-  const boardWinner = smallBoardResult(next.boards[move.board]);
-  next.small_winners[move.board] = boardWinner;
-  const capturedBoard = previousBoardResult === null && ["X", "O"].includes(boardWinner);
-  const lineWinner = macroWinnerFor(next.small_winners);
-  if (lineWinner) {
-    const winner = isTacticalGame(next) ? tacticalLineWinner(next, lineWinner) : lineWinner;
-    next.line_winner = lineWinner;
-    next.status = winner ? (winner === "X" ? "x_won" : "o_won") : "draw";
-    next.winner = winner;
-    next.next_board = null;
-  } else if (next.small_winners.every((result) => result !== null)) {
-    const winner = isTacticalGame(next) ? tacticalBoardFilledWinner(next) : null;
-    next.status = winner ? (winner === "X" ? "x_won" : "o_won") : "draw";
-    next.winner = winner;
-    next.next_board = null;
-  } else {
-    next.current_player = otherMark(player);
-    next.next_board = boardAvailable(next, move.cell) ? move.cell : null;
-  }
-  return { game: next, boardWinner, capturedBoard, winner: next.winner };
-}
-
-function cloneGameForPreview(game) {
-  return JSON.parse(JSON.stringify(game));
-}
-
-function otherMark(mark) {
-  return mark === "X" ? "O" : "X";
-}
-
-function blocksOpponentGameWin(game, move, opponent) {
-  if (!blocksOpponentZoneWin(game, move, opponent)) return false;
-  const winners = [...game.small_winners];
-  winners[move.board] = opponent;
-  return macroWinnerFor(winners) === opponent;
-}
-
-function blocksOpponentZoneWin(game, move, opponent) {
-  if (game.small_winners[move.board] !== null) return false;
-  if (game.boards[move.board][move.cell] !== null) return false;
-  const board = [...game.boards[move.board]];
-  board[move.cell] = opponent;
-  return smallBoardResult(board) === opponent;
-}
-
-function scoreThreats(game, player, opponent) {
-  const playerThreats = countImmediateZoneWins(game, player);
-  const opponentThreats = countImmediateZoneWins(game, opponent);
-  return (playerThreats >= 2 ? 3000 : 0) - (opponentThreats >= 2 ? 3000 : 0);
-}
-
-function countImmediateZoneWins(game, player) {
-  return legalMoves(game).filter((move) => {
-    if (game.small_winners[move.board] !== null) return false;
-    const board = [...game.boards[move.board]];
-    board[move.cell] = player;
-    return smallBoardResult(board) === player;
-  }).length;
-}
-
-function scoreCellShape(cellIndex) {
-  if (cellIndex === 4) return 1000;
-  if ([0, 2, 6, 8].includes(cellIndex)) return 700;
-  return 250;
-}
-
-function scoreZoneShape(boardIndex) {
-  if (boardIndex === 4) return 2000;
-  if ([0, 2, 6, 8].includes(boardIndex)) return 1500;
-  return 500;
-}
-
-function scoreDestination(gameAfterMove, player, opponent) {
-  if (gameAfterMove.status !== "playing") return 0;
-  const destination = gameAfterMove.next_board;
-  if (destination === null || !boardAvailable(gameAfterMove, destination)) return -1000;
-  let score = 0;
-  if (gameAfterMove.small_winners[destination] === player) score += 700;
-  if (gameAfterMove.small_winners[destination] !== null) score += 900;
-  const opponentWinningMoves = legalMoves(gameAfterMove).filter((move) => {
-    const preview = previewMove(gameAfterMove, move, opponent);
-    return preview.winner === opponent || (preview.capturedBoard && preview.boardWinner === opponent);
-  });
-  if (opponentWinningMoves.some((move) => {
-    const preview = previewMove(gameAfterMove, move, opponent);
-    return preview.winner === opponent;
-  })) score -= 5000;
-  if (opponentWinningMoves.some((move) => {
-    const preview = previewMove(gameAfterMove, move, opponent);
-    return preview.capturedBoard && preview.boardWinner === opponent;
-  })) score -= 3000;
-  return score;
-}
-
-function scorePickup(game, move) {
-  if (!isTacticalGame(game)) return 0;
-  const pickup = pickupAt(game, move.board, move.cell);
-  if (!pickup) return 0;
-  const config = TACTICAL_PICKUP_CONFIG[pickup.type];
-  return config ? config.points * 120 : 0;
-}
 
 function legalMoves(game) {
   const handler = GAME_HANDLERS.find((entry) => entry.is(game));
@@ -1662,6 +1532,7 @@ function handleResetVote(room, requesterId, approve) {
     initTenThousandSeats(room.game, room.players);
   }
   if (room.started && isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
+  if (room.started && isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
   bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
@@ -1700,6 +1571,8 @@ const GAME_HANDLERS = [
     applyAction: (game, mark, payload) => makeTenThousandMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: YAHTZEE_GAME_ID, is: isYahtzeeGame, create: newYahtzeeGame, toDict: yahtzeeGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeYahtzeeMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
+  { id: MAZEWRIGHT_GAME_ID, is: isMazewrightGame, create: newMazewrightGame, toDict: mazewrightGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeMazewrightMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -1819,6 +1692,9 @@ function scoreByMarkForRoom(room) {
   }
   if (isYahtzeeGame(room.game)) {
     return yahtzeeScoreByMark(room.game);
+  }
+  if (isMazewrightGame(room.game)) {
+    return mazewrightScoreByMark(room.game);
   }
   if (isBoxesGame(room.game)) {
     return {

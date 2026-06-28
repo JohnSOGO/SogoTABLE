@@ -29,6 +29,11 @@ lobby, instant reload — and iterate where the loop is cheapest. `AI/match-thre
 is the worked example: a single `index.html` with a pure `Match3` core and a
 documented path to a module.
 
+See [Building Offline UI Prototypes](offline-ui.md) for the standalone's UI shape
+and the shell contract — what to build (the in-game screen, an N-player status
+table at the bottom) and what **not** to (no intro, no room/setup flow, no
+player-count picker; seats come from the server).
+
 This is the development-time twin of the runtime split in Phase 1B: **build off
 the server, with hooks to push to the server once it is "good enough."** For that
 to pay off instead of becoming a rewrite, follow these constraints:
