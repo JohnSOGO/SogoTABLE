@@ -1,4 +1,4 @@
-import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError } from "./api-client.js";
+import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError, setOwnerTokenHealer } from "./api-client.js";
 import { wireHouses, renderHouseControls, renderPlayerPicker, buildPlayerCard, resetPlayerPicker } from "./controllers/houses.js";
 import {
   colorWithAlpha,
@@ -187,7 +187,7 @@ const BATTLESHIP_RADAR_MS = 1000;          // radar scan before the hit/miss lan
 const BATTLESHIP_RESULT_MS = 2000;         // how long the hit/miss stays up
 const BATTLESHIP_DEFENCE_SETTLE_MS = 250;  // let the defence board settle before an incoming reveal
 let localGameHomePlayers = loadLocalGameHomePlayers();
-let playerOwnerTokens = loadPlayerOwnerTokens();
+let playerOwnerTokens = loadPlayerOwnerTokens(); setOwnerTokenHealer((pid) => { delete playerOwnerTokens[pid]; savePlayerOwnerTokens(); return ensureOwnerToken(pid); });
 let handledResetRequestKey = "";
 let selectedGameEntryRequestId = 0;
 const realtime = createRealtimeController({

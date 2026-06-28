@@ -1,13 +1,44 @@
 const HOSTED_API_ORIGIN = "https://sogotable.sogodojo.com";
 
-export async function api(url, payload) {
-  const data = await fetchJson(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!data.ok) throw new Error(data.error || "Request failed.");
-  return data;
+// A repair hook the app registers (setOwnerTokenHealer): given a player id, it
+// drops this device's dead token and re-acquires a fresh one (claim succeeds for an
+// unclaimed player with NO passcode; an already-claimed player goes through the
+// normal move-to-this-device confirm). Lets api() transparently recover from
+// "must be claimed" / "owner token is incorrect" on ANY owner action — previously
+// only Create-game had its own retry, so other actions stranded the player.
+let ownerTokenHealer = null;
+export function setOwnerTokenHealer(fn) { ownerTokenHealer = fn; }
+
+// The acting player a payload's owner_token belongs to. Host actions carry host_id;
+// player actions carry requester_id / player_id / id or a player object. host_id
+// wins because kick/invite payloads also carry the *target* player_id.
+function ownerPlayerId(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  return String(payload.host_id || payload.requester_id || payload.player_id || payload.id
+    || (payload.player && payload.player.id) || "").trim();
+}
+
+export async function api(url, payload, options = {}) {
+  try {
+    const data = await fetchJson(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!data.ok) throw new Error(data.error || "Request failed.");
+    return data;
+  } catch (error) {
+    // Self-heal a stale/unclaimed owner token once, transparently, for any action.
+    if (options.noHeal || !ownerTokenHealer || !payload || payload.owner_token == null) throw error;
+    if (!isUnclaimedError(error) && !isStaleOwnerTokenError(error)) throw error;
+    const playerId = ownerPlayerId(payload);
+    if (!playerId) throw error;
+    let freshToken = null;
+    try { freshToken = await ownerTokenHealer(playerId); } catch (_) { freshToken = null; }
+    if (!freshToken) throw error;   // couldn't repair (e.g. a declined device move) — surface the original error
+    console.info(`[sogotable] recovered a stale owner token for player ${playerId}; retried ${url}`);
+    return api(url, { ...payload, owner_token: freshToken }, { noHeal: true });
+  }
 }
 
 export async function fetchJson(url, options = {}) {
