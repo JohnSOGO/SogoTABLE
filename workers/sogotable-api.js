@@ -1039,6 +1039,7 @@ function publicGameDefinition(game) {
     name: game.name,
     summary: game.summary,
     players: game.players,
+    category: game.category || null,
     player_count: Number.isFinite(playerCount) ? playerCount : null,
     status: game.status,
     availability: game.availability,

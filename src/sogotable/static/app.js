@@ -485,6 +485,7 @@ function normalizeGameDefinitions(definitions) {
     name: String(game.name || "Game").trim() || "Game",
     summary: String(game.summary || "").trim(),
     players: String(game.players || "2 players").trim(),
+    category: game.category ? String(game.category).trim() : "",
     player_count: game.player_count === null || game.player_count === undefined ? null : Number(game.player_count),
     host_start: Boolean(game.host_start),
     status: String(game.status || "Ready").trim(),
