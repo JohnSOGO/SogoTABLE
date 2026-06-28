@@ -348,7 +348,10 @@ p,
   transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  .emoji-hint { display: block; }
+  .emoji-hint-desktop { display: block; }
+}
+@media (hover: none), (pointer: coarse) {
+  .emoji-hint-touch { display: block; }
 }
 .player-create-row:has(.player-icon-field:hover) ~ .emoji-hint,
 .player-create-row:has(.player-icon-field:focus-within) ~ .emoji-hint {
