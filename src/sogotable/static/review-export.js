@@ -98,6 +98,7 @@ const REVIEW_EXPORT_FILES = [
   "docs/game-super-tic-tac-toe.md",
   "docs/game-super-tic-tactical-toe.md",
   "docs/game-ten-thousand.md",
+  "docs/game-yahtzee.md",
   "docs/live-rounds.md",
   "docs/modularity.md",
   "docs/name-decision.md",

@@ -155,11 +155,16 @@ time? This axis sits *above* the within-game timing modes (`turnBased` /
   [project-memory](project-memory.md)).
 - **Round-Locked** — one shared game, but players sync at the *round* boundary
   rather than every move (the `liveRound` family).
-- **Game-Locked** — each player plays their **own independent game to completion**
-  at their own pace; the shared truth is a **leaderboard**, not a board. Finals
-  are compared to crown a winner. This is *asynchronous multiplayer solitaire*,
-  and it is the supported path for **solo-scoring games** (Yahtzee, match-three).
-  Adopted via AREC 2026-06-27.
+- **Game-Locked** — each player plays their **own** game; the shared truth is a
+  **leaderboard**, not a board. Supported path for **solo-scoring games** (Yahtzee,
+  match-three). Adopted via AREC 2026-06-27. It has **two timing variants — pick one
+  in the survey, they are not interchangeable** (conflating them cost a rebuild):
+  - *Async* — each player finishes at their own pace; finals are compared. True
+    "asynchronous multiplayer solitaire."
+  - *Lockstep series* — a **global game index** with a game-level **barrier**:
+    everyone plays the same game number, and the table advances to the next game
+    only when **every human** has finished the current one. **Yahtzee shipped this.**
+    It makes per-game scores comparable, at the cost of fast players waiting.
 
 ### Building a Game-Locked game
 
@@ -183,9 +188,18 @@ The model is the Phase 0 standalone *promoted directly to multiplayer*:
 - **N-player UI shape:** the player's own game up top, a **tip/news strip** for the
   broadcast significant plays, the **all-player score table at the bottom**, and
   the player's own big total as the headline number.
-- **Series (optional wrapper — build last):** an ordered array of games; play each
-  Game-Locked; per-game scores accumulate; reveal the winner when the array is
-  exhausted. Do not build the series until single-game Game-Locked is solid.
+- **Series (optional wrapper):** an ordered array of games whose per-game scores
+  accumulate into an **overall**, matching the *async* / *lockstep-barrier* variant
+  chosen above. For the barrier variant the **server** owns the game index and the
+  barrier; each seat carries `series_past` (banked games) + the current card, and
+  `overall = series_past + current`. Build the series only after single-game is solid.
+- **Bots may pre-compute — but then they are opponent-blind.** A Game-Locked bot
+  can play its whole game/series **upfront** at seat-init (Yahtzee does). That means
+  it must be **CPU-cheap** — it runs synchronously when the room starts, so no full
+  game-tree search (enumerate distinct dice multisets with probabilities, not every
+  branch) — and it **cannot be opponent-aware** (no opponent has scored yet). Reveal
+  its pre-played result **paced to the leading human's round** so it still reads as a
+  live race. See `workers/games/yahtzee/ai.js`.
 
 ---
 
@@ -254,6 +268,30 @@ generic `/api/room/move` and bot-turn dispatch never special-case it. Keep the
   module-local and not all of it is runtime-consumed yet — the runtime reads
   `registry.js`. Keep the two consistent until they converge.
 
+### Rendering into the shell board
+
+The shell hands the game `#macroBoard` as its mount and runs
+`setGameBoardVisible(true)` before your `renderGame` branch. Edges every non-grid
+game hits (all learned on Yahtzee):
+
+- **Neutralize the tic-tac-toe grid.** `#macroBoard` carries class `.macro-board`
+  (`display:grid; aspect-ratio:1/1`) — a square sized for a 3×3 board — which clips
+  a taller game and pushes content off-screen. Override it scoped to your own
+  wrapper: `#macroBoard:has(.<game>-root){display:block;aspect-ratio:auto}`. It
+  self-reverts for other games (no `.<game>-root` present).
+- **Scope every CSS selector.** A promoted standalone uses generic names (`.row`,
+  `.card`, `.die`) that would clobber the shell globally. Wrap the UI in a single
+  `.<game>-root` and prefix all rules; inject the stylesheet once.
+- **Manage the shell chrome.** Hide what you don't use (`#gamePlayersPanel`,
+  `#gamePlayerSwitch`). `#turnStatus` is styled `#turnStatus{display:grid}`, which
+  beats `.hidden` by ID specificity — collapse it with a scoped
+  `#turnStatus:has(~ #macroBoard .<game>-root){display:none}`, not a class.
+- **The client wiring is more than the one-liner.** The "one `GAME_HANDLERS` row"
+  is the *worker* side. A host-start / Game-Locked game also adds, in `app.js` (all
+  additive, beside the existing games — never replacing them): an import, a
+  `<GAME>_GAME_ID` const, an `is<Game>GameState` predicate, a `renderGame` branch,
+  and `make<Game>Action` / `start<Game>Game` posters.
+
 ---
 
 ## The hard rules
@@ -267,6 +305,12 @@ generic `/api/room/move` and bot-turn dispatch never special-case it. Keep the
   shared state; the server re-validates. (Phase 1B.)
 - **Plain-data, deterministic, replayable state**, RNG behind a seam.
 - **Hidden info → per-viewer sanitizer.** Never broadcast secrets. (Phase 1C.)
+- **The projection IS the wire contract.** Whatever the client reads off a seat,
+  `toDict` must emit. A field the client reads but the projection omits is
+  `undefined`, not an error — it fails silently (a missing `series_past` once
+  zeroed a player's running total mid-series). Keep the client's seat reads and
+  the projection's emitted fields in lockstep, and assert the projected shape in a
+  test, not just the internal state.
 - **Bots run the human path.** No bot-only rule mutations.
 - **Declare the timing mode.** Turn-based is supported today; solo/real-time is a
   product decision first.
