@@ -16,7 +16,58 @@ let quoridorWallHoldButton = null;
 // hold timer) see current shell state without threading ctx through every node.
 let ctx = null;
 
+// Dark-mode board palette. The light board lives in styles-games.css; this
+// theme-gated block re-skins only the dark theme and is injected from the
+// module so the line-capped shared stylesheet stays light (see Battleship for
+// the same pattern). Board/cell surfaces go dark; the pawn/legal/goal tints —
+// set inline by JS as raw player hex mixed toward #fff — are re-mixed toward a
+// dark base. Walls lighten so the fences read on the dark board. The turn-token
+// toolbar chip is left as-is (it matches the rest of the themed shell).
+const QUORIDOR_DARK_CSS = `
+:root[data-theme="dark"] .macro-board.quoridor-room-board {
+  background: #141a23;
+}
+:root[data-theme="dark"] .quoridor-score {
+  background: var(--surface);
+}
+:root[data-theme="dark"] .quoridor-score.active {
+  background: color-mix(in srgb, var(--player-color) 22%, #141a23);
+}
+:root[data-theme="dark"] .quoridor-cell {
+  border-color: #33404f;
+  background: #212b39;
+  color: #e8eaef;
+}
+:root[data-theme="dark"] .quoridor-cell.occupied {
+  background: color-mix(in srgb, var(--pawn-color, var(--accent)) 30%, #141a23);
+}
+:root[data-theme="dark"] .quoridor-cell.legal {
+  background: color-mix(in srgb, var(--quoridor-active-color, var(--accent)) 26%, #141a23);
+}
+:root[data-theme="dark"] .quoridor-cell.goal {
+  background: color-mix(in srgb, var(--goal-color, var(--accent)) 22%, #212b39);
+  border-color: color-mix(in srgb, var(--goal-color, var(--accent)) 45%, #33404f);
+}
+:root[data-theme="dark"] .quoridor-wall.placed {
+  background: #8595ab;
+  box-shadow: 0 0 0 2px rgba(180, 195, 215, 0.22);
+}
+:root[data-theme="dark"] .quoridor-wall-dot::after {
+  border-color: #5b6678;
+  background: #9aa6ba;
+}`;
+
+// Inject the dark palette once. CSS is theme-gated, so it is inert in light mode.
+function ensureQuoridorTheme() {
+  if (document.getElementById("quoridor-theme")) return;
+  const styleEl = document.createElement("style");
+  styleEl.id = "quoridor-theme";
+  styleEl.textContent = QUORIDOR_DARK_CSS;
+  document.head.appendChild(styleEl);
+}
+
 export function renderQuoridorGame(renderCtx) {
+  ensureQuoridorTheme();
   ctx = renderCtx;
   const { game, room, selectedPlayerId } = ctx;
   clearQuoridorWallHold();
