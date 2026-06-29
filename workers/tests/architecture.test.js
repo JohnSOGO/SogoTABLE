@@ -45,7 +45,7 @@ function gameDirOf(rel) {
 
 const CEILINGS = {
   "src/sogotable/static/app.js": 2566,
-  "workers/sogotable-api.js": 1960,
+  "workers/sogotable-api.js": 1911,
   "src/sogotable/static/styles.css": 375,
   "src/sogotable/static/styles-games.css": 1700,
 };

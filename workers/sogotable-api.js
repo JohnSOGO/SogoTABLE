@@ -5,6 +5,11 @@ import { GAME_REGISTRY, GAME_IDS } from "../src/sogotable/static/games/registry.
 // HTTP/CORS/rate-limit/storage plumbing).
 import { json, readJson, corsHeadersFor } from "./platform/http.js";
 import { rateLimitRequest } from "./platform/rate-limit.js";
+import {
+  assertPlayerOwner, assertSogoSuperuser, isSogoSuperuser,
+  configuredSogoSuperuserIds, generateOwnerToken, ownerTokenHash,
+} from "./platform/auth.js";
+import { RESERVED_TEST_PLAYERS, RESERVED_TEST_PLAYER_IDS, reservedTestPlayerFromId } from "./test-players.js";
 import { loadState, saveState, withStateRetry } from "./persistence/state.js";
 // Per-game rules modules (Phase 2). The Worker keeps the dispatch predicates and
 // routing; each game's server-authoritative rules live in its own module.
@@ -124,12 +129,6 @@ const BOT_DEFINITIONS = [
   { id: "b64d20f19a8c", name: "Cipher", icon: "\uD83D\uDD11", color: "#7c3aed", rating: 1100, strategy: "smart", difficulty: "strategist", difficulty_label: "Strategist" },
   { id: "0f8a3c9d1e72", name: "Overlord", icon: "\uD83D\uDC51", color: "#dc2626", rating: 1250, strategy: "smart", difficulty: "master", difficulty_label: "Master" },
 ];
-const RESERVED_TEST_PLAYERS = [
-  { id: "codex-test-player-1", name: "Codex Test 1", icon: "\uD83E\uDDEA", color: "#4f46e5", kind: "test", hidden: true },
-  { id: "codex-test-player-2", name: "Codex Test 2", icon: "\uD83E\uDDEA", color: "#be123c", kind: "test", hidden: true },
-];
-const RESERVED_TEST_PLAYER_IDS = new Set(RESERVED_TEST_PLAYERS.map((player) => player.id));
-const OWNER_TOKEN_BYTES = 24;
 const DEFAULT_ELO_RATING = 1000;
 const ELO_K_FACTOR = 32;
 
@@ -1117,10 +1116,6 @@ function playerFromPayload(payload) {
   return clean;
 }
 
-function reservedTestPlayerFromId(playerId) {
-  return RESERVED_TEST_PLAYERS.find((player) => player.id === playerId) || null;
-}
-
 function isHiddenPlayer(player) {
   return Boolean(player && (player.hidden || player.kind === "test" || RESERVED_TEST_PLAYER_IDS.has(player.id)));
 }
@@ -1133,50 +1128,6 @@ function publicPlayer(player) {
   if (!player) return player;
   const { owner_token_hash, ...clean } = player;
   return { ...clean, claimed: Boolean(owner_token_hash) };
-}
-
-async function assertPlayerOwner(data, playerId, ownerToken, options = {}) {
-  const id = String(playerId || "").trim();
-  if (options.ownerAuthBypass || RESERVED_TEST_PLAYER_IDS.has(id)) return;
-  if (!id) throw new Error("Player id is required.");
-  const player = (data.players || []).find((item) => item.id === id);
-  if (!player) throw new Error("Player not found.");
-  if (!player.owner_token_hash) throw new Error("Player must be claimed before this action.");
-  const token = String(ownerToken || "").trim();
-  if (!token) throw new Error("Player owner token is required.");
-  const hash = await ownerTokenHash(token);
-  if (hash !== player.owner_token_hash) throw new Error("Player owner token is incorrect.");
-}
-
-function assertSogoSuperuser(data, playerId, passcode, configuredPasscode, configuredPlayerIds) {
-  if (!isSogoSuperuser(data, playerId, configuredPlayerIds)) throw new Error("Only the configured Sogo superuser can do this.");
-  if (!String(configuredPasscode || "").trim()) throw new Error("Sogo superuser passcode is not configured.");
-  if (String(passcode || "") !== String(configuredPasscode)) throw new Error("Sogo passcode is incorrect.");
-}
-
-function isSogoSuperuser(data, playerId, configuredPlayerIds) {
-  const id = String(playerId || "").trim();
-  if (!id) return false;
-  const allowed = configuredSogoSuperuserIds(configuredPlayerIds);
-  if (!allowed.size) return false;
-  if (!allowed.has(id)) return false;
-  return Boolean((data.players || []).find((item) => item.id === id));
-}
-
-function configuredSogoSuperuserIds(value) {
-  return new Set(String(value || "").split(",").map((item) => item.trim()).filter(Boolean));
-}
-
-function generateOwnerToken() {
-  const bytes = new Uint8Array(OWNER_TOKEN_BYTES);
-  crypto.getRandomValues(bytes);
-  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function ownerTokenHash(token) {
-  const bytes = new TextEncoder().encode(String(token || ""));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function isHiddenTestRoom(room) {

@@ -14,6 +14,8 @@ const REVIEW_EXPORT_FILES = [
   "workers/sogotable-api.js",
   "workers/platform/http.js",
   "workers/platform/rate-limit.js",
+  "workers/platform/auth.js",
+  "workers/test-players.js",
   "workers/persistence/state.js",
   "workers/tests/sogotable-api.test.js",
   "workers/tests/helpers.js",
