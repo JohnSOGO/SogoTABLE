@@ -1,36 +1,40 @@
 # SogoTable
 
-SogoTable is a small browser-based family game platform for casual turn-based games on phones. The first proof-of-concept game is Super Tic Tac Toe, also known as Ultimate Tic Tac Toe.
+SogoTable is a mobile-first platform for casual, turn-based **family games played in a browser** — no install, no heavyweight account. The platform is the product; individual games are modules that plug into it.
 
-The product target is simple: family members sitting together at a restaurant can open a browser, pick a player, join a room, and play without installing an app or creating a heavyweight account.
+The guiding scenario: a family sitting together at a restaurant opens a browser, picks a player, joins a room, and plays — on whatever phones are already in their pockets.
 
-## Current Status
-
-- Repo scaffold: complete.
-- Super Tic Tac Toe rules engine: complete in the hosted Worker brain.
-- Super Tic Tactical Toe rules engine: complete first pass in the hosted Worker brain.
-- Mobile-first web UI: complete first pass.
-- Room creation, invites, and room codes: Cloudflare Worker + D1 first pass.
-- Shared persistent player roster: complete first pass.
-- Progressive Web App shell: complete first pass.
-- Quiet generated UI/game sound: complete first pass.
-- Single-player bot opponent flow: complete first pass.
-- Hosted dice game flow: 10,000 with a flexible guest list.
-- Active room history/statistics: future milestone.
+A shared Cloudflare brain is the authority for players, rooms, and moves, so the same room works across several phones at once, and a Worker-owned bot can fill an empty seat for instant single-player.
 
 ## Stack
 
-- Vanilla HTML/CSS/JavaScript under `src/sogotable/static/`.
-- PWA manifest and service worker for installable phone-browser shell.
-- Generated Web Audio effects for quiet UI and game feedback.
-- Cloudflare Worker + D1 brain for hosted public multiplayer API.
-- Cloudflare Durable Object room channel for live room WebSocket updates.
-- Worker-owned random legal move bots for instant single-player rooms.
-- Node built-in tests for the hosted Worker API.
+- Vanilla HTML/CSS/JavaScript frontend (no framework) served as static files.
+- PWA manifest + service worker for an installable phone-browser shell; the worker caches only the static shell, never API state.
+- Cloudflare Pages for the static site, Cloudflare Worker + D1 for shared multiplayer state.
+- Cloudflare Durable Object as the per-room channel for live WebSocket updates and serialized room mutations.
+- Generated Web Audio effects for quiet UI/game feedback.
+- Node built-in test runner for the hosted Worker brain.
 
-This avoids framework weight while keeping the app focused on the actual public play path: Cloudflare Pages for static files and a Cloudflare Worker backed by D1 for shared multiplayer state.
+This keeps the app focused on its real path — Cloudflare Pages for static files, a Worker backed by D1 for shared state — without framework weight.
 
-## Public App
+## Where to look
+
+The README stays at platform level on purpose. For current, game-by-game, and feature-level detail, go to the source of truth:
+
+| You want… | Look in |
+| --- | --- |
+| The frontend app (UI, lobby, rendering) | `src/sogotable/static/` |
+| A specific game's UI module | `src/sogotable/static/games/` |
+| The hosted brain (API, persistence, room channel) | `workers/` |
+| A specific game's rules engine | `workers/games/` |
+| The current + planned game roster | [`docs/roadmap.md`](docs/roadmap.md) |
+| How a new game plugs into the platform | [`docs/adding-a-game.md`](docs/adding-a-game.md) |
+| Which module owns what (the module map) | [`docs/module-ownership.md`](docs/module-ownership.md) |
+| Architecture, doctrine, and per-game docs | [`docs/doctrine.md`](docs/doctrine.md) → routes to the rest of `docs/` |
+
+Games are added as **modules**, not by mixing rules into UI code: rules live under `workers/games/` (testable without a browser), the matching UI lives under `src/sogotable/static/games/`. The platform shell — lobby, rooms, players, transport — is shared by every game.
+
+## Public app
 
 Use the hosted app:
 
@@ -38,13 +42,13 @@ Use the hosted app:
 https://sogotable.sogodojo.com/
 ```
 
-The app can be installed from supported phone browsers as a Progressive Web App. The service worker caches static shell assets only; API calls for players, rooms, invites, and moves are not cached.
+It can be installed from supported phone browsers as a Progressive Web App. The service worker caches static shell assets only; API calls for players, rooms, invites, and moves are never cached.
 
-The intro screen shows a small revision label built from Git: human-facing app version, short commit hash, branch, and dirty/clean status. Cloudflare Pages serves `/revision.json`, generated during the Pages build. Git remains the canonical source of revision truth.
+The intro screen shows a revision label built from Git (app version, short commit hash, branch, dirty/clean). Cloudflare Pages serves `/revision.json`, generated during the Pages build; Git remains the canonical source of revision truth.
 
-## Static Local Preview
+## Static local preview
 
-Local preview is only for static UI inspection. It still talks to the hosted Worker API for `/api/*` calls.
+Local preview is for static UI inspection only. It still talks to the hosted Worker API for `/api/*` calls.
 
 ```powershell
 npx wrangler pages dev src/sogotable/static
@@ -56,7 +60,7 @@ Then open:
 http://127.0.0.1:8788/
 ```
 
-## Deploy Hosted Brain
+## Deploy the hosted brain
 
 The public site uses a shared API brain for players, lobby presence, rooms, invites, and moves. Deploy it with:
 
@@ -64,63 +68,30 @@ The public site uses a shared API brain for players, lobby presence, rooms, invi
 npm run deploy:brain
 ```
 
-The Worker is configured in `wrangler.toml` and stores shared game state in a small D1 database. Durable Objects now serialize room creation, active-room mutations, and realtime room/app snapshots, while D1 remains the persistence layer during public playtesting.
+The Worker is configured in `wrangler.toml` and stores shared game state in a D1 database. Durable Objects serialize room creation, active-room mutations, and realtime snapshots; D1 is the persistence layer.
 
-Mutating API requests are protected by Cloudflare Workers rate-limit bindings:
-`API_MUTATION_RATE_LIMITER` allows 180 writes per minute per client key, and
-`SUPERUSER_RATE_LIMITER` allows 20 superuser verification attempts per minute.
+Mutating API requests are protected by Cloudflare Workers rate-limit bindings: `API_MUTATION_RATE_LIMITER` allows 180 writes per minute per client key, and `SUPERUSER_RATE_LIMITER` allows 20 superuser verification attempts per minute.
 
-Sogo superuser actions require the Worker secret `SOGOTABLE_SUPERUSER_PASSCODE`
-and `SOGOTABLE_SUPERUSER_PLAYER_IDS`, a comma-separated allowlist of player ids.
-If either is missing, Sogo superuser verification fails closed.
+Sogo superuser actions require the Worker secrets `SOGOTABLE_SUPERUSER_PASSCODE` and `SOGOTABLE_SUPERUSER_PLAYER_IDS` (a comma-separated allowlist of player ids). If either is missing, superuser verification fails closed.
 
-## Run Tests
+## Run tests
 
-Install dependencies from the committed lockfile:
+Install dependencies from the committed lockfile, then run the suite:
 
 ```powershell
 npm ci
-```
-
-```powershell
 npm test
 ```
 
-The default test command is an alias for:
+`npm test` is an alias for `npm run test:worker`, which runs the Node test files under `workers/tests/`. Game rules are tested without a browser.
 
-```powershell
-npm run test:worker
-```
+## Principles
 
-## First Milestone Goals
+- The platform is multi-game; never collapse it into a single-game app.
+- Game rules own validation and state transitions; UI renders prepared state and captures intent — it does not decide legal/illegal moves.
+- The shared Worker stays authoritative; assume stale, duplicate, and out-of-order actions are normal.
+- Keep game rules testable without a browser.
 
-- Make Super Tic Tac Toe and Super Tic Tactical Toe playable end-to-end.
-- Keep hosted game rules separate from browser rendering where practical.
-- Support simple player selection and room codes.
-- Leave real accounts, history, and richer multiplayer for later phases.
-
-## Useful Docs
-
-- [Project Memory](docs/project-memory.md)
-- [Doctrine Index](docs/doctrine.md)
-- [State Machine](docs/state-machine.md)
-- [Name Decision](docs/name-decision.md)
-- [AREC Command](docs/AREC.md)
-- [API Contract](docs/api-contract.md)
-- [Purpose](docs/purpose.md)
-- [Architecture](docs/architecture.md)
-- [Architecture Debt](docs/architecture-debt.md)
-- [Cloudflare Quota Guardrails](docs/cloudflare-quota.md)
-- [Nomenclature](docs/nomenclature.md)
-- [Live Rounds](docs/live-rounds.md)
-- [Wu Wei Method](docs/wu-wei-method.md)
-- [Wu Wei Event-Driven Progress](docs/wu-wei-event-driven-progress.md)
-- [Audio](docs/audio.md)
-- [Bot Behavior](docs/bots/index.md)
-- [Super Tic Tac Toe](docs/game-super-tic-tac-toe.md)
-- [Super Tic Tactical Toe](docs/game-super-tic-tactical-toe.md)
-- [Dots and Boxes](docs/game-dots-and-boxes.md)
-- [Battleship](docs/game-battleship.md)
-- [Quoridor](docs/game-quoridor.md)
-- [10,000](docs/game-ten-thousand.md)
-- [Roadmap](docs/roadmap.md)
+See [`docs/doctrine.md`](docs/doctrine.md) for the full doctrine and where each concern is owned.
+</content>
+</invoke>
