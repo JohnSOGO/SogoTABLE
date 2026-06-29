@@ -40,10 +40,20 @@ import {
   wireLocalSeat,
   isLocalModeRoom,
   localGameHomePlayerId,
-  rememberLocalGameHomePlayer,
   forgetLocalGameHomePlayer,
 } from "./controllers/local-seat.js";
 import { wireRoomSounds, playRoomStateSounds } from "./controllers/room-sounds.js";
+import {
+  wireInvites,
+  openInvitePlayerModal,
+  openBotOpponentModal,
+  openLocalOpponentModal,
+  closeInvitePlayerModal,
+  closeInvitePlayerModalOnBackdrop,
+  refreshPendingInvites,
+  showInvitePrompt,
+  respondToInvite,
+} from "./controllers/invites.js";
 import {
   forgetSogoSuperuserPasscode,
   PLAYER_OWNER_TOKEN_STORAGE_KEY,
@@ -64,11 +74,9 @@ import {
   setSoundVolumeLevel,
   playBattleshipHit,
   playBattleshipMiss,
-  playCancel,
   playClick,
   playConfirm,
   playInvalidMove,
-  playInviteReceived,
   playRoomCreated,
   toggleSound,
   unlockAudio,
@@ -100,12 +108,10 @@ selectedGameId = canonicalGameId(selectedGameId);
 let editingPlayerId = "";
 let playerModalMode = "select";
 let currentRoom = null;
-let currentInvite = null;
 let hostInviteStatus = null;
 let activeGameRoom = null;
 let currentGameRooms = [];
 let lobbyPlayers = [];
-let availableBots = [];
 let selectedPlayerStats = [];
 let playerStatsCollapsed = true;
 let playerStatsCollapsePlayerId = "";
@@ -113,7 +119,6 @@ let lastLobbyPlayersKey = "";
 let lastCurrentGameRoomsKey = "";
 let lastActiveGameNoticeKey = "";
 let lastSelectedPlayerStatsKey = "";
-let lastInviteSoundKey = "";
 // Farkle is player-declared (the Red X). Once declared, the red dice and the
 // "You Farkled" banner show for a beat, then the bust auto-acknowledges so the
 // round can advance.
@@ -121,7 +126,6 @@ const TEN_THOUSAND_FARKLE_ACK_MS = 2000;
 let tenThousandFarkleAckKey = ""; // dedupe so each declared bust schedules once
 let tenThousandFarkleAckTimer = null;
 let selectedPlayerStatsRequestId = 0;
-let opponentPickerMode = "remote";
 let playerApiAvailable = true;
 let lastLegalBoardsKey = "";
 let battleshipViewMode = "auto";
@@ -156,6 +160,19 @@ document.addEventListener("DOMContentLoaded", () => {
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat({ getDeviceSelectionHash: () => deviceSelectionHash, getDeviceSelectedPlayerId: () => deviceSelectedPlayerId });
   wireRoomSounds({ localRoomSeat, isTenThousandGameState, isTacticalGameState, isBoxesGameState, isBotPlayer });
+  wireInvites({
+    getCurrentRoom: () => currentRoom,
+    getPlayers: () => players,
+    getLobbyPlayers: () => lobbyPlayers,
+    getCurrentGameRooms: () => currentGameRooms,
+    getLocalHomePlayerId: () => deviceSelectedPlayerId || selectedPlayerId,
+    setSelectedGameId: (id) => { selectedGameId = id; },
+    setHostInviteStatus: (value) => { hostInviteStatus = value; },
+    setActiveGameRoom: (value) => { activeGameRoom = value; },
+    refreshLobbyPlayers, refreshGameRooms, selectedGame, ensureOwnerToken, setRoom,
+    renderRoomInviteStatus, deviceSelectedPlayer, gameName, canonicalGameId,
+    saveSelectedGame, renderGames, renderGameSelected, showScreen,
+  });
   purgeDeprecatedLocalRoster();
   registerServiceWorker();
   refreshRevisionSummary();
@@ -1148,194 +1165,6 @@ function setExistingPlayersVisible(visible) {
 
 function setPlayerFormVisible(visible) {
   document.getElementById("playerForm").classList.toggle("hidden", !visible);
-}
-
-async function openInvitePlayerModal() {
-  opponentPickerMode = "remote";
-  document.getElementById("invitePlayerTitle").textContent = "Invite Remote Opponent";
-  const host = document.getElementById("invitePlayerList");
-  host.textContent = "Checking lobby...";
-  document.getElementById("invitePlayerModal").classList.remove("hidden");
-  await refreshRemoteInviteSources();
-  renderInvitePlayerList();
-}
-
-async function openBotOpponentModal() {
-  opponentPickerMode = "bot";
-  document.getElementById("invitePlayerTitle").textContent = "Invite Bot";
-  const host = document.getElementById("invitePlayerList");
-  host.textContent = "Loading bots...";
-  document.getElementById("invitePlayerModal").classList.remove("hidden");
-  await refreshAvailableBots();
-  renderInvitePlayerList();
-}
-
-function openLocalOpponentModal() {
-  opponentPickerMode = "local";
-  document.getElementById("invitePlayerTitle").textContent = "Select Local Opponent";
-  renderInvitePlayerList();
-  document.getElementById("invitePlayerModal").classList.remove("hidden");
-}
-
-function closeInvitePlayerModal() {
-  document.getElementById("invitePlayerModal").classList.add("hidden");
-}
-
-function closeInvitePlayerModalOnBackdrop(event) {
-  if (event.target.id === "invitePlayerModal") closeInvitePlayerModal();
-}
-
-function renderInvitePlayerList() {
-  const host = document.getElementById("invitePlayerList");
-  host.innerHTML = "";
-  if (!currentRoom) return;
-  const seated = new Set(currentRoom.players.map((player) => player.id));
-  const available = opponentPickerMode === "bot"
-    ? availableBots.filter((bot) => !seated.has(bot.id))
-    : opponentPickerMode === "local"
-    ? players.filter((player) => !seated.has(player.id))
-    : remoteInviteCandidates(seated);
-  if (!available.length) {
-    host.textContent = opponentPickerMode === "remote"
-      ? "No players in lobby."
-      : opponentPickerMode === "bot" ? "No bots available." : "No available players.";
-    return;
-  }
-  available.forEach((player) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "roster-player";
-    button.innerHTML = opponentPickerMode === "bot"
-      ? `${avatarHtml(player)}<strong>${escapeHtml(botDisplayName(player))}</strong>`
-      : `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>`;
-    button.addEventListener("click", () => {
-      if (opponentPickerMode === "bot") joinBotOpponent(player);
-      else if (opponentPickerMode === "local") joinLocalOpponent(player);
-      else invitePlayer(player);
-    });
-    host.appendChild(button);
-  });
-}
-
-function botDisplayName(bot) {
-  const strategyIcon = String(bot.strategy_icon || "").trim();
-  return `${strategyIcon ? `${strategyIcon} ` : ""}${bot.name}`;
-}
-
-async function refreshAvailableBots() {
-  try {
-    const data = await fetchJson(`/api/bots?game_id=${encodeURIComponent(selectedGame().id)}`);
-    availableBots = data.ok ? data.bots || [] : [];
-  } catch {
-    availableBots = [];
-  }
-}
-
-async function refreshRemoteInviteSources() {
-  try {
-    await Promise.all([refreshLobbyPlayers(), refreshGameRooms()]);
-  } catch {
-    // Rendering falls back to the last known lobby/room lists.
-  }
-}
-
-function remoteInviteCandidates(seated) {
-  const busyPlayerIds = new Set(seated);
-  currentGameRooms
-    .filter((room) => room.status === "waiting_for_player" || room.status === "active")
-    .forEach((room) => room.players.forEach((player) => busyPlayerIds.add(player.id)));
-  return lobbyPlayers.filter((player) => !busyPlayerIds.has(player.id));
-}
-
-async function joinLocalOpponent(player) {
-  if (!currentRoom) return;
-  const homePlayerId = deviceSelectedPlayerId || selectedPlayerId;
-  rememberLocalGameHomePlayer(currentRoom.code, homePlayerId);
-  try {
-    const response = await api("/api/room/join", { code: currentRoom.code, player, local: true, owner_token: await ensureOwnerToken(player.id) });
-    hostInviteStatus = null;
-    setRoom(response.room);
-    closeInvitePlayerModal();
-  } catch (error) {
-    alert(error.message);
-  }
-}
-
-async function joinBotOpponent(bot) {
-  if (!currentRoom) return;
-  try {
-    const response = await api("/api/room/join-bot", {
-      code: currentRoom.code,
-      host_id: currentRoom.host_id,
-      bot_id: bot.id,
-      owner_token: await ensureOwnerToken(currentRoom.host_id),
-    });
-    hostInviteStatus = null;
-    setRoom(response.room);
-    closeInvitePlayerModal();
-    playConfirm();
-  } catch (error) {
-    alert(error.message);
-  }
-}
-
-async function invitePlayer(player) {
-  if (!currentRoom) return;
-  try {
-    const response = await api("/api/invite/create", { code: currentRoom.code, host_id: currentRoom.host_id, player, owner_token: await ensureOwnerToken(currentRoom.host_id) });
-    hostInviteStatus = response.invite;
-    renderRoomInviteStatus();
-    closeInvitePlayerModal();
-    playConfirm();
-  } catch (error) {
-    alert(error.message);
-  }
-}
-
-async function refreshPendingInvites() {
-  const player = deviceSelectedPlayer();
-  if (!player || !document.getElementById("invitePrompt").classList.contains("hidden")) return;
-  try {
-    const data = await fetchJson(`/api/invites?player_id=${encodeURIComponent(player.id)}`);
-    if (data.ok && data.invites.length) showInvitePrompt(data.invites[0]);
-  } catch {
-    // Invite refresh is best-effort; room actions still work without it.
-  }
-}
-
-function showInvitePrompt(invite) {
-  currentInvite = invite;
-  document.getElementById("invitePromptText").textContent = `${invite.host_name} invited you to play ${gameName(invite.game_id)}.`;
-  document.getElementById("invitePrompt").classList.remove("hidden");
-  const soundKey = invite.id || `${invite.room_code || ""}:${invite.host_id || ""}:${invite.game_id || ""}`;
-  if (soundKey && soundKey !== lastInviteSoundKey) {
-    lastInviteSoundKey = soundKey;
-    playInviteReceived();
-  }
-}
-
-async function respondToInvite(accept) {
-  const player = deviceSelectedPlayer();
-  if (!currentInvite || !player) return;
-  try {
-    const response = await api("/api/invite/respond", { invite_id: currentInvite.id, accept, player, owner_token: await ensureOwnerToken(player.id) });
-    document.getElementById("invitePrompt").classList.add("hidden");
-    currentInvite = null;
-    if (accept) playConfirm();
-    else playCancel();
-    if (response.accepted && response.room) {
-      selectedGameId = canonicalGameId(response.room.game_id);
-      saveSelectedGame();
-      hostInviteStatus = null;
-      activeGameRoom = response.room;
-      setRoom(response.room);
-      renderGames();
-      renderGameSelected();
-      showScreen("game");
-    }
-  } catch (error) {
-    alert(error.message);
-  }
 }
 
 async function createRoom() {
