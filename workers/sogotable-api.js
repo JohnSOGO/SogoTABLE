@@ -9,7 +9,10 @@ import {
   assertPlayerOwner, assertSogoSuperuser, isSogoSuperuser,
   configuredSogoSuperuserIds, generateOwnerToken, ownerTokenHash,
 } from "./platform/auth.js";
-import { RESERVED_TEST_PLAYERS, RESERVED_TEST_PLAYER_IDS, reservedTestPlayerFromId } from "./test-players.js";
+import { reservedTestPlayerFromId } from "./test-players.js";
+import {
+  isHiddenPlayer, publicPlayers, publicPlayer, isHiddenTestRoom, publicBot, botDifficultyLevel,
+} from "./projections.js";
 import { loadState, saveState, withStateRetry } from "./persistence/state.js";
 // Per-game rules modules (Phase 2). The Worker keeps the dispatch predicates and
 // routing; each game's server-authoritative rules live in its own module.
@@ -1114,52 +1117,6 @@ function playerFromPayload(payload) {
   }
   if (!clean.id || !clean.name) throw new Error("Player id and name are required.");
   return clean;
-}
-
-function isHiddenPlayer(player) {
-  return Boolean(player && (player.hidden || player.kind === "test" || RESERVED_TEST_PLAYER_IDS.has(player.id)));
-}
-
-function publicPlayers(data) {
-  return (data.players || []).filter((player) => !isHiddenPlayer(player)).map(publicPlayer);
-}
-
-function publicPlayer(player) {
-  if (!player) return player;
-  const { owner_token_hash, ...clean } = player;
-  return { ...clean, claimed: Boolean(owner_token_hash) };
-}
-
-function isHiddenTestRoom(room) {
-  return Boolean(room && Array.isArray(room.players) && room.players.some(isHiddenPlayer));
-}
-
-function publicBot(bot) {
-  const botLevel = botDifficultyLevel(bot);
-  return {
-    id: bot.id,
-    bot_id: bot.id,
-    kind: "bot",
-    name: bot.name,
-    icon: bot.icon,
-    color: bot.color,
-    strategy: bot.strategy || "random",
-    strategy_icon: bot.strategy === "smart" ? "\uD83E\uDDE0" : "\uD83C\uDFB2",
-    strategy_label: bot.difficulty_label || (bot.strategy === "smart" ? "Smart move scoring" : "Random legal moves"),
-    difficulty: bot.difficulty || "novice",
-    difficulty_label: bot.difficulty_label || "Novice",
-    bot_level: botLevel,
-    level: botLevel,
-  };
-}
-
-function botDifficultyLevel(bot) {
-  const difficulty = String(bot && bot.difficulty || "").toLowerCase();
-  if (difficulty === "novice") return 1;
-  if (difficulty === "casual") return 2;
-  if (difficulty === "strategist") return 3;
-  if (difficulty === "master") return 4;
-  return 2;
 }
 
 function publicInvite(invite) {
