@@ -1,0 +1,587 @@
+/* Roster & lobby chrome (split from styles.css 2026-06-29 by UI area).
+   Player-create form, modals, games list, lobby + roster/stat tables, notices,
+   room & game cards, current-player panel. Linked AFTER styles.css so the
+   cascade order is byte-identical to the old single file — see index.html. */
+
+.panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.player-create-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 68px;
+  gap: 8px;
+  align-items: end;
+}
+
+.player-color-field {
+  grid-column: 1 / -1;
+}
+
+.player-icon-field {
+  justify-self: end;
+}
+
+/* Desktop-only emoji-keyboard hint; hidden on touch devices. It flashes
+   yellow when the Icon field is hovered/focused, and shows the OS-appropriate
+   shortcut (Windows default; the .is-mac root swaps to the macOS combo). */
+.emoji-hint {
+  display: none;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  opacity: 0.72;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .emoji-hint-desktop { display: block; }
+}
+@media (hover: none), (pointer: coarse) {
+  .emoji-hint-touch { display: block; }
+}
+.player-create-row:has(.player-icon-field:hover) ~ .emoji-hint,
+.player-create-row:has(.player-icon-field:focus-within) ~ .emoji-hint {
+  background: #ffe14d;
+  color: #1a1a1a;
+  opacity: 1;
+}
+.player-create-row:has(.player-icon-field:hover) ~ .emoji-hint kbd,
+.player-create-row:has(.player-icon-field:focus-within) ~ .emoji-hint kbd {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.1);
+}
+.kbd-mac { display: none; }
+html.is-mac .kbd-win { display: none; }
+html.is-mac .kbd-mac { display: inline; }
+.emoji-hint kbd {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.player-icon-field .emoji-input {
+  width: 68px;
+}
+
+.color-picker-shell {
+  display: grid;
+  grid-template-columns: minmax(78px, 1fr) 46px;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.color-value {
+  min-height: 38px;
+  padding: 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.native-color {
+  width: 46px;
+  min-height: 38px;
+  padding: 3px;
+}
+
+.hidden {
+  display: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--scrim);
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-panel {
+  width: min(100%, 680px);
+  max-height: min(90vh, 760px);
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 14px;
+  box-shadow: 0 20px 60px var(--shadow);
+}
+
+.modal-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.confirm-panel {
+  max-width: 360px;
+}
+
+#confirmPrompt.info-prompt {
+  place-items: start center;
+  padding-top: max(14px, env(safe-area-inset-top));
+  background: rgba(23, 32, 51, 0.18);
+}
+
+#confirmPrompt.info-prompt .confirm-panel {
+  width: min(92vw, 320px);
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  text-align: center;
+}
+
+#confirmPrompt.info-prompt .confirm-panel h2,
+#confirmPrompt.info-prompt .confirm-panel p {
+  margin: 0;
+}
+
+#confirmPrompt.info-prompt .invite-actions {
+  width: 100%;
+  grid-template-columns: minmax(118px, 168px);
+  justify-content: center;
+}
+
+#confirmPrompt.info-prompt .invite-actions button {
+  width: 100%;
+}
+
+.games-list {
+  display: grid;
+  gap: 18px;
+}
+
+.games-group {
+  display: grid;
+  gap: 10px;
+}
+
+.games-group-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.games-need-player {
+  margin: 4px 2px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.section-heading {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+button.compact {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.icon-button {
+  width: 42px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.inline-link {
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.inline-link:active {
+  color: var(--accent);
+}
+
+.lobby-players,
+.room-list {
+  display: grid;
+  gap: 8px;
+}
+
+.lobby-players {
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.game-stats {
+  display: grid;
+  gap: 6px;
+  max-height: min(58vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.player-stats {
+  display: grid;
+  gap: 4px;
+  /* Pull the "Player Stats" toggle up close under the player name row,
+     overriding the panel grid gap. */
+  margin-top: -8px;
+}
+
+/* Tighten the space below the player stats inside the player panel. */
+#games > .panel {
+  padding-bottom: 6px;
+}
+
+.player-stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.player-stat-table th,
+.player-stat-table td {
+  padding: 6px 5px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.player-stat-table th:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  max-width: 120px;
+}
+
+.player-stat-table thead th {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.player-stat-table tbody th {
+  color: var(--text);
+}
+
+.player-stat-table td {
+  color: var(--accent-strong);
+}
+
+.player-stat-table tbody tr:last-child th,
+.player-stat-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.lobby-stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lobby-stat-table th,
+.lobby-stat-table td {
+  padding: 6px 8px;
+  text-align: right;
+  white-space: pre;
+}
+
+.lobby-stat-table thead th {
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.lobby-stat-table th:first-child {
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-stat-table tbody th {
+  color: var(--text);
+}
+
+.lobby-stat-table td {
+  min-width: 54px;
+  color: var(--accent-strong);
+  font-weight: 900;
+}
+
+.notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--notice-border);
+  border-radius: 8px;
+  background: var(--notice-bg);
+  color: var(--notice-ink);
+  font-weight: 700;
+  text-align: center;
+}
+
+.notice.hidden {
+  display: none;
+}
+
+.notice div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notice span {
+  color: var(--notice-sub);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.room-summary-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.room-summary-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.room-summary-main strong,
+.room-summary-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-summary-main span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.room-summary-players {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.room-summary-players .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+}
+
+.room-summary-card button {
+  justify-self: center;
+  width: auto;
+  min-width: 86px;
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.room-summary-card .room-super-close {
+  min-width: 34px;
+  padding: 0 8px;
+}
+
+.game-card {
+  width: 100%;
+  min-height: 52px;
+  text-align: center;
+  font-size: 18px;
+  white-space: pre-line;
+}
+
+.game-card:disabled {
+  background: var(--surface-sunken);
+  border-color: #d3dae8;
+  color: var(--muted);
+}
+
+.game-card strong,
+.game-card span,
+.game-card em {
+  min-width: 0;
+}
+
+.game-card strong {
+  font-size: 20px;
+}
+
+.game-card > span:not(.game-badge) {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.game-card em {
+  grid-column: 1 / -1;
+  color: var(--accent-strong);
+  font-style: normal;
+}
+
+.game-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.current-player {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  min-height: 48px;
+  font-weight: 800;
+}
+
+.current-player strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current-player:not(:has(.avatar)) {
+  display: block;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.player-select-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 8px;
+  align-items: center;
+}
+
+.player-menu-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 54px);
+  gap: 4px;
+}
+
+.player-menu-actions button {
+  width: 54px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 12px;
+}
+
+.game-badge {
+  justify-self: end;
+  align-self: start;
+  border-radius: 999px;
+  background: var(--secondary-bg);
+  color: var(--accent-strong);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.selected-game {
+  display: grid;
+  gap: 2px;
+}
+
+.selected-game span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.roster-scroll {
+  display: grid;
+  gap: 8px;
+  max-height: 190px;
+  margin-top: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.roster-player {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 48px;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.roster-player strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-player.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.player-list,
+.room-players {
+  display: grid;
+  gap: 8px;
+}
+
+.existing-players-section {
+  display: grid;
+  gap: 8px;
+}
+
+.existing-players-section.hidden {
+  display: none;
+}
+
