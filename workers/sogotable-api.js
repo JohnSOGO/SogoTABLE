@@ -1,6 +1,6 @@
 // Game metadata is shared with the browser app from one registry module so the
 // two can't drift. esbuild bundles this relative import into the Worker.
-import { GAME_REGISTRY, GAME_IDS } from "../src/sogotable/static/games/registry.js";
+import { GAME_IDS } from "../src/sogotable/static/games/registry.js";
 // Platform + persistence helpers (extracted so the Worker entry owns routing, not
 // HTTP/CORS/rate-limit/storage plumbing).
 import { json, readJson, corsHeadersFor } from "./platform/http.js";
@@ -13,6 +13,10 @@ import { reservedTestPlayerFromId } from "./test-players.js";
 import {
   isHiddenPlayer, publicPlayers, publicPlayer, isHiddenTestRoom, publicBot, botDifficultyLevel,
 } from "./projections.js";
+import {
+  GAME_DEFINITIONS, DEFAULT_GAME_ID, cleanGameId, publicGameDefinition, gameIdsForLookup,
+  gameIdMatches, playerCountForGame, isSoloGameId, gameUsesHostStart,
+} from "./game-catalog.js";
 import { loadState, saveState, withStateRetry } from "./persistence/state.js";
 // Per-game rules modules (Phase 2). The Worker keeps the dispatch predicates and
 // routing; each game's server-authoritative rules live in its own module.
@@ -112,19 +116,12 @@ const ROOM_SEAT_COLORS = [
   "#334155",
 ];
 const COLOR_SIMILARITY_THRESHOLD = 110;
-const GAME_DEFINITIONS = GAME_REGISTRY;
-const DEFAULT_GAME_ID = GAME_IDS.classic;
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
 const BATTLESHIP_GAME_ID = GAME_IDS.battleship;
 const QUORIDOR_GAME_ID = GAME_IDS.quoridor;
 const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
 const YAHTZEE_GAME_ID = GAME_IDS.yahtzee;
-const GAME_ID_ALIASES = new Map();
-GAME_DEFINITIONS.forEach((game) => {
-  GAME_ID_ALIASES.set(game.id, game.id);
-  (game.aliases || []).forEach((alias) => GAME_ID_ALIASES.set(alias, game.id));
-});
 const BOT_MOVE_DELAY_MS = 700;
 const BOT_DEFINITIONS = [
   { id: "7c91a4e2b6d0", name: "Sprout", icon: "\uD83C\uDF31", color: "#16a34a", rating: 900, strategy: "random", difficulty: "novice", difficulty_label: "Novice" },
@@ -1040,61 +1037,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-
-function cleanGameId(gameId) {
-  const value = String(gameId || DEFAULT_GAME_ID).trim() || DEFAULT_GAME_ID;
-  const canonical = GAME_ID_ALIASES.get(value);
-  if (!canonical) throw new Error("Game is not available yet.");
-  return canonical;
-}
-
-function gameDefinitionFor(gameId) {
-  const canonical = cleanGameId(gameId);
-  return GAME_DEFINITIONS.find((game) => game.id === canonical);
-}
-
-function publicGameDefinition(game) {
-  const playerCount = playerCountForGame(game.id);
-  return {
-    id: game.id,
-    name: game.name,
-    summary: game.summary,
-    players: game.players,
-    category: game.category || null,
-    player_count: Number.isFinite(playerCount) ? playerCount : null,
-    status: game.status,
-    availability: game.availability,
-    aliases: [...(game.aliases || [])],
-  };
-}
-
-function gameIdsForLookup(gameId) {
-  const game = gameDefinitionFor(gameId);
-  return [game.id, ...(game.aliases || [])];
-}
-
-function gameIdMatches(candidate, gameId) {
-  return cleanGameId(candidate) === cleanGameId(gameId);
-}
-
-function playerCountForGame(gameId) {
-  const game = GAME_DEFINITIONS.find((item) => item.id === cleanGameId(gameId));
-  const count = Number(game && game.player_count);
-  if (Number.isFinite(count) && count > 0) return count;
-  return game && game.host_start ? Number.POSITIVE_INFINITY : 2;
-}
-
-function isSoloGameId(gameId) {
-  return playerCountForGame(gameId) === 1;
-}
-
-// Host-start games seat a variable number of players and do not auto-activate;
-// the host starts them explicitly. Seats get indexed marks (P1..PN) rather
-// than the binary X/O the two-player games use.
-function gameUsesHostStart(gameId) {
-  const game = GAME_DEFINITIONS.find((item) => item.id === cleanGameId(gameId));
-  return Boolean(game && game.host_start);
-}
 
 function playerFromPayload(payload) {
   const player = payload.player || payload;
