@@ -17,6 +17,47 @@ import {
   shortestPathFromCode as mwShortestPath, edgeKey as mwEdgeKey,
 } from "../../src/sogotable/static/games/mazewright/rules.js";
 
+const eventSnapshotCount = (env) =>
+  [...env.EVENT_HUB.objects.values()].reduce((sum, hub) => sum + hub.snapshots.length, 0);
+
+test("route side-effect policy: GET and read-only POSTs declare no side effects", () => {
+  const { sideEffectsFor } = tenThousandTest;
+  const free = { mutates: false, notifyRooms: false, notifyApp: false };
+  const full = { mutates: true, notifyRooms: true, notifyApp: true };
+  assert.deepEqual(sideEffectsFor("GET", "/api/players"), free);
+  assert.deepEqual(sideEffectsFor("POST", "/api/superuser/verify"), free);
+  assert.deepEqual(sideEffectsFor("POST", "/api/bug-reports/list"), free);
+  // Anything else non-GET defaults to a full mutation + both notifications.
+  assert.deepEqual(sideEffectsFor("POST", "/api/players/create"), full);
+  assert.deepEqual(sideEffectsFor("POST", "/api/room/move"), full);
+  assert.deepEqual(sideEffectsFor("DELETE", "/api/players"), full);
+});
+
+test("a read-only POST neither writes state nor notifies the app event hub", async () => {
+  const env = makeEnvWithEvents();
+  await post(env, "/api/players/create", { player: player("sogo-id", "Sogo") }); // baseline write
+  const writesBefore = env.SOGOTABLE_STATE.writeCount;
+  const eventsBefore = eventSnapshotCount(env);
+
+  const verified = await post(env, "/api/superuser/verify", { requester_id: "sogo-id", passcode: "1234" });
+  assert.equal(verified.ok, true);
+
+  assert.equal(env.SOGOTABLE_STATE.writeCount, writesBefore, "read-only POST must not write state");
+  assert.equal(eventSnapshotCount(env), eventsBefore, "read-only POST must not notify the app event hub");
+});
+
+test("a mutating POST writes state and notifies the app event hub", async () => {
+  const env = makeEnvWithEvents();
+  const writesBefore = env.SOGOTABLE_STATE.writeCount;
+  const eventsBefore = eventSnapshotCount(env);
+
+  const created = await post(env, "/api/players/create", { player: player("p1", "Player One") });
+  assert.equal(created.ok, true);
+
+  assert.ok(env.SOGOTABLE_STATE.writeCount > writesBefore, "mutating POST must write state");
+  assert.ok(eventSnapshotCount(env) > eventsBefore, "mutating POST must notify the app event hub");
+});
+
 test("creates, lists, and deletes players", async () => {
   const env = makeEnv();
   const created = await post(env, "/api/players/create", { player: player("p1", "Player One") });

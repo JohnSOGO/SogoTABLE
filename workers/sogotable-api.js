@@ -133,9 +133,19 @@ const OWNER_TOKEN_BYTES = 24;
 const DEFAULT_ELO_RATING = 1000;
 const ELO_K_FACTOR = 32;
 
-// Side-effect policy: any non-GET request saves the state blob + notifies, except
-// these read-only POSTs. Declare a path here only if its handler never mutates.
-const READ_ONLY_POST_PATHS = new Set(["/api/superuser/verify", "/api/bug-reports/list"]);
+// Per-route side effects, declared not inferred. GET is read-only; any other
+// method defaults to a full mutation (save + notify rooms + notify app hub). A
+// read-only or partial-profile route declares itself in ROUTE_SIDE_EFFECTS.
+const MUTATING = { mutates: true, notifyRooms: true, notifyApp: true };
+const READ_ONLY = { mutates: false, notifyRooms: false, notifyApp: false };
+const ROUTE_SIDE_EFFECTS = new Map([
+  ["POST /api/superuser/verify", READ_ONLY],
+  ["POST /api/bug-reports/list", READ_ONLY],
+]);
+function sideEffectsFor(method, pathname) {
+  if (method === "GET") return READ_ONLY;
+  return ROUTE_SIDE_EFFECTS.get(`${method} ${pathname}`) || MUTATING;
+}
 
 export default {
   async fetch(request, env) {
@@ -175,13 +185,11 @@ export default {
         superuserPlayerIds: env.SOGOTABLE_SUPERUSER_PLAYER_IDS,
         ownerAuthBypass: env.__SOGOTABLE_TEST_OWNER_BYPASS,
       });
-      // Read-only POSTs (passcode/verify, bug-report export) must not rewrite the
-      // shared state blob or fan out room/event notifications.
-      if (request.method !== "GET" && !READ_ONLY_POST_PATHS.has(url.pathname)) {
-        await saveState(env, data);
-        await notifyRoomObject(env, response);
-        await notifyEventHub(env, data, response);
-      }
+      // Apply only the side effects this route declares (see ROUTE_SIDE_EFFECTS).
+      const effects = sideEffectsFor(request.method, url.pathname);
+      if (effects.mutates) await saveState(env, data);
+      if (effects.notifyRooms) await notifyRoomObject(env, response);
+      if (effects.notifyApp) await notifyEventHub(env, data, response);
       return json(responseForViewer(response, viewerPlayerIdForRequest(url, payload)), 200, corsHeaders);
     } catch (error) {
       return json({ ok: false, error: error.message || "Request failed." }, 400, corsHeaders);
@@ -1929,6 +1937,7 @@ function hexToRgb(color) {
 }
 
 export const __test = {
+  sideEffectsFor,
   allowDirectRoomAuthority(env) {
     env.__SOGOTABLE_TEST_DIRECT_ROOM_AUTHORITY = true;
     return env;
