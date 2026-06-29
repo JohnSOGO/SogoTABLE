@@ -2662,8 +2662,13 @@ function syncSelectedPlayerForLocalRoom() {
     : currentRoom.started && currentRoom.game.status === "playing" && currentTurnPlayer
     ? currentTurnPlayer.id
     : homePlayerId;
-  if (!targetPlayerId || selectedPlayerId === targetPlayerId) return;
+  // selectedPlayer()/board/makeMove resolve deviceSelectedPlayerId FIRST, so the
+  // device seat must follow the turn here too — moving only selectedPlayerId left
+  // hot-seat stuck on the previous seat (every edge disabled). Mirror restore.
+  if (!targetPlayerId || deviceSelectedPlayerId === targetPlayerId) return;
   selectedPlayerId = targetPlayerId;
+  deviceSelectedPlayerId = targetPlayerId;
+  saveSelectedPlayer();
   renderPlayers();
   renderSelectedPlayer();
   renderCurrentPlayer();
