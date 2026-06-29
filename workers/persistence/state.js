@@ -88,31 +88,6 @@ async function ensureSchema(env) {
   }
 }
 
-async function readJson(request) {
-  const text = await request.text();
-  return text ? JSON.parse(text) : {};
-}
-
-function json(payload, status = 200, headers = baseCorsHeaders) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
-  });
-}
-
-function corsHeadersFor(request) {
-  const origin = request.headers.get("Origin");
-  if (!origin) return { ...baseCorsHeaders, "Access-Control-Allow-Origin": "*" };
-  if (
-    allowedOrigins.has(origin) ||
-    /^https:\/\/[a-z0-9-]+\.sogotable\.pages\.dev$/.test(origin) ||
-    /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
-  ) {
-    return { ...baseCorsHeaders, "Access-Control-Allow-Origin": origin, Vary: "Origin" };
-  }
-  return null;
-}
-
 function writeChanged(result) {
   const changes = result && result.meta && typeof result.meta.changes === "number" ? result.meta.changes : 1;
   return changes > 0;
