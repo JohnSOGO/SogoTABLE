@@ -23,7 +23,7 @@ This ledger records known compromises that are acceptable for the current family
 
 ## Exit Criteria
 
-- Move durable room state, invite lifecycle, and hot presence data behind focused Durable Object ownership, leaving D1 for roster, history, statistics, and backfill indexes.
+- Move durable room state, invite lifecycle, and hot presence data behind focused Durable Object ownership, leaving D1 for roster, history, statistics, and backfill indexes. **Concrete migration sequence + code seams: `docs/state-partition-plan.md` (plan only; do not implement until public usage forces it).**
 - Split Worker modules by platform routing, persistence, rooms, players, invites, game rules, bot policy, and projections once tests can cover the seams.
 - Split the browser shell into stable state/controller modules before adding another complex game.
 - Add typed error identifiers when at least two client flows need distinct recovery handling for the same endpoint.

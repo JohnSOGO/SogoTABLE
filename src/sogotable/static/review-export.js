@@ -120,6 +120,7 @@ const REVIEW_EXPORT_FILES = [
   "docs/purpose.md",
   "docs/roadmap.md",
   "docs/state-machine.md",
+  "docs/state-partition-plan.md",
   "docs/wu-wei-event-driven-progress.md",
   "docs/wu-wei-method.md",
 ];
