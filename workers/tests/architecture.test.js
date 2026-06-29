@@ -197,6 +197,30 @@ test("architecture: every game manifest reconciles with the registry", async () 
   assert.deepEqual(missing, [], `ready games missing a manifest.js: ${missing.join(", ")}`);
 });
 
+// Modes-of-play guard: every game declares an explicit `lobbyMode` that the shared
+// lobby (games/lobby.js) honors — "hostStart" (1+ players, host taps Start) or
+// "fixedCapacity" (fixed seats, auto-starts when the table fills). It must agree
+// with host_start so the declared mode and the runtime seating can't drift, and so
+// a new game can't ship without choosing one.
+test("architecture: every game declares a lobbyMode consistent with host_start", async () => {
+  const { GAME_REGISTRY } = await import(
+    pathToFileURL(join(root, "src/sogotable/static/games/registry.js")).href
+  );
+  const LOBBY_MODES = new Set(["fixedCapacity", "hostStart"]);
+  for (const game of GAME_REGISTRY) {
+    assert.ok(
+      LOBBY_MODES.has(game.lobbyMode),
+      `${game.name} needs lobbyMode one of ${[...LOBBY_MODES].join("/")} (got ${JSON.stringify(game.lobbyMode)})`,
+    );
+    const expected = game.host_start ? "hostStart" : "fixedCapacity";
+    assert.equal(
+      game.lobbyMode,
+      expected,
+      `${game.name} lobbyMode "${game.lobbyMode}" disagrees with host_start=${Boolean(game.host_start)} (expected "${expected}")`,
+    );
+  }
+});
+
 // God-file backstop: CEILINGS tightly ratchets the four known big files, but
 // nothing stopped a FIFTH file growing unbounded. Cap every other source file at
 // a generous limit so a new god file fails the build the moment it forms. This is

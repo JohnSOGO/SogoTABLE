@@ -20,6 +20,7 @@ import {
 // Shell sound system — every cue is gated by the top-menu sound toggle
 // (isSoundEnabled), so Yahtzee audio is controlled there. No per-game speaker.
 import { playDiceRoll, playScorePick, playClick, playCancel, playWin } from "../../sound.js";
+import { renderHostStartLobby } from "../lobby.js";
 
 const PIP_MAP = {
   1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8],
@@ -53,7 +54,15 @@ const qa = (sel) => ctx.host.querySelectorAll(sel);
 export function renderYahtzeeGame(controllerCtx) {
   ctx = controllerCtx;
   injectStyles();
-  if (!ctx.started) { renderLobby(); builtKey = ""; return; }
+  if (!ctx.started) {
+    renderHostStartLobby(ctx.host, ctx, {
+      wrap: "yz-root",
+      heading: "Players",
+      blurb: "A 6-game series — everyone plays their own card, and the table moves to the next game once all players finish. Invite players or bots, then start.",
+    });
+    builtKey = "";
+    return;
+  }
   ensureLocalGame();
   newsFromSnapshot();
   // A snapshot arriving mid-animation must not clobber the dice feedback; just
@@ -91,39 +100,6 @@ function ensureLocalGame() {
     for (const k of CATEGORY_KEYS) if (seat.scores[k] != null) card.scores[k] = seat.scores[k];
     if (isCardComplete(card.scores)) localGame.over = true; // finished this game, waiting
   }
-}
-
-// --- lobby (standard 10,000-style host-start lobby) ------------------------
-function renderLobby() {
-  const seats = Array.isArray(ctx.room.players) ? ctx.room.players : [];
-  const roster = seats.length
-    ? seats.map((seat, i) => `
-      <li class="tt-lobby-player">
-        <span class="tt-lobby-player-no">${i + 1}</span>
-        <div class="tt-lobby-player-body">
-          <strong>${ctx.escapeHtml(seat.name)}</strong>
-          <span>${ctx.escapeHtml(seat.kind === "bot" ? "Bot" : "Player")} ${ctx.escapeHtml(seat.mark || "")}</span>
-        </div>
-      </li>`).join("")
-    : `<li class="tt-lobby-empty">No players yet.</li>`;
-  const hostControls = ctx.isHost
-    ? `<div class="tt-lobby-actions">
-        <button class="secondary" type="button" data-yz="invite">Invite Remote Opponent</button>
-        <button class="secondary" type="button" data-yz="bot">Invite Bot</button>
-        <button class="primary" type="button" data-yz="start" ${seats.length ? "" : "disabled"}>Start Game</button>
-      </div>`
-    : `<p class="ten-thousand-message">Waiting for the host to start...</p>`;
-  ctx.host.innerHTML = `<div class="yz-root"><section class="ten-thousand-lobby">
-      <h3>Players</h3>
-      <ul class="tt-lobby-roster">${roster}</ul>
-      <p class="ten-thousand-message">A 6-game series — everyone plays their own card, and the table moves to the next game once all players finish. Invite players or bots, then start.</p>
-      ${hostControls}
-    </section></div>`;
-  if (!ctx.isHost) return;
-  const wire = (key, fn) => { const b = q(`[data-yz="${key}"]`); if (b) b.addEventListener("click", fn); };
-  wire("invite", () => ctx.invitePlayer());
-  wire("bot", () => ctx.addBot());
-  wire("start", () => ctx.startGame());
 }
 
 // --- play view -------------------------------------------------------------

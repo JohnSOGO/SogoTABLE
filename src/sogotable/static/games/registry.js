@@ -31,6 +31,7 @@ export const GAME_CATEGORIES = [
 export const GAME_REGISTRY = [
   {
     id: GAME_IDS.classic,
+    lobbyMode: "fixedCapacity",
     name: "Super Tic Tac Toe",
     summary: "A nested tic tac toe duel where every move sends the next player to a target board.",
     players: "2 players",
@@ -41,6 +42,7 @@ export const GAME_REGISTRY = [
   },
   {
     id: GAME_IDS.tactical,
+    lobbyMode: "fixedCapacity",
     name: "Super Tic Tactical Toe",
     summary: "Ultimate tic tac toe with tactical coin and treasure pickups for bonus points.",
     players: "2 players",
@@ -51,6 +53,7 @@ export const GAME_REGISTRY = [
   },
   {
     id: GAME_IDS.boxes,
+    lobbyMode: "fixedCapacity",
     name: "Dots and Boxes",
     summary: "Claim edges between dots, complete boxes, and keep the turn when you score.",
     players: "2 players",
@@ -61,6 +64,7 @@ export const GAME_REGISTRY = [
   },
   {
     id: GAME_IDS.battleship,
+    lobbyMode: "fixedCapacity",
     name: "Battleship",
     summary: "Place your fleet, switch between defence and offence, and sink the enemy ships.",
     players: "2 players",
@@ -71,6 +75,7 @@ export const GAME_REGISTRY = [
   },
   {
     id: GAME_IDS.quoridor,
+    lobbyMode: "fixedCapacity",
     name: "Quoridor",
     summary: "Race your pawn across the board while placing walls that slow your opponent without blocking every path.",
     players: "2 players",
@@ -81,6 +86,7 @@ export const GAME_REGISTRY = [
   },
   {
     id: GAME_IDS.tenThousand,
+    lobbyMode: "hostStart",
     name: "10,000",
     summary: "Roll six dice, keep the scoring dice, press your luck, and bank your way to 10,000.",
     players: "1+ players",
@@ -93,6 +99,7 @@ export const GAME_REGISTRY = [
   },
   {
     id: GAME_IDS.yahtzee,
+    lobbyMode: "hostStart",
     name: "Yahtzee",
     summary: "Roll five dice, fill your scorecard, and chase the high score — everyone plays their own game in parallel.",
     players: "1+ players",
@@ -105,6 +112,7 @@ export const GAME_REGISTRY = [
   },
   {
     id: GAME_IDS.mazewright,
+    lobbyMode: "hostStart",
     name: "Mazewright",
     summary: "Build a fog-of-war dungeon, then everyone races each other's blind — fewest moves and most loot win the prizes.",
     players: "1+ players",

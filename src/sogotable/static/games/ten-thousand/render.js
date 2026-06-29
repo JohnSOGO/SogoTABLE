@@ -1,3 +1,5 @@
+import { renderHostStartLobby } from "../lobby.js";
+
 const FACE_PIPS = {
   1: [5],
   2: [1, 9],
@@ -46,20 +48,7 @@ export function renderTenThousandGame(ctx) {
 }
 
 function renderTenThousandLobby(host, ctx) {
-  const { room, isHost, escapeHtml } = ctx;
-  const seats = Array.isArray(room.players) ? room.players : [];
-  const roster = seats.length
-    ? seats.map((seat, index) => `
-      <li class="tt-lobby-player">
-        <span class="tt-lobby-player-no">${index + 1}</span>
-        <div class="tt-lobby-player-body">
-          <strong>${escapeHtml(seat.name)}</strong>
-          <span>${escapeHtml(seat.kind === "bot" ? "Bot" : "Player")} ${escapeHtml(seat.mark || "")}</span>
-        </div>
-      </li>`).join("")
-    : `<li class="tt-lobby-empty">No players yet.</li>`;
-
-  const game = ctx.game || (room && room.game) || {};
+  const game = ctx.game || (ctx.room && ctx.room.game) || {};
   const currentOpening = tenThousandOpeningChoice != null
     ? tenThousandOpeningChoice
     : Number(game.opening_base != null ? game.opening_base : 500);
@@ -70,41 +59,21 @@ function renderTenThousandLobby(host, ctx) {
         ${TEN_THOUSAND_OPENING_OPTIONS.map((value) => `<option value="${value}"${value === currentOpening ? " selected" : ""}>${value === 0 ? "None (50)" : fmt(value)}</option>`).join("")}
       </select>
     </label>`;
-  const hostControls = isHost
-    ? `
-      ${openingHtml}
-      <div class="tt-lobby-actions">
-        <button class="secondary" type="button" data-lobby="invite">Invite Remote Opponent</button>
-        <button class="secondary" type="button" data-lobby="bot">Invite Bot</button>
-        <button class="primary" type="button" data-lobby="start" ${seats.length ? "" : "disabled"}>Start Game</button>
-      </div>`
-    : `<p class="ten-thousand-message">Waiting for the host to start...</p>`;
-
-  host.innerHTML = `
-    <section class="ten-thousand-lobby">
-      <h3>Hosts</h3>
-      <ul class="tt-lobby-roster">${roster}</ul>
-      <p class="ten-thousand-message">Invite remote opponents or bots, then start whenever you're ready.</p>
-      ${hostControls}
-    </section>`;
-
-  if (!isHost) return;
-  const wire = (key, fn) => {
-    const button = host.querySelector(`[data-lobby="${key}"]`);
-    if (button && fn) button.addEventListener("click", () => {
-      if (!button.disabled) fn();
-    });
+  const openingValue = (root) => {
+    const select = root.querySelector('[data-lobby="opening"]');
+    return select ? Number(select.value) : undefined;
   };
-  wire("invite", ctx.invitePlayer);
-  wire("bot", ctx.addBot);
-  const openingSelect = host.querySelector('[data-lobby="opening"]');
-  if (openingSelect) openingSelect.addEventListener("change", () => {
-    tenThousandOpeningChoice = Number(openingSelect.value);
-  });
-  const startButton = host.querySelector('[data-lobby="start"]');
-  if (startButton && ctx.startGame) startButton.addEventListener("click", () => {
-    if (startButton.disabled) return;
-    ctx.startGame(openingSelect ? Number(openingSelect.value) : undefined);
+  renderHostStartLobby(host, ctx, {
+    heading: "Players",
+    blurb: "Invite remote opponents or bots, then start whenever you're ready.",
+    extraHtml: openingHtml,
+    getStartArg: openingValue,
+    onMount: (root) => {
+      const select = root.querySelector('[data-lobby="opening"]');
+      if (select) select.addEventListener("change", () => {
+        tenThousandOpeningChoice = Number(select.value);
+      });
+    },
   });
 }
 

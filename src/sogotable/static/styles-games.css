@@ -1250,9 +1250,9 @@
   padding: 10px 12px;
   color: var(--muted);
   text-align: center;
-  border: 1px solid #d7dde5;
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--surface-sunken);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
@@ -1328,16 +1328,16 @@
   gap: 10px;
   margin-bottom: 10px;
   font-weight: 700;
-  color: #334155;
+  color: var(--muted);
 }
 
 .tt-lobby-opening select {
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--line);
+  background: var(--surface);
   font-weight: 700;
-  color: #111827;
+  color: var(--ink);
   min-width: 96px;
 }
 
@@ -1625,15 +1625,12 @@
    scoreboard) and now sit on the dark page/modals. Override them here so the
    light rules above stay byte-identical. Game *boards* keep their light
    palette by design — see docs/theme.md. */
+/* Lobby surfaces now draw light + dark from the shared tokens (--line /
+   --surface / --surface-sunken / --muted / --ink), so the only dark-specific
+   tweak left is dropping the light inset highlight on the message strip. */
 :root[data-theme="dark"] .ten-thousand-message {
-  background: var(--surface-sunken);
-  border-color: var(--line);
   box-shadow: none;
 }
-:root[data-theme="dark"] .tt-lobby-opening {
-  color: var(--muted);
-}
-:root[data-theme="dark"] .tt-lobby-opening select,
 :root[data-theme="dark"] .bug-report textarea,
 :root[data-theme="dark"] .passcode-input {
   background: var(--surface);
