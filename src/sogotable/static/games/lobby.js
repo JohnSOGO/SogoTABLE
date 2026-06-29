@@ -36,12 +36,10 @@ export function renderHostStartLobby(host, ctx, opts = {}) {
   const esc = ctx.escapeHtml || ((s) => s);
   const seats = Array.isArray(ctx.room && ctx.room.players) ? ctx.room.players : [];
   const roster = seats.length
-    ? seats.map((seat, i) => `
+    ? seats.map((seat) => `
       <li class="tt-lobby-player">
-        <span class="tt-lobby-player-no">${i + 1}</span>
         <div class="tt-lobby-player-body">
           <strong>${seat.icon ? esc(seat.icon) + " " : ""}${esc(seat.name)}</strong>
-          <span>${esc(seat.kind === "bot" ? "Bot" : "Player")} ${esc(seat.mark || "")}</span>
         </div>
       </li>`).join("")
     : `<li class="tt-lobby-empty">No players yet.</li>`;

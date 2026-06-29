@@ -1281,7 +1281,7 @@
 
 .tt-lobby-player {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -1290,28 +1290,17 @@
   background: var(--surface);
 }
 
-.tt-lobby-player-no {
-  font-weight: 700;
-  color: var(--muted);
-}
-
 .tt-lobby-player-body {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
-.tt-lobby-player-body strong,
-.tt-lobby-player-body span {
+.tt-lobby-player-body strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.tt-lobby-player-body span {
-  font-size: 0.85em;
-  color: var(--muted);
 }
 
 .tt-lobby-empty {
