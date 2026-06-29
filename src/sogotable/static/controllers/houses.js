@@ -59,6 +59,7 @@ function renderIdle(host) {
       <button type="button" class="secondary house-create">Create House</button>
       <button type="button" class="secondary house-join">Join House</button>
     </div>
+    <p class="house-tip">Create/Join a House — or just close and start playing.</p>
   `;
   host.querySelector(".house-create").addEventListener("click", () => switchMode("create"));
   host.querySelector(".house-join").addEventListener("click", () => switchMode("join"));

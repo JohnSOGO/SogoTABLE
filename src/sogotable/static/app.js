@@ -833,7 +833,7 @@ async function finishPlayerSave(playerId, input, wasEditing = false) {
   refreshSelectedPlayerStats();
   updateLobbyPresence();
   renderCreateGameButton();
-  closePlayerModal();
+  if (wasEditing) closePlayerModal(); else editPlayer(playerId);
   return true;
 }
 
