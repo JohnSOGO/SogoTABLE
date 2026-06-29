@@ -62,7 +62,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/registry.js",
   "src/sogotable/static/games/game-list-view.js",
   "src/sogotable/static/games/render-keys.js",
-  "src/sogotable/static/games/host-lobby.js",
+  "src/sogotable/static/games/lobby.js",
   "src/sogotable/static/games/README.md",
   "src/sogotable/static/games/battleship/client.js",
   "src/sogotable/static/games/battleship/phrases.js",

@@ -107,3 +107,50 @@ PLACEMENT RECEIPT
   "implementer's call within owner" scope note; wording fits both create and edit. The
   `.house-tip` style lives with its siblings in styles-room.css (House chrome
   stylesheet) — presentation cohesive with concern (B), not a new owner.
+
+## 2026-06-29 — Unified mode-driven lobby (bug mqxvagbl)
+Commits: refactor(lobby) fcbe452 (prep) + feat(lobby) (feature)
+
+PLACEMENT RECEIPT
+- Ask:          Unify the two pre-game lobbies (2-player auto-start slots + 1+ host-start
+                roster) into one mode-driven component, and decide where the mode of play
+                is declared. User priorities: consistency + a single themed palette across
+                light/dark.
+- Verdict:      src/sogotable/static/games/lobby.js (rename of host-lobby.js, broadened
+                concern) owns the unified lobby; renderRoomSlots + helpers moved there out
+                of app.js; new pure-data `lobbyMode` field added to games/registry.js.
+                [EXISTING owner rows — host-lobby row repointed/broadened, registry unchanged]
+- Flow stage:   render (pre-game / room-fill presentation). `lobbyMode` is registry
+                metadata; auto-start vs host-start AUTHORITY stays in orchestration, not
+                the lobby — the lobby only selects which controls/markup show.
+- Sources read: docs/module-ownership.md, docs/modularity.md, games/host-lobby.js,
+                app.js (1730-1840 + routing), games/registry.js, yahtzee/ten-thousand/
+                mazewright render.js + manifests, workers/tests/architecture.test.js,
+                index.html room slots.
+- Considerations:
+    - lobby.js (57 lines) had ample room under the 800 cap to absorb both renderers;
+      app.js was AT its 2566 ceiling, so the extraction (which REMOVES ~60 lines)
+      relieved it — a behavior-preserving Two-Hats prep commit ratcheted the ceiling to
+      2515 before the feature.
+    - Rejected lobbyMode in manifest.js (shell doesn't import manifests for room flow) and
+      runtime-deriving from host_start (implicit; the user wants it explicit). registry.js
+      is the pure shared source both runtimes read.
+    - Rejected a brand-new module: would split the single "lobby" concern across two owners.
+- New owner row: none — existing host-lobby.js row repointed to games/lobby.js, concern
+                broadened to "Shared pre-game lobby — mode-driven (fixed-capacity/auto-start
+                + host-start)".
+
+REORG RECEIPT (commit fcbe452)
+- Trigger:      Mode-driven lobby feature lands in the lobby concern, but app.js (owner of
+                the 2-player room slots) sat at its 2566 ceiling — needed room first.
+- Seam moved:   renderRoomSlots / renderRoomInviteStatus / inviteStatusText / roomPlayerHtml
+                from app.js to games/lobby.js, behind a wireLobby(ctx) injection seam
+                (mirrors controllers/invites.js); lobby.js must not import app.js.
+- Room opened:  app.js 2565 → 2515 lines; ceiling 2566 → 2515. host-lobby.js → lobby.js.
+- Behavior:     PRESERVED — byte-identical DOM for both lobby shapes; hostInviteStatus
+                stays a shell global mutated via ctx.setHostInviteStatus; renderHostStartLobby
+                unchanged. npm test green (137/137 at the time).
+- Restraint:    No lobbyMode dispatch, no duplicate fold-in, no CSS — those landed in the
+                separate feature commit. syncHostInviteStatusFromRoom left in the shell
+                (orchestration).
+- New owner row: none — existing host-lobby.js row repointed.

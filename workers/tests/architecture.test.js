@@ -37,14 +37,14 @@ function sourceFiles(extensions) {
   return files.filter((p) => extensions.some((ext) => p.endsWith(ext)));
 }
 // The game id for a path under .../games/<id>/<file>, or null for shared files
-// that sit directly in games/ (registry.js, render-keys.js, host-lobby.js, ...).
+// that sit directly in games/ (registry.js, render-keys.js, lobby.js, ...).
 function gameDirOf(rel) {
   const match = rel.match(/(?:^|\/)games\/([^/]+)\/[^/]+$/);
   return match ? match[1] : null;
 }
 
 const CEILINGS = {
-  "src/sogotable/static/app.js": 2566,
+  "src/sogotable/static/app.js": 2515,
   "workers/sogotable-api.js": 1810,
   "src/sogotable/static/styles.css": 375,
   "src/sogotable/static/styles-games.css": 1700,
@@ -195,6 +195,30 @@ test("architecture: every game manifest reconciles with the registry", async () 
     .filter((game) => game.availability === "ready" && !covered.has(game.id) && !KNOWN_NO_MANIFEST.has(game.id))
     .map((game) => game.name);
   assert.deepEqual(missing, [], `ready games missing a manifest.js: ${missing.join(", ")}`);
+});
+
+// Modes-of-play guard: every game declares an explicit `lobbyMode` that the shared
+// lobby (games/lobby.js) honors — "hostStart" (1+ players, host taps Start) or
+// "fixedCapacity" (fixed seats, auto-starts when the table fills). It must agree
+// with host_start so the declared mode and the runtime seating can't drift, and so
+// a new game can't ship without choosing one.
+test("architecture: every game declares a lobbyMode consistent with host_start", async () => {
+  const { GAME_REGISTRY } = await import(
+    pathToFileURL(join(root, "src/sogotable/static/games/registry.js")).href
+  );
+  const LOBBY_MODES = new Set(["fixedCapacity", "hostStart"]);
+  for (const game of GAME_REGISTRY) {
+    assert.ok(
+      LOBBY_MODES.has(game.lobbyMode),
+      `${game.name} needs lobbyMode one of ${[...LOBBY_MODES].join("/")} (got ${JSON.stringify(game.lobbyMode)})`,
+    );
+    const expected = game.host_start ? "hostStart" : "fixedCapacity";
+    assert.equal(
+      game.lobbyMode,
+      expected,
+      `${game.name} lobbyMode "${game.lobbyMode}" disagrees with host_start=${Boolean(game.host_start)} (expected "${expected}")`,
+    );
+  }
 });
 
 // God-file backstop: CEILINGS tightly ratchets the four known big files, but

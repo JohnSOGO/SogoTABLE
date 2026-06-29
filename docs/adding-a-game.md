@@ -309,15 +309,18 @@ game hits (all learned on Yahtzee):
   is created from the lobby but not yet started, a host-start game owns its own
   not-started screen (the shell hides `#gamePlayersPanel` and delegates). Do **not**
   hand-roll a bespoke invite UI — render the shared **host-start lobby template**
-  `games/host-lobby.js` (`renderHostStartLobby(host, ctx, opts)`) so the seated-
+  `games/lobby.js` (`renderHostStartLobby(host, ctx, opts)`) so the seated-
   players roster, the **Invite Remote Opponent / Invite Bot / Start Game** controls,
   and their look are identical across games. It emits the canonical
   `.ten-thousand-lobby` / `.tt-lobby-*` markup and wires the ctx `invitePlayer` /
   `addBot` / `startGame` callbacks; pass `wrap: "<game>-root"` so your macro-board
   neutralizer applies, plus a `heading`/`blurb`, and `extraHtml` + `getStartArg`
   for a start option (the 10,000 opening-score select is the worked example).
-  Mazewright uses this template; Yahtzee and 10,000 predate it and carry their own
-  near-identical copies — migrate them to the shared template when next touched.
+  Mazewright, Yahtzee, and 10,000 all render through this one template now — there
+  are no hand-rolled lobby copies left to migrate. Which screen a game gets is
+  declared explicitly by its `lobbyMode` in `registry.js` (`"hostStart"` for the
+  host-start lobby above, `"fixedCapacity"` for the 2-player auto-start room slots);
+  an architecture test pins `lobbyMode` to `host_start` so the two can't drift.
 
 ---
 
