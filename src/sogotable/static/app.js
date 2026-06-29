@@ -15,6 +15,7 @@ import { buildRoomRenderKey } from "./games/render-keys.js";
 import { renderBoxesGame } from "./games/boxes/client.js";
 import { renderQuoridorGame, resetQuoridorDraft } from "./games/quoridor/client.js";
 import { renderBattleshipGame, clearBattleshipDraft } from "./games/battleship/client.js";
+import { randomBattleshipAttackPhrase, randomBattleshipResultPhrase } from "./games/battleship/phrases.js";
 import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
 import { wireGameOptions } from "./controllers/game-options.js";
 import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKey, wireGameStats } from "./controllers/game-stats.js";
@@ -88,43 +89,6 @@ const BATTLESHIP_GAME_ID = GAME_IDS.battleship;
 const QUORIDOR_GAME_ID = GAME_IDS.quoridor;
 const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
 const YAHTZEE_GAME_ID = GAME_IDS.yahtzee;
-const BATTLESHIP_ATTACK_PHRASES = [
-  "Incoming!",
-  "Fire!",
-  "Taking the shot.",
-  "Attack launched.",
-  "Target acquired.",
-  "Weapons hot.",
-  "Locked and loaded.",
-  "Let it fly.",
-];
-const BATTLESHIP_HIT_PHRASES = [
-  "Direct hit!",
-  "Boom. Contact.",
-  "Target damaged.",
-  "That one landed.",
-  "Good hit.",
-  "Impact confirmed.",
-  "That hurt.",
-];
-const BATTLESHIP_MISS_PHRASES = [
-  "Splash... nothing.",
-  "Empty water.",
-  "No contact.",
-  "Shot went wide.",
-  "Just waves.",
-  "Clean miss.",
-  "Ghost target.",
-];
-const BATTLESHIP_SUNK_PHRASES = [
-  "Target sunk!",
-  "One less problem.",
-  "Enemy down.",
-  "They're going under.",
-  "Scratch one.",
-  "Sent to the deep.",
-  "Confirmed kill.",
-];
 // Shown only when the games fetch fails; the registry is the single source of
 // truth shared with the Worker (see games/registry.js).
 const fallbackGames = GAME_REGISTRY;
@@ -2072,7 +2036,7 @@ function showBattleshipAttackReveal(previousRoom, room) {
       col: Number(move.col),
       hit: Boolean(move.hit),
       sunk: Boolean(move.sunk),
-      attackText: randomBattleshipPhrase(BATTLESHIP_ATTACK_PHRASES),
+      attackText: randomBattleshipAttackPhrase(),
       resultText: randomBattleshipResultPhrase(Boolean(move.hit), Boolean(move.sunk)),
       settleMs: view === "defence" && battleshipViewMode === "auto" ? BATTLESHIP_DEFENCE_SETTLE_MS : 0,
     });
@@ -2397,15 +2361,6 @@ function battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, cur
   if (activeView === "offence") return selectedSeat || currentTurnPlayer;
   if (activeView === "defence") return selectedSeat || currentTurnPlayer;
   return currentTurnPlayer || selectedSeat;
-}
-
-function randomBattleshipPhrase(phrases) {
-  return phrases[Math.floor(Math.random() * phrases.length)] || "";
-}
-
-function randomBattleshipResultPhrase(hit, sunk) {
-  if (sunk) return randomBattleshipPhrase(BATTLESHIP_SUNK_PHRASES);
-  return randomBattleshipPhrase(hit ? BATTLESHIP_HIT_PHRASES : BATTLESHIP_MISS_PHRASES);
 }
 
 function activeBattleshipResultReveal(room, selectedSeat) {
