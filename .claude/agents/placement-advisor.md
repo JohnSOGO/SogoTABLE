@@ -176,6 +176,25 @@ Implementer:    Write only in <path>. Do not touch <other files>.
                 <if NEW row: add the owner row above to docs/module-ownership.md so CI passes.>
 ```
 
+Then, ALWAYS, append a self-contained **RECEIPT** block. It is the auditable record
+of this consultation: the implementer commits it verbatim to
+`docs/placement-receipts.md`, so it must stand alone (no "see above"). Emit it even
+when your answer is "reuse, add nothing" or "too vague — need X".
+
+```
+PLACEMENT RECEIPT
+- Ask:          <the request, restated in one line>
+- Verdict:      <owner path(s)>  [EXISTING | NEW owner row | REUSE-add-nothing | NEEDS-CLARIFICATION]
+- Flow stage:   <which Wu Wei stage owns the concern>
+- Sources read: <the files you actually read this run>
+- Considerations:
+    - <key signal weighed — e.g. target lines vs ceiling, concern count, fan-in, layer fit>
+    - <the alternative home(s) you considered and why you rejected them>
+    - <the main stability threat this placement avoids>
+- New owner row: <the row added, or "none">
+```
+
 Be decisive. Give one placement, not a menu. If the request is too vague to place
 (you can't name the single responsibility), say exactly what you need to know — do
-not guess a home for an unclear concern.
+not guess a home for an unclear concern — and still emit the RECEIPT with verdict
+NEEDS-CLARIFICATION.

@@ -92,6 +92,11 @@ how god files and top-heavy "house of cards" modules are born. The decision is m
     owning module explicitly, as a looked-up fact — not a mid-task guess.
 - Implement **only** in the module the decision names. Do not self-judge placement
   while in the weeds of a feature.
+- **Leave a receipt.** Commit the decision's `PLACEMENT RECEIPT` (ask + verdict +
+  considerations) verbatim to `docs/placement-receipts.md` — append-only, with date
+  and resulting commit — before/with the code. If the agent was unavailable, write
+  the equivalent receipt yourself from `docs/module-ownership.md`. This is the
+  auditable proof the placement step happened; an external review checks this log.
 - If the concern has no existing owner, the placement decision is a **new owner row**
   in `docs/module-ownership.md` (added before/with the code) — that row *is* the
   decision, and CI (`workers/tests/architecture.test.js`) fails until it exists.
