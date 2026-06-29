@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { posix } from "node:path";
 
@@ -109,4 +109,47 @@ test("architecture: exported JS modules only import other exported files", () =>
     }
   }
   assert.deepEqual(problems, [], `exported modules import files missing from the allowlist:\n${problems.join("\n")}`);
+});
+
+// Metadata split-brain guard (review #13): games/registry.js is the runtime
+// source of truth (opaque ids + aliases), while per-game manifest.js files carry
+// richer descriptive metadata. They drift if nothing pins them together — some
+// manifests key off the opaque id, others off a slug alias. This test reconciles
+// every manifest to exactly one registry entry (by id OR alias), pins the name,
+// requires the descriptive fields so a new manifest can't ship half-filled, and
+// fails if a *ready* game has no manifest (ten-thousand is the one tracked gap).
+test("architecture: every game manifest reconciles with the registry", async () => {
+  const { GAME_REGISTRY, GAME_IDS } = await import(
+    pathToFileURL(join(root, "src/sogotable/static/games/registry.js")).href
+  );
+  const gamesDir = join(root, "src/sogotable/static/games");
+  // Registry-ready games that legitimately ship without a manifest yet. Removing
+  // an entry here is the forcing function: add the manifest, then drop it.
+  const KNOWN_NO_MANIFEST = new Set([GAME_IDS.tenThousand]);
+
+  const covered = new Set();
+  for (const entry of readdirSync(gamesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const manifestPath = join(gamesDir, entry.name, "manifest.js");
+    if (!existsSync(manifestPath)) continue;
+    const mod = await import(pathToFileURL(manifestPath).href);
+    const manifest = Object.values(mod).find((v) => v && typeof v === "object" && "id" in v);
+    assert.ok(manifest, `${entry.name}/manifest.js exports no manifest object`);
+    const matches = GAME_REGISTRY.filter(
+      (game) => game.id === manifest.id || (game.aliases || []).includes(manifest.id),
+    );
+    assert.equal(matches.length, 1, `${entry.name} manifest id "${manifest.id}" must match exactly one registry entry (matched ${matches.length})`);
+    const game = matches[0];
+    assert.equal(manifest.name, game.name, `${entry.name} manifest name "${manifest.name}" != registry name "${game.name}"`);
+    assert.ok(Number.isInteger(manifest.minPlayers) && manifest.minPlayers >= 1, `${entry.name} manifest needs minPlayers >= 1`);
+    assert.ok(Number.isInteger(manifest.maxPlayers) && manifest.maxPlayers >= manifest.minPlayers, `${entry.name} manifest needs maxPlayers >= minPlayers`);
+    assert.ok(typeof manifest.timingMode === "string" && manifest.timingMode, `${entry.name} manifest needs a timingMode`);
+    assert.ok(Array.isArray(manifest.capabilities) && manifest.capabilities.length, `${entry.name} manifest needs a non-empty capabilities array`);
+    covered.add(game.id);
+  }
+
+  const missing = GAME_REGISTRY
+    .filter((game) => game.availability === "ready" && !covered.has(game.id) && !KNOWN_NO_MANIFEST.has(game.id))
+    .map((game) => game.name);
+  assert.deepEqual(missing, [], `ready games missing a manifest.js: ${missing.join(", ")}`);
 });
