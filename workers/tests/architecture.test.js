@@ -266,3 +266,56 @@ test("architecture: game rule modules stay pure (no DOM / transport / storage)",
   }
   assert.deepEqual(problems, [], `game rules must own no DOM/transport/persistence — move it to the UI or transport layer:\n${problems.join("\n")}`);
 });
+
+// The ownership map (docs/module-ownership.md) is the architect's enforced
+// artifact: it pins which file owns which concern so placement is a looked-up
+// fact, not an implementer judgment. This test makes it teeth — (1) listed
+// modules exist, (2) NO source module is undocumented (a new file fails the build
+// until it's given an owner, forcing the placement decision to be explicit), and
+// (3) declared must-not-import bans hold (upstream owners can't import the entry
+// or shell back). Parses the doc's `backtick` paths from its three sections.
+test("architecture: every source module has a documented owner", () => {
+  const doc = readFileSync(join(root, "docs/module-ownership.md"), "utf8");
+  const ownedPaths = new Map(); // module path -> banned import path (or null)
+  const dirPrefixes = [];
+  const exemptPrefixes = [];
+  let section = "";
+  for (const line of doc.split("\n")) {
+    const header = line.match(/^##\s+(.*)/);
+    if (header) { section = header[1].toLowerCase(); continue; }
+    if (!line.trim().startsWith("|")) continue;
+    const cells = line.split("|").map((cell) => cell.trim());
+    const first = (cells[1] || "").match(/`([^`]+)`/);
+    if (!first) continue; // header / separator row (no backtick path)
+    if (section.startsWith("owned modules")) {
+      const ban = (cells[3] || "").match(/`([^`]+)`/);
+      ownedPaths.set(first[1], ban ? ban[1] : null);
+    } else if (section.startsWith("owned directory")) {
+      dirPrefixes.push(first[1]);
+    } else if (section.startsWith("exempt")) {
+      exemptPrefixes.push(first[1]);
+    }
+  }
+  assert.ok(ownedPaths.size > 5 && dirPrefixes.length > 0, "Could not parse docs/module-ownership.md");
+
+  const stale = [...ownedPaths.keys()].filter((rel) => !existsSync(join(root, rel)));
+  assert.deepEqual(stale, [], `module-ownership.md lists modules that do not exist: ${stale.join(", ")}`);
+
+  const coveredByDir = (rel) => dirPrefixes.some((p) => rel.startsWith(p) && rel.slice(p.length).includes("/"));
+  const exempt = (rel) => exemptPrefixes.some((p) => rel.startsWith(p));
+  const undocumented = sourceFiles([".js", ".mjs"])
+    .filter((rel) => !ownedPaths.has(rel) && !coveredByDir(rel) && !exempt(rel));
+  assert.deepEqual(undocumented, [], `undocumented module(s) — add an owner row to docs/module-ownership.md (this IS the placement decision):\n${undocumented.join("\n")}`);
+
+  const importRe = /(?:from|import)\s+["'](\.[^"']+)["']/g;
+  const banViolations = [];
+  for (const [rel, ban] of ownedPaths) {
+    if (!ban || !existsSync(join(root, rel))) continue;
+    const source = readFileSync(join(root, rel), "utf8");
+    const dir = posix.dirname(rel);
+    for (const match of source.matchAll(importRe)) {
+      if (posix.normalize(posix.join(dir, match[1])) === ban) banViolations.push(`${rel} imports banned ${ban}`);
+    }
+  }
+  assert.deepEqual(banViolations, [], `ownership import bans violated:\n${banViolations.join("\n")}`);
+});

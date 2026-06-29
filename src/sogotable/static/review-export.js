@@ -126,6 +126,7 @@ const REVIEW_EXPORT_FILES = [
   "docs/game-mazewright.md",
   "docs/live-rounds.md",
   "docs/modularity.md",
+  "docs/module-ownership.md",
   "docs/name-decision.md",
   "docs/nomenclature.md",
   "docs/project-memory.md",

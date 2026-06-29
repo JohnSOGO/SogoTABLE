@@ -221,11 +221,38 @@ of merely contradicting prose:
 - **Single registry + manifest parity + review-export import closure** — game
   ids live only in `games/registry.js`; each manifest reconciles with it; every
   exported module's relative imports resolve inside the export allowlist.
+- **Documented owner per module** — `docs/module-ownership.md` maps every concern
+  to its owning file. The build fails if a source module is undocumented (a new
+  file can't land without an explicit owner row — that row *is* the placement
+  decision), if a listed module is stale, or if an upstream owner imports the
+  entry/shell it's barred from. Placement is a looked-up, enforced fact.
 
-What is **not** mechanically caught yet (still review's job): ownership-table
-violations beyond rules purity (e.g. transport growing game logic), and a `ctx`
+What is **not** mechanically caught yet (still review's job): ownership-map
+*correctness* (the file is in SOME owner's row, but is it the RIGHT one?), other
+ownership-table violations (e.g. transport growing game logic), and a `ctx`
 surface ballooning past ~12 entries — a strong signal the boundary is wrong or
-the shell's shared mutable state wants its own owner, not more getters.
+shared mutable state wants its own owner, not more getters.
+
+## Placement is decided by the architecture step, not the implementer
+
+The implementer (human or AI) is the worst-positioned judge of *where* code
+belongs: mid-task, under a deadline, local convenience wins — which is how god
+files are born. So placement is **not** the implementer's call, and it is **not**
+the customer's (who need not know the architecture). It is decided *before* code,
+by an architecture review/agent whose only job is structure:
+
+1. **Customer** asks for a feature.
+2. **Architecture step** (a dedicated reviewer/agent, no feature to ship) decides
+   the owning module: an existing row in `docs/module-ownership.md`, or — if the
+   concern has no home — a *new* owner row (the placement decision), updated here.
+3. **Implementer** writes the code in that module only.
+4. **Build** enforces it: the ownership guard + layering + caps fail CI if the
+   code landed in the wrong place or smuggled in a new global.
+5. **Periodic external review** audits the *map and boundaries* — a small legible
+   artifact — instead of re-discovering rot across the whole codebase.
+
+The map plus the guards remove trust from the moment it fails (implementation);
+the architecture step supplies the judgment up front, where tunnel vision isn't.
 
 ## Anti-Patterns
 
