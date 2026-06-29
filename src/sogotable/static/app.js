@@ -37,10 +37,15 @@ import {
   forgetSogoAdmin,
 } from "./controllers/superuser.js";
 import {
+  wireLocalSeat,
+  isLocalModeRoom,
+  localGameHomePlayerId,
+  rememberLocalGameHomePlayer,
+  forgetLocalGameHomePlayer,
+} from "./controllers/local-seat.js";
+import {
   forgetSogoSuperuserPasscode,
   PLAYER_OWNER_TOKEN_STORAGE_KEY,
-  LOCAL_GAME_HOME_PLAYERS_KEY,
-  loadLocalGameHomePlayers,
   loadPlayerOwnerTokens,
   actionLabelStyle,
   setActionLabelStyle,
@@ -142,7 +147,6 @@ let pendingMove = null;
 const BATTLESHIP_RADAR_MS = 1000;          // radar scan before the hit/miss lands
 const BATTLESHIP_RESULT_MS = 2000;         // how long the hit/miss stays up
 const BATTLESHIP_DEFENCE_SETTLE_MS = 250;  // let the defence board settle before an incoming reveal
-let localGameHomePlayers = loadLocalGameHomePlayers();
 let playerOwnerTokens = loadPlayerOwnerTokens(); setOwnerTokenHealer((pid) => { delete playerOwnerTokens[pid]; savePlayerOwnerTokens(); return ensureOwnerToken(pid); });
 let handledResetRequestKey = "";
 let selectedGameEntryRequestId = 0;
@@ -162,6 +166,7 @@ localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
+  wireLocalSeat({ getDeviceSelectionHash: () => deviceSelectionHash, getDeviceSelectedPlayerId: () => deviceSelectedPlayerId });
   purgeDeprecatedLocalRoster();
   registerServiceWorker();
   refreshRevisionSummary();
@@ -2668,27 +2673,6 @@ function syncSelectedPlayerForLocalRoom() {
   renderCreateGameButton();
 }
 
-function isLocalModeRoom(room) {
-  return Boolean(room && (room.local_mode || localGameHomePlayers[room.code]));
-}
-
-function localGameHomePlayerId(room) {
-  if (!room) return "";
-  const remembered = localGameHomePlayers[room.code];
-  if (typeof remembered === "string") return remembered;
-  if (remembered && remembered.device_hash === deviceSelectionHash) return remembered.player_id || "";
-  return deviceSelectedPlayerId || room.host_id || "";
-}
-
-function rememberLocalGameHomePlayer(roomCode, playerId) {
-  if (!roomCode || !playerId) return;
-  localGameHomePlayers[roomCode] = {
-    player_id: playerId,
-    device_hash: deviceSelectionHash,
-  };
-  saveLocalGameHomePlayers();
-}
-
 function restoreLocalGameHomePlayer(room) {
   const homePlayerId = localGameHomePlayerId(room);
   if (!homePlayerId) return;
@@ -2706,12 +2690,6 @@ function restoreLocalGameHomePlayer(room) {
   renderGames();
   updateLobbyPresence();
   renderCreateGameButton();
-}
-
-function forgetLocalGameHomePlayer(room) {
-  if (!room || !localGameHomePlayers[room.code]) return;
-  delete localGameHomePlayers[room.code];
-  saveLocalGameHomePlayers();
 }
 
 function selectedGame() {
@@ -2801,10 +2779,6 @@ async function refreshPlayers() {
     renderCreateGameButton();
     showRosterError(error.message);
   }
-}
-
-function saveLocalGameHomePlayers() {
-  localStorage.setItem(LOCAL_GAME_HOME_PLAYERS_KEY, JSON.stringify(localGameHomePlayers));
 }
 
 function savePlayerOwnerTokens() {
