@@ -44,7 +44,7 @@ function gameDirOf(rel) {
 }
 
 const CEILINGS = {
-  "src/sogotable/static/app.js": 2571,
+  "src/sogotable/static/app.js": 2566,
   "workers/sogotable-api.js": 1960,
   "src/sogotable/static/styles.css": 1350,
   "src/sogotable/static/styles-games.css": 1700,
@@ -59,6 +59,21 @@ for (const [rel, ceiling] of Object.entries(CEILINGS)) {
     );
   });
 }
+
+// Shell shared-state ratchet: app.js's top-level `let`s are its cross-cutting
+// mutable state — the thing that forces extracted controllers to take wide ctx
+// surfaces. Cap the count so new shared state can't be added as a fresh global;
+// it must go in an owner module (e.g. client/session-store.js). Lower this when
+// you move state OUT, like the line ceilings. (Also catches incidental top-level
+// timers/keys — acceptable: it forces a deliberate choice on any new global.)
+const APP_TOP_LEVEL_LET_CAP = 33;
+test(`architecture: app.js keeps <= ${APP_TOP_LEVEL_LET_CAP} top-level let declarations`, () => {
+  const count = (readFileSync(join(root, "src/sogotable/static/app.js"), "utf8").match(/^let /gm) || []).length;
+  assert.ok(
+    count <= APP_TOP_LEVEL_LET_CAP,
+    `app.js has ${count} top-level \`let\`s (cap ${APP_TOP_LEVEL_LET_CAP}). New cross-cutting state belongs in a client/ owner module, not a fresh shell global.`,
+  );
+});
 
 // The game registry is the single source of truth: neither runtime should carry
 // its own inline game-definition literals again (the split-brain we just killed).

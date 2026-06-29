@@ -44,6 +44,15 @@ import {
 } from "./controllers/local-seat.js";
 import { wireRoomSounds, playRoomStateSounds } from "./controllers/room-sounds.js";
 import {
+  initSessionStore,
+  getSelectedPlayerId,
+  setSelectedPlayerId,
+  getDeviceSelectedPlayerId,
+  setDeviceSelectedPlayerId,
+  getDeviceSelectionHash,
+  saveDeviceIdentity,
+} from "./client/session-store.js";
+import {
   wireInvites,
   openInvitePlayerModal,
   openBotOpponentModal,
@@ -95,14 +104,9 @@ const fallbackGames = GAME_REGISTRY;
 let games = [...fallbackGames];
 
 migrateStorageNamespace();
+initSessionStore(); // device identity now lives in client/session-store.js
 
 let players = [];
-let selectedPlayerId = localStorage.getItem("sogotable.selectedPlayerId") || "";
-let deviceSelectedPlayerId = sessionStorage.getItem("sogotable.deviceSelectedPlayerId")
-  || localStorage.getItem("sogotable.deviceSelectedPlayerId")
-  || selectedPlayerId;
-let deviceSelectionHash = localStorage.getItem("sogotable.deviceSelectionHash") || randomTenDigitHash();
-if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
 let selectedGameId = localStorage.getItem("sogotable.selectedGameId") || games[0].id;
 selectedGameId = canonicalGameId(selectedGameId);
 let editingPlayerId = "";
@@ -145,27 +149,25 @@ let selectedGameEntryRequestId = 0;
 const realtime = createRealtimeController({
   getAppSubscription: () => ({
     gameId: selectedGame().id,
-    playerId: deviceSelectedPlayerId,
+    playerId: getDeviceSelectedPlayerId(),
   }),
-  getRoomPlayerId: () => deviceSelectedPlayerId || selectedPlayerId || "",
+  getRoomPlayerId: () => getDeviceSelectedPlayerId() || getSelectedPlayerId() || "",
   onAppMessage: handleAppEventMessage,
   onRoomMessage: handleRoomSocketMessage,
   onRoomReconnect: () => showTurnStatus(null, "Reconnecting to table..."),
   refreshRoom,
   shouldReconnectRoom: () => Boolean(currentRoom),
 });
-localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
-  wireLocalSeat({ getDeviceSelectionHash: () => deviceSelectionHash, getDeviceSelectedPlayerId: () => deviceSelectedPlayerId });
+  wireLocalSeat();
   wireRoomSounds({ localRoomSeat, isTenThousandGameState, isTacticalGameState, isBoxesGameState, isBotPlayer });
   wireInvites({
     getCurrentRoom: () => currentRoom,
     getPlayers: () => players,
     getLobbyPlayers: () => lobbyPlayers,
     getCurrentGameRooms: () => currentGameRooms,
-    getLocalHomePlayerId: () => deviceSelectedPlayerId || selectedPlayerId,
     setSelectedGameId: (id) => { selectedGameId = id; },
     setHostInviteStatus: (value) => { hostInviteStatus = value; },
     setActiveGameRoom: (value) => { activeGameRoom = value; },
@@ -197,7 +199,6 @@ document.addEventListener("DOMContentLoaded", () => {
     editPlayer,
     deletePlayer,
     unclaimPlayer: unclaimPlayerAsSuperuser,
-    getDeviceSelectedPlayerId: () => deviceSelectedPlayerId,
     isSuperuserSelected: isSogoSuperuserSelected,
     setPlayerFormVisible,
     rerender: renderPlayers,
@@ -346,8 +347,8 @@ async function gateSuperuserOnEntry() {
   if (!isSogoSuperuser(player) || hasSogoSuperuserPasscode()) return;
   const ok = await ensureSogoSuperuserPasscode(player);
   if (!ok) {
-    deviceSelectedPlayerId = "";
-    selectedPlayerId = "";
+    setDeviceSelectedPlayerId("");
+    setSelectedPlayerId("");
     saveSelectedPlayer();
   }
   renderPlayers();
@@ -506,13 +507,13 @@ function renderLobbyPlayers() {
     return;
   }
   const orderedPlayers = [...lobbyPlayers].sort((left, right) => {
-    if (left.id === deviceSelectedPlayerId) return -1;
-    if (right.id === deviceSelectedPlayerId) return 1;
+    if (left.id === getDeviceSelectedPlayerId()) return -1;
+    if (right.id === getDeviceSelectedPlayerId()) return 1;
     return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
   });
   orderedPlayers.forEach((player) => {
     const row = document.createElement("div");
-    row.className = `roster-player ${player.id === deviceSelectedPlayerId ? "selected" : ""}`;
+    row.className = `roster-player ${player.id === getDeviceSelectedPlayerId() ? "selected" : ""}`;
     row.innerHTML = `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong>`;
     host.appendChild(row);
   });
@@ -620,7 +621,7 @@ function renderRoomSummaryList(host, rooms, emptyText) {
     const card = document.createElement("div");
     card.className = "room-summary-card";
     const hostPlayer = room.players.find((player) => player.id === room.host_id);
-    const selectedSeat = room.players.find((player) => player.id === deviceSelectedPlayerId);
+    const selectedSeat = room.players.find((player) => player.id === getDeviceSelectedPlayerId());
     const isOpen = room.status === "waiting_for_player";
     const canSuperClose = isSogoSuperuserSelected();
     const canJoin = Boolean(deviceSelectedPlayer() && isOpen && !selectedSeat && (room.open_seats == null || room.open_seats > 0));
@@ -699,7 +700,7 @@ function renderActiveGameNotice(errorMessage = "") {
   const existing = player ? currentGameRooms.find((room) => room.players.some((seat) => seat.id === player.id)) : null;
   const nextKey = errorMessage
     ? `error:${errorMessage}`
-    : existing ? JSON.stringify({ selectedPlayerId: deviceSelectedPlayerId, room: roomSummarySignature(existing) }) : "hidden";
+    : existing ? JSON.stringify({ selectedPlayerId: getDeviceSelectedPlayerId(), room: roomSummarySignature(existing) }) : "hidden";
   if (nextKey === lastActiveGameNoticeKey) return;
   lastActiveGameNoticeKey = nextKey;
   if (errorMessage || !existing) {
@@ -721,8 +722,8 @@ function renderActiveGameNotice(errorMessage = "") {
 
 function lobbyPlayersSignature(items) {
   const orderedPlayers = [...items].sort((left, right) => {
-    if (left.id === deviceSelectedPlayerId) return -1;
-    if (right.id === deviceSelectedPlayerId) return 1;
+    if (left.id === getDeviceSelectedPlayerId()) return -1;
+    if (right.id === getDeviceSelectedPlayerId()) return 1;
     return String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" });
   });
   return JSON.stringify(orderedPlayers.map((player) => playerSignature(player)));
@@ -730,7 +731,7 @@ function lobbyPlayersSignature(items) {
 
 function gameRoomsSignature(rooms) {
   return JSON.stringify({
-    selectedPlayerId: deviceSelectedPlayerId,
+    selectedPlayerId: getDeviceSelectedPlayerId(),
     rooms: [...rooms]
       .sort((left, right) => String(left.code || "").localeCompare(String(right.code || "")))
       .map((room) => roomSummarySignature(room)),
@@ -755,7 +756,7 @@ function bugReportContext() {
     game: currentRoom ? gameName(currentRoom.game_id) : (game ? game.name : ""),
     game_id: currentRoom ? currentRoom.game_id : (game ? game.id : ""),
     room_code: currentRoom ? currentRoom.code : "",
-    player_id: player ? player.id : (deviceSelectedPlayerId || ""),
+    player_id: player ? player.id : (getDeviceSelectedPlayerId() || ""),
     player_name: player ? player.name : "",
   };
 }
@@ -792,10 +793,6 @@ function setTurnColorVariables(element, color) {
   element.style.setProperty("--turn-glow", colorWithAlpha(safeColor, 0.35));
 }
 
-function randomTenDigitHash() {
-  return String(Math.floor(1000000000 + Math.random() * 9000000000));
-}
-
 async function createPlayer(event) {
   event.preventDefault();
   const input = document.getElementById("playerName");
@@ -822,7 +819,7 @@ async function createPlayer(event) {
 }
 
 async function finishPlayerSave(playerId, input, wasEditing = false) {
-  if (!wasEditing || playerId === deviceSelectedPlayerId) {
+  if (!wasEditing || playerId === getDeviceSelectedPlayerId()) {
     const selected = await selectPlayer(playerId);
     if (!selected) {
       renderPlayers();
@@ -929,7 +926,7 @@ async function clearEditingPlayerStats() {
   if (!confirm(`Clear all stats for ${player.name}?`)) return;
   try {
     const response = await api("/api/player/stats/clear", { player_id: player.id, owner_token: await ensureOwnerToken(player.id) });
-    if (player.id === deviceSelectedPlayerId) {
+    if (player.id === getDeviceSelectedPlayerId()) {
       selectedPlayerStats = response.stats || [];
       renderSelectedPlayerStats();
     }
@@ -951,7 +948,7 @@ function renderSelectedPlayer() {
 }
 
 async function refreshSelectedPlayerStats() {
-  const playerId = deviceSelectedPlayerId;
+  const playerId = getDeviceSelectedPlayerId();
   if (playerId !== playerStatsCollapsePlayerId) { // a freshly selected player starts collapsed
     playerStatsCollapsed = true;
     playerStatsCollapsePlayerId = playerId || "";
@@ -1114,9 +1111,9 @@ async function deletePlayer(playerId) {
 }
 
 function finishPlayerDelete(playerId) {
-  if (selectedPlayerId === playerId) selectedPlayerId = "";
-  if (deviceSelectedPlayerId === playerId) {
-    deviceSelectedPlayerId = "";
+  if (getSelectedPlayerId() === playerId) setSelectedPlayerId("");
+  if (getDeviceSelectedPlayerId() === playerId) {
+    setDeviceSelectedPlayerId("");
     forgetSogoSuperuserPasscode();
   }
   saveSelectedPlayer();
@@ -1203,7 +1200,7 @@ async function closeGame() {
   restoreLocalGameHomePlayer(roomToClose);
   if (roomToClose) {
     try {
-      const exitingPlayerId = selectedPlayerId || deviceSelectedPlayerId;
+      const exitingPlayerId = getSelectedPlayerId() || getDeviceSelectedPlayerId();
       await api("/api/room/leave", { code: roomToClose.code, player_id: exitingPlayerId, requester_id: exitingPlayerId, owner_token: await ensureOwnerToken(exitingPlayerId) });
     } catch (error) {
       alert(error.message);
@@ -1269,7 +1266,7 @@ async function resetGame() {
   const confirmed = await confirmAction("Are you sure?", message);
   if (!confirmed) return;
   const player =
-    currentRoom.players.find((seat) => seat.id === selectedPlayerId || seat.id === deviceSelectedPlayerId)
+    currentRoom.players.find((seat) => seat.id === getSelectedPlayerId() || seat.id === getDeviceSelectedPlayerId())
     || currentRoom.players.find((seat) => seat.id === currentRoom.host_id)
     || currentRoom.players[0]
     || selectedPlayer();
@@ -1660,8 +1657,8 @@ function roomStatusRank(room) {
 // SFX / view to a guest.
 function localRoomSeat(room) {
   if (!room || !Array.isArray(room.players)) return null;
-  return room.players.find((player) => player.id === deviceSelectedPlayerId && player.mark)
-    || room.players.find((player) => player.id === selectedPlayerId && player.mark)
+  return room.players.find((player) => player.id === getDeviceSelectedPlayerId() && player.mark)
+    || room.players.find((player) => player.id === getSelectedPlayerId() && player.mark)
     || null;
 }
 
@@ -1765,7 +1762,7 @@ function renderRoomSlots() {
     renderRoomInviteStatus();
     return;
   }
-  if (currentRoom.host_id === deviceSelectedPlayerId) {
+  if (currentRoom.host_id === getDeviceSelectedPlayerId()) {
     opponentSlot.innerHTML = `
       <button id="selectLocalOpponent" class="secondary" type="button">Select Local Opponent</button>
       <button id="inviteRemoteOpponent" class="secondary" type="button">Invite Remote Opponent</button>
@@ -1857,7 +1854,7 @@ function renderGame() {
     renderQuoridorGame({
       game,
       room: currentRoom,
-      selectedPlayerId,
+      selectedPlayerId: getSelectedPlayerId(),
       pendingMove,
       canRoomSeatMove,
       setTurnColorVariables,
@@ -1880,8 +1877,8 @@ function renderGame() {
       game,
       room: currentRoom,
       started: currentRoom.started,
-      isHost: currentRoom.host_id === deviceSelectedPlayerId,
-      localPlayerId: localSeat ? localSeat.id : (selectedPlayerId || deviceSelectedPlayerId),
+      isHost: currentRoom.host_id === getDeviceSelectedPlayerId(),
+      localPlayerId: localSeat ? localSeat.id : (getSelectedPlayerId() || getDeviceSelectedPlayerId()),
       pendingMove,
       makeMove: makeTenThousandAction,
       startGame: startTenThousandGame,
@@ -1901,8 +1898,8 @@ function renderGame() {
       game,
       room: currentRoom,
       started: currentRoom.started,
-      isHost: currentRoom.host_id === deviceSelectedPlayerId,
-      localPlayerId: localSeat ? localSeat.id : (selectedPlayerId || deviceSelectedPlayerId),
+      isHost: currentRoom.host_id === getDeviceSelectedPlayerId(),
+      localPlayerId: localSeat ? localSeat.id : (getSelectedPlayerId() || getDeviceSelectedPlayerId()),
       pendingMove,
       makeMove: postRoomAction,
       startGame: startYahtzeeGame,
@@ -1934,7 +1931,7 @@ function renderGame() {
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
-      selectedPlayerId,
+      selectedPlayerId: getSelectedPlayerId(),
       pendingMove,
       canRoomSeatMove,
       setTurnColorVariables,
@@ -1952,7 +1949,7 @@ function renderGame() {
   lastLegalBoardsKey = renderSuperTicTacToeBoard({
     host: macroBoard,
     room: currentRoom,
-    selectedPlayerId,
+    selectedPlayerId: getSelectedPlayerId(),
     pendingMove,
     lastLegalBoardsKey,
     setTurnColorVariables,
@@ -1979,8 +1976,8 @@ function isCompletedRoom(room) {
 
 function battleshipViewerSeat(room) {
   if (!room || !Array.isArray(room.players)) return null;
-  return room.players.find((player) => player.id === deviceSelectedPlayerId && player.mark)
-    || room.players.find((player) => player.id === selectedPlayerId && player.mark)
+  return room.players.find((player) => player.id === getDeviceSelectedPlayerId() && player.mark)
+    || room.players.find((player) => player.id === getSelectedPlayerId() && player.mark)
     || null;
 }
 
@@ -2121,7 +2118,7 @@ function showTurnStatus(currentPlayer, overrideText = "") {
     host.textContent = overrideText;
     return;
   }
-  const selectedSeat = currentRoom.players.find((player) => player.id === selectedPlayerId);
+  const selectedSeat = currentRoom.players.find((player) => player.id === getSelectedPlayerId());
   if (!selectedSeat) {
     host.textContent = "Select your player.";
     host.classList.add("waiting");
@@ -2297,7 +2294,7 @@ async function refreshRoom() {
 }
 
 async function refreshHostInviteStatus() {
-  if (!currentRoom || currentRoom.started || currentRoom.host_id !== deviceSelectedPlayerId) {
+  if (!currentRoom || currentRoom.started || currentRoom.host_id !== getDeviceSelectedPlayerId()) {
     if (hostInviteStatus) {
       hostInviteStatus = null;
       renderRoomInviteStatus();
@@ -2330,31 +2327,31 @@ function leaveClosedRoom() {
 }
 
 function roomReadUrl(code) {
-  const playerId = selectedPlayerId || deviceSelectedPlayerId || "";
+  const playerId = getSelectedPlayerId() || getDeviceSelectedPlayerId() || "";
   const query = new URLSearchParams({ code });
   if (playerId) query.set("player_id", playerId);
   return `/api/room?${query.toString()}`;
 }
 
 function selectedPlayer() {
-  return players.find((player) => player.id === deviceSelectedPlayerId)
-    || players.find((player) => player.id === selectedPlayerId)
+  return players.find((player) => player.id === getDeviceSelectedPlayerId())
+    || players.find((player) => player.id === getSelectedPlayerId())
     || null;
 }
 
 function deviceSelectedPlayer() {
-  return players.find((player) => player.id === deviceSelectedPlayerId) || null;
+  return players.find((player) => player.id === getDeviceSelectedPlayerId()) || null;
 }
 
 function setDeviceSelectedPlayer(playerId) {
   const nextPlayer = players.find((player) => player.id === playerId) || null;
   if (!isSogoSuperuser(nextPlayer)) forgetSogoSuperuserPasscode();
-  const previousPlayerId = deviceSelectedPlayerId;
-  deviceSelectedPlayerId = playerId;
-  selectedPlayerId = playerId;
+  const previousPlayerId = getDeviceSelectedPlayerId();
+  setDeviceSelectedPlayerId(playerId);
+  setSelectedPlayerId(playerId);
   saveSelectedPlayer();
   realtime.sendAppEventSubscription();
-  if (currentRoom && previousPlayerId !== deviceSelectedPlayerId) realtime.refreshRoomLiveUpdates();
+  if (currentRoom && previousPlayerId !== getDeviceSelectedPlayerId()) realtime.refreshRoomLiveUpdates();
 }
 
 function syncSelectedPlayerForLocalRoom() {
@@ -2372,9 +2369,9 @@ function syncSelectedPlayerForLocalRoom() {
   // selectedPlayer()/board/makeMove resolve deviceSelectedPlayerId FIRST, so the
   // device seat must follow the turn here too — moving only selectedPlayerId left
   // hot-seat stuck on the previous seat (every edge disabled). Mirror restore.
-  if (!targetPlayerId || deviceSelectedPlayerId === targetPlayerId) return;
-  selectedPlayerId = targetPlayerId;
-  deviceSelectedPlayerId = targetPlayerId;
+  if (!targetPlayerId || getDeviceSelectedPlayerId() === targetPlayerId) return;
+  setSelectedPlayerId(targetPlayerId);
+  setDeviceSelectedPlayerId(targetPlayerId);
   saveSelectedPlayer();
   renderPlayers();
   renderSelectedPlayer();
@@ -2388,10 +2385,10 @@ function syncSelectedPlayerForLocalRoom() {
 function restoreLocalGameHomePlayer(room) {
   const homePlayerId = localGameHomePlayerId(room);
   if (!homePlayerId) return;
-  const changed = selectedPlayerId !== homePlayerId || deviceSelectedPlayerId !== homePlayerId;
-  selectedPlayerId = homePlayerId;
-  if (deviceSelectedPlayerId !== homePlayerId) {
-    deviceSelectedPlayerId = homePlayerId;
+  const changed = getSelectedPlayerId() !== homePlayerId || getDeviceSelectedPlayerId() !== homePlayerId;
+  setSelectedPlayerId(homePlayerId);
+  if (getDeviceSelectedPlayerId() !== homePlayerId) {
+    setDeviceSelectedPlayerId(homePlayerId);
     saveSelectedPlayer();
     if (currentRoom) realtime.refreshRoomLiveUpdates();
   }
@@ -2471,7 +2468,7 @@ async function refreshPlayers() {
     if (!data.ok) throw new Error(data.error || "Could not load players.");
     playerApiAvailable = true;
     players = data.players;
-    if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
+    if (!getSelectedPlayerId() && getDeviceSelectedPlayerId()) setSelectedPlayerId(getDeviceSelectedPlayerId());
     saveSelectedPlayer();
     renderPlayers();
     renderSelectedPlayer();
@@ -2555,9 +2552,7 @@ async function reclaimOwnerToken(playerId) {
 }
 
 function saveSelectedPlayer() {
-  sessionStorage.setItem("sogotable.deviceSelectedPlayerId", deviceSelectedPlayerId);
-  localStorage.setItem("sogotable.selectedPlayerId", deviceSelectedPlayerId);
-  localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
+  saveDeviceIdentity();
 }
 
 function showRosterError(message) {

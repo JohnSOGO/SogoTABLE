@@ -12,13 +12,13 @@ import { api, fetchJson } from "../api-client.js";
 import { escapeHtml, avatarHtml } from "../html-utils.js";
 import { playConfirm, playCancel, playInviteReceived } from "../sound.js";
 import { rememberLocalGameHomePlayer } from "./local-seat.js";
+import { homePlayerId } from "../client/session-store.js";
 
 let ctx = {
   getCurrentRoom: () => null,
   getPlayers: () => [],
   getLobbyPlayers: () => [],
   getCurrentGameRooms: () => [],
-  getLocalHomePlayerId: () => "",
   setSelectedGameId: () => {},
   setHostInviteStatus: () => {},
   setActiveGameRoom: () => {},
@@ -147,7 +147,7 @@ function remoteInviteCandidates(seated) {
 async function joinLocalOpponent(player) {
   const currentRoom = ctx.getCurrentRoom();
   if (!currentRoom) return;
-  rememberLocalGameHomePlayer(currentRoom.code, ctx.getLocalHomePlayerId());
+  rememberLocalGameHomePlayer(currentRoom.code, homePlayerId());
   try {
     const response = await api("/api/room/join", { code: currentRoom.code, player, local: true, owner_token: await ctx.ensureOwnerToken(player.id) });
     ctx.setHostInviteStatus(null);

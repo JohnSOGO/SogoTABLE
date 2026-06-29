@@ -11,6 +11,13 @@ export const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
 export const SOGO_SUPERUSER_PASSCODE_KEY = "sogotable.sogoSuperuserPasscode";
 export const SOGO_SUPERUSER_REMEMBER_KEY = "sogotable.sogoSuperuserPasscodeRemembered";
 export const PLAYER_OWNER_TOKEN_STORAGE_KEY = "sogotable.playerOwnerTokens";
+// Device session identity keys (owned by client/session-store.js). selectedPlayerId
+// is the shared/last-used player (localStorage); deviceSelectedPlayerId is the
+// per-tab seat (sessionStorage, falling back to local); deviceSelectionHash tags
+// this device. Suffixes also appear in migrateStorageNamespace below.
+export const SELECTED_PLAYER_ID_KEY = "sogotable.selectedPlayerId";
+export const DEVICE_SELECTED_PLAYER_ID_KEY = "sogotable.deviceSelectedPlayerId";
+export const DEVICE_SELECTION_HASH_KEY = "sogotable.deviceSelectionHash";
 
 // The active passcode for this session: the session value if present, otherwise
 // the remembered (persisted) one. Empty string when neither is set.

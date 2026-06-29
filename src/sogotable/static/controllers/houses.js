@@ -7,10 +7,11 @@
 // shows the bare player name.
 import { api } from "../api-client.js";
 import { avatarHtml, escapeHtml } from "../html-utils.js";
+import { getDeviceSelectedPlayerId } from "../client/session-store.js";
 
 // ctx (from wireHouses): { getPlayers(), ensureOwnerToken(id), setPlayers(list),
 // selectPlayer(id), editPlayer(id), deletePlayer(id), unclaimPlayer(id),
-// getDeviceSelectedPlayerId(), isSuperuserSelected(), rerender() }.
+// isSuperuserSelected(), rerender() }. Device seat comes from the session-store.
 let ctx = null;
 let editingPlayer = null; // the player whose House we are editing, or null
 let panelMode = "idle"; // "idle" | "create" | "join"
@@ -223,7 +224,7 @@ function pickerHeader(title) {
 export function buildPlayerCard(player, { editing = false } = {}) {
   const showUnlock = ctx.isSuperuserSelected() && player.claimed;
   const card = document.createElement("div");
-  card.className = `player-card ${player.id === ctx.getDeviceSelectedPlayerId() ? "selected" : ""} ${editing ? "editing" : ""}`;
+  card.className = `player-card ${player.id === getDeviceSelectedPlayerId() ? "selected" : ""} ${editing ? "editing" : ""}`;
   card.innerHTML = `
     ${avatarHtml(player)}
     <strong>${escapeHtml(playerModalDisplayName(player))}</strong>

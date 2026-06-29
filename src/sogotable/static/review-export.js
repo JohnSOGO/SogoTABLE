@@ -32,6 +32,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/index.html",
   "src/sogotable/static/app.js",
   "src/sogotable/static/api-client.js",
+  "src/sogotable/static/client/session-store.js",
   "src/sogotable/static/color-utils.js",
   "src/sogotable/static/html-utils.js",
   "src/sogotable/static/realtime.js",

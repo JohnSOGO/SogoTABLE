@@ -2,19 +2,15 @@
 // (pass-and-play) room. Keyed by room code + a device hash so a refresh or rejoin
 // restores the right seat instead of snapping to the host. Pure device-local
 // storage — no server state, no game rules. The shell's sync/restore orchestrators
-// call these to resolve and update the home seat; wireLocalSeat injects live reads
-// of the device hash + selected player id and loads the saved map (after the shell
-// has run its storage-namespace migration, hence load-on-wire not on import).
+// call these to resolve and update the home seat. Device identity (hash + seat)
+// comes straight from the session-store owner; wireLocalSeat only loads the saved
+// map, on-wire (after the shell's storage-namespace migration, not at import).
 import { loadLocalGameHomePlayers, LOCAL_GAME_HOME_PLAYERS_KEY } from "../storage.js";
+import { getDeviceSelectionHash, getDeviceSelectedPlayerId } from "../client/session-store.js";
 
-let ctx = {
-  getDeviceSelectionHash: () => "",
-  getDeviceSelectedPlayerId: () => "",
-};
 let localGameHomePlayers = {};
 
-export function wireLocalSeat(context) {
-  ctx = { ...ctx, ...context };
+export function wireLocalSeat() {
   localGameHomePlayers = loadLocalGameHomePlayers();
 }
 
@@ -26,15 +22,15 @@ export function localGameHomePlayerId(room) {
   if (!room) return "";
   const remembered = localGameHomePlayers[room.code];
   if (typeof remembered === "string") return remembered;
-  if (remembered && remembered.device_hash === ctx.getDeviceSelectionHash()) return remembered.player_id || "";
-  return ctx.getDeviceSelectedPlayerId() || room.host_id || "";
+  if (remembered && remembered.device_hash === getDeviceSelectionHash()) return remembered.player_id || "";
+  return getDeviceSelectedPlayerId() || room.host_id || "";
 }
 
 export function rememberLocalGameHomePlayer(roomCode, playerId) {
   if (!roomCode || !playerId) return;
   localGameHomePlayers[roomCode] = {
     player_id: playerId,
-    device_hash: ctx.getDeviceSelectionHash(),
+    device_hash: getDeviceSelectionHash(),
   };
   saveLocalGameHomePlayers();
 }
