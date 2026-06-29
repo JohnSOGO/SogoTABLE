@@ -42,6 +42,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/controllers/houses.js",
   "src/sogotable/static/controllers/player-appearance.js",
   "src/sogotable/static/controllers/prompts.js",
+  "src/sogotable/static/controllers/superuser.js",
   "src/sogotable/static/controllers/game-options.js",
   "src/sogotable/static/controllers/game-stats.js",
   "src/sogotable/static/controllers/win-overlay.js",

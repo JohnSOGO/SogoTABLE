@@ -28,8 +28,15 @@ import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKe
 import { scheduleWinOverlay, hideWinOverlay, wireWinOverlay, resetWinCelebration } from "./controllers/win-overlay.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
-  readSogoSuperuserPasscode,
-  storeSogoSuperuserPasscode,
+  wireSuperuser,
+  isSogoSuperuser,
+  isSogoSuperuserSelected,
+  verifySogoSuperuserPasscode,
+  ensureSogoSuperuserPasscode,
+  hasSogoSuperuserPasscode,
+  forgetSogoAdmin,
+} from "./controllers/superuser.js";
+import {
   forgetSogoSuperuserPasscode,
   PLAYER_OWNER_TOKEN_STORAGE_KEY,
   LOCAL_GAME_HOME_PLAYERS_KEY,
@@ -154,6 +161,7 @@ const realtime = createRealtimeController({
 localStorage.setItem("sogotable.deviceSelectionHash", deviceSelectionHash);
 
 document.addEventListener("DOMContentLoaded", () => {
+  wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   purgeDeprecatedLocalRoster();
   registerServiceWorker();
   refreshRevisionSummary();
@@ -1021,18 +1029,6 @@ function renderIntroAdminActions() {
   if (exportButton) exportButton.classList.toggle("hidden", !active);
   const forgetButton = document.getElementById("forgetSogoAdmin");
   if (forgetButton) forgetButton.classList.toggle("hidden", !active);
-}
-
-// Sign out of Sogo admin on this device: drop the session passcode and any
-// "remember me on this phone" copy, then re-render the admin affordances away.
-async function forgetSogoAdmin() {
-  if (!hasSogoSuperuserPasscode()) return;
-  const confirmed = await confirmAction("Forget Sogo admin?", "Sign out of Sogo admin on this phone and forget the passcode (including a remembered one)?");
-  if (!confirmed) return;
-  forgetSogoSuperuserPasscode();
-  renderIntroAdminActions();
-  renderPlayers();
-  playConfirm();
 }
 
 async function exportReviewZip() {
@@ -2636,44 +2632,6 @@ function selectedPlayer() {
 
 function deviceSelectedPlayer() {
   return players.find((player) => player.id === deviceSelectedPlayerId) || null;
-}
-
-function isSogoSuperuserSelected() {
-  return isSogoSuperuser(deviceSelectedPlayer()) && hasSogoSuperuserPasscode();
-}
-
-function isSogoSuperuser(player) {
-  const name = String(player && player.name || "").trim().toLowerCase();
-  return name === "sogo" || name === "mojosogo";
-}
-
-async function verifySogoSuperuserPasscode(player) {
-  if (hasSogoSuperuserPasscode()) return true;
-  const { value: passcode, remember } = await promptForPasscode("Enter Sogo passcode", { showRemember: true });
-  if (!passcode) {
-    forgetSogoSuperuserPasscode();
-    return false;
-  }
-  try {
-    await api("/api/superuser/verify", { requester_id: player.id, passcode });
-    storeSogoSuperuserPasscode(passcode, remember);
-    return true;
-  } catch (error) {
-    forgetSogoSuperuserPasscode();
-    alert(error.message);
-    return false;
-  }
-}
-
-async function ensureSogoSuperuserPasscode(player) {
-  const existing = readSogoSuperuserPasscode();
-  if (existing) return existing;
-  const verified = await verifySogoSuperuserPasscode(player);
-  return verified ? readSogoSuperuserPasscode() : "";
-}
-
-function hasSogoSuperuserPasscode() {
-  return Boolean(readSogoSuperuserPasscode());
 }
 
 function setDeviceSelectedPlayer(playerId) {
