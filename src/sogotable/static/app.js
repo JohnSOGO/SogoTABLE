@@ -5,9 +5,15 @@ import {
   getContrastAwareTextColor,
   isHexColor,
   mixColorWithWhite,
-  normalizePlayerColor,
 } from "./color-utils.js";
-import { avatarHtml, escapeHtml, firstEmoji } from "./html-utils.js";
+import { avatarHtml, escapeHtml } from "./html-utils.js";
+import {
+  wireAppearancePicker,
+  renderAppearanceChoices,
+  getSelectedAppearance,
+  resetAppearance,
+  setAppearanceFrom,
+} from "./controllers/player-appearance.js";
 import { createRealtimeController } from "./realtime.js";
 import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
 import { renderGameList } from "./games/game-list-view.js";
@@ -61,27 +67,6 @@ import {
   unlockAudio,
 } from "./sound.js";
 
-const icons = ["🙂", "😎", "🤖", "🦊", "🐲", "⭐", "🌮", "🎲"];
-const colors = ["#1f7a5f", "#1e63d6", "#c43d5d", "#8a4bd1", "#b7791f", "#0f766e"];
-const randomIcons = ["🙂", "😎", "🤖", "🦊", "🐲", "⭐", "🌮", "🎲", "🎯", "🚀", "🌈", "🍕", "🎸", "🧠", "🔥", "🍀"];
-const paletteColors = [
-  "#1f7a5f",
-  "#1e63d6",
-  "#c43d5d",
-  "#8a4bd1",
-  "#b7791f",
-  "#0f766e",
-  "#dc2626",
-  "#2563eb",
-  "#7c3aed",
-  "#db2777",
-  "#ca8a04",
-  "#16a34a",
-  "#0891b2",
-  "#4f46e5",
-  "#be123c",
-  "#334155",
-];
 const CLASSIC_GAME_ID = GAME_IDS.classic;
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -105,8 +90,6 @@ let deviceSelectionHash = localStorage.getItem("sogotable.deviceSelectionHash") 
 if (!selectedPlayerId && deviceSelectedPlayerId) selectedPlayerId = deviceSelectedPlayerId;
 let selectedGameId = localStorage.getItem("sogotable.selectedGameId") || games[0].id;
 selectedGameId = canonicalGameId(selectedGameId);
-let selectedIcon = randomIcon();
-let selectedColor = paletteColors[0];
 let editingPlayerId = "";
 let playerModalMode = "select";
 let currentRoom = null;
@@ -178,7 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindTouchZoomGuard();
   refreshGameDefinitions();
   renderGames();
-  renderChoices();
+  renderAppearanceChoices();
   refreshPlayers();
   renderSelectedGame();
   renderSelectedPlayer();
@@ -204,12 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("closePlayerModal").addEventListener("click", closePlayerModal);
   document.getElementById("playerModal").addEventListener("click", closePlayerModalOnBackdrop);
   document.getElementById("exportReviewZip").addEventListener("click", exportReviewZip);
-  document.getElementById("playerIconText").addEventListener("input", updateSelectedIcon);
-  document.getElementById("playerIconText").addEventListener("focus", clearEmojiField);
-  document.getElementById("playerIconText").addEventListener("blur", resetBlankEmojiField);
-  document.getElementById("playerColorText").addEventListener("input", updateSelectedColorFromText);
-  document.getElementById("playerColorText").addEventListener("blur", normalizeSelectedColorText);
-  document.getElementById("playerColorNative").addEventListener("input", updateSelectedColorFromNative);
+  wireAppearancePicker();
   document.getElementById("closeInvitePlayerModal").addEventListener("click", closeInvitePlayerModal);
   document.getElementById("invitePlayerModal").addEventListener("click", closeInvitePlayerModalOnBackdrop);
   wireGameStats({ selectedGame, isCurrentSelectedGame, canonicalGameId });
@@ -780,59 +758,6 @@ function playerSignature(player) {
   };
 }
 
-function renderChoices() {
-  const iconInput = document.getElementById("playerIconText");
-  if (iconInput && iconInput.value !== selectedIcon) iconInput.value = selectedIcon;
-  const colorText = document.getElementById("playerColorText");
-  const safeColor = normalizePlayerColor(selectedColor, paletteColors[0]);
-  selectedColor = safeColor;
-  if (colorText && colorText.value !== safeColor) colorText.value = safeColor;
-  const colorNative = document.getElementById("playerColorNative");
-  if (colorNative && colorNative.value !== safeColor) colorNative.value = safeColor;
-  const colorHost = document.getElementById("colorChoices");
-  colorHost.innerHTML = "";
-  paletteColors.forEach((color) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `choice swatch ${color === selectedColor ? "selected" : ""}`;
-    button.style.background = color;
-    button.setAttribute("aria-label", color);
-    button.addEventListener("click", () => {
-      selectedColor = color;
-      renderChoices();
-    });
-    colorHost.appendChild(button);
-  });
-}
-
-function updateSelectedColorFromText(event) {
-  const value = event.target.value.trim();
-  const normalized = normalizePlayerColor(value, selectedColor, paletteColors[0]);
-  if (selectedColor !== normalized) {
-    selectedColor = normalized;
-  }
-  event.target.value = normalized;
-  const colorNative = document.getElementById("playerColorNative");
-  if (colorNative) colorNative.value = normalized;
-  renderChoices();
-}
-
-function normalizeSelectedColorText(event) {
-  const normalized = normalizePlayerColor(event.target.value, selectedColor, paletteColors[0]);
-  selectedColor = normalized;
-  event.target.value = normalized;
-  const colorNative = document.getElementById("playerColorNative");
-  if (colorNative) colorNative.value = normalized;
-}
-
-function updateSelectedColorFromNative(event) {
-  const normalized = normalizePlayerColor(event.target.value, selectedColor, paletteColors[0]);
-  selectedColor = normalized;
-  const colorText = document.getElementById("playerColorText");
-  if (colorText) colorText.value = normalized;
-  renderChoices();
-}
-
 function setTurnColorVariables(element, color) {
   if (!element) return;
   const safeColor = isHexColor(color || "") ? color : "#1f7a5f";
@@ -845,26 +770,6 @@ function setTurnColorVariables(element, color) {
   element.style.setProperty("--turn-glow", colorWithAlpha(safeColor, 0.35));
 }
 
-function updateSelectedIcon(event) {
-  selectedIcon = event.target.value = firstEmoji(event.target.value);
-}
-
-function clearEmojiField(event) {
-  event.target.value = "";
-  if (event.target.id === "playerIconText") selectedIcon = "";
-}
-
-function resetBlankEmojiField(event) {
-  if (event.target.value.trim()) return;
-  const icon = randomIcon();
-  event.target.value = icon;
-  if (event.target.id === "playerIconText") selectedIcon = icon;
-}
-
-function randomIcon() {
-  return randomIcons[Math.floor(Math.random() * randomIcons.length)];
-}
-
 function randomTenDigitHash() {
   return String(Math.floor(1000000000 + Math.random() * 9000000000));
 }
@@ -875,11 +780,12 @@ async function createPlayer(event) {
   const name = input.value.trim();
   if (!name) return;
   const wasEditing = Boolean(editingPlayerId);
+  const appearance = getSelectedAppearance();
   const player = {
     id: editingPlayerId || newOpaquePlayerId(),
     name,
-    icon: selectedIcon || randomIcon(),
-    color: normalizePlayerColor(selectedColor, paletteColors[0]),
+    icon: appearance.icon,
+    color: appearance.color,
   };
   try {
     const payload = { player };
@@ -920,10 +826,9 @@ function newOpaquePlayerId() {
 function resetPlayerForm(input = document.getElementById("playerName")) {
   editingPlayerId = "";
   if (input) input.value = "";
-  selectedIcon = randomIcon();
-  selectedColor = paletteColors[0];
+  resetAppearance();
   setPlayerFormMode("create");
-  renderChoices();
+  renderAppearanceChoices();
 }
 
 function setPlayerFormMode(mode) {
@@ -978,12 +883,11 @@ function editPlayer(playerId) {
   playerModalMode = "edit";
   editingPlayerId = player.id;
   document.getElementById("playerName").value = player.name;
-  selectedIcon = player.icon || randomIcon();
-  selectedColor = normalizePlayerColor(player.color, paletteColors[0]);
+  setAppearanceFrom(player);
   setExistingPlayersVisible(true);
   setPlayerFormVisible(true);
   setPlayerFormMode("edit");
-  renderChoices();
+  renderAppearanceChoices();
   renderPlayers();
   const form = document.getElementById("playerForm");
   form.scrollIntoView({ block: "nearest" });
