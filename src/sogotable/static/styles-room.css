@@ -39,6 +39,13 @@
   color: var(--accent-strong);
 }
 
+.house-tip {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.72;
+  text-align: center;
+}
+
 .house-row {
   display: flex;
   align-items: center;
