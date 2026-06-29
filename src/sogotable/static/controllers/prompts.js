@@ -54,11 +54,19 @@ function resolveConfirmPrompt(confirmed) {
 // A numeric-keypad replacement for window.prompt for the (digits-only) passcode:
 // a password input with inputmode="numeric" opens the number pad on touch
 // devices. Resolves to the entered string, or null if cancelled.
-function promptForPasscode(title = "Enter passcode") {
+// Resolves to { value, remember }: value is the entered string (or null if
+// cancelled), remember is the "remember me on this phone" checkbox state (always
+// false unless showRemember surfaced it). The checkbox is hidden by default and
+// only shown for the Sogo admin passcode, which is the one we may persist.
+function promptForPasscode(title = "Enter passcode", { showRemember = false } = {}) {
   const prompt = document.getElementById("passcodePrompt");
   const input = document.getElementById("passcodeInput");
   document.getElementById("passcodePromptTitle").textContent = title;
   input.value = "";
+  const rememberRow = document.getElementById("passcodeRememberRow");
+  const rememberBox = document.getElementById("passcodeRemember");
+  if (rememberRow) rememberRow.classList.toggle("hidden", !showRemember);
+  if (rememberBox) rememberBox.checked = false;
   prompt.classList.remove("hidden");
   setTimeout(() => input.focus(), 0);
   return new Promise((resolve) => {
@@ -73,7 +81,9 @@ function resolvePasscodePrompt(value) {
   pendingPasscodePrompt = null;
   if (value === null) playCancel();
   else playConfirm();
-  resolve(value);
+  const rememberBox = document.getElementById("passcodeRemember");
+  const remember = value !== null && Boolean(rememberBox && rememberBox.checked);
+  resolve({ value, remember });
 }
 
 function submitPasscodePrompt() {

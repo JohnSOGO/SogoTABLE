@@ -5,8 +5,40 @@
 // import the key constants from here.
 
 export const LEGACY_STORAGE_PREFIX = ["sogo", "games"].join("");
+// The Sogo admin passcode is held in sessionStorage by default (forgotten when
+// the tab closes). "Remember me on this phone" additionally persists it to
+// localStorage so it survives — an explicit opt-in for a trusted device only.
 export const SOGO_SUPERUSER_PASSCODE_KEY = "sogotable.sogoSuperuserPasscode";
+export const SOGO_SUPERUSER_REMEMBER_KEY = "sogotable.sogoSuperuserPasscodeRemembered";
 export const PLAYER_OWNER_TOKEN_STORAGE_KEY = "sogotable.playerOwnerTokens";
+
+// The active passcode for this session: the session value if present, otherwise
+// the remembered (persisted) one. Empty string when neither is set.
+export function readSogoSuperuserPasscode() {
+  return sessionStorage.getItem(SOGO_SUPERUSER_PASSCODE_KEY)
+    || localStorage.getItem(SOGO_SUPERUSER_REMEMBER_KEY)
+    || "";
+}
+
+// True when the passcode is persisted across tab closes on this device.
+export function sogoSuperuserPasscodeRemembered() {
+  return Boolean(localStorage.getItem(SOGO_SUPERUSER_REMEMBER_KEY));
+}
+
+// Always hold it for the current session; persist to localStorage only when the
+// player ticked "remember me on this phone", and clear any prior persistence
+// when they did not (so unticking on a re-entry forgets it).
+export function storeSogoSuperuserPasscode(passcode, remember) {
+  sessionStorage.setItem(SOGO_SUPERUSER_PASSCODE_KEY, passcode);
+  if (remember) localStorage.setItem(SOGO_SUPERUSER_REMEMBER_KEY, passcode);
+  else localStorage.removeItem(SOGO_SUPERUSER_REMEMBER_KEY);
+}
+
+// Forget the admin passcode everywhere — session and the remembered copy.
+export function forgetSogoSuperuserPasscode() {
+  sessionStorage.removeItem(SOGO_SUPERUSER_PASSCODE_KEY);
+  localStorage.removeItem(SOGO_SUPERUSER_REMEMBER_KEY);
+}
 export const ACTION_LABELS_STORAGE_KEY = "sogotable.actionLabels";
 export const LOCAL_GAME_HOME_PLAYERS_KEY = "sogotable.localGameHomePlayers";
 export const THEME_STORAGE_KEY = "sogotable.theme";

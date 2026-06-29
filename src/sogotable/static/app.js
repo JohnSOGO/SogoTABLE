@@ -28,7 +28,9 @@ import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKe
 import { scheduleWinOverlay, hideWinOverlay, wireWinOverlay, resetWinCelebration } from "./controllers/win-overlay.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
-  SOGO_SUPERUSER_PASSCODE_KEY,
+  readSogoSuperuserPasscode,
+  storeSogoSuperuserPasscode,
+  forgetSogoSuperuserPasscode,
   PLAYER_OWNER_TOKEN_STORAGE_KEY,
   LOCAL_GAME_HOME_PLAYERS_KEY,
   loadLocalGameHomePlayers,
@@ -187,6 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("closePlayerModal").addEventListener("click", closePlayerModal);
   document.getElementById("playerModal").addEventListener("click", closePlayerModalOnBackdrop);
   document.getElementById("exportReviewZip").addEventListener("click", exportReviewZip);
+  document.getElementById("forgetSogoAdmin").addEventListener("click", forgetSogoAdmin);
   wireAppearancePicker();
   document.getElementById("closeInvitePlayerModal").addEventListener("click", closeInvitePlayerModal);
   document.getElementById("invitePlayerModal").addEventListener("click", closeInvitePlayerModalOnBackdrop);
@@ -872,7 +875,7 @@ async function unclaimPlayerAsSuperuser(playerId) {
     renderPlayers();
     playConfirm();
   } catch (error) {
-    if (String(error.message || "").toLowerCase().includes("passcode")) clearSogoSuperuserPasscode();
+    if (String(error.message || "").toLowerCase().includes("passcode")) forgetSogoSuperuserPasscode();
     alert(error.message);
   }
 }
@@ -1013,9 +1016,23 @@ function renderCurrentPlayer() {
 }
 
 function renderIntroAdminActions() {
+  const active = isSogoSuperuserSelected();
   const exportButton = document.getElementById("exportReviewZip");
-  if (!exportButton) return;
-  exportButton.classList.toggle("hidden", !isSogoSuperuserSelected());
+  if (exportButton) exportButton.classList.toggle("hidden", !active);
+  const forgetButton = document.getElementById("forgetSogoAdmin");
+  if (forgetButton) forgetButton.classList.toggle("hidden", !active);
+}
+
+// Sign out of Sogo admin on this device: drop the session passcode and any
+// "remember me on this phone" copy, then re-render the admin affordances away.
+async function forgetSogoAdmin() {
+  if (!hasSogoSuperuserPasscode()) return;
+  const confirmed = await confirmAction("Forget Sogo admin?", "Sign out of Sogo admin on this phone and forget the passcode (including a remembered one)?");
+  if (!confirmed) return;
+  forgetSogoSuperuserPasscode();
+  renderIntroAdminActions();
+  renderPlayers();
+  playConfirm();
 }
 
 async function exportReviewZip() {
@@ -1059,7 +1076,7 @@ async function selectPlayer(playerId, options = {}) {
     const verified = await verifySogoSuperuserPasscode(player);
     if (!verified) return false;
   } else {
-    clearSogoSuperuserPasscode();
+    forgetSogoSuperuserPasscode();
   }
   setDeviceSelectedPlayer(playerId);
   void ensureOwnerToken(playerId).catch(() => {}); // claim on select; House/edit need no separate claim
@@ -1093,7 +1110,7 @@ function finishPlayerDelete(playerId) {
   if (selectedPlayerId === playerId) selectedPlayerId = "";
   if (deviceSelectedPlayerId === playerId) {
     deviceSelectedPlayerId = "";
-    clearSogoSuperuserPasscode();
+    forgetSogoSuperuserPasscode();
   }
   saveSelectedPlayer();
   renderPlayers();
@@ -1411,7 +1428,7 @@ async function closeRoomAsSuperuser(code) {
     }
     refreshGameRooms();
   } catch (error) {
-    if (String(error.message || "").toLowerCase().includes("passcode")) clearSogoSuperuserPasscode();
+    if (String(error.message || "").toLowerCase().includes("passcode")) forgetSogoSuperuserPasscode();
     alert(error.message);
   }
 }
@@ -2632,40 +2649,36 @@ function isSogoSuperuser(player) {
 
 async function verifySogoSuperuserPasscode(player) {
   if (hasSogoSuperuserPasscode()) return true;
-  const passcode = await promptForPasscode("Enter Sogo passcode");
+  const { value: passcode, remember } = await promptForPasscode("Enter Sogo passcode", { showRemember: true });
   if (!passcode) {
-    clearSogoSuperuserPasscode();
+    forgetSogoSuperuserPasscode();
     return false;
   }
   try {
     await api("/api/superuser/verify", { requester_id: player.id, passcode });
-    sessionStorage.setItem(SOGO_SUPERUSER_PASSCODE_KEY, passcode);
+    storeSogoSuperuserPasscode(passcode, remember);
     return true;
   } catch (error) {
-    clearSogoSuperuserPasscode();
+    forgetSogoSuperuserPasscode();
     alert(error.message);
     return false;
   }
 }
 
 async function ensureSogoSuperuserPasscode(player) {
-  const existing = sessionStorage.getItem(SOGO_SUPERUSER_PASSCODE_KEY) || "";
+  const existing = readSogoSuperuserPasscode();
   if (existing) return existing;
   const verified = await verifySogoSuperuserPasscode(player);
-  return verified ? sessionStorage.getItem(SOGO_SUPERUSER_PASSCODE_KEY) || "" : "";
+  return verified ? readSogoSuperuserPasscode() : "";
 }
 
 function hasSogoSuperuserPasscode() {
-  return Boolean(sessionStorage.getItem(SOGO_SUPERUSER_PASSCODE_KEY));
-}
-
-function clearSogoSuperuserPasscode() {
-  sessionStorage.removeItem(SOGO_SUPERUSER_PASSCODE_KEY);
+  return Boolean(readSogoSuperuserPasscode());
 }
 
 function setDeviceSelectedPlayer(playerId) {
   const nextPlayer = players.find((player) => player.id === playerId) || null;
-  if (!isSogoSuperuser(nextPlayer)) clearSogoSuperuserPasscode();
+  if (!isSogoSuperuser(nextPlayer)) forgetSogoSuperuserPasscode();
   const previousPlayerId = deviceSelectedPlayerId;
   deviceSelectedPlayerId = playerId;
   selectedPlayerId = playerId;
@@ -2890,7 +2903,7 @@ function playerDisplayName(playerId) {
 // the shared Sogo passcode, then mints a fresh owner token for this device
 // (invalidating the other device's). Returns the token, or null if cancelled.
 async function reclaimOwnerToken(playerId) {
-  const passcode = await promptForPasscode(`Sogo passcode to use ${playerDisplayName(playerId)} here`);
+  const { value: passcode } = await promptForPasscode(`Sogo passcode to use ${playerDisplayName(playerId)} here`);
   if (!passcode) return null;
   const response = await api("/api/player/reclaim", { player_id: playerId, passcode });
   rememberOwnerToken(playerId, response.owner_token);

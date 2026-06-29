@@ -38,6 +38,7 @@
         </div>
         <button class="primary" data-screen="games">Start Playing</button>
         <button id="exportReviewZip" class="secondary intro-admin-action hidden" type="button">Export .ZIP</button>
+        <button id="forgetSogoAdmin" class="secondary intro-admin-action hidden" type="button">Forget Sogo admin</button>
         <div id="revisionSummary" class="revision-summary" aria-live="polite">revision unavailable</div>
       </section>
 
@@ -253,6 +254,10 @@
         <div class="modal-panel confirm-panel">
           <h2 id="passcodePromptTitle">Enter Sogo passcode</h2>
           <input id="passcodeInput" class="passcode-input" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Passcode" />
+          <label id="passcodeRememberRow" class="passcode-remember hidden">
+            <input id="passcodeRemember" type="checkbox" />
+            <span>Remember me on this phone</span>
+          </label>
           <div class="invite-actions">
             <button id="passcodeSubmit" class="primary" type="button">OK</button>
             <button id="passcodeCancel" class="secondary" type="button">Cancel</button>
