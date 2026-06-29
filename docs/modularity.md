@@ -254,6 +254,73 @@ by an architecture review/agent whose only job is structure:
 The map plus the guards remove trust from the moment it fails (implementation);
 the architecture step supplies the judgment up front, where tunnel vision isn't.
 
+## Preparatory Refactoring: Make Room Before The Feature
+
+Placement decides *where* the code goes. When the owning module cannot absorb the
+change cleanly — adding the code would push it over its ratcheted line cap, or it
+already carries too many concerns — the feature does **not** land there as-is. The
+owner is restructured to make room **first**, as a separate behavior-preserving step,
+and only then is the feature added.
+
+This is Kent Beck's rule — *make the change easy (this may be hard), then make the
+easy change* — and Martin Fowler's **Two Hats**: at any moment you are *either*
+refactoring (restructuring, adding no behavior) *or* adding function (new behavior,
+restructuring nothing), **never both at once**. It is the "extract one clear seam,
+behavior-preserving" rule from [No God Files](#no-god-files) applied as a
+**precondition** to the feature instead of as cleanup after it.
+
+**Objective trigger, not a judgement call.** The implementer must not decide "is this
+a big job" by feel — under deadline, everything feels small. The architecture step
+flags the owner as *full* when adding the planned code would cross a ratcheted ceiling
+(one of the four capped files), push any other file toward the global cap, or add
+cross-cutting state to a shell already at its top-level-state cap. The live caps are in
+`workers/tests/architecture.test.js` — read them there; do not trust remembered numbers.
+
+**Restraint is half the rule.** If the module has room, implement directly — do **not**
+refactor speculatively. Splitting a module the feature never pressures, or inventing
+seams to look tidy, trades god files for premature-abstraction sprawl and is its own
+failure (see [Growing Code Modularly](#growing-code-modularly): never split along a
+seam that is not yet obvious). A change that adds no net lines to a full file needs no
+room made — fullness alone does not trigger a refactor; *pressure from the change* does.
+
+**Sequencing (in this order):**
+
+1. **Placement** — the architecture step names the owner; if it is full, names the seam to extract and where it goes.
+2. **Preparatory-refactor commit** — the *minimum* seam that opens room: behavior-preserving, all tests green, the file's ceiling ratcheted down. Its own commit, separately revertable.
+3. **Feature commit** — the new code, dropped into the now-roomy module.
+
+Two commits, in that order. Never bundle the refactor into the feature commit: keeping
+"made room" and "added behavior" separate is the Two-Hats rule written into git
+history, and it makes each half independently reviewable.
+
+## Right-Sizing The Placement Step (Don't Over-Spend On Small Changes)
+
+Placement discipline is a safeguard, not a tax on every keystroke. Match the ceremony
+to the structural risk so a one-line change does not cost a full architecture review.
+
+**Decide placement before exploring, not after.** The cheapest order is: name the
+owning module *first* (from `docs/module-ownership.md`), then read and change only that
+module. Mapping the whole codebase and scoping a full implementation *before* asking
+where the code goes is wasted work — if placement names a different owner, that
+exploration is thrown away. Ask first; explore narrow.
+
+**Two paths, by risk:**
+
+- **Light path (most changes).** When the change is small, lands in an *obvious*
+  existing owner, makes no room (adds no net pressure to a capped file), and creates no
+  new module — state the owner in one line from the ownership map and implement. Record
+  the placement in the commit message; no separate review, no separate receipt.
+- **Full review (real structural risk).** Required when **any** of these holds: a new
+  file / module / owner is involved; the target is at or near a ceiling (room may be
+  needed); placement is genuinely ambiguous (two or more owners could claim it); or the
+  change crosses a rules / transport / persistence boundary. Here the full placement
+  decision — and a preparatory refactor if the owner is full — earns its cost, and the
+  receipt goes in `docs/placement-receipts.md`.
+
+The light path is **not** a loophole: "small and obvious" means the owner is *not in
+doubt*. The moment placement is unclear, a new home is needed, or a full file is in
+play, it is a full-review change. When unsure which path applies, it is the full path.
+
 ## Anti-Patterns
 
 Avoid:

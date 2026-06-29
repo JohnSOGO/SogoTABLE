@@ -4,10 +4,17 @@
 
 SogoTable is an independent project. These instructions govern how Codex should operate in this repository: preserve architecture, keep changes focused, and avoid unnecessary process overhead.
 
+### Two roles, one operator
+
+- As the **implementer**, your job is to ship correct, focused, working features.
+- But **placement and architecture decisions are not the implementer's to make.** Before adding code you switch into an **architecture step**: decide *where* the code belongs by reading `docs/module-ownership.md` as a looked-up fact — not a mid-task convenience guess — then switch back and implement within that decision.
+
+Unlike the Claude Code path (which delegates these to separate `placement-advisor` / `reorganizer` subagents), you have no subagents: you wear both hats yourself, one at a time, and must not let the shipping hat overrule the placement decision. The full, tool-agnostic doctrine lives in `docs/modularity.md`.
+
 ## Ownership & Stewardship
 
-- You are the owner of this repository's coding decisions during the session.
-- You decide the implementation path and are fully accountable for outcomes.
+- You own **implementation and shipping** decisions: how to build the feature, how to test it, how to land it cleanly. That is where your accountability lives.
+- You do **not** own **placement/architecture** decisions: which module a new concern belongs to is decided up front from `docs/module-ownership.md` (see Code Placement). Decide it, then implement within it — do not overrule it mid-task to save a step.
 - Keep the repository clean: never leave generated/runtime junk or temporary artifacts committed.
 - Branch work is the default standard:
   - Create a focused topic branch first.
@@ -32,6 +39,7 @@ SogoTable is an independent project. These instructions govern how Codex should 
 
 ## Operating Doctrine
 
+- **Placement before implementation.** For non-trivial new code, a placement decision is a **precondition for starting**, not a step you reach mid-task. No placement decision/receipt → the work has not started.
 - Prefer clarity over cleverness.
 - Verify assumptions against repository code before edits.
 - Preserve architectural consistency unless a redesign is explicitly requested.
@@ -77,6 +85,49 @@ For each behavior change, review comparable paths that share the same contract.
 
 If a sibling path is in scope, update and test it too.  
 If intentionally out of scope, document the exclusion and reason in handoff notes.
+
+## Code Placement & Preparatory Refactoring (Mandatory)
+
+Full doctrine: **`docs/modularity.md`** — the *Placement is decided by the architecture
+step* and *Preparatory Refactoring* sections own the rationale, the objective trigger,
+and the two-hats sequencing. This section is the operative core; modularity.md is the
+authority if anything here is ambiguous.
+
+Placement is **not** the implementer's call — convenience mid-task is how god files are
+born. Decide placement **before exploring or scoping**, and ship within it.
+
+- **Decide placement before exploring.** Name the owner *first* (from
+  `docs/module-ownership.md`), then read and change **only** that module. Do not map the
+  whole codebase and scope a full implementation before asking where the code goes — if a
+  different owner is correct, that exploration is wasted tokens. Ask first; explore narrow.
+- **Scale the step to the risk** (don't over-spend on small changes):
+  - **Light path — most changes.** Small change, *obvious* existing owner, makes no room
+    (no net pressure on a capped file), no new module → state the owner in one line from
+    the ownership map and implement. Note the placement in the commit message. **No
+    separate review, no separate receipt.** Trivial edits (typos, comments, in-place
+    fixes) need not even name an owner.
+  - **Full path — real structural risk.** A new file/module/owner, a target at/near a
+    ceiling, genuinely ambiguous placement, or a rules/transport/persistence boundary
+    crossing → make the full placement decision, do a preparatory refactor first if the
+    owner is full, and commit the receipt to `docs/placement-receipts.md`.
+  - When unsure which path, it is the full path. "Small and obvious" means the owner is
+    *not in doubt*.
+- **Make room before the feature** (full path). If the named owner is full, refactor to
+  open a seam **first** — behavior-preserving, tests green, ceiling ratcheted — as its
+  **own commit**, *then* land the feature as a second commit. Never bundle the two. A
+  change that adds no net lines to a full file needs no room — *pressure from the change*
+  triggers a refactor, not fullness alone.
+- A new owner is a **new owner row** in `docs/module-ownership.md` — that row *is* the
+  decision; CI (`workers/tests/architecture.test.js`) fails until it exists.
+
+**How you execute it (Codex — no subagents):** you have no `placement-advisor` or
+`reorganizer` to delegate to, so on the **full path** you **self-apply** both hats, one at
+a time — switch into the architecture step first (state the owner from
+`docs/module-ownership.md`, write the receipt yourself), and do any preparatory refactor as
+its own commit before switching to the feature hat. Read the live ceilings from
+`workers/tests/architecture.test.js`; do not trust remembered numbers. The discipline the
+Claude path gets from separate agents, you must enforce on yourself — do not let the
+shipping hat skip or rush the placement step.
 
 ## AI Intake Files (`AI/`)
 

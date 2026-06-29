@@ -87,87 +87,43 @@ For each behavior change, review comparable paths that share the same contract.
 If a sibling path is in scope, update and test it too.  
 If intentionally out of scope, document the exclusion and reason in handoff notes.
 
-## Code Placement (Mandatory)
+## Code Placement & Preparatory Refactoring (Mandatory)
 
-Placement is **not** the implementer's call. Convenience-driven placement mid-task is
-how god files and top-heavy "house of cards" modules are born. The decision is made
-**up front, by a dedicated decider, before code is written.** This is the mechanism
-behind the two-role split in Purpose: **you ship, the advisor places.** Consulting it
-is the *first* action on any feature that adds code — before scoping the
-implementation, not after.
+Full doctrine: **`docs/modularity.md`** — the *Placement is decided by the architecture
+step* and *Preparatory Refactoring* sections own the rationale, the objective trigger,
+and the two-hats sequencing. This section is the operative core; modularity.md is the
+authority if anything here is ambiguous.
 
-- Before writing any **non-trivial new code** (a new function, feature, or file),
-  you MUST obtain a placement decision first:
-  - Preferred: consult the **`placement-advisor`** subagent (read-only; it returns a
-    `PLACEMENT DECISION` naming the owning module, or proposing a new owner row).
-  - Fallback (agent unavailable): read `docs/module-ownership.md` and state the
-    owning module explicitly, as a looked-up fact — not a mid-task guess.
-- Implement **only** in the module the decision names. Do not self-judge placement
-  while in the weeds of a feature.
-- **Leave a receipt.** Commit the decision's `PLACEMENT RECEIPT` (ask + verdict +
-  considerations) verbatim to `docs/placement-receipts.md` — append-only, with date
-  and resulting commit — before/with the code. If the agent was unavailable, write
-  the equivalent receipt yourself from `docs/module-ownership.md`. This is the
-  auditable proof the placement step happened; an external review checks this log.
-- If the concern has no existing owner, the placement decision is a **new owner row**
-  in `docs/module-ownership.md` (added before/with the code) — that row *is* the
-  decision, and CI (`workers/tests/architecture.test.js`) fails until it exists.
-- Treat every request to add code as a threat to stability: first ask whether it
-  needs new code at all (an existing owner may already absorb it), then place it at
-  the one Wu Wei stage that owns the concern.
-- Trivial edits (typos, comments, in-place fixes within a file's existing concern)
-  do not require a placement decision.
+Placement is **not** the implementer's call — convenience mid-task is how god files are
+born. Decide placement **before exploring or scoping**, and ship within it. The
+two-role split in Purpose: **you ship, the architecture step places.**
 
-### Preparatory refactoring (make the change easy, then make the easy change)
-
-When placement names an owning module that **cannot absorb the change cleanly** — it
-would cross a CI ceiling, or it already carries too many concerns — the feature does
-**not** land there as-is. The owner is restructured to make room **first**, as a
-separate behavior-preserving step, and only then is the feature added. This is Kent
-Beck's rule (*make the change easy — this may be hard — then make the easy change*)
-and Martin Fowler's **Two Hats**: you are *either* refactoring (restructuring, adding
-nothing) *or* adding function (new behavior, restructuring nothing) — **never both at
-once.** Restructuring and feature work are two hats, worn one at a time, in that order.
-
-This repo enforces the hat boundary by giving each hat to a **different agent** — the
-same reason placement is delegated. Three roles, strictly separated:
-
-1. **`placement-advisor`** (read-only) — decides *where* the code belongs, and flags
-   whether the owning module is too full to take it.
-2. **`reorganizer`** (refactoring hat only) — if the owner is flagged full, performs
-   the *minimum* behavior-preserving extraction that opens a clean seam, routes it to
-   its owning module, ratchets the ceiling down, and proves all tests stay green. It
-   adds **no feature** and changes **no behavior** — its only deliverable is room.
-3. **You, the implementer** (adding-function hat only) — drop the feature into the
-   now-roomy module. You arrive to prepared ground and *just add the function.*
-
-**Objective trigger — not a judgement call.** You do not decide "is this a big job" by
-feel (a ship-focused agent calls everything small). The reorganizer is invoked before
-the feature whenever, for the placement target, **either** holds:
-
-- Adding the planned code would push a `CEILINGS` file over its cap
-  (`src/sogotable/static/app.js` 2566, `workers/sogotable-api.js` 1810,
-  `styles.css` 375, `styles-games.css` 1700) — CI fails the instant it crosses, so a
-  crossing is a hard stop.
-- The target is near its cap (within ~5%), **or** any other source file is nearing
-  `GLOBAL_FILE_CAP` (800), **or** the change adds cross-cutting state while `app.js`
-  is near its top-level `let` cap (33).
-
-If none hold, the module has room: **skip the reorganizer and implement directly.**
-Preparatory refactoring is triggered by *demonstrated structural pressure*, never as a
-virtue — speculative splitting (restructuring modules the feature never touches) is its
-own failure and trades god files for premature-abstraction sprawl.
-
-**Sequencing (mandatory, in this order):**
-
-1. **Placement** — advisor names the owner; flags it full → seam to extract.
-2. **Preparatory-refactor commit** — the `reorganizer`'s extraction only. Behavior-
-   preserving, tests green, ceiling ratcheted. Separately reviewable and revertable.
-3. **Feature commit** — your new code, dropped into the prepared module.
-
-Two commits, in that order. Never bundle the refactor into the feature commit — keeping
-"made room" and "added behavior" separate is what makes each one reviewable, and is the
-Two-Hats rule expressed in git history.
+- **Decide placement before exploring.** Name the owner *first*, then read and change
+  **only** that module. Do not map the whole codebase and scope a full implementation
+  before asking where the code goes — if placement names a different owner, that
+  exploration is wasted tokens. Ask first; explore narrow.
+- **Scale the step to the risk** (don't over-spend on small changes):
+  - **Light path — most changes.** Small change, *obvious* existing owner, makes no room
+    (no net pressure on a capped file), no new module → just state the owner in one line
+    from `docs/module-ownership.md` and implement. Note the placement in the commit
+    message. **No subagent, no separate receipt.** Trivial edits (typos, comments,
+    in-place fixes) need not even name an owner.
+  - **Full path — real structural risk.** A new file/module/owner, a target at/near a
+    ceiling, genuinely ambiguous placement, or a rules/transport/persistence boundary
+    crossing → consult the read-only **`placement-advisor`** for the decision, and the
+    **`reorganizer`** (refactor-only) if room must be made; you only add the feature.
+    Commit the `PLACEMENT RECEIPT` (and `REORG RECEIPT`) to `docs/placement-receipts.md`.
+  - When unsure which path, it is the full path. "Small and obvious" means the owner is
+    *not in doubt* — the moment it is, a new home is needed, or a full file is in play,
+    go full.
+- **Make room before the feature** (full path). If the named owner is full, refactor to
+  open a seam **first** — behavior-preserving, tests green, ceiling ratcheted — as its
+  **own commit**, *then* the feature lands as a second commit. Never bundle the two. A
+  change that adds no net lines to a full file needs no room — *pressure from the
+  change* triggers a refactor, not fullness alone.
+- A new owner is a **new owner row** in `docs/module-ownership.md` — that row *is* the
+  decision; CI (`workers/tests/architecture.test.js`) fails until it exists. Read the
+  live ceilings from that test; do not trust remembered numbers.
 
 ## AI Intake Files (`AI/`)
 

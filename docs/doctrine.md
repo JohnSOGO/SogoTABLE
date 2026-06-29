@@ -54,7 +54,7 @@ If the idea is still fuzzy or architecture-shaping, run AREC before implementati
 
 - Product direction or durable preferences -> `docs/project-memory.md`
 - Flow, event-driven behavior, or explicit refresh doctrine -> `docs/wu-wei-method.md`
-- Module ownership, no-god-file discipline, or adding a game as a module -> `docs/modularity.md`
+- Module ownership, no-god-file discipline, placement decisions, or preparatory refactoring (making room before a feature) -> `docs/modularity.md`
 - Adding a new game end to end (intake survey, then the build checklist) -> `docs/adding-a-game.md`
 - Building a Phase 0 offline UI prototype (shape, shell contract, what not to build) -> `docs/offline-ui.md`
 - Bot behavior contract or shared strategy guidance -> `docs/bots/index.md`
