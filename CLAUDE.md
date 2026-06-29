@@ -78,6 +78,29 @@ For each behavior change, review comparable paths that share the same contract.
 If a sibling path is in scope, update and test it too.  
 If intentionally out of scope, document the exclusion and reason in handoff notes.
 
+## Code Placement (Mandatory)
+
+Placement is **not** the implementer's call. Convenience-driven placement mid-task is
+how god files and top-heavy "house of cards" modules are born. The decision is made
+**up front, by a dedicated decider, before code is written.**
+
+- Before writing any **non-trivial new code** (a new function, feature, or file),
+  you MUST obtain a placement decision first:
+  - Preferred: consult the **`placement-advisor`** subagent (read-only; it returns a
+    `PLACEMENT DECISION` naming the owning module, or proposing a new owner row).
+  - Fallback (agent unavailable): read `docs/module-ownership.md` and state the
+    owning module explicitly, as a looked-up fact — not a mid-task guess.
+- Implement **only** in the module the decision names. Do not self-judge placement
+  while in the weeds of a feature.
+- If the concern has no existing owner, the placement decision is a **new owner row**
+  in `docs/module-ownership.md` (added before/with the code) — that row *is* the
+  decision, and CI (`workers/tests/architecture.test.js`) fails until it exists.
+- Treat every request to add code as a threat to stability: first ask whether it
+  needs new code at all (an existing owner may already absorb it), then place it at
+  the one Wu Wei stage that owns the concern.
+- Trivial edits (typos, comments, in-place fixes within a file's existing concern)
+  do not require a placement decision.
+
 ## AI Intake Files (`AI/`)
 
 - `AI/` is treated as ignored incoming context.
