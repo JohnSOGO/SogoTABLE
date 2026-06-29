@@ -87,10 +87,6 @@ body {
 }
 
 button,
-input {
-  font: inherit;
-}
-
 button {
   min-height: 44px;
   border: 1px solid var(--line);
@@ -125,6 +121,7 @@ button:disabled {
 }
 
 input {
+  font: inherit;
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--line);
@@ -189,7 +186,8 @@ input {
   border-color: #fecdd3;
   color: #9f1239;
 }
-.passcode-remember { display: flex; gap: 8px; align-items: center; justify-content: center; font-size: 0.85rem; margin-top: 4px; cursor: pointer; }
+.passcode-remember { display: flex; gap: 8px; align-items: center; justify-content: center; font-size: 0.9rem; margin-top: 8px; cursor: pointer; }
+.passcode-remember input { flex: 0 0 auto; width: 1.15rem; height: 1.15rem; min-height: 0; padding: 0; margin: 0; }
 
 .brand {
   width: var(--intro-control-width);
