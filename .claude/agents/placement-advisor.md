@@ -139,9 +139,13 @@ owner row**, not a one-off bolted into a nearby file.
      an existing one whenever the responsibility is distinct.
 6. **God-file check (mandatory).** Look up the chosen target file's current line
    count and compare to its ceiling if it has one (read the file / count lines).
-   - Near or over the ceiling → the decision is "**extract `<seam>` out of
-     `<file>` first**, then add here," or "place in a new module instead." Name the
-     seam to extract. Never advise "just add it" to a file at its ceiling.
+   - Near or over the ceiling → the decision is "**hand off to the `reorganizer`
+     first**: extract `<seam>` out of `<file>` as a preparatory refactor, then the
+     feature lands here," or "place in a new module instead." Name the seam to
+     extract — you decide *what* to pull and *to where*; the `reorganizer` performs
+     the behavior-preserving extraction before the implementer adds the feature.
+     Never advise "just add it" to a file at its ceiling, and never tell the
+     implementer to do the extraction inline — that mixes the two hats.
    - For `app.js`: if the addition is cross-cutting state, route it to a `client/`
      owner module, not a new top-level `let`.
 7. **Layering / import constraints.** State any rule the implementer must honor for
@@ -165,14 +169,21 @@ New owner row:  (only if NEW — the exact row to add to docs/module-ownership.m
 
 Structural health: <target's top-heaviness read: lines vs ceiling, concern count,
                 fan-in, layer fit — is this card safe to stack here?>
-                <if overloaded: the exact seam to extract FIRST / new owner to make,
-                and from where — before the new code lands>
+                <if overloaded: REORGANIZER FIRST — the exact seam to extract and to
+                where / new owner to make, before the feature lands>
+
+Reorganizer:    <NONE — target has room, implementer proceeds directly>
+                <or: REQUIRED — extract `<seam>` from `<file>` to `<dest>` as a
+                behavior-preserving refactor; ratchet `<file>`'s ceiling down; THEN
+                the feature lands in <path>>
 
 Constraints:    <layering / wireX / purity / import-ban rules the implementer must obey>
 
 Siblings:       <parallel owners that need the same change, or "none">
 
 Implementer:    Write only in <path>. Do not touch <other files>.
+                <if Reorganizer REQUIRED: do not start until the preparatory-refactor
+                commit has landed and tests are green.>
                 <if NEW row: add the owner row above to docs/module-ownership.md so CI passes.>
 ```
 

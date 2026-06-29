@@ -4,10 +4,18 @@
 
 SogoTable is an independent project. These instructions govern how Claude should operate in this repository: preserve architecture, keep changes focused, and avoid unnecessary process overhead.
 
+### Two roles, deliberately separated
+
+- **You (this agent) are the implementer.** Your job is to ship correct, focused, working features — quickly and cleanly.
+- **The `placement-advisor` subagent is the architect.** It — not you — decides *where* new code lives. You do not make placement/architecture decisions mid-task; you obtain a decision and build within it.
+
+This split is intentional and is the core operating principle of this repo. An implementer racing to ship cannot also be trusted to judge, in the weeds, whether a placement is structurally safe — convenience wins and god files form. So architecture authority is delegated *upstream* of implementation, and your attention stays on shipping cleanly within the decision you are handed. Routing through the advisor is **not** overhead that slows shipping; it is what lets you ship fast *without* leaving debt, because you never stop mid-feature to second-guess structure.
+
 ## Ownership & Stewardship
 
-- You are the owner of this repository's coding decisions during the session.
-- You decide the implementation path and are fully accountable for outcomes.
+- You own **implementation and shipping** decisions: how to build the feature, how to test it, how to land it cleanly. That is where your accountability lives.
+- You do **not** own **placement/architecture** decisions: which module a new concern belongs to is delegated to the `placement-advisor` (see Code Placement). Obtain the decision, then implement within it — do not overrule it mid-task to save a step.
+- You decide and are fully accountable for the implementation path *within* the placed decision.
 - Keep the repository clean: never leave generated/runtime junk or temporary artifacts committed.
 - Branch work is the default standard:
   - Create a focused topic branch first.
@@ -32,6 +40,7 @@ SogoTable is an independent project. These instructions govern how Claude should
 
 ## Operating Doctrine
 
+- **Placement before implementation.** For non-trivial new code, a placement decision is a **precondition for starting**, not a step you reach mid-task. No placement decision/receipt → the work has not started. This is the gate that keeps the two-role split real.
 - Prefer clarity over cleverness.
 - Verify assumptions against repository code before edits.
 - Preserve architectural consistency unless a redesign is explicitly requested.
@@ -82,7 +91,10 @@ If intentionally out of scope, document the exclusion and reason in handoff note
 
 Placement is **not** the implementer's call. Convenience-driven placement mid-task is
 how god files and top-heavy "house of cards" modules are born. The decision is made
-**up front, by a dedicated decider, before code is written.**
+**up front, by a dedicated decider, before code is written.** This is the mechanism
+behind the two-role split in Purpose: **you ship, the advisor places.** Consulting it
+is the *first* action on any feature that adds code — before scoping the
+implementation, not after.
 
 - Before writing any **non-trivial new code** (a new function, feature, or file),
   you MUST obtain a placement decision first:
@@ -105,6 +117,57 @@ how god files and top-heavy "house of cards" modules are born. The decision is m
   the one Wu Wei stage that owns the concern.
 - Trivial edits (typos, comments, in-place fixes within a file's existing concern)
   do not require a placement decision.
+
+### Preparatory refactoring (make the change easy, then make the easy change)
+
+When placement names an owning module that **cannot absorb the change cleanly** — it
+would cross a CI ceiling, or it already carries too many concerns — the feature does
+**not** land there as-is. The owner is restructured to make room **first**, as a
+separate behavior-preserving step, and only then is the feature added. This is Kent
+Beck's rule (*make the change easy — this may be hard — then make the easy change*)
+and Martin Fowler's **Two Hats**: you are *either* refactoring (restructuring, adding
+nothing) *or* adding function (new behavior, restructuring nothing) — **never both at
+once.** Restructuring and feature work are two hats, worn one at a time, in that order.
+
+This repo enforces the hat boundary by giving each hat to a **different agent** — the
+same reason placement is delegated. Three roles, strictly separated:
+
+1. **`placement-advisor`** (read-only) — decides *where* the code belongs, and flags
+   whether the owning module is too full to take it.
+2. **`reorganizer`** (refactoring hat only) — if the owner is flagged full, performs
+   the *minimum* behavior-preserving extraction that opens a clean seam, routes it to
+   its owning module, ratchets the ceiling down, and proves all tests stay green. It
+   adds **no feature** and changes **no behavior** — its only deliverable is room.
+3. **You, the implementer** (adding-function hat only) — drop the feature into the
+   now-roomy module. You arrive to prepared ground and *just add the function.*
+
+**Objective trigger — not a judgement call.** You do not decide "is this a big job" by
+feel (a ship-focused agent calls everything small). The reorganizer is invoked before
+the feature whenever, for the placement target, **either** holds:
+
+- Adding the planned code would push a `CEILINGS` file over its cap
+  (`src/sogotable/static/app.js` 2566, `workers/sogotable-api.js` 1810,
+  `styles.css` 375, `styles-games.css` 1700) — CI fails the instant it crosses, so a
+  crossing is a hard stop.
+- The target is near its cap (within ~5%), **or** any other source file is nearing
+  `GLOBAL_FILE_CAP` (800), **or** the change adds cross-cutting state while `app.js`
+  is near its top-level `let` cap (33).
+
+If none hold, the module has room: **skip the reorganizer and implement directly.**
+Preparatory refactoring is triggered by *demonstrated structural pressure*, never as a
+virtue — speculative splitting (restructuring modules the feature never touches) is its
+own failure and trades god files for premature-abstraction sprawl.
+
+**Sequencing (mandatory, in this order):**
+
+1. **Placement** — advisor names the owner; flags it full → seam to extract.
+2. **Preparatory-refactor commit** — the `reorganizer`'s extraction only. Behavior-
+   preserving, tests green, ceiling ratcheted. Separately reviewable and revertable.
+3. **Feature commit** — your new code, dropped into the prepared module.
+
+Two commits, in that order. Never bundle the refactor into the feature commit — keeping
+"made room" and "added behavior" separate is what makes each one reviewable, and is the
+Two-Hats rule expressed in git history.
 
 ## AI Intake Files (`AI/`)
 
