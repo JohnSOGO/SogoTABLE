@@ -199,6 +199,34 @@ Do **not** extract just to chase small files. Cohesion beats fragmentation: a
 focused 400-line module that owns one thing is healthier than five 80-line files
 that only make sense read together.
 
+## Enforcement (what the build actually checks)
+
+Most of this doc is enforced by discipline + review. These rules are also pinned
+by `workers/tests/architecture.test.js`, so a violation fails `npm test` instead
+of merely contradicting prose:
+
+- **Ratchet ceilings** — the four known big files (`app.js`, the Worker,
+  `styles.css`, `styles-games.css`) have individual line caps that only ratchet
+  down. Extract, then lower the cap.
+- **Global file cap (800)** — every *other* source file is capped, so a new god
+  file fails the build the moment it forms. Raising the cap or adding an exception
+  is a deliberate, reviewed act — prefer extracting.
+- **Layering / import direction** — controllers and game modules must not import
+  the shell (`app.js`) back; they reach it only through a `ctx` injected via
+  `wireX()`. Games are siblings: no game imports another game's module (the lone
+  sanctioned exception is Tactical reusing Classic's renderer).
+- **Rules purity** — every `games/<id>/rules.js` must reference no
+  `document`/`window`/`localStorage`/`sessionStorage`/`fetch`, keeping rules
+  browser-testable and side-channel-free (the ownership table, as a test).
+- **Single registry + manifest parity + review-export import closure** — game
+  ids live only in `games/registry.js`; each manifest reconciles with it; every
+  exported module's relative imports resolve inside the export allowlist.
+
+What is **not** mechanically caught yet (still review's job): ownership-table
+violations beyond rules purity (e.g. transport growing game logic), and a `ctx`
+surface ballooning past ~12 entries — a strong signal the boundary is wrong or
+the shell's shared mutable state wants its own owner, not more getters.
+
 ## Anti-Patterns
 
 Avoid:

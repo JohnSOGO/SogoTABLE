@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { posix } from "node:path";
 
 // Ratchet guards (from the 2026-06-26 architecture review): the two god-files
@@ -14,6 +14,34 @@ import { posix } from "node:path";
 // (game-screen visuals) on 2026-06-27 to make room without regrowth.
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const lineCount = (rel) => readFileSync(join(root, rel), "utf8").split("\n").length;
+
+// Repo-relative (forward-slash) source paths. Prefers git (no untracked noise);
+// falls back to a disk walk so an exported review ZIP without .git still runs the
+// structural guards below.
+function walkRepo(dir, acc) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if ([".git", "node_modules", ".wrangler", "AI"].includes(entry.name)) continue;
+    const abs = join(dir, entry.name);
+    if (entry.isDirectory()) walkRepo(abs, acc);
+    else acc.push(relative(root, abs).split(sep).join("/"));
+  }
+  return acc;
+}
+function sourceFiles(extensions) {
+  let files;
+  try {
+    files = execSync("git ls-files", { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().split("\n").filter(Boolean);
+  } catch {
+    files = walkRepo(root, []);
+  }
+  return files.filter((p) => extensions.some((ext) => p.endsWith(ext)));
+}
+// The game id for a path under .../games/<id>/<file>, or null for shared files
+// that sit directly in games/ (registry.js, render-keys.js, host-lobby.js, ...).
+function gameDirOf(rel) {
+  const match = rel.match(/(?:^|\/)games\/([^/]+)\/[^/]+$/);
+  return match ? match[1] : null;
+}
 
 const CEILINGS = {
   "src/sogotable/static/app.js": 2571,
@@ -152,4 +180,74 @@ test("architecture: every game manifest reconciles with the registry", async () 
     .filter((game) => game.availability === "ready" && !covered.has(game.id) && !KNOWN_NO_MANIFEST.has(game.id))
     .map((game) => game.name);
   assert.deepEqual(missing, [], `ready games missing a manifest.js: ${missing.join(", ")}`);
+});
+
+// God-file backstop: CEILINGS tightly ratchets the four known big files, but
+// nothing stopped a FIFTH file growing unbounded. Cap every other source file at
+// a generous limit so a new god file fails the build the moment it forms. This is
+// a backstop, not the primary guard — the doctrine's smell tests catch earlier.
+// Raising a cap or adding an exception is a deliberate, reviewed act: prefer
+// extracting a module. (The big cohesive game files sit just under the cap, so
+// the next large addition to them also forces a conversation.)
+const GLOBAL_FILE_CAP = 800;
+const FILE_CAP_EXCEPTIONS = {
+  // Per-domain split is a tracked follow-up (review #5); pinned until then.
+  "workers/tests/sogotable-api.test.js": 2810,
+};
+test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
+  const offenders = [];
+  for (const rel of sourceFiles([".js", ".mjs", ".css"])) {
+    if (rel in CEILINGS) continue; // ratcheted individually above
+    const cap = FILE_CAP_EXCEPTIONS[rel] || GLOBAL_FILE_CAP;
+    const lines = lineCount(rel);
+    if (lines > cap) offenders.push(`${rel} is ${lines} lines (cap ${cap})`);
+  }
+  assert.deepEqual(offenders, [], `over line cap — extract a module, or justify a reviewed exception:\n${offenders.join("\n")}`);
+});
+
+// Layering: controllers and game modules are downstream of the shell. They reach
+// the shell ONLY through a ctx injected via wireX() — never by importing app.js
+// back (which would re-tangle the god file). Games are siblings, not a hierarchy,
+// so one game must not import another's module. The single sanctioned exception is
+// Tactical, which is built on Classic and reuses its renderer.
+test("architecture: controllers/games never import the shell or another game", () => {
+  const importRe = /(?:from|import)\s+["'](\.[^"']+)["']/g;
+  const SHELL = "src/sogotable/static/app.js";
+  const ALLOWED_CROSS_GAME = new Set([
+    "src/sogotable/static/games/super-tic-tactical-toe/render.js -> src/sogotable/static/games/super-tic-tac-toe/render.js",
+  ]);
+  const problems = [];
+  for (const rel of sourceFiles([".js", ".mjs"])) {
+    const underControllers = rel.includes("/static/controllers/");
+    const gameDir = gameDirOf(rel);
+    if (!underControllers && !gameDir) continue; // the shell itself may compose both
+    const source = readFileSync(join(root, rel), "utf8");
+    const dir = posix.dirname(rel);
+    for (const match of source.matchAll(importRe)) {
+      const resolved = posix.normalize(posix.join(dir, match[1]));
+      if (resolved === SHELL) {
+        problems.push(`${rel} imports the shell (${SHELL}) — inject a ctx via wireX() instead of importing app.js`);
+      }
+      const targetGame = gameDirOf(resolved);
+      if (gameDir && targetGame && targetGame !== gameDir && !ALLOWED_CROSS_GAME.has(`${rel} -> ${resolved}`)) {
+        problems.push(`${rel} imports another game's module (${resolved}) — share via a games/ helper, not game-to-game`);
+      }
+    }
+  }
+  assert.deepEqual(problems, [], `layering violations:\n${problems.join("\n")}`);
+});
+
+// Ownership table (docs/modularity.md): game rules own legal moves/scoring only —
+// no DOM, no transport, no persistence. Keep every games/<id>/rules.js pure so it
+// stays testable without a browser and can't smuggle in a side channel.
+test("architecture: game rule modules stay pure (no DOM / transport / storage)", () => {
+  const forbidden = /\b(document|window|localStorage|sessionStorage)\b|(?<![\w.])fetch\s*\(/;
+  const problems = [];
+  for (const rel of sourceFiles([".js"])) {
+    if (!/(?:^|\/)games\/[^/]+\/rules\.js$/.test(rel)) continue;
+    readFileSync(join(root, rel), "utf8").split("\n").forEach((line, index) => {
+      if (forbidden.test(line)) problems.push(`${rel}:${index + 1}  ${line.trim()}`);
+    });
+  }
+  assert.deepEqual(problems, [], `game rules must own no DOM/transport/persistence — move it to the UI or transport layer:\n${problems.join("\n")}`);
 });
