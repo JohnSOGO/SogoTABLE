@@ -47,7 +47,7 @@ concern), then implement.
 | `src/sogotable/static/controllers/invites.js` | Invite / opponent flows (remote / bot / local) | — |
 | `src/sogotable/static/games/registry.js` | Single game registry — metadata source of truth | — |
 | `src/sogotable/static/games/render-keys.js` | Room render-cache key | — |
-| `src/sogotable/static/games/host-lobby.js` | Shared host-lobby template | — |
+| `src/sogotable/static/games/lobby.js` | Shared pre-game lobby — mode-driven (fixed-capacity/auto-start + host-start) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/games/game-list-view.js` | Game-select list view | — |
 | `workers/sogotable-api.js` | Worker entry: routing, side-effect dispatch, Durable Objects, remaining domain handlers | — |
 | `workers/game-catalog.js` | Game id resolution + public game definitions | `workers/sogotable-api.js` |

@@ -72,6 +72,7 @@ import {
   purgeDeprecatedLocalRoster,
   migrateStorageNamespace,
 } from "./storage.js";
+import { wireLobby, renderRoomSlots, renderRoomInviteStatus } from "./games/lobby.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
 import { renderYahtzeeGame } from "./games/yahtzee/render.js";
@@ -162,6 +163,16 @@ const realtime = createRealtimeController({
 document.addEventListener("DOMContentLoaded", () => {
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat();
+  wireLobby({
+    getCurrentRoom: () => currentRoom,
+    getHostInviteStatus: () => hostInviteStatus,
+    setHostInviteStatus: (value) => { hostInviteStatus = value; },
+    isSoloRoom,
+    getDeviceSelectedPlayerId,
+    openLocalOpponentModal,
+    openInvitePlayerModal,
+    openBotOpponentModal,
+  });
   wireRoomSounds({ localRoomSeat, isTenThousandGameState, isTacticalGameState, isBoxesGameState, isBotPlayer });
   wireInvites({
     getCurrentRoom: () => currentRoom,
@@ -1740,68 +1751,6 @@ async function handleIncomingResetRequest() {
 function syncHostInviteStatusFromRoom(room) {
   if (!room || room.started) return;
   hostInviteStatus = room.latest_invite || hostInviteStatus;
-}
-
-function renderRoomSlots() {
-  if (!currentRoom) return;
-  const hostSlot = document.getElementById("roomHostSlot");
-  const opponentSlot = document.getElementById("roomOpponentSlot");
-  const hostPlayer = currentRoom.players.find((player) => player.id === currentRoom.host_id);
-  const opponent = currentRoom.players.find((player) => player.id !== currentRoom.host_id);
-  hostSlot.innerHTML = hostPlayer ? roomPlayerHtml(hostPlayer) : "Host missing.";
-  opponentSlot.classList.remove("status-only");
-  opponentSlot.parentElement.classList.toggle("hidden", isSoloRoom(currentRoom));
-  if (isSoloRoom(currentRoom)) {
-    hostInviteStatus = null;
-    renderRoomInviteStatus();
-    return;
-  }
-  if (opponent) {
-    opponentSlot.innerHTML = roomPlayerHtml(opponent);
-    hostInviteStatus = null;
-    renderRoomInviteStatus();
-    return;
-  }
-  if (currentRoom.host_id === getDeviceSelectedPlayerId()) {
-    opponentSlot.innerHTML = `
-      <button id="selectLocalOpponent" class="secondary" type="button">Select Local Opponent</button>
-      <button id="inviteRemoteOpponent" class="secondary" type="button">Invite Remote Opponent</button>
-      <button id="inviteBotOpponent" class="secondary" type="button">Invite Bot</button>
-    `;
-    document.getElementById("selectLocalOpponent").addEventListener("click", openLocalOpponentModal);
-    document.getElementById("inviteRemoteOpponent").addEventListener("click", openInvitePlayerModal);
-    document.getElementById("inviteBotOpponent").addEventListener("click", openBotOpponentModal);
-    renderRoomInviteStatus();
-    return;
-  }
-  renderRoomInviteStatus();
-  opponentSlot.textContent = hostInviteStatus ? inviteStatusText(hostInviteStatus) : "Waiting for host to invite a player.";
-  opponentSlot.classList.add("status-only");
-}
-
-function renderRoomInviteStatus() {
-  const host = document.getElementById("roomInviteStatus");
-  if (!host) return;
-  const visible = Boolean(currentRoom && !currentRoom.started && hostInviteStatus);
-  host.classList.toggle("hidden", !visible);
-  if (!visible) {
-    host.textContent = "";
-    return;
-  }
-  host.textContent = inviteStatusText(hostInviteStatus);
-}
-
-function inviteStatusText(invite) {
-  const targetName = invite.target_name || "player";
-  if (invite.status === "accepted") return `${targetName} accepted. Starting game.`;
-  if (invite.status === "declined") return `${targetName} declined the invite.`;
-  if (invite.status === "expired") return `Invite to ${targetName} expired.`;
-  return `Invite sent to ${targetName}. Waiting for response.`;
-}
-
-function roomPlayerHtml(player) {
-  const label = player.kind === "bot" ? `${player.mark || "Waiting"} Bot` : player.mark || "Waiting";
-  return `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><span>${escapeHtml(label)}</span>`;
 }
 
 function renderGame() {

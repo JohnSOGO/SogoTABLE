@@ -309,7 +309,7 @@ game hits (all learned on Yahtzee):
   is created from the lobby but not yet started, a host-start game owns its own
   not-started screen (the shell hides `#gamePlayersPanel` and delegates). Do **not**
   hand-roll a bespoke invite UI — render the shared **host-start lobby template**
-  `games/host-lobby.js` (`renderHostStartLobby(host, ctx, opts)`) so the seated-
+  `games/lobby.js` (`renderHostStartLobby(host, ctx, opts)`) so the seated-
   players roster, the **Invite Remote Opponent / Invite Bot / Start Game** controls,
   and their look are identical across games. It emits the canonical
   `.ten-thousand-lobby` / `.tt-lobby-*` markup and wires the ctx `invitePlayer` /

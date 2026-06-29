@@ -37,14 +37,14 @@ function sourceFiles(extensions) {
   return files.filter((p) => extensions.some((ext) => p.endsWith(ext)));
 }
 // The game id for a path under .../games/<id>/<file>, or null for shared files
-// that sit directly in games/ (registry.js, render-keys.js, host-lobby.js, ...).
+// that sit directly in games/ (registry.js, render-keys.js, lobby.js, ...).
 function gameDirOf(rel) {
   const match = rel.match(/(?:^|\/)games\/([^/]+)\/[^/]+$/);
   return match ? match[1] : null;
 }
 
 const CEILINGS = {
-  "src/sogotable/static/app.js": 2566,
+  "src/sogotable/static/app.js": 2515,
   "workers/sogotable-api.js": 1810,
   "src/sogotable/static/styles.css": 375,
   "src/sogotable/static/styles-games.css": 1700,

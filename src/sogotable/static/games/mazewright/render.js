@@ -9,7 +9,7 @@ import {
   interiorEdges, perimeterEdges, isExit, wallCount, canAddWall, canSubmit,
   allLootReachable, pathExists, applyAction, loadRunFromCode,
 } from "./rules.js";
-import { renderHostStartLobby } from "../host-lobby.js";
+import { renderHostStartLobby } from "../lobby.js";
 import { playClick, playConfirm, playCancel, playInvalidMove, playScorePick, playWin } from "../../sound.js";
 
 const PAD = 26, VIEW = 420;
