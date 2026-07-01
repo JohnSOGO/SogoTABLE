@@ -127,6 +127,7 @@ const REVIEW_EXPORT_FILES = [
   "docs/game-battleship.md",
   "docs/game-dots-and-boxes.md",
   "docs/game-quoridor.md",
+  "docs/game-rtta.md",
   "docs/game-super-tic-tac-toe.md",
   "docs/game-super-tic-tactical-toe.md",
   "docs/game-ten-thousand.md",

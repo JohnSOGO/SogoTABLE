@@ -2,6 +2,10 @@
 
 This document captures the SogoTable timing-mode ideology from the incoming `AI/live_round Variants.md` and `AI/live_Round rounds_without_turns.md` notes.
 
+> **Status:** first realized live-round game shipped — **Roll Through the Ages**
+> (`timingMode: "liveRound"`). Each player commits one turn per round in any order;
+> the round resolves once every human has submitted. See [game-rtta.md](game-rtta.md).
+
 ## Core Idea
 
 SogoTable should support digital board games with rounds but no fixed turns.
