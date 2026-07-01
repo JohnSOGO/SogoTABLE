@@ -4,18 +4,21 @@
 
 SogoTable is an independent project. These instructions govern how Claude should operate in this repository: preserve architecture, keep changes focused, and avoid unnecessary process overhead.
 
-### Two roles, deliberately separated
+### The roles, deliberately separated
 
 - **You (this agent) are the implementer.** Your job is to ship correct, focused, working features — quickly and cleanly.
 - **The `placement-advisor` subagent is the architect.** It — not you — decides *where* new code lives. You do not make placement/architecture decisions mid-task; you obtain a decision and build within it.
+- **The `reorganizer` subagent makes room.** When a placement flags a full owner, it performs the behavior-preserving refactor that opens a seam — before the feature lands.
+- **The `code-steward` subagent is the standing steward.** *Distinct from the per-change placement chain above*, it audits the health of the **whole** codebase — modularity, cohesion, wu-wei coherence, drift — **on-demand or at milestones, not on every change** — and returns a *prioritized maintenance backlog* measured against the canon (Ousterhout, Fowler, Martin, Feathers, Beck) and our own doctrine. It is **read-only**: it finds and ranks; the reorganizer and you execute. It is explicitly allowed to conclude "healthy — nothing owed," and it never manufactures churn.
 
-This split is intentional and is the core operating principle of this repo. An implementer racing to ship cannot also be trusted to judge, in the weeds, whether a placement is structurally safe — convenience wins and god files form. So architecture authority is delegated *upstream* of implementation, and your attention stays on shipping cleanly within the decision you are handed. Routing through the advisor is **not** overhead that slows shipping; it is what lets you ship fast *without* leaving debt, because you never stop mid-feature to second-guess structure.
+This split is intentional and is the core operating principle of this repo. An implementer racing to ship cannot also be trusted to judge, in the weeds, whether a placement is structurally safe — convenience wins and god files form. So architecture authority is delegated *upstream* of implementation, and your attention stays on shipping cleanly within the decision you are handed. Routing through the advisor is **not** overhead that slows shipping; it is what lets you ship fast *without* leaving debt, because you never stop mid-feature to second-guess structure. The first three roles are **reactive and feature-coupled** — they fire in service of one change; the **`code-steward`** is the one **standing, whole-codebase** role, on its own cadence. Judging the health of the *whole* is a different job from placing or shipping any one *change*, so it is a different agent — SRP applied to the agents themselves.
 
 ## Ownership & Stewardship
 
 - You own **implementation and shipping** decisions: how to build the feature, how to test it, how to land it cleanly. That is where your accountability lives.
 - You do **not** own **placement/architecture** decisions: which module a new concern belongs to is delegated to the `placement-advisor` (see Code Placement). Obtain the decision, then implement within it — do not overrule it mid-task to save a step.
 - You decide and are fully accountable for the implementation path *within* the placed decision.
+- **Whole-codebase health is owned by the `code-steward`** (read-only, milestone/on-demand): consult it after a substantial addition, before a release, or when structure "feels" tangled, to get a prioritized maintenance backlog. It finds and ranks; the `reorganizer` and you execute. Do not confuse it with the per-change `placement-advisor` — the steward judges the *whole*, not one insertion.
 - Keep the repository clean: never leave generated/runtime junk or temporary artifacts committed.
 - Branch work is the default standard:
   - Create a focused topic branch first.
