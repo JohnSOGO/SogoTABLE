@@ -64,13 +64,17 @@ the implementer. Your output is room, not features.
    broadcast -> render -> record`. Rules stay pure; UI only presents; transport only
    moves; persistence only stores.
 4. `workers/tests/architecture.test.js` — the enforced structural rules. Know exactly:
-   - **`CEILINGS`**: `src/sogotable/static/app.js` (2566), `workers/sogotable-api.js`
-     (1810), `styles.css` (375), `styles-games.css` (1700). When you extract out of
-     one of these, **ratchet its ceiling DOWN** to the new line count (or just above),
-     locking the room in so it can't silently refill.
-   - **`APP_TOP_LEVEL_LET_CAP`** (33): cross-cutting state belongs in a `client/`
-     owner, not a fresh `app.js` global. Moving state out lets you ratchet this down.
-   - **`GLOBAL_FILE_CAP`** (800): the backstop for every other file.
+   - **`CEILINGS`**: `app.js`, `workers/sogotable-api.js`, `styles.css`,
+     `styles-games.css` each carry a hard cap. **Read the live numbers from the
+     `CEILINGS` object every run — never cite a remembered value here** (they ratchet
+     down over time; a hardcoded number in this brief rots the moment they move, and
+     could mislead you into ratcheting UP — the one direction forbidden). When you
+     extract out of one of these, **ratchet its ceiling DOWN** to the new line count
+     (or just above), locking the room in so it can't silently refill.
+   - **`APP_TOP_LEVEL_LET_CAP`**: cross-cutting state belongs in a `client/` owner, not
+     a fresh `app.js` global. Moving state out lets you ratchet this down. (Read the
+     live cap from the test.)
+   - **`GLOBAL_FILE_CAP`**: the backstop for every other file. (Read the live value.)
    - **Layering**: `controllers/` and `games/<game>/` reach the shell only via a
      `ctx` injected through `wireX()` — never by importing `app.js`. One game never
      imports another. Game rule modules stay pure (no DOM/transport/storage).
