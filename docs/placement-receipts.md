@@ -5,9 +5,11 @@ An **append-only** audit log of placement decisions. Every non-trivial code addi
 decision from the `placement-advisor` subagent. The implementer commits that decision's
 `PLACEMENT RECEIPT` here, **verbatim**, before/with the code.
 
-This is what makes the placement *step* auditable: a periodic external review reads
-this log against the actual commits and `docs/module-ownership.md`, instead of
-re-deriving placement judgment across the whole codebase.
+This is what makes the placement *step* auditable: the **`code-steward`** owns the
+periodic review of this log — as part of its whole-codebase audits it reconciles
+recent receipts against the actual commits and `docs/module-ownership.md`, and
+spot-checks a sample of light-path commits (those that ship with no receipt),
+instead of re-deriving placement judgment across the whole codebase.
 
 ## How to log a receipt
 

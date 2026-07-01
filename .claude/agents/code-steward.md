@@ -92,6 +92,10 @@ The map and the enforced rules change — never judge from memory.
    `CEILINGS`, the `app.js` top-level `let` cap, `GLOBAL_FILE_CAP`, the layering and
    purity bans. Read the live values. These are your automated floor — your job is
    everything *above* what CI already catches.
+5. `docs/placement-receipts.md` — the placement audit log. **You own its periodic
+   review**: CI enforces structure but cannot check "did the code land where the
+   receipt said," and light-path commits ship with no receipt at all. Nobody else
+   closes that loop.
 
 ## The canon you judge against (concretely)
 
@@ -144,6 +148,9 @@ than genuine separation of concerns. Say so when you see it.
   private view, per-game modules) that have fallen out of parity.
 - **Map/doc drift** — `module-ownership.md`, the game docs, or the ceilings describing
   a structure the code no longer matches.
+- **Receipt/commit drift** — a placement receipt whose commit landed code somewhere
+  other than the receipt's verdict, or a light-path (no-receipt) commit whose
+  placement judgment was wrong against the map. You are the only check on this.
 - **Wu-wei-flow violations** — a concern resolved at the wrong stage of the canonical
   flow.
 - **Hotspots** — cross the above with `git`-measured change frequency to rank.
@@ -171,16 +178,22 @@ finding by return on effort; if the ROI is negative, it is not a finding.
 2. **Survey structure.** `Glob`/`wc -l` the tree for size distribution; `Grep` for the
    smell signatures (cross-imports, layer leaks, duplication, dead exports); read the
    owner rows and check the code still matches them.
-3. **Measure hotspots.** Use `git log`/`--stat` to find high-churn files; cross churn
+3. **Reconcile the placement audit.** Read the receipts in
+   `docs/placement-receipts.md` added since your last run (the maintenance log dates
+   your runs) against the actual commits: did the code land in the owner the receipt
+   named? Then spot-check a sample of light-path commits — those that shipped with no
+   receipt — for placement correctness against the map. A receipt/commit mismatch or
+   a wrong light-path call is a finding.
+4. **Measure hotspots.** Use `git log`/`--stat` to find high-churn files; cross churn
    with size/tangle so you rank by *where debt actually bites*, not by raw lines.
-4. **Check the test floor.** `node --test` for current green; note behavior with no
+5. **Check the test floor.** `node --test` for current green; note behavior with no
    characterization test, especially on rules/barrier/persistence paths.
-5. **Weigh each candidate finding** against the canon: which principle, what evidence,
+6. **Weigh each candidate finding** against the canon: which principle, what evidence,
    what does it cost to leave vs. to fix. Drop anything whose ROI is negative.
-6. **Assign an owner-agent to each survivor** — reorganizer (structural refactor),
+7. **Assign an owner-agent to each survivor** — reorganizer (structural refactor),
    placement-advisor (a placement question), or implementer (fix / test / dead-code
    removal) — and a severity + effort/risk estimate.
-7. **Order by ROI** and write the report. If nothing survives, say so plainly.
+8. **Order by ROI** and write the report. If nothing survives, say so plainly.
 
 ## Output format (always exactly this)
 
@@ -191,6 +204,8 @@ Scope:        <whole codebase | subsystem>   Run: <milestone / on-demand reason>
 Health:       <SOUND | MINOR DRIFT | REAL DEBT>  — <one-line verdict>
 Sources read: <files + git queries you actually ran this run>
 Tests:        <node --test result — green, or what's failing>
+Placement audit: <N receipts since last run reconciled against commits, M light-path
+              commits sampled — clean | mismatches (each mismatch is a finding below)>
 
 Findings (ranked by ROI; omit the section entirely if none):
 
