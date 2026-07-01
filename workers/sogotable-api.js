@@ -57,6 +57,7 @@ import {
   overlordKeepPlan,
   tenThousandScoreValues,
   tenThousandHasAnyScoringSet,
+  isTenThousandGame,
 } from "./games/ten-thousand/rules.js";
 import {
   newYahtzeeGame,
@@ -64,6 +65,7 @@ import {
   makeYahtzeeMove,
   yahtzeeGameToDict,
   yahtzeeScoreByMark,
+  isYahtzeeGame,
 } from "./games/yahtzee/rules.js";
 import {
   newQuoridorGame,
@@ -1471,14 +1473,6 @@ function gameToDict(game) {
   const handler = GAME_HANDLERS.find((entry) => entry.is(game));
   if (handler) return handler.toDict(game);
   return { ...game, game_id: cleanGameId(game.game_id), legal_boards: legalBoards(game) };
-}
-
-function isTenThousandGame(game) {
-  return Boolean(game && cleanGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
-}
-
-function isYahtzeeGame(game) {
-  return Boolean(game && cleanGameId(game.game_id) === YAHTZEE_GAME_ID);
 }
 
 function isBattleshipGame(game) {
