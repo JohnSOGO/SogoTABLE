@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   newRttaGame, initRttaSeats, makeRttaMove, rttaGameToDict, rttaScoreByMark,
+  MONUMENTS as SERVER_MONUMENTS, DEVELOPMENTS as SERVER_DEVELOPMENTS,
 } from "../games/rtta/rules.js";
+import {
+  MONUMENTS as CLIENT_MONUMENTS, DEVELOPMENTS as CLIENT_DEVELOPMENTS,
+} from "../../src/sogotable/static/games/rtta/rules.js";
 
 const human = (mark, name) => ({ mark, name, kind: "human" });
 const bot = (mark, name) => ({ mark, name, kind: "bot" });
@@ -13,6 +17,42 @@ function twoHumans() {
   initRttaSeats(g, [human("P1", "A"), human("P2", "B")]);
   return g;
 }
+
+// Data-parity guard (steward finding #2): the client (preview/costs) and the
+// server (authoritative score) each declare their own MONUMENTS/DEVELOPMENTS
+// tables in different shapes. If a balance tweak lands on one side only, the
+// client would show a cost/score the server won't award — a silent divergence a
+// green build wouldn't catch. These pin the SHARED balance fields equal.
+test("data parity: monument costs + VP agree across client and server", () => {
+  const client = new Map(CLIENT_MONUMENTS.map((m) => [m.name, m]));
+  const serverNames = Object.keys(SERVER_MONUMENTS);
+  assert.deepEqual(
+    [...client.keys()].sort(), serverNames.slice().sort(),
+    "monument name sets differ between client and server",
+  );
+  for (const name of serverNames) {
+    const s = SERVER_MONUMENTS[name];
+    const c = client.get(name);
+    assert.equal(c.w, s.workers, `${name}: worker cost differs (client ${c.w} vs server ${s.workers})`);
+    assert.equal(c.first, s.first, `${name}: first-builder VP differs`);
+    assert.equal(c.later, s.later, `${name}: later-builder VP differs`);
+  }
+});
+
+test("data parity: development cost + VP agree across client and server", () => {
+  const client = new Map(CLIENT_DEVELOPMENTS.map((d) => [d.name, d]));
+  const serverNames = Object.keys(SERVER_DEVELOPMENTS);
+  assert.deepEqual(
+    [...client.keys()].sort(), serverNames.slice().sort(),
+    "development name sets differ between client and server",
+  );
+  for (const name of serverNames) {
+    const s = SERVER_DEVELOPMENTS[name];
+    const c = client.get(name);
+    assert.equal(c.cost, s.cost, `${name}: coin cost differs (client ${c.cost} vs server ${s.cost})`);
+    assert.equal(c.vp, s.vp, `${name}: VP differs (client ${c.vp} vs server ${s.vp})`);
+  }
+});
 
 test("round starts in the playing phase, not yet resolved", () => {
   const g = twoHumans();
