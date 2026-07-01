@@ -78,6 +78,7 @@ import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
 import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import { renderMazewrightGame } from "./games/mazewright/render.js";
+import { renderRttaGame } from "./games/rtta/render.js";
 import {
   isSoundEnabled,
   soundVolumeLevel,
@@ -109,7 +110,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState,
+  isMazewrightGameState, isRttaGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -1846,11 +1847,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game)) {
-    // Game-Locked games own their HUD; hide the players panel + the empty shell turn strip.
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
@@ -2011,7 +2011,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }
