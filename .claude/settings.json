@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/steward-overdue-check.mjs",
+            "timeout": 15,
+            "statusMessage": "Checking steward audit cadence"
+          }
+        ]
+      }
+    ]
+  }
+}
