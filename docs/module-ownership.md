@@ -46,6 +46,7 @@ concern), then implement.
 | `src/sogotable/static/controllers/room-sounds.js` | Room-snapshot → sound-effect mapping | — |
 | `src/sogotable/static/controllers/invites.js` | Invite / opponent flows (remote / bot / local) | — |
 | `src/sogotable/static/games/registry.js` | Single game registry — metadata source of truth | — |
+| `src/sogotable/static/games/game-kinds.js` | Client game-kind predicates (classify a room game blob by id) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/games/render-keys.js` | Room render-cache key | — |
 | `src/sogotable/static/games/lobby.js` | Shared pre-game lobby — mode-driven (fixed-capacity/auto-start + host-start) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/games/game-list-view.js` | Game-select list view | — |

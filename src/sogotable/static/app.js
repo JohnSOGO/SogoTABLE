@@ -16,6 +16,7 @@ import {
 } from "./controllers/player-appearance.js";
 import { createRealtimeController } from "./realtime.js";
 import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
+import { createGameKinds } from "./games/game-kinds.js";
 import { renderGameList } from "./games/game-list-view.js";
 import { buildRoomRenderKey } from "./games/render-keys.js";
 import { renderBoxesGame } from "./games/boxes/client.js";
@@ -93,16 +94,23 @@ import {
 } from "./sound.js";
 
 const CLASSIC_GAME_ID = GAME_IDS.classic;
-const TACTICAL_GAME_ID = GAME_IDS.tactical;
-const BOXES_GAME_ID = GAME_IDS.boxes;
-const BATTLESHIP_GAME_ID = GAME_IDS.battleship;
-const QUORIDOR_GAME_ID = GAME_IDS.quoridor;
-const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
-const YAHTZEE_GAME_ID = GAME_IDS.yahtzee;
 // Shown only when the games fetch fails; the registry is the single source of
 // truth shared with the Worker (see games/registry.js).
 const fallbackGames = GAME_REGISTRY;
 let games = [...fallbackGames];
+
+// Game-kind predicates live in the pure games/game-kinds.js leaf; wire them
+// with the shell's `canonicalGameId` (hoisted below) so alias resolution keeps
+// tracking the live games list.
+const {
+  isTacticalGameState,
+  isBoxesGameState,
+  isBattleshipGameState,
+  isQuoridorGameState,
+  isTenThousandGameState,
+  isYahtzeeGameState,
+  isMazewrightGameState,
+} = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
 initSessionStore(); // device identity now lives in client/session-store.js
@@ -2122,31 +2130,6 @@ function pickupAtCell(game, boardIndex, cellIndex) {
   if (!isTacticalGameState(game) || !Array.isArray(game.pickups)) return null;
   return game.pickups.find((pickup) => pickup.board === boardIndex && pickup.cell === cellIndex) || null;
 }
-
-function isTacticalGameState(game) {
-  return Boolean(game && (canonicalGameId(game.game_id) === TACTICAL_GAME_ID || Array.isArray(game.pickups)));
-}
-
-function isBoxesGameState(game) {
-  return Boolean(game && (canonicalGameId(game.game_id) === BOXES_GAME_ID || Array.isArray(game.lines) && Array.isArray(game.boxes)));
-}
-
-function isBattleshipGameState(game) {
-  return Boolean(game && (canonicalGameId(game.game_id) === BATTLESHIP_GAME_ID || game.phase === "setup" && game.players && game.fleet));
-}
-
-function isQuoridorGameState(game) {
-  return Boolean(game && (canonicalGameId(game.game_id) === QUORIDOR_GAME_ID || game.pawns && game.walls_remaining && Array.isArray(game.walls)));
-}
-
-function isTenThousandGameState(game) {
-  return Boolean(game && canonicalGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
-}
-
-function isYahtzeeGameState(game) {
-  return Boolean(game && canonicalGameId(game.game_id) === YAHTZEE_GAME_ID);
-}
-function isMazewrightGameState(game) { return Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.mazewright); }
 
 function startRoomLiveUpdates() {
   if (!currentRoom) return;
