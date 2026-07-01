@@ -11,6 +11,7 @@ const QUORIDOR_GAME_ID = "8f5d2c7a1b90";
 const TEN_THOUSAND_GAME_ID = "6d10f4a2c8b3";
 const YAHTZEE_GAME_ID = "2c8a5f1e9d74";
 const MAZEWRIGHT_GAME_ID = "5e3b9a7c1f04";
+const RTTA_GAME_ID = "7a1c3e9f5b28";
 const HEX_ID_PATTERN = /^[a-f0-9]{12}$/;
 
 class InMemoryD1 {
@@ -330,7 +331,7 @@ function stateData(env) {
 export {
   EventHubDurableObject, RoomDurableObject, RoomFactoryDurableObject, tenThousandTest,
   MockHibernatedSocket, MockRateLimitBinding,
-  CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID, HEX_ID_PATTERN,
+  CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID, RTTA_GAME_ID, HEX_ID_PATTERN,
   makeEnv, makeProductionEnv, makeStrictEnvWithRooms, makeEnvWithRooms, makeEnvWithEvents,
   player, request, get, post, createActiveRoom, withMockRandom, mutateState, stateData,
 };

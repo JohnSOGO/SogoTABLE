@@ -60,12 +60,7 @@ import {
   isTenThousandGame,
 } from "./games/ten-thousand/rules.js";
 import {
-  newYahtzeeGame,
-  initYahtzeeSeats,
-  makeYahtzeeMove,
-  yahtzeeGameToDict,
-  yahtzeeScoreByMark,
-  isYahtzeeGame,
+  newYahtzeeGame, initYahtzeeSeats, makeYahtzeeMove, yahtzeeGameToDict, yahtzeeScoreByMark, isYahtzeeGame,
 } from "./games/yahtzee/rules.js";
 import {
   newQuoridorGame,
@@ -89,14 +84,11 @@ import {
 } from "./games/super-tic-tac-toe/rules.js";
 import { chooseScoredBotMove } from "./games/super-tic-tac-toe/bot.js";
 import {
-  MAZEWRIGHT_GAME_ID,
-  isMazewrightGame,
-  newMazewrightGame,
-  initMazewrightSeats,
-  makeMazewrightMove,
-  mazewrightGameToDict,
-  mazewrightScoreByMark,
+  MAZEWRIGHT_GAME_ID, isMazewrightGame, newMazewrightGame, initMazewrightSeats, makeMazewrightMove, mazewrightGameToDict, mazewrightScoreByMark,
 } from "./games/mazewright/rules.js";
+import {
+  RTTA_GAME_ID, isRttaGame, newRttaGame, initRttaSeats, makeRttaMove, rttaGameToDict, rttaScoreByMark,
+} from "./games/rtta/rules.js";
 
 const LOBBY_VIEWER_TTL_SECONDS = 45;
 const ROOM_SEAT_COLORS = [
@@ -1311,6 +1303,7 @@ function startRoom(room) {
   if (isTenThousandGame(room.game)) initTenThousandSeats(room.game, room.players);
   if (isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
   if (isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
+  if (isRttaGame(room.game)) initRttaSeats(room.game, room.players);
 }
 
 function playerMark(room, playerId) {
@@ -1393,6 +1386,7 @@ function handleResetVote(room, requesterId, approve) {
   }
   if (room.started && isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
   if (room.started && isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
+  if (room.started && isRttaGame(room.game)) initRttaSeats(room.game, room.players);
   bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
@@ -1433,6 +1427,8 @@ const GAME_HANDLERS = [
     applyAction: (game, mark, payload) => makeYahtzeeMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: MAZEWRIGHT_GAME_ID, is: isMazewrightGame, create: newMazewrightGame, toDict: mazewrightGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeMazewrightMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
+  { id: RTTA_GAME_ID, is: isRttaGame, create: newRttaGame, toDict: rttaGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeRttaMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -1548,6 +1544,7 @@ function scoreByMarkForRoom(room) {
   if (isMazewrightGame(room.game)) {
     return mazewrightScoreByMark(room.game);
   }
+  if (isRttaGame(room.game)) return rttaScoreByMark(room.game);
   if (isBoxesGame(room.game)) {
     return {
       X: Number(room.game.scores && room.game.scores.X || 0),
