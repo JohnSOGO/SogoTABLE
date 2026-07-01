@@ -214,6 +214,9 @@ export const RTTA_CSS = `
 .rtta-root .rtta-submit:active,.rtta-root .rtta-ready:active{transform:translateY(3px);box-shadow:0 1px 0 #835912}
 .rtta-root .rtta-submit.ready,.rtta-root .rtta-ready.blink{animation:rtta-blink 1s ease-in-out infinite}
 .rtta-root .rtta-event{color:var(--skull);font-weight:bold}
+/* a standings row struck by a cross-player disaster flashes red as its total ticks down */
+.rtta-root .scoretab tr.rtta-hit td{animation:rtta-flashRed .6s ease-out}
+.rtta-root .scoretab tr.rtta-hit .tot b{color:var(--skull)}
 
 /* body-appended flyer (fixed position — lives OUTSIDE .rtta-root, so global) */
 .rtta-fly{position:fixed;z-index:99999;font-size:1.3rem;pointer-events:none;transition:transform .55s ease-in,opacity .55s ease-in}

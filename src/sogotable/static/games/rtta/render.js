@@ -18,6 +18,7 @@ import { createRttaBoard } from "./board.js";
 
 let board = null;       // the mounted turn engine (during "playing")
 let mountedKey = "";    // room:epoch:round the board was built for
+let animatedKey = "";   // resolution whose cross-player disasters we've already animated
 
 export function renderRttaGame(ctx) {
   const { host, game, room } = ctx;
@@ -86,6 +87,84 @@ export function renderRttaGame(ctx) {
     </div>`;
   const readyBtn = host.querySelector("#rttaReady");
   if (readyBtn) readyBtn.addEventListener("click", () => { readyBtn.disabled = true; ctx.makeMove({ type: "READY_NEXT" }); });
+  animatePendingEvents(host, game, room, key);
+}
+
+// Once per resolution, fly 3 skulls from each pestilent player's standings row to
+// every opponent they struck (revolt sends fire), then tick that row's Total down
+// by the points lost. Deduped by resolution key so a snapshot mid-animation (a
+// player readying up) never replays it. The board is torn down here, so this
+// reuses the injected `.rtta-fly.arc` CSS directly rather than board.js's flyer.
+function animatePendingEvents(host, game, room, key) {
+  const events = Array.isArray(game.pending_events) ? game.pending_events : [];
+  if (!events.length || key === animatedKey) return;
+  animatedKey = key;
+  const table = host.querySelector(".scoretab");
+  if (!table) return;
+  const rowFor = (mark) => table.querySelector(`tr[data-mark="${String(mark).replace(/["\\]/g, "\\$&")}"]`);
+
+  // Pre-loss: bump each struck Total up by what it's about to lose, so the
+  // number the player sees first is the pre-disaster score, then it ticks down.
+  const displayed = {};
+  for (const ev of events) {
+    if (ev.kind !== "pestilence") continue;
+    for (const m of ev.to || []) {
+      const cell = rowForTotal(rowFor(m));
+      if (!cell) continue;
+      if (displayed[m] == null) {
+        cell.dataset.final = String(Number(cell.textContent) || 0);
+        displayed[m] = Number(cell.dataset.final);
+      }
+      displayed[m] += Number(ev.amount) || 0;
+      cell.textContent = String(displayed[m]);
+    }
+  }
+
+  let group = 0;
+  for (const ev of events) {
+    const src = rowFor(ev.from);
+    const emoji = ev.kind === "revolt" ? "🔥" : "💀";
+    for (const m of ev.to || []) {
+      const tgt = rowFor(m);
+      const skulls = ev.kind === "revolt" ? 1 : 3;
+      for (let k = 0; k < skulls; k++) {
+        const last = k === skulls - 1;
+        flyArc(src, tgt, emoji, group * 220 + k * 170, last ? () => onStruck(tgt, m, ev, displayed) : null);
+      }
+      group += 1;
+    }
+  }
+}
+
+function onStruck(row, mark, ev, displayed) {
+  if (row) { row.classList.add("rtta-hit"); setTimeout(() => row.classList.remove("rtta-hit"), 620); }
+  const cell = rowForTotal(row);
+  if (cell && ev.kind === "pestilence") {
+    const floor = Number(cell.dataset.final) || 0;
+    displayed[mark] = Math.max(floor, (displayed[mark] || floor) - (Number(ev.amount) || 0));
+    cell.textContent = String(displayed[mark]);
+  }
+}
+
+function rowForTotal(row) { return row ? row.querySelector(".tot b") : null; }
+
+// A single emoji arcing from one element's centre to another's, reusing the
+// injected `.rtta-fly.arc` keyframe (dx/dy custom props drive the translate).
+function flyArc(srcEl, targetEl, emoji, delay, onArrive) {
+  if (!srcEl || !targetEl) return;
+  setTimeout(() => {
+    const s = srcEl.getBoundingClientRect();
+    const t = targetEl.getBoundingClientRect();
+    const fly = document.createElement("div");
+    fly.className = "rtta-fly arc";
+    fly.textContent = emoji;
+    fly.style.left = `${s.left + s.width / 2 - 12}px`;
+    fly.style.top = `${s.top + s.height / 2 - 12}px`;
+    fly.style.setProperty("--dx", `${t.left - s.left + (t.width - s.width) / 2}px`);
+    fly.style.setProperty("--dy", `${t.top - s.top + (t.height - s.height) / 2}px`);
+    document.body.appendChild(fly);
+    setTimeout(() => { if (onArrive) onArrive(); fly.remove(); }, 950);
+  }, delay);
 }
 
 // Cross-player events surfaced by the server at the barrier. The skull fly
@@ -124,9 +203,9 @@ function standingsHtml(game, room, myMark) {
       const win = game.status === "complete" && seat.mark === game.winner;
       const name = seatName(room, seat.mark);
       const emoji = seatEmoji(room, seat.mark);
-      return `<tr class="${me ? "me" : ""}${win ? " win" : ""}">
+      return `<tr data-mark="${escapeName(seat.mark)}" class="${me ? "me" : ""}${win ? " win" : ""}">
         <td>${win ? "🏆 " : ""}${emoji} ${escapeName(name)}${seat.is_bot ? " 🤖" : ""}</td>
-        <td>${cities}</td><td>${mon}</td><td>${devs}</td><td>${lost}</td><td><b>${total}</b></td>
+        <td>${cities}</td><td>${mon}</td><td>${devs}</td><td>${lost}</td><td class="tot"><b>${total}</b></td>
       </tr>`;
     }).join("");
   return `<table class="scoretab">
