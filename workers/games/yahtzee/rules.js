@@ -9,6 +9,7 @@
 // engine; the board reveals each bot's CURRENT game paced to the most-advanced
 // human's round, and the bot never blocks the barrier.
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
+import { cleanGameId } from "../../game-catalog.js";
 import {
   newGame, applyAction, isCardComplete, grandTotal, CATEGORY_KEYS,
 } from "../../../src/sogotable/static/games/yahtzee/rules.js";
@@ -18,8 +19,10 @@ export const YAHTZEE_GAME_ID = GAME_IDS.yahtzee;
 export const SERIES_GAMES = 6;
 const ROUNDS_PER_GAME = CATEGORY_KEYS.length; // 13
 
+// Dispatch predicate: is this room's game blob a Yahtzee game? Resolves aliases
+// via the shared catalog, exactly as the Worker's inline predicate did.
 export function isYahtzeeGame(game) {
-  return !!game && game.game_id === YAHTZEE_GAME_ID;
+  return Boolean(game && cleanGameId(game.game_id) === YAHTZEE_GAME_ID);
 }
 
 function emptyScores() {

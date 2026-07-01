@@ -1,12 +1,19 @@
 // 10,000 (dice / Farkle) — server-authoritative rules. Phase 2 game module,
-// esbuild-bundled into the Worker. Pure logic: no routing/auth/persistence. The
-// Worker keeps the isTenThousandGame dispatch predicate and calls the exports
-// below; initTenThousandSeats is invoked from startRoom/reset. The trailing
-// __test exports are re-exposed by the Worker's __test object for the test suite.
+// esbuild-bundled into the Worker. Pure logic: no routing/auth/persistence. This
+// module owns the isTenThousandGame dispatch predicate; the Worker imports it and
+// calls the exports below; initTenThousandSeats is invoked from startRoom/reset.
+// The trailing __test exports are re-exposed by the Worker's __test object for the test suite.
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
+import { cleanGameId } from "../../game-catalog.js";
 import { clampInteger } from "../util.js";
 
 const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
+
+// Dispatch predicate: is this room's game blob a 10,000 game? Resolves aliases
+// via the shared catalog, exactly as the Worker's inline predicate did.
+export function isTenThousandGame(game) {
+  return Boolean(game && cleanGameId(game.game_id) === TEN_THOUSAND_GAME_ID);
+}
 
 const TEN_THOUSAND_TARGET_SCORE = 10000;
 const TEN_THOUSAND_OPENING_MINIMUM = 500; // default first-bank bar to get "on the board"

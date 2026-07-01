@@ -18,6 +18,7 @@ export const GAME_IDS = {
   tenThousand: "6d10f4a2c8b3",
   yahtzee: "2c8a5f1e9d74",
   mazewright: "5e3b9a7c1f04",
+  rtta: "7a1c3e9f5b28",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -122,5 +123,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["mazewright", "maze_wright", "dungeon_master"],
+  },
+  {
+    id: GAME_IDS.rtta,
+    lobbyMode: "hostStart",
+    name: "Roll Through the Ages",
+    summary: "Build cities, raise monuments, and buy developments across a shared Bronze Age — everyone plays their turn at once, then the round resolves together.",
+    players: "1+ players",
+    player_count: null,
+    host_start: true,
+    category: "dice",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["rtta", "roll_through_the_ages", "bronze_age"],
   },
 ];
