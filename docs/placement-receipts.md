@@ -18,6 +18,11 @@ instead of re-deriving placement judgment across the whole codebase.
 2. Append a new `##` entry below — **never edit or delete prior entries** (append-only).
 3. Stamp it with the date and, once committed, the resulting commit hash/subject.
 
+**Scope note (codified 2026-07-01):** a new game subtree under the `games/<id>/`
+directory patterns follows that standing decision in `docs/module-ownership.md` and
+needs **no per-game receipt** (state the placement in the commit body). A **new
+top-level owner row** always requires a receipt — that is the full-path trigger.
+
 ## Entry format
 
 ```
@@ -70,7 +75,7 @@ PLACEMENT RECEIPT
 - New owner row: two new rows (client controller + worker relay) — see Verdict.
 
 ## 2026-06-29 — Post-create House step (bug mqxvi6zl)
-Commit: feat(roster): after creating a player, surface House controls + tip instead of closing
+Commit: dd48d88 feat(roster): after creating a player, surface House controls + tip instead of closing
 
 PLACEMENT RECEIPT
 - Ask:          Bug mqxvi6zl — after CREATING a player, keep the modal open showing
@@ -111,7 +116,7 @@ PLACEMENT RECEIPT
   stylesheet) — presentation cohesive with concern (B), not a new owner.
 
 ## 2026-06-29 — Unified mode-driven lobby (bug mqxvagbl)
-Commits: refactor(lobby) fcbe452 (prep) + feat(lobby) (feature)
+Commits: fcbe452 refactor(lobby) (prep) + 9ff4fbd feat(lobby) (feature)
 
 PLACEMENT RECEIPT
 - Ask:          Unify the two pre-game lobbies (2-player auto-start slots + 1+ host-start
@@ -156,3 +161,28 @@ REORG RECEIPT (commit fcbe452)
                 separate feature commit. syncHostInviteStatusFromRoom left in the shell
                 (orchestration).
 - New owner row: none — existing host-lobby.js row repointed.
+
+## 2026-06-30 — RETROACTIVE — game-kind predicates extraction (new owner row)
+Commit: 7b8bb89 refactor(app): extract game-kind predicates into games/game-kinds.js
+Logged 2026-07-01: the steward's first receipts-vs-commits audit found this entry
+missing — a new owner row shipped without a receipt. Substance reconstructed from the
+commit body; the audit verified the placement itself was correct.
+
+PLACEMENT RECEIPT
+- Ask:          Extract the seven pure game-kind classifiers (isTacticalGameState …
+                isMazewrightGameState) out of app.js to open room ahead of RTTA wiring.
+- Verdict:      NEW owner row — src/sogotable/static/games/game-kinds.js (pure leaf;
+                the shell injects its canonicalGameId via createGameKinds() so alias
+                resolution tracks the live games list)
+- Flow stage:   normalize/classify — pure predicates over a room game blob; no render,
+                no rule mutation, no transport.
+- Sources read: (retroactive) commit 7b8bb89 body; docs/module-ownership.md owner row;
+                workers/tests/architecture.test.js ceilings.
+- Considerations:
+    - app.js sat at its then-ceiling (2515) ahead of RTTA wiring; the predicates were
+      the cohesive pure seam to move. Ceiling ratcheted 2515 → 2498 to lock in the room.
+    - Behavior-preserving: no call sites changed; six dead *_GAME_ID constants dropped.
+    - Must-not-import ban on app.js recorded in the owner row; module added to the
+      REVIEW_EXPORT_FILES allowlist.
+- New owner row: | `src/sogotable/static/games/game-kinds.js` | Client game-kind
+                predicates (classify a room game blob by id) | `src/sogotable/static/app.js` |
