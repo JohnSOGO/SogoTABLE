@@ -179,6 +179,11 @@ export const RTTA_CSS = `
 @keyframes rtta-blink{0%,100%{opacity:1}50%{opacity:.32}}
 .rtta-root .die.choice-pending{animation:rtta-blink .8s ease-in-out infinite;outline:2px solid var(--gold);outline-offset:-2px}
 .rtta-root .die.roll.bank.ready{animation:rtta-blink .9s ease-in-out infinite}
+/* Leadership armed: any die may be rerolled once after the final roll */
+.rtta-root .die.lead-glow{outline:2px dashed var(--gold);outline-offset:-2px}
+/* a disaster row a development/monument covers: grayed with a check, never red */
+.rtta-root .drow.immune{opacity:.5}
+.rtta-root .drow.immune .ef::after{content:' ✓ covered';color:#5fae3a;font-weight:bold}
 .rtta-root .die.fed{box-shadow:inset 0 0 0 3px #5fae3a,0 4px 0 #9c8458,0 6px 10px rgba(0,0,0,.45)}
 
 /* build page workers-to-spend + dev payment chips */
