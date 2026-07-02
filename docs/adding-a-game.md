@@ -406,7 +406,9 @@ and the game's client + server rules code. Original game with no rulebook →
 interview the owner first and write the ledger from their answers.
 
 **Do:** build an effect-by-effect **Rules Ledger** from the rulebook — one row
-per die face, card, development, disaster, phase step, and end condition:
+per die face, card, development, disaster, phase step, and end condition —
+**including a "Setup: starting resources" row** (RTTA's first gate run skipped
+Setup and missed that seats must start with 3 food):
 
 | Effect | Fires when (phase) | Exactly (cost → effect) | Bounds | Touches | Owner | Pinned by (test) |
 |---|---|---|---|---|---|---|
@@ -425,9 +427,10 @@ every legal player count.
 **Output:** ranked gap list + receipt. Save the ledger itself into `PLAN.md` —
 it doubles as the single source for the UI's ability text.
 
-*(Calibration: run against pre-fix RTTA, this gate must catch all four shipped
+*(Calibration: run against pre-fix RTTA, this gate must catch all five shipped
 bugs — Engineering not consuming stone, invasion at ≥4 instead of exactly 4,
-Granaries unusable in payment, and the monument set ignoring seat count.)*
+Granaries unusable in payment, the monument set ignoring seat count, and seats
+starting at 0 food instead of the Setup section's 3.)*
 
 ### Gate: Projection
 

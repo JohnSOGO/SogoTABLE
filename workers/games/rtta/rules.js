@@ -69,7 +69,7 @@ export function isRttaGame(game) {
 function newSeat(name, isBot, level) {
   return {
     name: name || "Player", is_bot: !!isBot, level: level || null,
-    cities: 3, food: 0, goods: [0, 0, 0, 0, 0],
+    cities: 3, food: 3, goods: [0, 0, 0, 0, 0],   // Setup: "sets their food peg to 3"
     monumentBoxes: {}, developments: [],
     points_lost: 0, skulls: 0, score: 0,
     round_done: false, ready_next: false,
