@@ -21,41 +21,42 @@ import { chooseRttaTurn } from "./ai.js";
 export const RTTA_GAME_ID = GAME_IDS.rtta;
 const ROUND_GUARD = 500; // bot-only auto-advance backstop (game always ends first)
 
-// Monument name → worker cost, first-builder VP, later-builder VP. Base game.
-// `players` = minimum seat count before the monument is in play (matches the
-// client table; guarded by the data-parity test).
+// Monument name → worker cost, first-builder VP, later-builder VP. 2025 rulebook
+// edition. `notAt` = seat counts at which the monument SITS OUT (2-player games
+// cross off Temple + Great Pyramid, 3-player games cross off Hanging Gardens;
+// solo and 4+ use all). Matches the client table; guarded by the parity test.
 export const MONUMENTS = {
   "Step Pyramid":    { workers: 3,  first: 1,  later: 0 },
   "Stone Circle":    { workers: 5,  first: 2,  later: 1 },
-  "Temple":          { workers: 7,  first: 4,  later: 2,  players: 2 },
+  "Temple":          { workers: 7,  first: 4,  later: 2,  notAt: [2] },
   "Obelisk":         { workers: 9,  first: 6,  later: 3 },
-  "Hanging Gardens": { workers: 11, first: 8,  later: 4,  players: 3 },
+  "Hanging Gardens": { workers: 11, first: 8,  later: 4,  notAt: [3] },
   "Great Wall":      { workers: 13, first: 10, later: 5 },
-  "Great Pyramid":   { workers: 15, first: 12, later: 6,  players: 2 },
+  "Great Pyramid":   { workers: 15, first: 12, later: 8,  notAt: [2] },
 };
 export const MONUMENT_NAMES = Object.keys(MONUMENTS);
 
-// The monuments actually in play for a seat count — smaller games use a smaller
-// set. Commits, bots, and the all-monuments end condition all key off this.
+// The monuments actually in play for a seat count. Commits, bots, and the
+// all-monuments end condition all key off this.
 export function monumentsInPlay(playerCount) {
-  return MONUMENT_NAMES.filter((name) => (MONUMENTS[name].players || 1) <= playerCount);
+  return MONUMENT_NAMES.filter((name) => !(MONUMENTS[name].notAt || []).includes(playerCount));
 }
 
-// Development name → coin cost, victory points. Base game.
+// Development name → coin cost, victory points. 2025 rulebook edition.
 export const DEVELOPMENTS = {
   "Leadership":   { cost: 10, vp: 2 },
   "Irrigation":   { cost: 10, vp: 2 },
   "Agriculture":  { cost: 15, vp: 3 },
   "Quarrying":    { cost: 15, vp: 3 },
-  "Medicine":     { cost: 15, vp: 3 },
   "Coinage":      { cost: 20, vp: 4 },
   "Caravans":     { cost: 20, vp: 4 },
-  "Religion":     { cost: 20, vp: 6 },
+  "Medicine":     { cost: 20, vp: 4 },
+  "Religion":     { cost: 25, vp: 7 },
   "Granaries":    { cost: 30, vp: 6 },
   "Masonry":      { cost: 30, vp: 6 },
   "Engineering":  { cost: 40, vp: 6 },
-  "Architecture": { cost: 50, vp: 8 },
-  "Empire":       { cost: 60, vp: 8 },
+  "Architecture": { cost: 60, vp: 8 },
+  "Empire":       { cost: 70, vp: 10 },
 };
 export const DEVELOPMENT_NAMES = Object.keys(DEVELOPMENTS);
 
@@ -234,7 +235,9 @@ function resolveDisasters(game) {
       const to = [];
       for (const other of marks) {
         if (other === from) continue;
-        game.players[other].goods = [0, 0, 0, 0, 0];
+        const os = game.players[other];
+        if (os.developments.includes("Religion")) continue; // Religion holders are unaffected
+        os.goods = [0, 0, 0, 0, 0];
         to.push(other);
       }
       if (to.length) events.push({ from, kind: "revolt", to });
@@ -244,7 +247,7 @@ function resolveDisasters(game) {
 }
 
 // Authoritative score = development VP + monument VP (first vs later) +
-// Architecture (+1/monument) + Empire (+1/city) − points lost.
+// Architecture (+2/monument) + Empire (+1/city) − points lost.
 function recomputeScores(game) {
   for (const m of seatOrder(game)) {
     const seat = game.players[m];
@@ -257,7 +260,7 @@ function recomputeScores(game) {
       monCount += 1;
       score += idx === 0 ? MONUMENTS[name].first : MONUMENTS[name].later;
     }
-    if (seat.developments.includes("Architecture")) score += monCount;
+    if (seat.developments.includes("Architecture")) score += 2 * monCount;
     if (seat.developments.includes("Empire")) score += seat.cities;
     score -= seat.points_lost;
     seat.score = score;

@@ -36,7 +36,7 @@ test("data parity: monument costs + VP agree across client and server", () => {
     assert.equal(c.w, s.workers, `${name}: worker cost differs (client ${c.w} vs server ${s.workers})`);
     assert.equal(c.first, s.first, `${name}: first-builder VP differs`);
     assert.equal(c.later, s.later, `${name}: later-builder VP differs`);
-    assert.equal(c.players || 1, s.players || 1, `${name}: min-player threshold differs`);
+    assert.deepEqual(c.notAt || [], s.notAt || [], `${name}: sits-out seat counts differ`);
   }
 });
 
@@ -136,44 +136,44 @@ test("score = development VP + monument VP − points lost", () => {
 test("first builder scores 'first', a later builder scores 'later'", () => {
   const g = newRttaGame();
   initRttaSeats(g, [human("P1"), human("P2")]);
-  makeRttaMove(g, "P1", commit({ monumentsCompleted: ["Temple"] })); // first
+  makeRttaMove(g, "P1", commit({ monumentsCompleted: ["Obelisk"] })); // first
   makeRttaMove(g, "P2", commit());
   makeRttaMove(g, "P1", { type: "READY_NEXT" });
   makeRttaMove(g, "P2", { type: "READY_NEXT" });
   makeRttaMove(g, "P1", commit());
-  makeRttaMove(g, "P2", commit({ monumentsCompleted: ["Temple"] })); // later
-  assert.equal(g.players.P1.score, 4); // Temple first
-  assert.equal(g.players.P2.score, 2); // Temple later
+  makeRttaMove(g, "P2", commit({ monumentsCompleted: ["Obelisk"] })); // later
+  assert.equal(g.players.P1.score, 6); // Obelisk first
+  assert.equal(g.players.P2.score, 3); // Obelisk later
 });
 
-test("Architecture (+1/monument) and Empire (+1/city) bonuses apply", () => {
+test("Architecture (+2/monument) and Empire (+1/city) bonuses apply", () => {
   const g = newRttaGame();
   initRttaSeats(g, [human("P1")]);
   // Two monuments + Architecture, plus a city and Empire, across turns.
   makeRttaMove(g, "P1", commit({ monumentsCompleted: ["Step Pyramid", "Stone Circle"], devBought: "Architecture" }));
-  // Step 1 + Stone 2 + Architecture 8 + bonus 2 monuments = 13
-  assert.equal(g.players.P1.score, 13);
+  // Step 1 + Stone 2 + Architecture 8 + bonus 2×2 monuments = 15
+  assert.equal(g.players.P1.score, 15);
   makeRttaMove(g, "P1", { type: "READY_NEXT" });
   makeRttaMove(g, "P1", commit({ cities: 5, devBought: "Empire" }));
-  // prev 13 + Empire 8 + 5 cities = 26
-  assert.equal(g.players.P1.score, 26);
+  // prev 15 + Empire 10 + 5 cities = 30
+  assert.equal(g.players.P1.score, 30);
 });
 
 test("a commit claiming an out-of-play monument is ignored (2-player game)", () => {
   const g = twoHumans();
-  // Hanging Gardens needs 3+ players; a doctored/stale commit must not land it.
+  // Temple sits out the 2-player game; a doctored/stale commit must not land it.
   makeRttaMove(g, "P1", commit({
-    monumentsCompleted: ["Hanging Gardens"],
-    monumentBoxes: { "Hanging Gardens": 11, "Temple": 2 },
+    monumentsCompleted: ["Temple"],
+    monumentBoxes: { "Temple": 7, "Hanging Gardens": 3 },
   }));
-  assert.deepEqual(g.monuments["Hanging Gardens"], []);
-  assert.deepEqual(g.players.P1.monumentBoxes, { Temple: 2 });
+  assert.deepEqual(g.monuments["Temple"], []);
+  assert.deepEqual(g.players.P1.monumentBoxes, { "Hanging Gardens": 3 });
 });
 
 test("the all-monuments end condition counts only in-play monuments", () => {
   const g = twoHumans();
-  // The six monuments in play for 2 players — Hanging Gardens is not required.
-  const inPlay = ["Step Pyramid", "Stone Circle", "Temple", "Obelisk", "Great Wall", "Great Pyramid"];
+  // The five monuments in play for 2 players — Temple + Great Pyramid sit out.
+  const inPlay = ["Step Pyramid", "Stone Circle", "Obelisk", "Hanging Gardens", "Great Wall"];
   makeRttaMove(g, "P1", commit({ monumentsCompleted: inPlay }));
   makeRttaMove(g, "P2", commit());
   assert.equal(g.status, "complete");
@@ -184,7 +184,20 @@ test("bots never build monuments that are out of play for the seat count", () =>
   const g = newRttaGame();
   initRttaSeats(g, [bot("P1", "Bot 1"), bot("P2", "Bot 2")]); // runs to completion
   assert.equal(g.status, "complete");
-  assert.deepEqual(g.monuments["Hanging Gardens"], []);
+  assert.deepEqual(g.monuments["Temple"], []);
+  assert.deepEqual(g.monuments["Great Pyramid"], []);
+});
+
+test("a reflected Revolt spares opponents who also own Religion", () => {
+  const g = newRttaGame();
+  initRttaSeats(g, [human("P1"), human("P2"), human("P3")]);
+  makeRttaMove(g, "P1", commit({ skulls: 5, devBought: "Religion" }));
+  makeRttaMove(g, "P2", commit({ goods: [2, 1, 0, 0, 0], devBought: "Religion" })); // immune
+  makeRttaMove(g, "P3", commit({ goods: [1, 1, 1, 0, 0] }));                        // wiped
+  assert.deepEqual(g.players.P2.goods, [2, 1, 0, 0, 0]);
+  assert.deepEqual(g.players.P3.goods, [0, 0, 0, 0, 0]);
+  const revolt = g.pending_events.find((e) => e.kind === "revolt");
+  assert.deepEqual(revolt.to, ["P3"]);
 });
 
 test("the game ends when a player owns 5 developments", () => {

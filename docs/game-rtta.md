@@ -13,11 +13,14 @@ take disasters) → Build (cities + monuments) → Buy a development → Discard
 player lands on Discard they submit; the round only **resolves once every human has
 submitted** (a per-round barrier). Then cross-player disasters fire, the shared
 scoreboard updates, and the next round begins. The game ends when any player owns
-**5 developments** or **every monument in play** is built; highest score wins. The
-monument set scales with seat count (Temple and Great Pyramid need 2+ players,
-Hanging Gardens 3+) — `monumentsInPlay` on the server and the client's `players`
-thresholds agree (parity-tested), and the board renders the set for the room's
-actual seat count.
+**5 developments** or **every monument in play** is built; highest score wins.
+Rules values follow the **2025 rulebook edition** (`AI/RToA/rtta_2025_rules_06.pdf`;
+adopted 2026-07-01 — monument worker costs and the non-Pyramid VPs come from the
+classic score sheet, the only source for them). The monument set scales with seat
+count per that rulebook: Temple and Great Pyramid sit out the 2-player game,
+Hanging Gardens the 3-player game; solo and 4+ use all seven. `monumentsInPlay`
+on the server and the client's `notAt` lists agree (parity-tested), and the board
+renders the set for the room's actual seat count.
 
 ## Sync model — live-round, two-phase barrier
 
@@ -64,9 +67,10 @@ Resolved once when the barrier closes (`resolveDisasters`), from each player's
 Self-inflicted disasters resolve on the client during Upkeep and arrive inside the
 commit: Drought (exactly 2 skulls, −2 unless Irrigation), Invasion (exactly 4,
 −4 unless Great Wall), and Revolt without Religion (5+, all own goods wiped after
-collection). Engineering spends stone by choice (a tap-to-convert chip on the
-Build page, 3 workers per stone, undoable); Granaries sells food into a dev
-purchase via a cycling 🌾 chip (4 coins each).
+collection; a reflected Revolt spares opponents who also own Religion).
+Engineering spends stone by choice (a tap-to-convert chip on the Build page,
+3 workers per stone, undoable); Granaries sells food into a dev purchase via a
+cycling 🌾 chip (6 coins each); Leadership may reroll any die, including a skull.
 
 Each is recorded in `pending_events` (`{ from, kind, to[], amount }`). On the review
 screen `render.js` animates them: **3 skulls fly from the pestilent player's

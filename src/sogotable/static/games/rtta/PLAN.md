@@ -4,9 +4,11 @@ RTTA shipped before the PLAN.md convention; this file was created by the first
 Verification Gate run (see `docs/adding-a-game.md`). Gate receipts collect here.
 
 Rules spec: `AI/RToA/rtta_2025_rules_06.pdf` (2025 rulebook) +
-`AI/RToA/ScoreSheet.jpg`. **The two artifacts are different editions and
-disagree on several development values** — the implementation follows the score
-sheet where they differ (see rules-fidelity gap 5; needs a signed decision).
+`AI/RToA/ScoreSheet.jpg`. **MojoSOGO ruled 2026-07-01: the 2025 rulebook is the
+edition.** Development values, Great Pyramid later-VP, the Granaries rate, the
+Architecture bonus, and the seat-count monument sets now follow it. Monument
+worker costs and the remaining monument VPs come from the classic score sheet —
+the 2025 PDF contains no monument table (score sheet is the only source).
 
 ## Intended deviations (Survey H) — recorded post-hoc, need MojoSOGO sign-off
 
@@ -23,8 +25,30 @@ sheet where they differ (see rules-fidelity gap 5; needs a signed decision).
   use a deterministic worker yield and never keep skulls. (Documented in
   `docs/game-rtta.md`; tension with the "bots run the human rules path" hard rule.)
 - **Longer Game variant (6 developments)** — intentionally not implemented.
-- **Score-sheet edition values** (vs the 2025 PDF) — *proposed* deviation,
-  currently implicit; confirm or fix (rules-fidelity gap 5).
+
+## Resolutions — 2026-07-01 (post-gate fix pass)
+
+- **2025 edition adopted** (gap 5 closed): Medicine 20/4 · Religion 25/7 ·
+  Granaries 6 coins/food · Architecture 60/8 at **+2**/monument · Empire 70/10 ·
+  Great Pyramid later-VP 8. Client, server, bot tables + ability text updated;
+  parity-tested.
+- **Monument seat sets per the rulebook** (gap 1 closed): Temple + Great Pyramid
+  sit out 2-player games, Hanging Gardens sits out 3-player games, solo/4+ use
+  all (`notAt` lists, verbatim-verified against the PDF — removals do NOT stack,
+  so Hanging Gardens is in play at 2P).
+- **Leadership may reroll a skull die** (gap 3, first half, closed). The
+  stops-early availability nuance remains open.
+- **Reflected Revolt spares opponents who own Religion** (gap 4 closed, pinned
+  by a server test).
+- **DOM-free extraction done** (gap 7 closed): board.js turn maths now lives in
+  client `rules.js` (tallyFaces / upkeepPlan / collectGoods / discardExcess /
+  paymentTotal / engineeringConvert / buildCommitPayload), pinned by 20
+  browser-free tests in `workers/tests/rtta-turn.test.js`.
+- Still open from the gate runs: partial-city persistence (fidelity gap 2),
+  same-turn purchase-vs-disaster ordering (gap 5 in the 10-gap receipt),
+  tiebreak by goods value, solo-as-solitaire, resilience gaps 1–5 (stranded
+  failed commit, round stamp, completion cross-check, goods clamp, silent
+  no-ops), projection + parity low-priority items.
 
 ## Gate receipts
 
