@@ -48,6 +48,10 @@ the 2025 PDF contains no monument table (score sheet is the only source).
   client `rules.js` (tallyFaces / upkeepPlan / collectGoods / discardExcess /
   paymentTotal / engineeringConvert / buildCommitPayload), pinned by 20
   browser-free tests in `workers/tests/rtta-turn.test.js`.
+- **Seats start with 3 food** (2026-07-02, spotted by MojoSOGO — the gate's
+  ledger had no Setup row and missed it; the gate doc now requires a
+  "Setup: starting resources" row). Rulebook Setup, verbatim: "Each player sets
+  their food peg to 3." Pinned by a setup test.
 - Still open from the gate runs: partial-city persistence (fidelity gap 2),
   same-turn purchase-vs-disaster ordering (gap 5 in the 10-gap receipt),
   tiebreak by goods value, solo-as-solitaire, resilience gaps 1–5 (stranded

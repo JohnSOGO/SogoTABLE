@@ -62,6 +62,13 @@ test("round starts in the playing phase, not yet resolved", () => {
   assert.equal(g.status, "playing");
 });
 
+test("setup: seats start with 3 cities, 3 food, and empty goods (rulebook Setup)", () => {
+  const g = twoHumans();
+  assert.equal(g.players.P1.cities, 3);
+  assert.equal(g.players.P1.food, 3);
+  assert.deepEqual(g.players.P1.goods, [0, 0, 0, 0, 0]);
+});
+
 test("commit barrier: the round holds until EVERY human has committed", () => {
   const g = twoHumans();
   makeRttaMove(g, "P1", commit());
