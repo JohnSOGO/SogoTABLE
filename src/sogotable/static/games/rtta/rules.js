@@ -222,17 +222,22 @@ export function engineeringConvert({ goods, workers }, dir) {
 }
 
 // Package a finished local turn into the COMMIT_TURN wire payload (the server
-// contract in workers/games/rtta/rules.js). monumentBoxes = {name: filled}.
-export function buildCommitPayload({ cities, food, goods, monumentBoxes, devBought, skulls, pointsLostSelf }) {
+// contract in workers/games/rtta/rules.js). monumentBoxes = {name: filled};
+// cityBoxes = filled worker boxes on the 4th–7th city (partial progress
+// persists, like the paper score sheet) — the city count derives from full slots.
+export function buildCommitPayload({ cities, food, goods, monumentBoxes, cityBoxes, devBought, skulls, pointsLostSelf }) {
   const boxes = {}; const completed = [];
   for (const m of MONUMENTS) {
     const filled = Math.max(0, Math.min(m.w, (monumentBoxes && monumentBoxes[m.name]) || 0));
     if (filled > 0) boxes[m.name] = filled;
     if (filled === m.w) completed.push(m.name);
   }
+  const cityCosts = CITY_COSTS.slice(MIN_CITIES);   // [3, 4, 5, 6]
+  const cboxes = cityCosts.map((cost, i) => Math.max(0, Math.min(cost, (cityBoxes && cityBoxes[i]) || 0)));
   return {
     type: "COMMIT_TURN",
-    cities,
+    cities: cityBoxes ? MIN_CITIES + cboxes.filter((v, i) => v >= cityCosts[i]).length : cities,
+    cityBoxes: cboxes,
     food: Math.max(0, Math.min(15, food)),
     goods: goods.slice(),
     monumentBoxes: boxes,

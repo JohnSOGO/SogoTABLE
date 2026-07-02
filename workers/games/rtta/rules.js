@@ -36,6 +36,9 @@ export const MONUMENTS = {
 };
 export const MONUMENT_NAMES = Object.keys(MONUMENTS);
 
+// Worker cost of the 4th–7th city (matches the client CITY_COSTS tail; parity-tested).
+export const CITY_BOX_COSTS = [3, 4, 5, 6];
+
 // The monuments actually in play for a seat count. Commits, bots, and the
 // all-monuments end condition all key off this.
 export function monumentsInPlay(playerCount) {
@@ -70,6 +73,7 @@ function newSeat(name, isBot, level) {
   return {
     name: name || "Player", is_bot: !!isBot, level: level || null,
     cities: 3, food: 3, goods: [0, 0, 0, 0, 0],   // Setup: "sets their food peg to 3"
+    cityBoxes: [0, 0, 0, 0],                       // partial worker boxes on the 4th–7th city
     monumentBoxes: {}, developments: [],
     points_lost: 0, skulls: 0, score: 0,
     round_done: false, ready_next: false,
@@ -128,8 +132,17 @@ export function makeRttaMove(game, mark, action) {
 // can only mis-report their OWN board; shared consequences are server-resolved.
 function applyCommittedTurn(game, mark, turn) {
   const seat = game.players[mark];
-  const cities = Math.trunc(Number(turn.cities));
-  if (Number.isFinite(cities)) seat.cities = Math.max(3, Math.min(7, cities));
+  if (Array.isArray(turn.cityBoxes) && turn.cityBoxes.length === CITY_BOX_COSTS.length) {
+    // Partial city progress persists (rulebook: checked boxes stay checked);
+    // the city count is DERIVED from full slots, never trusted separately.
+    seat.cityBoxes = turn.cityBoxes.map((v, i) => clampInt(v, 0, CITY_BOX_COSTS[i], 0));
+    seat.cities = 3 + seat.cityBoxes.filter((v, i) => v >= CITY_BOX_COSTS[i]).length;
+  } else {
+    // Legacy commit (bots, older clients): a bare count, synthesized to full slots.
+    const cities = Math.trunc(Number(turn.cities));
+    if (Number.isFinite(cities)) seat.cities = Math.max(3, Math.min(7, cities));
+    seat.cityBoxes = CITY_BOX_COSTS.map((cost, i) => (i < seat.cities - 3 ? cost : 0));
+  }
   seat.food = clampInt(turn.food, 0, 15, seat.food);
   if (Array.isArray(turn.goods) && turn.goods.length === 5) {
     seat.goods = turn.goods.map((g) => Math.max(0, Math.trunc(Number(g) || 0)));
@@ -291,9 +304,13 @@ function completeGame(game) {
 export function rttaGameToDict(game) {
   const players = seatOrder(game).map((mark) => {
     const s = game.players[mark];
+    // Seats persisted before cityBoxes existed synthesize full slots from the count.
+    const cityBoxes = Array.isArray(s.cityBoxes) && s.cityBoxes.length === CITY_BOX_COSTS.length
+      ? s.cityBoxes.slice()
+      : CITY_BOX_COSTS.map((cost, i) => (i < (s.cities || 3) - 3 ? cost : 0));
     return {
       mark, name: s.name, is_bot: s.is_bot,
-      cities: s.cities, food: s.food, goods: s.goods.slice(),
+      cities: s.cities, cityBoxes, food: s.food, goods: s.goods.slice(),
       developments: s.developments.slice(), monumentBoxes: { ...s.monumentBoxes },
       points_lost: s.points_lost, score: s.score,
       round_done: s.round_done, ready_next: s.ready_next,

@@ -137,12 +137,15 @@ test("commit payload: absolute state + this-turn deltas, completion derived from
   const p = buildCommitPayload({
     cities: 4, food: 22, goods: [1, 0, 0, 0, 0],
     monumentBoxes: { "Step Pyramid": 3, "Temple": 2, "Bogus": 9 },
+    cityBoxes: [3, 2, 0, 9],
     devBought: "Leadership", skulls: 2, pointsLostSelf: 1,
   });
   assert.equal(p.type, "COMMIT_TURN");
   assert.equal(p.food, 15); // clamped to the track
   assert.deepEqual(p.monumentBoxes, { "Step Pyramid": 3, "Temple": 2 }); // unknown names dropped
   assert.deepEqual(p.monumentsCompleted, ["Step Pyramid"]); // 3/3 full; Temple 2/7 is not
+  assert.deepEqual(p.cityBoxes, [3, 2, 0, 6]); // clamped to each slot's cost
+  assert.equal(p.cities, 5); // derived: 3 + two full slots (4th at 3/3, 7th at 6/6)
   assert.equal(p.devBought, "Leadership");
 });
 
