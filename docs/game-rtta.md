@@ -71,6 +71,9 @@ collection; a reflected Revolt spares opponents who also own Religion).
 Engineering spends stone by choice (a tap-to-convert chip on the Build page,
 3 workers per stone, undoable); Granaries sells food into a dev purchase via a
 cycling 🌾 chip (6 coins each); Leadership may reroll any die, including a skull.
+Development payment sells goods **individually off the top of each stack** (one
+chip per good, chart-coherent marginal values) — a deliberate house-rule
+deviation from the rulebook's whole-stack spend, recorded in the game `PLAN.md`.
 
 Each is recorded in `pending_events` (`{ from, kind, to[], amount }`). On the review
 screen `render.js` animates them: **3 skulls fly from the pestilent player's

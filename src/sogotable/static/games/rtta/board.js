@@ -60,7 +60,7 @@ export function createRttaBoard(root, opts) {
   let leadershipUsed = false;
   let engUsed = 0;                           // stones converted to workers this turn (Engineering)
   let payDev = null;
-  const payGoods = new Set();
+  let payCounts = [0, 0, 0, 0, 0];           // goods sold per type (off the top of each stack)
   let payCoins = false;
   let payFood = 0;                           // food sold into the current dev purchase (Granaries)
   // monuments seeded from the seat/game, re-applied whenever the tiles re-render
@@ -403,18 +403,27 @@ export function createRttaBoard(root, opts) {
   }
 
   // --- development payment ---------------------------------------------------
+  // House rule (deviation, PLAN.md): goods are sold INDIVIDUALLY off the top of
+  // each stack — one chip per held good, chart order, tap to add/remove — not
+  // as the rulebook's whole-stack spend. Values stay chart-coherent because a
+  // partial sale always takes the topmost (most valuable) marginals.
   const devCost = (r) => parseInt(r.querySelector(".cost").textContent, 10) || 0;
-  const goodValueLocal = (i) => goodValue(i, goodsHeld[i]);
   const coinValue = () => turnTally.coin * coinFaceValue(ownsAll());
-  const paidTotal = () => paymentTotal({ payCoins, payGoods, payFood }, { coinCount: turnTally.coin, goods: goodsHeld, owns: ownsAll() });
-  function startPay(r) { payDev = r; payGoods.clear(); payCoins = false; payFood = 0; qsa("#devBlock .row.dev").forEach((x) => x.classList.toggle("paying", x === r)); renderPay(); }
-  function cancelPay() { payDev = null; payGoods.clear(); payCoins = false; payFood = 0; qsa("#devBlock .row.dev").forEach((x) => x.classList.remove("paying")); computePower(); }
+  const paidTotal = () => paymentTotal({ payCoins, payGoodsCounts: payCounts, payFood }, { coinCount: turnTally.coin, goods: goodsHeld, owns: ownsAll() });
+  function startPay(r) { payDev = r; payCounts = [0, 0, 0, 0, 0]; payCoins = false; payFood = 0; qsa("#devBlock .row.dev").forEach((x) => x.classList.toggle("paying", x === r)); renderPay(); }
+  function cancelPay() { payDev = null; payCounts = [0, 0, 0, 0, 0]; payCoins = false; payFood = 0; qsa("#devBlock .row.dev").forEach((x) => x.classList.remove("paying")); computePower(); }
   function renderPay() {
     if (!payDev) return;
     const cost = devCost(payDev), paid = paidTotal();
     let html = '<span class="paylbl">Pay ' + cost + " →</span>";
     if (coinValue() > 0) html += '<span class="cashchip pay' + (payCoins ? " on" : "") + '" data-coins="1">🪙 ' + coinValue() + "</span>";
-    goodsHeld.forEach((q, i) => { if (q > 0) html += '<span class="cashchip pay' + (payGoods.has(i) ? " on" : "") + '" data-good="' + i + '">' + GOODS[i].name.split(" ")[0] + " " + goodValueLocal(i) + "</span>"; });
+    goodsHeld.forEach((q, i) => {
+      const emoji = GOODS[i].name.split(" ")[0];
+      for (let u = 1; u <= q; u++) {   // one chip per good, bottom→top; the top k are lit
+        const lit = u > q - payCounts[i];
+        html += '<span class="cashchip pay gunit' + (lit ? " on" : "") + '" data-good="' + i + '">' + emoji + " " + (GOODS[i].base * u) + "</span>";
+      }
+    });
     if (ownsDev("Granaries") && (food > 0 || payFood > 0)) {
       html += '<span class="cashchip pay' + (payFood > 0 ? " on" : "") + '" data-food="1">🌾×' + payFood + " = " + (payFood * GRANARIES_RATE) + "</span>";
     }
@@ -425,12 +434,14 @@ export function createRttaBoard(root, opts) {
   function confirmPay() {
     if (!payDev || paidTotal() < devCost(payDev)) return;
     const r = payDev, paid = [];
-    payGoods.forEach((i) => { paid.push([i, goodsHeld[i]]); goodsHeld[i] = 0; });
+    payCounts.forEach((k, i) => {
+      if (k > 0) { paid.push([i, goodsHeld[i]]); goodsHeld[i] = Math.max(0, goodsHeld[i] - k); }
+    });
     r._paid = paid;
     if (payFood > 0) { r._paidFood = payFood; food = Math.max(0, food - payFood); syncFoodTrack(); }
     r.classList.add("bought"); r.classList.remove("paying");
     boughtDev = r.querySelector(".nm").textContent;
-    payDev = null; payGoods.clear(); payCoins = false; payFood = 0;
+    payDev = null; payCounts = [0, 0, 0, 0, 0]; payCoins = false; payFood = 0;
     blinkTab("goods"); markGoodsChart(); computePower();
   }
   function syncFoodTrack() { root.querySelectorAll("#foodRoll .box").forEach((b, i) => b.classList.toggle("filled", i < food)); }
@@ -603,7 +614,12 @@ export function createRttaBoard(root, opts) {
     if (paychip && payDev) {
       if (paychip.dataset.coins) payCoins = !payCoins;
       else if (paychip.dataset.food) payFood = (payFood + 1) % (food + 1);   // cycle 0..food
-      else { const gi = +paychip.dataset.good; payGoods.has(gi) ? payGoods.delete(gi) : payGoods.add(gi); }
+      else {
+        const gi = +paychip.dataset.good;   // lit chip: sell one fewer; unlit: one more (off the top)
+        payCounts[gi] = paychip.classList.contains("on")
+          ? Math.max(0, payCounts[gi] - 1)
+          : Math.min(goodsHeld[gi], payCounts[gi] + 1);
+      }
       renderPay(); return;
     }
     if (e.target.closest("#engUse")) { engConvert(+1); return; }
@@ -632,8 +648,8 @@ export function createRttaBoard(root, opts) {
   const TIPS = {
     dice: "Tap <b>ROLL</b> (3×); click dice to <b>hold</b>. A 🌾/⚒️ die blinks — tap it for <b>Food or Workers</b>. Then <b>Upkeep</b>: food stores, cities feed (1 each).",
     build: "Spend this turn's <b>workers</b> to fill city &amp; monument boxes. <b>First</b> to finish a monument scores the bigger number.",
-    dev: "Buy <b>one development per turn</b> with coins + whole goods stacks. Each is bought once; its effect is permanent.",
-    goods: "Goods cash in <b>by type, whole-stack — no change</b>. Keep only <b>6 total</b>. Then tap <b>Submit turn</b>.",
+    dev: "Buy <b>one development per turn</b> — tap a cost, then tap coins and <b>individual goods</b> to pay. Each is bought once; its effect is permanent.",
+    goods: "Each good's value grows with its stack — <b>sell from the top</b>. Keep only <b>6 total</b>. Then tap <b>Submit turn</b>.",
   };
   const setTip = (page) => { const t = gid("tipStrip"); if (t) { t.innerHTML = TIPS[page] || ""; t.classList.remove("alert"); } };
   function blinkTab(page) { const b = root.querySelector('.tabs button[data-page="' + page + '"]'); if (b) b.classList.add("done"); }
