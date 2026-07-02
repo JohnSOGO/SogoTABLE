@@ -50,9 +50,11 @@ export function createRttaBoard(root, opts) {
   const goodsHeld = (seat.goods && seat.goods.length === 5) ? seat.goods.slice() : [0, 0, 0, 0, 0];
   let goodsOriginal = goodsHeld.slice();
   let leadershipUsed = false;
+  let engUsed = 0;                           // stones converted to workers this turn (Engineering)
   let payDev = null;
   const payGoods = new Set();
   let payCoins = false;
+  let payFood = 0;                           // food sold into the current dev purchase (Granaries)
   // monuments seeded from the seat/game, re-applied whenever the tiles re-render
   const monSeed = {};                        // name -> {filled, built}
   for (const m of MONUMENTS) {
@@ -304,7 +306,7 @@ export function createRttaBoard(root, opts) {
     turnSkulls = skulls;
     let disasterPts = 0;
     if (skulls === 2) disasterPts = ownsDev("Irrigation") ? 0 : 2;              // drought
-    else if (skulls >= 4) disasterPts = monumentBuilt("Great Wall") ? 0 : 4;    // invasion
+    else if (skulls === 4) disasterPts = monumentBuilt("Great Wall") ? 0 : 4;   // invasion (5+ is revolt, not points)
     const famine = pendingFamine;
     const skullSrc = gid("tSkull").closest(".stat");
     if (famine > 0 || disasterPts > 0) gid("disBoxes").scrollIntoView({ block: "center" });
@@ -337,9 +339,40 @@ export function createRttaBoard(root, opts) {
     const rc = gid("rollCell"); rc.classList.remove("ready"); rc.textContent = "✓";
     workersToSpend = parseInt(gid("tWork").textContent, 10) || 0;
     populateResources();
-    if (ownsDev("Engineering")) workersToSpend += goodsHeld[1] * 3;   // stone → 3 workers each
+    if (turnSkulls >= 5 && !ownsDev("Religion")) {   // revolt: all goods lost (Religion turns it on opponents instead)
+      for (let i = 0; i < goodsHeld.length; i++) { goodsHeld[i] = 0; goodsOriginal[i] = 0; }
+      markGoodsChart(); computePower();
+      const tip = gid("tipStrip");
+      tip.innerHTML = "🔥 <b>Revolt!</b> Your people revolt — all your goods are lost."; tip.classList.add("alert");
+    }
     gid("tWorkBuild").textContent = workersToSpend;
+    renderEng();
     blinkTab("build");
+  }
+
+  // Engineering (owned at turn start — Build precedes Buy): tap to SPEND a stone
+  // for 3 workers. Opt-in and undoable while the 3 workers are still unspent.
+  function renderEng() {
+    const el = gid("engRow"); if (!el) return;
+    const usable = upkeepDone && !submitted && ownedSeed.has("Engineering");
+    if (!usable || (goodsHeld[1] <= 0 && engUsed === 0)) { el.innerHTML = ""; return; }
+    let html = "";
+    if (goodsHeld[1] > 0) html += '<button class="cashchip pay" id="engUse" type="button">🪨 → ⚒️⚒️⚒️ spend a stone (' + goodsHeld[1] + " held)</button>";
+    if (engUsed > 0 && workersToSpend >= 3) html += '<button class="cashchip pay" id="engUndo" type="button">↩ undo</button>';
+    el.innerHTML = html;
+  }
+  function engConvert(dir) {
+    if (dir > 0) {
+      if (goodsHeld[1] <= 0) return;
+      goodsHeld[1]--; goodsOriginal[1] = Math.max(0, goodsOriginal[1] - 1);
+      engUsed++; workersToSpend += 3;
+    } else {
+      if (engUsed <= 0 || workersToSpend < 3) return;
+      engUsed--; goodsHeld[1] = Math.min(goodsHeld[1] + 1, GOODS[1].holes); goodsOriginal[1]++;
+      workersToSpend -= 3;
+    }
+    gid("tWorkBuild").textContent = workersToSpend;
+    markGoodsChart(); computePower(); renderEng();
   }
 
   // --- score-sheet data build ----------------------------------------------
@@ -385,15 +418,18 @@ export function createRttaBoard(root, opts) {
   const devCost = (r) => parseInt(r.querySelector(".cost").textContent, 10) || 0;
   const goodValueLocal = (i) => GOODS[i].base * tri(goodsHeld[i]);
   const coinValue = () => (parseInt(gid("tCoin").textContent, 10) || 0) * (ownsDev("Coinage") ? 12 : 7);
-  function paidTotal() { let v = payCoins ? coinValue() : 0; payGoods.forEach((i) => v += goodValueLocal(i)); return v; }
-  function startPay(r) { payDev = r; payGoods.clear(); payCoins = false; qsa("#devBlock .row.dev").forEach((x) => x.classList.toggle("paying", x === r)); renderPay(); }
-  function cancelPay() { payDev = null; payGoods.clear(); payCoins = false; qsa("#devBlock .row.dev").forEach((x) => x.classList.remove("paying")); computePower(); }
+  function paidTotal() { let v = payCoins ? coinValue() : 0; payGoods.forEach((i) => v += goodValueLocal(i)); return v + payFood * 4; }
+  function startPay(r) { payDev = r; payGoods.clear(); payCoins = false; payFood = 0; qsa("#devBlock .row.dev").forEach((x) => x.classList.toggle("paying", x === r)); renderPay(); }
+  function cancelPay() { payDev = null; payGoods.clear(); payCoins = false; payFood = 0; qsa("#devBlock .row.dev").forEach((x) => x.classList.remove("paying")); computePower(); }
   function renderPay() {
     if (!payDev) return;
     const cost = devCost(payDev), paid = paidTotal();
     let html = '<span class="paylbl">Pay ' + cost + " →</span>";
     if (coinValue() > 0) html += '<span class="cashchip pay' + (payCoins ? " on" : "") + '" data-coins="1">🪙 ' + coinValue() + "</span>";
     goodsHeld.forEach((q, i) => { if (q > 0) html += '<span class="cashchip pay' + (payGoods.has(i) ? " on" : "") + '" data-good="' + i + '">' + GOODS[i].name.split(" ")[0] + " " + goodValueLocal(i) + "</span>"; });
+    if (ownsDev("Granaries") && (food > 0 || payFood > 0)) {
+      html += '<span class="cashchip pay' + (payFood > 0 ? " on" : "") + '" data-food="1">🌾×' + payFood + " = " + (payFood * 4) + "</span>";
+    }
     html += '<span class="paystat' + (paid >= cost ? " ok" : "") + '">' + paid + "/" + cost + "</span>";
     if (paid >= cost) html += '<button class="cashchip paybuy" id="payConfirm">✓ Buy</button>';
     gid("goodsCash").innerHTML = html;
@@ -402,10 +438,13 @@ export function createRttaBoard(root, opts) {
     if (!payDev || paidTotal() < devCost(payDev)) return;
     const r = payDev, paid = [];
     payGoods.forEach((i) => { paid.push([i, goodsHeld[i]]); goodsHeld[i] = 0; });
-    r._paid = paid; r.classList.add("bought"); r.classList.remove("paying");
-    payDev = null; payGoods.clear(); payCoins = false;
+    r._paid = paid;
+    if (payFood > 0) { r._paidFood = payFood; food = Math.max(0, food - payFood); syncFoodTrack(); }
+    r.classList.add("bought"); r.classList.remove("paying");
+    payDev = null; payGoods.clear(); payCoins = false; payFood = 0;
     blinkTab("goods"); markGoodsChart(); computePower();
   }
+  function syncFoodTrack() { root.querySelectorAll("#foodRoll .box").forEach((b, i) => b.classList.toggle("filled", i < food)); }
 
   // --- scoring / discard / submit -------------------------------------------
   function monumentBuilt(name) { return [...qsa("#monArea .mon.built")].some((m) => m.dataset.name === name); }
@@ -547,9 +586,10 @@ export function createRttaBoard(root, opts) {
     if (obel) area.appendChild(monTile(obel));
     applyMonSeed();
   }
-  function applyPlayers(n) { renderMonuments(n); qsa("#pcount button").forEach((b) => b.classList.toggle("active", +b.dataset.p === n)); }
-  gid("pcount").addEventListener("click", (e) => { const b = e.target.closest("button[data-p]"); if (b) applyPlayers(+b.dataset.p); });
-  applyPlayers(Math.max(1, Math.min(3, opts.players || 3)));
+  // The monument set is fixed by the room's seat count — never a mid-game choice.
+  const playerCount = Math.max(1, opts.players || 1);
+  renderMonuments(playerCount);
+  const mp = gid("monPlayers"); if (mp) mp.textContent = playerCount === 1 ? "solo set" : playerCount + "-player set";
 
   // Developments list — mark seeded (owned) devs as locked
   const devBlock = gid("devBlock");
@@ -596,9 +636,12 @@ export function createRttaBoard(root, opts) {
     const paychip = e.target.closest("#goodsCash .cashchip.pay");
     if (paychip && payDev) {
       if (paychip.dataset.coins) payCoins = !payCoins;
+      else if (paychip.dataset.food) payFood = (payFood + 1) % (food + 1);   // cycle 0..food
       else { const gi = +paychip.dataset.good; payGoods.has(gi) ? payGoods.delete(gi) : payGoods.add(gi); }
       renderPay(); return;
     }
+    if (e.target.closest("#engUse")) { engConvert(+1); return; }
+    if (e.target.closest("#engUndo")) { engConvert(-1); return; }
     if (e.target.closest("#payConfirm")) { confirmPay(); return; }
     if (e.target.closest("#submitBtn")) { submitTurn(); return; }
     const dev = e.target.closest(".row.dev .cost");
@@ -608,6 +651,7 @@ export function createRttaBoard(root, opts) {
       if (rowEl.classList.contains("bought")) {
         rowEl.classList.remove("bought");
         if (rowEl._paid) { rowEl._paid.forEach(([i, q]) => goodsHeld[i] = q); rowEl._paid = null; }
+        if (rowEl._paidFood) { food = Math.min(15, food + rowEl._paidFood); rowEl._paidFood = 0; syncFoodTrack(); }
         markGoodsChart(); computePower();
       } else if (root.querySelector("#devBlock .row.dev.bought:not(.locked)")) { /* one dev per turn */ }
       else if (payDev === rowEl) { cancelPay(); }
@@ -624,14 +668,14 @@ export function createRttaBoard(root, opts) {
     dev: "Buy <b>one development per turn</b> with coins + whole goods stacks. Each is bought once; its effect is permanent.",
     goods: "Goods cash in <b>by type, whole-stack — no change</b>. Keep only <b>6 total</b>. Then tap <b>Submit turn</b>.",
   };
-  const setTip = (page) => { const t = gid("tipStrip"); if (t) t.innerHTML = TIPS[page] || ""; };
+  const setTip = (page) => { const t = gid("tipStrip"); if (t) { t.innerHTML = TIPS[page] || ""; t.classList.remove("alert"); } };
   function blinkTab(page) { const b = root.querySelector('.tabs button[data-page="' + page + '"]'); if (b) b.classList.add("done"); }
   function showPage(page) {
     root.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b.dataset.page === page));
     root.querySelectorAll(".page").forEach((p) => p.classList.toggle("active", p.id === "page-" + page));
     const cur = root.querySelector('.tabs button[data-page="' + page + '"]'); if (cur) cur.classList.remove("done");
     setTip(page);
-    if (page === "build" && workersToSpend === 0) blinkTab("dev");
+    if (page === "build") { renderEng(); if (workersToSpend === 0) blinkTab("dev"); }
     if (page === "dev") { const power = parseInt(gid("pTotal").textContent, 10) || 0; if (power < 10 || root.querySelector("#devBlock .row.dev.bought:not(.locked)")) blinkTab("goods"); }
     if (page === "goods" && upkeepDone) { const sub = gid("submitBtn"); if (sub && !submitted) sub.classList.add("ready"); }
   }
@@ -674,10 +718,9 @@ const MARKUP = `
       <div class="block"><h3>Disaster results <small>from skulls</small></h3><div class="dis" id="disList"></div></div>
     </section>
     <section class="page" id="page-build">
-      <div class="block workers-panel"><h3>Workers to spend <small>from this roll</small></h3><div class="big-stat">⚒️ <span id="tWorkBuild">0</span></div></div>
+      <div class="block workers-panel"><h3>Workers to spend <small>from this roll</small></h3><div class="big-stat">⚒️ <span id="tWorkBuild">0</span></div><div class="goods-cash" id="engRow"></div></div>
       <div class="block"><h3>Cities <small>start with 3 · build with workers</small></h3><div id="cityRow"></div></div>
-      <div class="block" id="monBlock"><h3>Monuments</h3>
-        <div class="pcount" id="pcount"><span class="pclbl">Players</span><button data-p="1">1</button><button data-p="2">2</button><button class="active" data-p="3">3+</button></div>
+      <div class="block" id="monBlock"><h3>Monuments <small id="monPlayers"></small></h3>
         <div id="monArea"></div>
       </div>
     </section>
