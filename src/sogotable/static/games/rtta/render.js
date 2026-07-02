@@ -81,7 +81,7 @@ export function renderRttaGame(ctx) {
         <h3>Standings <small>round ${game.round}</small></h3>
         ${scoreboard}
       </div>
-      ${eventsHtml(game, room)}
+      ${eventsHtml(game, room, mySeat, myMark)}
       <p class="rtta-status">${status}</p>
       ${canReady ? '<button class="rtta-ready blink" id="rttaReady" type="button">Ready for next round →</button>' : ""}
     </div>`;
@@ -167,16 +167,26 @@ function flyArc(srcEl, targetEl, emoji, delay, onArrive) {
   }, delay);
 }
 
-// Cross-player events surfaced by the server at the barrier. The skull fly
-// animation is the next task; for now name who struck whom.
-function eventsHtml(game, room) {
+// Cross-player events surfaced by the server at the barrier — plus a line when
+// one of MY developments quietly protected me from an event that struck others.
+function eventsHtml(game, room, mySeat, myMark) {
   const events = Array.isArray(game.pending_events) ? game.pending_events : [];
   if (!events.length) return "";
+  const myDevs = (mySeat && mySeat.developments) || [];
   const lines = events.map((ev) => {
     const from = escapeName(seatName(room, ev.from));
     const n = Array.isArray(ev.to) ? ev.to.length : 0;
-    if (ev.kind === "pestilence") return `☠️ <span class="rtta-event">Pestilence</span> — ${from} sent 3 skulls to ${n} opponent${n === 1 ? "" : "s"} (−3 each).`;
-    if (ev.kind === "revolt") return `🔥 <span class="rtta-event">Revolt</span> — ${from} wiped every opponent's goods.`;
+    const missedMe = ev.from !== myMark && !(ev.to || []).includes(myMark);
+    if (ev.kind === "pestilence") {
+      let line = `☠️ <span class="rtta-event">Pestilence</span> — ${from} sent 3 skulls to ${n} opponent${n === 1 ? "" : "s"} (−3 each).`;
+      if (missedMe && myDevs.includes("Medicine")) line += ` 🛡️ <b>Medicine</b> protected you.`;
+      return line;
+    }
+    if (ev.kind === "revolt") {
+      let line = `🔥 <span class="rtta-event">Revolt</span> — ${from} wiped ${n} opponent${n === 1 ? "'s" : "s'"} goods.`;
+      if (missedMe && myDevs.includes("Religion")) line += ` 🛡️ <b>Religion</b> protected your goods.`;
+      return line;
+    }
     return "";
   }).filter(Boolean);
   return lines.length ? `<p class="rtta-status">${lines.join("<br>")}</p>` : "";

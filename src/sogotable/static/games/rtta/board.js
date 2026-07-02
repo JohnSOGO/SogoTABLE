@@ -127,14 +127,17 @@ export function createRttaBoard(root, opts) {
   function setFace(i, face) { dice[i].face = face; dice[i].choice = null; dice[i].locked = false; paintDie(i); }
 
   function onDieClick(i) {
-    if (busy() || submitted) return;
+    if (busy() || submitted || upkeepDone) return;   // dice are settled once Upkeep runs
     const d = dice[i];
     const ended = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
-    if (ended && d.face && d.face.choice) { cycleChoice(i); return; }
-    if (rolls >= MAX_ROLLS && ownsDev("Leadership") && !leadershipUsed && d.face) {
+    if (ended && d.face && d.face.choice) { cycleChoice(i); return; }   // choice taps always cycle
+    if (leadershipReady() && d.face) {
       leadershipReroll(i); return;   // 2025 rulebook: a skull die MAY be rerolled
     }
     toggleLock(i);
+  }
+  function leadershipReady() {
+    return rolls >= MAX_ROLLS && ownsDev("Leadership") && !leadershipUsed && !upkeepDone;
   }
   function leadershipReroll(i) {
     leadershipUsed = true;
@@ -167,14 +170,19 @@ export function createRttaBoard(root, opts) {
   function markChoices() {
     const ended = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
     let pending = 0;
+    const lead = leadershipReady();
     dice.forEach((d, i) => {
       const needsDecision = ended && d.face && d.face.choice === true && !d.choice;
       dieEls[i].classList.toggle("choice-pending", needsDecision);
+      dieEls[i].classList.toggle("lead-glow", lead && !!d.face && !(d.face.choice && !d.choice));
       if (needsDecision) pending++;
     });
     const tip = gid("tipStrip");
     if (pending > 0 && !upkeepDone) {
       tip.innerHTML = "Tap the blinking 🌾/⚒️ die — <b>Food or Workers?</b>"; tip.classList.add("alert");
+    } else if (lead) {
+      tip.classList.remove("alert");
+      tip.innerHTML = "👑 <b>Leadership</b>: tap any die to reroll it once — even a skull. Or tap <b>Upkeep</b> to keep the roll.";
     } else { tip.classList.remove("alert"); setTip("dice"); }
     const rc = gid("rollCell");
     if (rc) rc.classList.toggle("ready", ended && pending === 0 && !upkeepDone);
@@ -224,6 +232,7 @@ export function createRttaBoard(root, opts) {
       const cost = parseInt(r.querySelector(".cost").textContent, 10) || 0;
       r.classList.toggle("unaffordable", boughtDev ? !r.classList.contains("bought") : (total < cost));
     });
+    refreshDisasterImmunity();   // buying/undoing Irrigation or Religion updates the table
   }
 
   function doRoll() {
@@ -330,18 +339,23 @@ export function createRttaBoard(root, opts) {
     });
     gid("tipStrip").classList.remove("alert"); setTip("dice");
     gid("rollCell").classList.remove("ready");
-    dieEls.forEach((el) => el.classList.remove("choice-pending"));
+    dieEls.forEach((el) => el.classList.remove("choice-pending", "lead-glow"));
     animateHarvestToFood(() => animateFoodToDice(() => resolveDisasters(finishUpkeep)));
   }
   function finishUpkeep() {
     const rc = gid("rollCell"); rc.classList.remove("ready"); rc.textContent = "✓";
     workersToSpend = turnTally.work;
+    const noQuarry = new Set([...ownsAll()].filter((n) => n !== "Quarrying"));
+    const quarryBonus = ownsDev("Quarrying")
+      && collectGoods(goodsHeld, turnTally.good, ownsAll())[1] > collectGoods(goodsHeld, turnTally.good, noQuarry)[1];
     goodsHeld = collectGoods(goodsHeld, turnTally.good, ownsAll());
     goodsOriginal = goodsHeld.slice();
     if (plan.revolt) {   // revolt: all goods lost (Religion turns it on opponents instead)
       goodsHeld = [0, 0, 0, 0, 0]; goodsOriginal = [0, 0, 0, 0, 0];
       const tip = gid("tipStrip");
       tip.innerHTML = "🔥 <b>Revolt!</b> Your people revolt — all your goods are lost."; tip.classList.add("alert");
+    } else if (quarryBonus) {
+      gid("tipStrip").innerHTML = "🪨 <b>Quarrying</b>: +1 bonus stone added to your goods.";
     }
     markGoodsChart(); computePower();
     gid("tWorkBuild").textContent = workersToSpend;
@@ -577,7 +591,25 @@ export function createRttaBoard(root, opts) {
   // Disasters list + points-lost grid
   const disList = gid("disList");
   DISASTERS.forEach((d) => { disList.insertAdjacentHTML("beforeend", '<div class="drow" data-skulls="' + d.count + '"><span class="sk">' + d.sk + '</span><span class="ef">' + d.ef + "</span></div>"); });
-  function highlightDisaster(skulls) { const n = skulls >= 5 ? 5 : skulls; qsa("#disList .drow").forEach((r) => r.classList.toggle("hit", +r.dataset.skulls === n)); }
+  // A disaster row you are covered against grays out with a ✓ instead of
+  // red-highlighting a penalty that will not happen: Drought ↔ Irrigation,
+  // Invasion ↔ a completed Great Wall, Revolt ↔ Religion (redirected).
+  const wallWorkers = MONUMENTS.find((m) => m.name === "Great Wall").w;
+  function refreshDisasterImmunity() {
+    qsa("#disList .drow").forEach((r) => {
+      const n = +r.dataset.skulls;
+      const immune =
+        (n === 2 && ownsDev("Irrigation")) ||
+        (n === 4 && (monBoxes["Great Wall"] || 0) >= wallWorkers) ||
+        (n === 5 && ownsDev("Religion"));
+      r.classList.toggle("immune", immune);
+    });
+  }
+  function highlightDisaster(skulls) {
+    refreshDisasterImmunity();
+    const n = skulls >= 5 ? 5 : skulls;
+    qsa("#disList .drow").forEach((r) => r.classList.toggle("hit", +r.dataset.skulls === n && !r.classList.contains("immune")));
+  }
 
   const disBoxes = gid("disBoxes");
   for (let r = 0; r < 3; r++) {
@@ -646,8 +678,13 @@ export function createRttaBoard(root, opts) {
     build: "Spend this turn's <b>workers</b> to fill city &amp; monument boxes. <b>First</b> to finish a monument scores the bigger number.",
     dev: "Buy <b>one development per turn</b> with coins + whole goods stacks. Each is bought once; its effect is permanent.",
     goods: "Goods cash in <b>by type, whole-stack — no change</b>. Keep only <b>6 total</b>. Then tap <b>Submit turn</b>.",
+    goodsCaravans: "Goods cash in <b>by type, whole-stack — no change</b>. 🐫 <b>Caravans</b>: no discard — keep everything. Then tap <b>Submit turn</b>.",
   };
-  const setTip = (page) => { const t = gid("tipStrip"); if (t) { t.innerHTML = TIPS[page] || ""; t.classList.remove("alert"); } };
+  const setTip = (page) => {
+    const t = gid("tipStrip"); if (!t) return;
+    const key = (page === "goods" && ownsDev("Caravans")) ? "goodsCaravans" : page;
+    t.innerHTML = TIPS[key] || ""; t.classList.remove("alert");
+  };
   function blinkTab(page) { const b = root.querySelector('.tabs button[data-page="' + page + '"]'); if (b) b.classList.add("done"); }
   function showPage(page) {
     root.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b.dataset.page === page));
