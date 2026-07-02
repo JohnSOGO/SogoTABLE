@@ -92,9 +92,12 @@ trigger disasters. Cost tables are duplicated in `ai.js` to avoid an import cycl
 
 ## Scoreboard
 
-`Player | Cities | Mon | Dev | −Lost | Total`, sorted by Total desc. `Mon` counts
-monuments this player has a claim on; first builder of a monument scores its higher
-VP, later builders the lower.
+`Player | 📜 Dev | 🏛️ Mon | ✨ Bonus | 💀 Lost | Total`, sorted by Total desc —
+**every column is points** (Dev + Mon + Bonus − Lost = Total), not counts.
+Monument points give the first builder the higher VP, later builders the lower;
+Bonus is Architecture (+2/monument) and Empire (+1/city). Parts are computed
+client-side from the parity-tested tables; Total is the server's authoritative
+score.
 
 ## Files
 
