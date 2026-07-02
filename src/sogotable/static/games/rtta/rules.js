@@ -200,11 +200,20 @@ export function discardExcess(goods, owns) {
   return next;
 }
 
+// Value of selling `k` goods of type `i` off the TOP of a stack of `n`. The
+// chart is cumulative (stack of n = base × tri(n)), so a partial sale pays the
+// topmost marginals and the remaining stack still matches the chart.
+export function goodsSaleValue(i, n, k) {
+  const sell = Math.max(0, Math.min(k, n));
+  return GOODS[i].base * (tri(n) - tri(n - sell));
+}
+
 // Value of a development-payment selection: the turn's coins (all or nothing),
-// whole goods stacks, and food at the Granaries rate.
-export function paymentTotal({ payCoins, payGoods, payFood }, { coinCount, goods, owns }) {
+// per-type goods counts sold off the top (house rule — the rulebook spends
+// whole stacks; deviation recorded in PLAN.md), and food at the Granaries rate.
+export function paymentTotal({ payCoins, payGoodsCounts, payFood }, { coinCount, goods, owns }) {
   let v = payCoins ? coinCount * coinFaceValue(owns) : 0;
-  for (const i of payGoods) v += goodValue(i, goods[i]);
+  (payGoodsCounts || []).forEach((k, i) => { if (k > 0) v += goodsSaleValue(i, goods[i], k); });
   return v + (payFood || 0) * GRANARIES_RATE;
 }
 
