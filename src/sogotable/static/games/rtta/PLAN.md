@@ -52,6 +52,26 @@ GATE projection — 2026-07-01 — 3 gaps —
   info: games/render-keys.js carries no RTTA fields (round/monuments/pending_events absent); invalidation currently rides on room.revision + players_state (every RTTA transition also flips a seat flag), so no observed failure — note for the per-game render-key slice refactor
 ```
 
+```text
+GATE sibling-parity — 2026-07-01 — 5 gaps —
+  1 (med) bot turns bypass the human economy: free developments (no payment check), fixed dice-free worker yield (2·cities+1), permanent skull/famine/disaster immunity — nothing binds bot turns to human-reachable turns (workers/games/rtta/ai.js); documented as "light opponent" but in tension with the bots-run-the-human-path hard rule
+  2 (med) refresh mid-turn grants a free mulligan: uncommitted rolls are discarded and the board re-seeds from the round-start seat, so a bad roll can be refreshed away (inherent to client-computed turns; decide accept+document vs mitigate)
+  3 (low) bots always win same-round first-builder monument ties — resolveBotRound commits every bot at round start, before any human can submit
+  4 (low) late joiner into a started room becomes an unseated spectator with misleading status copy ("Turn submitted…" / "ready up" with no button); no started-room guard on /api/room/join for host-start games
+  5 (low) manifest maxPlayers 20 is unenforced — registry player_count: null allows unlimited joins; metadata sources drifted
+  pass: public-vs-private view, solo→N scaling + end-condition reachability, touch-vs-pointer, bot/server commit-pipeline parity (post-fix monument filter matches monumentsInPlay, pinned by tests)
+```
+
+```text
+GATE resilience — 2026-07-01 — 5 gaps —
+  1 (high) failed COMMIT_TURN strands the client: board.js latches submitted=true BEFORE the POST, and the error lands in #turnStatus which the shell hides for RTTA — player stuck at "Waiting for the other players…" with a disabled button until manual refresh
+  2 (med) COMMIT_TURN / READY_NEXT carry no round or game_epoch and the server checks neither — a stale tab's round-N commit is accepted as the current round's turn
+  3 (med) monumentsCompleted is credited without checking monumentBoxes[name] === workers — a doctored commit gains first-builder VP and can trip the all-monuments game end (a SHARED consequence, breaching trust-but-clamp's own promise)
+  4 (low) goods array has no upper clamp (only ≥0) — self-granted goods reseed next round's purchasing power; clamp to per-row track max
+  5 (low) invalid/stale/out-of-phase actions are silently swallowed with ok:true — doctrine asks for explicit rejection debug detail (sibling-consistent with Yahtzee/10k, so a platform-level decision)
+  pass: duplicate submit (server+client+DO serialization), duplicate tab, out-of-order arrival (D1 optimistic lock + re-run), socket drop during barriers (flags in D1, reconnect backoff + re-fetch), refresh mid-turn (by design), no polling / write amplification
+```
+
 ## Rules Ledger — rules-fidelity gate, 2026-07-01
 
 Status: ✓ correct · ✗ wrong · ◦ missing · Δ deviation (intended → listed above).
