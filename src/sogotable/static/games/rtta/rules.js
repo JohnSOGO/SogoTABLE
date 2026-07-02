@@ -40,8 +40,10 @@ export const GOODS = [
 ];
 
 // Monuments: workers, first-builder VP, later-builder VP. shape = boxes per row
-// (top→bottom), drawn centered to mimic the silhouette; players = min players
-// before it's in play. vb = svg viewBox [w,h]; boxTop = y where the worker-box
+// (top→bottom), drawn centered to mimic the silhouette. notAt = seat counts at
+// which the monument SITS OUT (2025 rulebook: Temple + Great Pyramid are crossed
+// off in the 2-player game, Hanging Gardens in the 3-player game; solo and 4+
+// use all monuments). vb = svg viewBox [w,h]; boxTop = y where the worker-box
 // cluster starts; art = silhouette drawn behind the boxes (same coordinate space).
 export const MONUMENTS = [
   { name: "Step Pyramid", w: 3, first: 1, later: 0, shape: [1, 2],
@@ -50,16 +52,16 @@ export const MONUMENTS = [
   { name: "Stone Circle", w: 5, first: 2, later: 1, shape: [3, 2],
     vb: [80, 58], boxTop: 8,
     art: '<ellipse class="artdim" cx="40" cy="50" rx="37" ry="9"/><rect class="art" x="20" y="14" width="9" height="34" rx="2"/><rect class="art" x="51" y="14" width="9" height="34" rx="2"/><rect class="art" x="16" y="7" width="48" height="10" rx="2"/>' },
-  { name: "Temple", w: 7, first: 4, later: 2, shape: [3, 4], players: 2,
+  { name: "Temple", w: 7, first: 4, later: 2, shape: [3, 4], notAt: [2],
     vb: [92, 74], boxTop: 26,
     art: '<polygon class="art" points="6,20 86,20 46,2"/><rect class="art" x="6" y="20" width="80" height="6" rx="1"/><rect class="art" x="8" y="62" width="76" height="8" rx="1"/>' },
-  { name: "Hanging Gardens", w: 11, first: 8, later: 4, shape: [2, 4, 5], players: 3,
+  { name: "Hanging Gardens", w: 11, first: 8, later: 4, shape: [2, 4, 5], notAt: [3],
     vb: [112, 84], boxTop: 8,
     art: '<rect class="art" x="10" y="56" width="92" height="22" rx="2"/><rect class="art" x="22" y="34" width="68" height="22" rx="2"/><rect class="art" x="34" y="12" width="44" height="22" rx="2"/><g class="green"><ellipse cx="14" cy="56" rx="11" ry="7"/><ellipse cx="98" cy="56" rx="11" ry="7"/><ellipse cx="26" cy="34" rx="10" ry="6"/><ellipse cx="86" cy="34" rx="10" ry="6"/><ellipse cx="56" cy="12" rx="13" ry="8"/></g>' },
   { name: "Obelisk", w: 9, first: 6, later: 3, shape: [1, 1, 1, 1, 1, 1, 1, 1, 1], tall: true,
     vb: [40, 186], boxTop: 16,
     art: '<ellipse class="artdim" cx="20" cy="180" rx="16" ry="4"/><polygon class="art" points="12,178 28,178 25,16 15,16"/><polygon class="art" points="15,16 25,16 20,2"/>' },
-  { name: "Great Pyramid", w: 15, first: 12, later: 6, shape: [1, 2, 3, 4, 5], players: 2,
+  { name: "Great Pyramid", w: 15, first: 12, later: 8, shape: [1, 2, 3, 4, 5], notAt: [2],
     vb: [112, 106], boxTop: 6,
     art: '<circle cx="86" cy="22" r="14" fill="#f6d273" opacity="0.4"/><polygon class="art" points="8,100 104,100 56,6"/><polygon class="artdim" points="56,6 104,100 56,100"/>' },
   { name: "Great Wall", w: 13, first: 10, later: 5, shape: [13], note: "invasion immunity", wide: true,
@@ -67,21 +69,22 @@ export const MONUMENTS = [
     art: '<rect class="art" x="6" y="6" width="22" height="38" rx="2"/><rect class="art" x="232" y="6" width="22" height="38" rx="2"/><rect class="art" x="20" y="14" width="220" height="30" rx="2"/><g class="art"><rect x="26" y="6" width="12" height="9"/><rect x="54" y="6" width="12" height="9"/><rect x="82" y="6" width="12" height="9"/><rect x="110" y="6" width="12" height="9"/><rect x="138" y="6" width="12" height="9"/><rect x="166" y="6" width="12" height="9"/><rect x="194" y="6" width="12" height="9"/><rect x="222" y="6" width="12" height="9"/></g>' },
 ];
 
-// Developments: coin cost, VP, ability text.
+// Developments: coin cost, VP, ability text. Values per the 2025 rulebook
+// (AI/RToA/rtta_2025_rules_06.pdf, Table 3) — the adopted edition.
 export const DEVELOPMENTS = [
-  { name: "Leadership",   cost: 10, vp: 2, ab: "Reroll 1 die (after last roll)" },
-  { name: "Irrigation",   cost: 10, vp: 2, ab: "Drought has no effect" },
-  { name: "Agriculture",  cost: 15, vp: 3, ab: "+1 food / food die" },
-  { name: "Quarrying",    cost: 15, vp: 3, ab: "+1 stone if collecting stone" },
-  { name: "Medicine",     cost: 15, vp: 3, ab: "Pestilence has no effect" },
-  { name: "Coinage",      cost: 20, vp: 4, ab: "Coin die results worth 12" },
-  { name: "Caravans",     cost: 20, vp: 4, ab: "No need to discard goods" },
-  { name: "Religion",     cost: 20, vp: 6, ab: "Revolt affects opponents" },
-  { name: "Granaries",    cost: 30, vp: 6, ab: "Sell food for 4 coins each" },
-  { name: "Masonry",      cost: 30, vp: 6, ab: "+1 worker / worker die" },
-  { name: "Engineering",  cost: 40, vp: 6, ab: "Use stone for 3 workers each" },
-  { name: "Architecture", cost: 50, vp: 8, ab: "Bonus pts: 1 / monument" },
-  { name: "Empire",       cost: 60, vp: 8, ab: "Bonus pts: 1 / city" },
+  { name: "Leadership",   cost: 10, vp: 2,  ab: "Reroll 1 die, even a skull (after last roll)" },
+  { name: "Irrigation",   cost: 10, vp: 2,  ab: "Drought has no effect" },
+  { name: "Agriculture",  cost: 15, vp: 3,  ab: "+1 food / food die" },
+  { name: "Quarrying",    cost: 15, vp: 3,  ab: "+1 stone if collecting stone" },
+  { name: "Coinage",      cost: 20, vp: 4,  ab: "Coin die results worth 12" },
+  { name: "Caravans",     cost: 20, vp: 4,  ab: "No need to discard goods" },
+  { name: "Medicine",     cost: 20, vp: 4,  ab: "Pestilence has no effect" },
+  { name: "Religion",     cost: 25, vp: 7,  ab: "Revolt hits opponents instead" },
+  { name: "Granaries",    cost: 30, vp: 6,  ab: "Sell food for 6 coins each" },
+  { name: "Masonry",      cost: 30, vp: 6,  ab: "+1 worker / worker die" },
+  { name: "Engineering",  cost: 40, vp: 6,  ab: "Use stone for 3 workers each" },
+  { name: "Architecture", cost: 60, vp: 8,  ab: "Bonus pts: 2 / monument" },
+  { name: "Empire",       cost: 70, vp: 10, ab: "Bonus pts: 1 / city" },
 ];
 
 // Disasters by skull count.
@@ -129,8 +132,8 @@ export function faceEmojis(face, owns) {
 
 export const FACE_BY_KEY = Object.fromEntries(FACES.map((f) => [f.key, f]));
 
-// Coins per food sold into a development purchase (Granaries).
-export const GRANARIES_RATE = 4;
+// Coins per food sold into a development purchase (Granaries, 2025 rulebook).
+export const GRANARIES_RATE = 6;
 
 // Tally a rolled dice set. dice = [{key, choice}] where key names a FACES entry
 // and choice ("food" | "worker" | null) resolves the 2-food-or-2-workers face.
@@ -250,7 +253,7 @@ export function scoreBreakdown({ developments = [], monuments = [], cities = 3, 
   let mon = 0;
   for (const m of monuments) mon += m.vp || 0;
   let bonus = 0;
-  if (owns.has("Architecture")) bonus += monuments.length; // +1 per monument
-  if (owns.has("Empire")) bonus += cities;                  // +1 per city
+  if (owns.has("Architecture")) bonus += 2 * monuments.length; // +2 per monument (2025)
+  if (owns.has("Empire")) bonus += cities;                      // +1 per city
   return { dev, mon, bonus, dis: pointsLost, total: dev + mon + bonus - pointsLost };
 }

@@ -130,8 +130,8 @@ export function createRttaBoard(root, opts) {
     const d = dice[i];
     const ended = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
     if (ended && d.face && d.face.choice) { cycleChoice(i); return; }
-    if (rolls >= MAX_ROLLS && ownsDev("Leadership") && !leadershipUsed && d.face && !d.face.skullFace) {
-      leadershipReroll(i); return;
+    if (rolls >= MAX_ROLLS && ownsDev("Leadership") && !leadershipUsed && d.face) {
+      leadershipReroll(i); return;   // 2025 rulebook: a skull die MAY be rerolled
     }
     toggleLock(i);
   }
@@ -540,7 +540,7 @@ export function createRttaBoard(root, opts) {
   }
   function renderMonuments(players) {
     const area = gid("monArea"); area.innerHTML = "";
-    const vis = MONUMENTS.filter((m) => (m.players || 1) <= players);
+    const vis = MONUMENTS.filter((m) => !(m.notAt || []).includes(players));
     const normal = vis.filter((m) => !m.wide && !m.tall);
     const wall = vis.find((m) => m.wide);
     const obel = vis.find((m) => m.tall);

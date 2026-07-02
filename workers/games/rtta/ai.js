@@ -11,12 +11,12 @@ const MONUMENT_COST = {
   "Step Pyramid": 3, "Stone Circle": 5, "Temple": 7, "Obelisk": 9,
   "Hanging Gardens": 11, "Great Wall": 13, "Great Pyramid": 15,
 };
-// Minimum seat count before a monument is in play (mirrors rules.js MONUMENTS).
-const MONUMENT_MIN_PLAYERS = { "Temple": 2, "Hanging Gardens": 3, "Great Pyramid": 2 };
+// Seat counts at which a monument sits out (mirrors rules.js MONUMENTS notAt).
+const MONUMENT_NOT_AT = { "Temple": [2], "Hanging Gardens": [3], "Great Pyramid": [2] };
 const DEV_COST = {
-  Leadership: 10, Irrigation: 10, Agriculture: 15, Quarrying: 15, Medicine: 15,
-  Coinage: 20, Caravans: 20, Religion: 20, Granaries: 30, Masonry: 30,
-  Engineering: 40, Architecture: 50, Empire: 60,
+  Leadership: 10, Irrigation: 10, Agriculture: 15, Quarrying: 15, Coinage: 20,
+  Caravans: 20, Medicine: 20, Religion: 25, Granaries: 30, Masonry: 30,
+  Engineering: 40, Architecture: 60, Empire: 70,
 };
 
 function botLevel(seat) {
@@ -36,7 +36,7 @@ export function chooseRttaTurn(game, mark, rng = Math.random) {
   // workers in, complete when the cost is reached. Higher levels look further.
   const seatCount = (game.seat_order || []).length;
   const targets = Object.keys(MONUMENT_COST)
-    .filter((n) => (MONUMENT_MIN_PLAYERS[n] || 1) <= seatCount)
+    .filter((n) => !(MONUMENT_NOT_AT[n] || []).includes(seatCount))
     .filter((n) => (game.monuments[n] || []).length === 0)
     .sort((a, b) => MONUMENT_COST[a] - MONUMENT_COST[b]);
   const reach = level >= 3 ? targets.length : Math.min(2, targets.length);
