@@ -125,6 +125,121 @@ export function faceEmojis(face, owns) {
   return face.emojis;
 }
 
+// --- turn maths (pure — board.js animates these outcomes, never re-derives them) --
+
+export const FACE_BY_KEY = Object.fromEntries(FACES.map((f) => [f.key, f]));
+
+// Coins per food sold into a development purchase (Granaries).
+export const GRANARIES_RATE = 4;
+
+// Tally a rolled dice set. dice = [{key, choice}] where key names a FACES entry
+// and choice ("food" | "worker" | null) resolves the 2-food-or-2-workers face.
+// Agriculture/Masonry add +1 per food/worker die (including a resolved choice die).
+export function tallyFaces(dice, owns) {
+  const t = { food: 0, work: 0, good: 0, coin: 0, skull: 0 };
+  let foodDice = 0, workDice = 0;
+  for (const d of dice) {
+    const f = d && FACE_BY_KEY[d.key];
+    if (!f) continue;
+    if (f.choice) {
+      if (d.choice === "food") { t.food += 2; foodDice++; }
+      else if (d.choice === "worker") { t.work += 2; workDice++; }
+    } else {
+      if (f.food) { t.food += f.food; foodDice++; }
+      if (f.work) { t.work += f.work; workDice++; }
+      if (f.good) t.good += f.good;
+      if (f.coin) t.coin += f.coin;
+      if (f.skull) t.skull += f.skull;
+    }
+  }
+  if (owns.has("Agriculture")) t.food += foodDice;
+  if (owns.has("Masonry")) t.work += workDice;
+  return t;
+}
+
+// The whole Upkeep outcome, decided up front: harvest (capped at the 15-box
+// track), feeding (1 food per city die, shortfall = famine points), and the
+// self-inflicted disasters — drought at exactly 2 skulls (Irrigation immune),
+// invasion at exactly 4 (a completed Great Wall immune), revolt at 5+ (all own
+// goods lost unless Religion reflects it onto the opponents, server-side).
+export function upkeepPlan({ harvest, foodStored, diceCount, skulls, owns, hasGreatWall }) {
+  const foodAfterHarvest = Math.min(15, foodStored + harvest);
+  const feeds = Math.min(foodAfterHarvest, diceCount);
+  const famine = diceCount - feeds;
+  const foodAfterFeeding = Math.max(0, foodAfterHarvest - diceCount);
+  let disasterPts = 0;
+  if (skulls === 2) disasterPts = owns.has("Irrigation") ? 0 : 2;
+  else if (skulls === 4) disasterPts = hasGreatWall ? 0 : 4;
+  const revolt = skulls >= 5 && !owns.has("Religion");
+  return { foodAfterHarvest, feeds, famine, foodAfterFeeding, disasterPts, revolt };
+}
+
+// Goods collection: one good per row, Wood upward, wrapping; a full row loses
+// the good. Quarrying adds one bonus stone when 2+ goods are collected.
+export function collectGoods(goods, earned, owns) {
+  const next = goods.slice();
+  for (let k = 0; k < earned; k++) {
+    const i = k % GOODS.length;
+    next[i] = Math.min(next[i] + 1, GOODS[i].holes);
+  }
+  if (owns.has("Quarrying") && earned >= 2) next[1] = Math.min(next[1] + 1, GOODS[1].holes);
+  return next;
+}
+
+// End-of-turn discard down to 6 goods (Caravans exempt), cheapest rows first.
+export function discardExcess(goods, owns) {
+  if (owns.has("Caravans")) return goods.slice();
+  const next = goods.slice();
+  let total = next.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < next.length && total > 6; i++) {
+    while (next[i] > 0 && total > 6) { next[i]--; total--; }
+  }
+  return next;
+}
+
+// Value of a development-payment selection: the turn's coins (all or nothing),
+// whole goods stacks, and food at the Granaries rate.
+export function paymentTotal({ payCoins, payGoods, payFood }, { coinCount, goods, owns }) {
+  let v = payCoins ? coinCount * coinFaceValue(owns) : 0;
+  for (const i of payGoods) v += goodValue(i, goods[i]);
+  return v + (payFood || 0) * GRANARIES_RATE;
+}
+
+// Engineering: spend 1 stone for 3 workers (dir +1) or undo one conversion
+// (dir -1). Returns the next {goods, workers}, or null if the step is illegal.
+export function engineeringConvert({ goods, workers }, dir) {
+  if (dir > 0) {
+    if (goods[1] <= 0) return null;
+    const g = goods.slice(); g[1]--;
+    return { goods: g, workers: workers + 3 };
+  }
+  if (workers < 3) return null;
+  const g = goods.slice(); g[1] = Math.min(g[1] + 1, GOODS[1].holes);
+  return { goods: g, workers: workers - 3 };
+}
+
+// Package a finished local turn into the COMMIT_TURN wire payload (the server
+// contract in workers/games/rtta/rules.js). monumentBoxes = {name: filled}.
+export function buildCommitPayload({ cities, food, goods, monumentBoxes, devBought, skulls, pointsLostSelf }) {
+  const boxes = {}; const completed = [];
+  for (const m of MONUMENTS) {
+    const filled = Math.max(0, Math.min(m.w, (monumentBoxes && monumentBoxes[m.name]) || 0));
+    if (filled > 0) boxes[m.name] = filled;
+    if (filled === m.w) completed.push(m.name);
+  }
+  return {
+    type: "COMMIT_TURN",
+    cities,
+    food: Math.max(0, Math.min(15, food)),
+    goods: goods.slice(),
+    monumentBoxes: boxes,
+    monumentsCompleted: completed,
+    devBought: devBought || null,
+    skulls,
+    pointsLostSelf,
+  };
+}
+
 // Score breakdown from a plain turn snapshot (the local preview; the server holds
 // the authority). developments = owned names; monuments = [{first, isFirst}] the
 // player has built; cities = built city count; pointsLost = disaster points lost.
