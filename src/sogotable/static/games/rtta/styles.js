@@ -145,10 +145,6 @@ export const RTTA_CSS = `
 .rtta-root .mon.tall{position:absolute;right:2px;top:4px;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
 .rtta-root .mon.tall .monsvg{flex:1 1 0;min-height:0;width:auto;height:auto}
 .rtta-root .mon.tall .mon-foot{flex:0 0 auto;min-height:26px}
-.rtta-root .pcount{width:100%;display:flex;align-items:center;gap:6px}
-.rtta-root .pcount .pclbl{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.rtta-root .pcount button{padding:4px 12px;font-size:.7rem;background:#34281d;border:1px solid var(--edge);border-radius:7px;color:var(--muted);cursor:pointer}
-.rtta-root .pcount button.active{background:var(--gold);border-color:var(--gold);color:#2a1c08;font-weight:bold}
 .rtta-root .mon{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;cursor:pointer}
 .rtta-root .mon-foot{text-align:center;line-height:1.3}
 .rtta-root .mname{display:block;color:var(--ink);font-size:.62rem}
@@ -205,6 +201,7 @@ export const RTTA_CSS = `
 .rtta-root .power .plabel{font-size:.46rem;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
 .rtta-root .goods-cash{width:100%;max-width:460px;margin:-2px 0 10px;font-size:.62rem;display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:0 0 auto}
 .rtta-root .goods-cash .cashchip{background:#34281d;border:1px solid var(--edge);border-radius:7px;padding:2px 7px;color:var(--gold)}
+.rtta-root .goods-cash button.cashchip{font:inherit;font-size:.62rem;cursor:pointer}
 .rtta-root .nodis{color:var(--muted);font-size:.72rem}
 
 /* barrier / review status + submit button */

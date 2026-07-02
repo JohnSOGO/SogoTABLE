@@ -22,16 +22,24 @@ export const RTTA_GAME_ID = GAME_IDS.rtta;
 const ROUND_GUARD = 500; // bot-only auto-advance backstop (game always ends first)
 
 // Monument name → worker cost, first-builder VP, later-builder VP. Base game.
+// `players` = minimum seat count before the monument is in play (matches the
+// client table; guarded by the data-parity test).
 export const MONUMENTS = {
   "Step Pyramid":    { workers: 3,  first: 1,  later: 0 },
   "Stone Circle":    { workers: 5,  first: 2,  later: 1 },
-  "Temple":          { workers: 7,  first: 4,  later: 2 },
+  "Temple":          { workers: 7,  first: 4,  later: 2,  players: 2 },
   "Obelisk":         { workers: 9,  first: 6,  later: 3 },
-  "Hanging Gardens": { workers: 11, first: 8,  later: 4 },
+  "Hanging Gardens": { workers: 11, first: 8,  later: 4,  players: 3 },
   "Great Wall":      { workers: 13, first: 10, later: 5 },
-  "Great Pyramid":   { workers: 15, first: 12, later: 6 },
+  "Great Pyramid":   { workers: 15, first: 12, later: 6,  players: 2 },
 };
 export const MONUMENT_NAMES = Object.keys(MONUMENTS);
+
+// The monuments actually in play for a seat count — smaller games use a smaller
+// set. Commits, bots, and the all-monuments end condition all key off this.
+export function monumentsInPlay(playerCount) {
+  return MONUMENT_NAMES.filter((name) => (MONUMENTS[name].players || 1) <= playerCount);
+}
 
 // Development name → coin cost, victory points. Base game.
 export const DEVELOPMENTS = {
@@ -125,9 +133,10 @@ function applyCommittedTurn(game, mark, turn) {
   if (Array.isArray(turn.goods) && turn.goods.length === 5) {
     seat.goods = turn.goods.map((g) => Math.max(0, Math.trunc(Number(g) || 0)));
   }
+  const inPlay = monumentsInPlay(seatOrder(game).length);
   if (turn.monumentBoxes && typeof turn.monumentBoxes === "object") {
     const boxes = {};
-    for (const name of MONUMENT_NAMES) {
+    for (const name of inPlay) {
       const v = Math.max(0, Math.trunc(Number(turn.monumentBoxes[name]) || 0));
       if (v > 0) boxes[name] = Math.min(v, MONUMENTS[name].workers);
     }
@@ -135,12 +144,12 @@ function applyCommittedTurn(game, mark, turn) {
   }
   const completed = Array.isArray(turn.monumentsCompleted) ? turn.monumentsCompleted : [];
   for (const name of completed) {
-    if (MONUMENTS[name] && !game.monuments[name].includes(mark)) game.monuments[name].push(mark);
+    if (inPlay.includes(name) && !game.monuments[name].includes(mark)) game.monuments[name].push(mark);
   }
   const dev = turn.devBought;
   if (dev && DEVELOPMENTS[dev] && !seat.developments.includes(dev)) seat.developments.push(dev);
   seat.points_lost += Math.max(0, Math.trunc(Number(turn.pointsLostSelf) || 0));
-  seat.skulls = clampInt(turn.skulls, 0, 6, 0);
+  seat.skulls = clampInt(turn.skulls, 0, 7, 0); // 7 cities → up to 7 skull dice
 }
 
 function clampInt(value, lo, hi, fallback) {
@@ -255,10 +264,12 @@ function recomputeScores(game) {
   }
 }
 
-// The game ends when any player owns 5 developments OR every monument is built.
+// The game ends when any player owns 5 developments OR every monument IN PLAY
+// for this seat count is built.
 function isGameOver(game) {
   const fiveDevs = seatOrder(game).some((m) => game.players[m].developments.length >= 5);
-  const allMonuments = MONUMENT_NAMES.every((name) => (game.monuments[name] || []).length > 0);
+  const allMonuments = monumentsInPlay(seatOrder(game).length)
+    .every((name) => (game.monuments[name] || []).length > 0);
   return fiveDevs || allMonuments;
 }
 

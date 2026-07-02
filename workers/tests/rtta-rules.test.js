@@ -36,6 +36,7 @@ test("data parity: monument costs + VP agree across client and server", () => {
     assert.equal(c.w, s.workers, `${name}: worker cost differs (client ${c.w} vs server ${s.workers})`);
     assert.equal(c.first, s.first, `${name}: first-builder VP differs`);
     assert.equal(c.later, s.later, `${name}: later-builder VP differs`);
+    assert.equal(c.players || 1, s.players || 1, `${name}: min-player threshold differs`);
   }
 });
 
@@ -156,6 +157,34 @@ test("Architecture (+1/monument) and Empire (+1/city) bonuses apply", () => {
   makeRttaMove(g, "P1", commit({ cities: 5, devBought: "Empire" }));
   // prev 13 + Empire 8 + 5 cities = 26
   assert.equal(g.players.P1.score, 26);
+});
+
+test("a commit claiming an out-of-play monument is ignored (2-player game)", () => {
+  const g = twoHumans();
+  // Hanging Gardens needs 3+ players; a doctored/stale commit must not land it.
+  makeRttaMove(g, "P1", commit({
+    monumentsCompleted: ["Hanging Gardens"],
+    monumentBoxes: { "Hanging Gardens": 11, "Temple": 2 },
+  }));
+  assert.deepEqual(g.monuments["Hanging Gardens"], []);
+  assert.deepEqual(g.players.P1.monumentBoxes, { Temple: 2 });
+});
+
+test("the all-monuments end condition counts only in-play monuments", () => {
+  const g = twoHumans();
+  // The six monuments in play for 2 players — Hanging Gardens is not required.
+  const inPlay = ["Step Pyramid", "Stone Circle", "Temple", "Obelisk", "Great Wall", "Great Pyramid"];
+  makeRttaMove(g, "P1", commit({ monumentsCompleted: inPlay }));
+  makeRttaMove(g, "P2", commit());
+  assert.equal(g.status, "complete");
+  assert.equal(g.winner, "P1");
+});
+
+test("bots never build monuments that are out of play for the seat count", () => {
+  const g = newRttaGame();
+  initRttaSeats(g, [bot("P1", "Bot 1"), bot("P2", "Bot 2")]); // runs to completion
+  assert.equal(g.status, "complete");
+  assert.deepEqual(g.monuments["Hanging Gardens"], []);
 });
 
 test("the game ends when a player owns 5 developments", () => {
