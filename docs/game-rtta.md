@@ -13,7 +13,11 @@ take disasters) → Build (cities + monuments) → Buy a development → Discard
 player lands on Discard they submit; the round only **resolves once every human has
 submitted** (a per-round barrier). Then cross-player disasters fire, the shared
 scoreboard updates, and the next round begins. The game ends when any player owns
-**5 developments** or **all 7 monuments** are built; highest score wins.
+**5 developments** or **every monument in play** is built; highest score wins. The
+monument set scales with seat count (Temple and Great Pyramid need 2+ players,
+Hanging Gardens 3+) — `monumentsInPlay` on the server and the client's `players`
+thresholds agree (parity-tested), and the board renders the set for the room's
+actual seat count.
 
 ## Sync model — live-round, two-phase barrier
 
@@ -57,6 +61,13 @@ Resolved once when the barrier closes (`resolveDisasters`), from each player's
   loses 3 points.
 - **Revolt** (5+ skulls) with **Religion** — wipes every opponent's goods.
 
+Self-inflicted disasters resolve on the client during Upkeep and arrive inside the
+commit: Drought (exactly 2 skulls, −2 unless Irrigation), Invasion (exactly 4,
+−4 unless Great Wall), and Revolt without Religion (5+, all own goods wiped after
+collection). Engineering spends stone by choice (a tap-to-convert chip on the
+Build page, 3 workers per stone, undoable); Granaries sells food into a dev
+purchase via a cycling 🌾 chip (4 coins each).
+
 Each is recorded in `pending_events` (`{ from, kind, to[], amount }`). On the review
 screen `render.js` animates them: **3 skulls fly from the pestilent player's
 standings row to every opponent struck**, the row flashes red, and its Total ticks
@@ -67,7 +78,7 @@ never replays it.
 
 `workers/games/rtta/ai.js` — a deliberately light family-game opponent (not an
 optimiser): a rough per-round worker yield poured into the cheapest unclaimed
-monument (completing it when reached), leftover workers grow a city, and the cheapest
+**in-play** monument (completing it when reached), leftover workers grow a city, and the cheapest
 still-missing development bought now and then (more eagerly at higher levels — which
 is also how a bot drives the game toward its end). Bots keep no skulls, so they never
 trigger disasters. Cost tables are duplicated in `ai.js` to avoid an import cycle.
