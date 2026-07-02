@@ -4,13 +4,15 @@ The front door for "I want to add a game — here are the rules for coding." It 
 a checklist and an AI-handoff brief in one. It does not replace the owner docs;
 it routes to them and names the exact code touchpoints.
 
-Adding a game has an optional prototype step and **two required phases**:
+Adding a game has an optional prototype step and **three required phases**:
 
 0. **Prototype** (optional, recommended for novel games) — prove the feel and
    rules standalone in the `AI/` sandbox, off the server, behind clean hooks.
 1. **Design** — answer the Intake Survey, then run the result through AREC.
 2. **Build** — the vertical slice: rules module + client module + predicate +
    registry row.
+3. **Verify** — run the Verification Gates (each in a fresh session) and collect
+   their receipts in the game's `PLAN.md`. No receipts → not done.
 
 Do not write the **integrated** game (the `rules.js` / `client.js` / registry
 wiring) until the survey is answered and AREC has passed — that gate decides the
@@ -145,6 +147,23 @@ game sends to the server. Everything else is local.
   flow**. The default answer is "all of it."
 - If something genuinely cannot reuse the platform path, say *what* and *why* in
   `PLAN.md` — that is an AREC-worthy exception, not a default.
+
+### H. Rules source & deviations
+
+Division of labor, stated plainly: **for a cloned game the published rulebook is
+the spec, and the session building/verifying the game is accountable for fidelity
+to it; the human is accountable for feel and intended deviations.** The human
+does not need to master the rules to commission the game — but fidelity must be
+*someone's* job (RTTA shipped four rules bugs because it was nobody's).
+
+- **Clone or original?** For a clone, drop the published rulebook into
+  `AI/<game>/` — it becomes the spec the **rules-fidelity gate** holds the build
+  to. For an original, the rules live in the owner's head; the gate runs in
+  interview mode instead.
+- List every **intended deviation** in `PLAN.md` — house rules, mobile/family
+  simplifications, automation (e.g. auto-discarding excess goods), N-player
+  scaling choices. An unlisted difference from the rulebook is a bug by
+  definition; a listed one is a product decision.
 
 ---
 
@@ -342,6 +361,13 @@ game hits (all learned on Yahtzee):
   the projection's emitted fields in lockstep, and assert the projected shape in a
   test, not just the internal state.
 - **Bots run the human path.** No bot-only rule mutations.
+- **Rule maths lives DOM-free.** Every Rules-Ledger row is implemented in a
+  rules module (client `rules.js` and/or worker `rules.js`) and pinned by a
+  browser-free test. UI files render outcomes and capture intent — they never
+  *compute* rule outcomes. (RTTA's lifted turn engine computed rules in the DOM
+  — reading state out of CSS classes — so no test could see them; that is how
+  four rules bugs shipped.) A headless engine is also what makes bot
+  benchmarking, self-play, and future bot training possible at all.
 - **Declare the timing mode.** Turn-based is supported today; solo/real-time is a
   product decision first.
 - **Lowercase directory names.** A capital-cased dir (e.g. `Quoridor/`) collides
@@ -353,12 +379,94 @@ game hits (all learned on Yahtzee):
 
 ---
 
+## Verification Gates — fresh-session checks
+
+A gate is a checklist written as an **executable prompt**. Open a **fresh
+session** — no build context; independent eyes are the point, the same
+incentive-separation the placement/steward split buys — and say:
+
+> Run the **<name>** gate from `docs/adding-a-game.md` against `<game>`.
+
+The session runs the gate, reports gaps ranked by severity, and appends a
+**receipt** to the game's `PLAN.md` (create the file if the game predates it):
+
+```text
+GATE <name> — <date> — <pass | N gaps> — one line per gap → resolution
+```
+
+A gate that leaves no receipt did not run. Gates are **read-only**: they find,
+rank, and record; fixing is normal implementer work afterwards, and a gate with
+gaps is re-run after the fixes until its receipt says pass.
+
+### Gate: Rules fidelity
+
+**Inputs:** the source rulebook in `AI/<game>/` (reading it is explicitly
+authorized when running this gate), the deviations list in `PLAN.md` (Survey H),
+and the game's client + server rules code. Original game with no rulebook →
+interview the owner first and write the ledger from their answers.
+
+**Do:** build an effect-by-effect **Rules Ledger** from the rulebook — one row
+per die face, card, development, disaster, phase step, and end condition:
+
+| Effect | Fires when (phase) | Exactly (cost → effect) | Bounds | Touches | Owner | Pinned by (test) |
+|---|---|---|---|---|---|---|
+
+Interrogate every row with the classic gap questions: what is **consumed** vs
+kept · **exactly N** or N-or-more · does it **add or replace** · does it hit
+**self or opponents** · is it usable **the turn it is acquired**? Then diff each
+row against the implementation and classify: **correct / wrong / missing /
+intentional deviation** (cite the `PLAN.md` decision).
+
+**Also check:** every on-screen ability/help/disaster text matches actual
+behavior (the on-screen card is a contract with the player); client and server
+data tables agree *and are parity-tested*; every end condition is reachable at
+every legal player count.
+
+**Output:** ranked gap list + receipt. Save the ledger itself into `PLAN.md` —
+it doubles as the single source for the UI's ability text.
+
+*(Calibration: run against pre-fix RTTA, this gate must catch all four shipped
+bugs — Engineering not consuming stone, invasion at ≥4 instead of exactly 4,
+Granaries unusable in payment, and the monument set ignoring seat count.)*
+
+### Gate: Projection
+
+The projection IS the wire contract. **Do:** list every field the client reads
+off `ctx.game` / a seat projection; diff against what `toDict` emits. Flag any
+field **read but never emitted** (it fails *silently* as `undefined`) and any
+**emitted but never read** (dead weight or a missed feature). Confirm a test
+asserts the projected shape, not just internal state.
+
+### Gate: Sibling parity
+
+**Do:** walk the sibling-path list (CLAUDE.md): bot vs human · hot-seat vs
+multi-device rooms · reconnect/resume vs initial join · public vs private view ·
+minimum vs maximum player count · mobile touch vs desktop pointer. For each pair
+sharing a contract: same rules, same outcome? Bots must run the human rules path
+with no bot-only shortcuts — and must not act on state humans cannot reach
+(RTTA's bots built monuments that were out of play for the seat count).
+
+### Gate: Resilience
+
+**Do:** at every server commit point, ask what happens on: duplicate submit ·
+stale payload from a previous round · out-of-order arrival · refresh mid-turn ·
+duplicate tab · socket drop while a barrier is held · hostile/garbage field
+values (the server must clamp or reject — trust-but-clamp is the floor for
+family games, re-validation the ceiling). Confirm dev fails loud, prod fails
+graceful, and nothing polls or rewrites needlessly (Cloudflare quota).
+
+---
+
 ## Before you ship
 
+- **All four Verification Gates have `pass` receipts in the game's `PLAN.md`**
+  (rules fidelity, projection, sibling parity, resilience) — each run in a fresh
+  session. No receipt → the gate did not run → the game is not done.
 - **Rules tests pass with no browser.**
 - **Sibling-path review** — hot-seat vs multi-device, bot vs human, public vs
   private view, reconnect vs initial join, mobile vs desktop. If a sibling path
-  is in scope, update and test it too.
+  is in scope, update and test it too. (The sibling-parity gate is the formal
+  pass; this is the reminder to fix what it finds.)
 - **Multiplayer resilience** — assume reconnects, duplicate tabs, dropped
   sockets, bad codes; fail loud in dev, graceful in prod; use the room WebSocket
   path for active updates; avoid needless polling/writes.
