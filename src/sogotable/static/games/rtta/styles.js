@@ -181,9 +181,9 @@ export const RTTA_CSS = `
 .rtta-root .die.roll.bank.ready{animation:rtta-blink .9s ease-in-out infinite}
 /* Leadership armed: any die may be rerolled once after the final roll */
 .rtta-root .die.lead-glow{outline:2px dashed var(--gold);outline-offset:-2px}
-/* a disaster row a development/monument covers: grayed with a check, never red */
-.rtta-root .drow.immune{opacity:.5}
-.rtta-root .drow.immune .ef::after{content:' ✓ covered';color:#5fae3a;font-weight:bold}
+/* a disaster row a development/monument covers explains itself in green */
+.rtta-root .drow.immune .ef{color:#5fae3a}
+.rtta-root .drow.immune .sk{opacity:.45}
 .rtta-root .die.fed{box-shadow:inset 0 0 0 3px #5fae3a,0 4px 0 #9c8458,0 6px 10px rgba(0,0,0,.45)}
 
 /* build page workers-to-spend + dev payment chips */

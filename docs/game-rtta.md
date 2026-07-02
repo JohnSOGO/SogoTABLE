@@ -46,11 +46,14 @@ round**, not per-die/per-build messages.
   server seat (cities → dice, food, goods, owned developments, monument boxes,
   cumulative points lost), plays the local turn, and on **Submit** packages ONE
   `COMMIT_TURN` → `ctx.makeMove`.
-- **The commit contract:** `{ type:"COMMIT_TURN", cities, food, goods[5],
-  monumentBoxes{}, monumentsCompleted[], devBought, skulls, pointsLostSelf }`.
-  `cities/food/goods/monumentBoxes` are **absolute**; `devBought/monumentsCompleted/
-  skulls/pointsLostSelf` are **this-turn deltas**. The server clamps ranges and
-  ignores an already-recorded monument or an owned/unknown development (idempotent).
+- **The commit contract:** `{ type:"COMMIT_TURN", cities, cityBoxes[4], food,
+  goods[5], monumentBoxes{}, monumentsCompleted[], devBought, skulls,
+  pointsLostSelf }`. `cityBoxes/food/goods/monumentBoxes` are **absolute** —
+  `cityBoxes` carries partial worker progress on the 4th–7th city (persists
+  between rounds like the paper sheet; the server DERIVES `cities` from full
+  slots). `devBought/monumentsCompleted/skulls/pointsLostSelf` are **this-turn
+  deltas**. The server clamps ranges and ignores an already-recorded monument or
+  an owned/unknown development (idempotent).
 - **`READY_NEXT`** (`{ type:"READY_NEXT" }`) leaves the review screen.
 - **Reconnect** re-seeds the board from the last server seat; an uncommitted turn is
   replayed from the authoritative state (nothing half-applied server-side).

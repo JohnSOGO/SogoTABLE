@@ -51,7 +51,15 @@ the 2025 PDF contains no monument table (score sheet is the only source).
   ledger had no Setup row and missed it; the gate doc now requires a
   "Setup: starting resources" row). Rulebook Setup, verbatim: "Each player sets
   their food peg to 3." Pinned by a setup test.
-- Still open from the gate runs: partial-city persistence (fidelity gap 2),
+- **Partial city progress persists** (2026-07-02, fidelity gap 2 closed):
+  `cityBoxes[4]` joined the commit contract, seat, and projection; the server
+  derives the city count from full slots and clamps each slot; the board seeds
+  and locks carried progress. Legacy count-only commits (bots) still work.
+- **Unfinished-purchase guard** (2026-07-02): Submit no longer silently cancels
+  a fully-funded development purchase that was never confirmed — it navigates
+  to the Dev page with an alert instead (the likely cause of "my development
+  points are missing" reports; server scoring itself verified correct).
+- Still open from the gate runs:
   same-turn purchase-vs-disaster ordering (gap 5 in the 10-gap receipt),
   tiebreak by goods value, solo-as-solitaire, resilience gaps 1–5 (stranded
   failed commit, round stamp, completion cross-check, goods clamp, silent

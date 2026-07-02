@@ -388,12 +388,27 @@ export function createRttaBoard(root, opts) {
   // --- score-sheet data build ----------------------------------------------
   const box = (cls, txt) => { const b = document.createElement("div"); b.className = "box" + (cls ? " " + cls : ""); if (txt != null) b.textContent = txt; return b; };
 
+  // Cities seed from the seat's cityBoxes — partial worker progress persists
+  // between rounds exactly like the paper score sheet (and like monuments).
+  // Seeded boxes are locked; a slot is "done" when its boxes are full.
+  const cityBoxesState = [0, 0, 0, 0];
+  const seedCityBoxes = (Array.isArray(seat.cityBoxes) && seat.cityBoxes.length === 4)
+    ? seat.cityBoxes
+    : [0, 1, 2, 3].map((s) => (s < builtCities - MIN_CITIES ? CITY_COSTS[s + MIN_CITIES] : 0));
   const cityRow = gid("cityRow");
   CITY_COSTS.forEach((cost, i) => {
     const c = document.createElement("div");
-    c.className = "city" + (cost == null || i < builtCities ? " done" : "");
+    const seeded = cost == null ? 0 : Math.max(0, Math.min(cost, seedCityBoxes[i - MIN_CITIES] || 0));
+    const full = cost == null || seeded >= cost;
+    c.className = "city" + (full ? " done" : "");
     c.innerHTML = buildCitySVG(cost, i) + '<div class="num">City ' + (i + 1) + "</div>";
-    if (cost != null && i < builtCities) c.dataset.locked = String(cityCost(i));   // seeded-built cities can't be undone
+    if (cost != null) {
+      c.dataset.locked = String(seeded);   // seeded progress can't be undone
+      c.dataset.slot = String(i - MIN_CITIES);
+      cityBoxesState[i - MIN_CITIES] = seeded;
+      const boxes = [...c.querySelectorAll(".wbox")].sort(wboxOrder);
+      for (let k = 0; k < seeded; k++) boxes[k].classList.add("filled");
+    }
     cityRow.appendChild(c);
   });
 
@@ -460,6 +475,14 @@ export function createRttaBoard(root, opts) {
   function submitTurn() {
     if (submitted) return;
     if (!upkeepDone) { showPage("dice"); return; }   // must run upkeep first
+    if (payDev && paidTotal() >= devCost(payDev)) {
+      // A fully-funded purchase was never confirmed — don't silently drop it.
+      showPage("dev");
+      const tip = gid("tipStrip");
+      tip.innerHTML = "💰 <b>Unfinished purchase</b> — tap <b>✓ Buy</b> to take it, or tap the cost to cancel. Then submit.";
+      tip.classList.add("alert");
+      return;
+    }
     if (payDev) cancelPay();
     goodsHeld = discardExcess(goodsHeld, ownsAll());
     markGoodsChart();
@@ -468,8 +491,8 @@ export function createRttaBoard(root, opts) {
     const sub = gid("submitBtn"); if (sub) { sub.textContent = "✓ Turn submitted"; sub.disabled = true; sub.classList.remove("ready"); }
     gid("rttaStatus").textContent = "Waiting for the other players to finish…";
     onCommit(buildCommitPayload({
-      cities: builtCities, food, goods: goodsHeld, monumentBoxes: monBoxes,
-      devBought: boughtDev, skulls: turnSkulls, pointsLostSelf: turnLost,
+      cities: builtCities, cityBoxes: cityBoxesState, food, goods: goodsHeld,
+      monumentBoxes: monBoxes, devBought: boughtDev, skulls: turnSkulls, pointsLostSelf: turnLost,
     }));
   }
 
@@ -506,11 +529,11 @@ export function createRttaBoard(root, opts) {
     el.innerHTML = buildMonSVG(m) + '<div class="mon-foot"><span class="mscore">' + m.first + '</span><span class="mname">' + m.name + "</span></div>";
     return el;
   }
-  const wboxOrder = (a, b) => {
+  function wboxOrder(a, b) {   // hoisted: city seeding above runs before this line
     const ra = a.querySelector("rect"), rb = b.querySelector("rect");
     const dy = (+rb.getAttribute("y")) - (+ra.getAttribute("y"));
     return dy !== 0 ? dy : (+ra.getAttribute("x")) - (+rb.getAttribute("x"));
-  };
+  }
   function buildAdd(tile) {
     if (submitted) return;
     const boxes = [...tile.querySelectorAll(".wbox")];
@@ -521,6 +544,7 @@ export function createRttaBoard(root, opts) {
     if (boxes.length && filledCount < boxes.length && workersToSpend > 0) {
       boxes.sort(wboxOrder); boxes[filledCount].classList.add("filled");
       if (tile.classList.contains("mon")) monBoxes[tile.dataset.name] = filledCount + 1;
+      else if (tile.dataset.slot != null) cityBoxesState[+tile.dataset.slot] = filledCount + 1;
       workersToSpend--; gid("tWorkBuild").textContent = workersToSpend;
       if (workersToSpend === 0) blinkTab("dev");
       renderEng();
@@ -534,6 +558,7 @@ export function createRttaBoard(root, opts) {
     if (filled.length <= locked) return;
     [...tile.querySelectorAll(".wbox")].sort(wboxOrder)[filled.length - 1].classList.remove("filled");
     if (tile.classList.contains("mon")) monBoxes[tile.dataset.name] = filled.length - 1;
+    else if (tile.dataset.slot != null) cityBoxesState[+tile.dataset.slot] = filled.length - 1;
     workersToSpend++; gid("tWorkBuild").textContent = workersToSpend;
     renderEng();
     if (tile._builtTimer) { clearTimeout(tile._builtTimer); tile._builtTimer = null; }
@@ -591,10 +616,15 @@ export function createRttaBoard(root, opts) {
   // Disasters list + points-lost grid
   const disList = gid("disList");
   DISASTERS.forEach((d) => { disList.insertAdjacentHTML("beforeend", '<div class="drow" data-skulls="' + d.count + '"><span class="sk">' + d.sk + '</span><span class="ef">' + d.ef + "</span></div>"); });
-  // A disaster row you are covered against grays out with a ✓ instead of
-  // red-highlighting a penalty that will not happen: Drought ↔ Irrigation,
-  // Invasion ↔ a completed Great Wall, Revolt ↔ Religion (redirected).
+  // A disaster row you are covered against says WHY it can't hurt you instead
+  // of listing a penalty that will not happen: Drought ↔ Irrigation, Invasion ↔
+  // a completed Great Wall, Revolt ↔ Religion (redirected at your opponents).
   const wallWorkers = MONUMENTS.find((m) => m.name === "Great Wall").w;
+  const IMMUNE_EF = {
+    2: "Irrigation prevents Drought — no effect",
+    4: "Great Wall prevents Invasion — no effect",
+    5: "Religion turns Revolt on opponents — they lose their goods",
+  };
   function refreshDisasterImmunity() {
     qsa("#disList .drow").forEach((r) => {
       const n = +r.dataset.skulls;
@@ -603,6 +633,8 @@ export function createRttaBoard(root, opts) {
         (n === 4 && (monBoxes["Great Wall"] || 0) >= wallWorkers) ||
         (n === 5 && ownsDev("Religion"));
       r.classList.toggle("immune", immune);
+      const ef = r.querySelector(".ef");
+      if (ef) ef.textContent = immune ? IMMUNE_EF[n] : DISASTERS.find((d) => d.count === n).ef;
     });
   }
   function highlightDisaster(skulls) {

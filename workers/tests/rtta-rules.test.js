@@ -3,9 +3,11 @@ import test from "node:test";
 import {
   newRttaGame, initRttaSeats, makeRttaMove, rttaGameToDict, rttaScoreByMark,
   MONUMENTS as SERVER_MONUMENTS, DEVELOPMENTS as SERVER_DEVELOPMENTS,
+  CITY_BOX_COSTS as SERVER_CITY_BOX_COSTS,
 } from "../games/rtta/rules.js";
 import {
   MONUMENTS as CLIENT_MONUMENTS, DEVELOPMENTS as CLIENT_DEVELOPMENTS,
+  CITY_COSTS as CLIENT_CITY_COSTS, MIN_CITIES,
 } from "../../src/sogotable/static/games/rtta/rules.js";
 
 const human = (mark, name) => ({ mark, name, kind: "human" });
@@ -53,6 +55,10 @@ test("data parity: development cost + VP agree across client and server", () => 
     assert.equal(c.cost, s.cost, `${name}: coin cost differs (client ${c.cost} vs server ${s.cost})`);
     assert.equal(c.vp, s.vp, `${name}: VP differs (client ${c.vp} vs server ${s.vp})`);
   }
+});
+
+test("data parity: city worker costs agree across client and server", () => {
+  assert.deepEqual(CLIENT_CITY_COSTS.slice(MIN_CITIES), SERVER_CITY_BOX_COSTS);
 });
 
 test("round starts in the playing phase, not yet resolved", () => {
@@ -164,6 +170,32 @@ test("Architecture (+2/monument) and Empire (+1/city) bonuses apply", () => {
   makeRttaMove(g, "P1", commit({ cities: 5, devBought: "Empire" }));
   // prev 15 + Empire 10 + 5 cities = 30
   assert.equal(g.players.P1.score, 30);
+});
+
+test("partial city progress persists and the city count derives from full slots", () => {
+  const g = twoHumans();
+  // 2 boxes into the 4th city (cost 3): still 3 cities, progress kept.
+  makeRttaMove(g, "P1", commit({ cityBoxes: [2, 0, 0, 0] }));
+  makeRttaMove(g, "P2", commit());
+  assert.equal(g.players.P1.cities, 3);
+  assert.deepEqual(g.players.P1.cityBoxes, [2, 0, 0, 0]);
+  assert.deepEqual(rttaGameToDict(g).players.find((p) => p.mark === "P1").cityBoxes, [2, 0, 0, 0]);
+  makeRttaMove(g, "P1", { type: "READY_NEXT" });
+  makeRttaMove(g, "P2", { type: "READY_NEXT" });
+  // Next round: finish the 4th city and start the 5th.
+  makeRttaMove(g, "P1", commit({ cityBoxes: [3, 1, 0, 0] }));
+  assert.equal(g.players.P1.cities, 4);
+  assert.deepEqual(g.players.P1.cityBoxes, [3, 1, 0, 0]);
+});
+
+test("cityBoxes are clamped and a legacy count-only commit still works", () => {
+  const g = twoHumans();
+  makeRttaMove(g, "P1", commit({ cityBoxes: [99, -2, 4, 6] }));  // → [3, 0, 4, 6]: 4th + 7th full (6th is 4/5)
+  assert.deepEqual(g.players.P1.cityBoxes, [3, 0, 4, 6]);
+  assert.equal(g.players.P1.cities, 5);
+  makeRttaMove(g, "P2", commit({ cities: 5 }));                  // legacy: no cityBoxes field
+  assert.equal(g.players.P2.cities, 5);
+  assert.deepEqual(g.players.P2.cityBoxes, [3, 4, 0, 0]);        // synthesized full slots
 });
 
 test("a commit claiming an out-of-play monument is ignored (2-player game)", () => {
