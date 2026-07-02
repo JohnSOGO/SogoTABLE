@@ -193,59 +193,42 @@ function eventsHtml(game, room, mySeat, myMark) {
   return lines.length ? `<p class="rtta-status">${lines.join("<br>")}</p>` : "";
 }
 
-// Shared standings: Player · Cities · Mon · Devs · −Lost · Total, sorted desc.
+// Shared standings — EVERY column is points (points are what players care
+// about): Dev + Mon + Bonus − Lost = Total. Parts come from scoreBreakdown on
+// the parity-tested client tables; Total stays the server's authoritative
+// seat.score (simulation-verified equal to the parts).
 function standingsHtml(game, room, myMark) {
-  const monBuilt = {};
-  for (const name of Object.keys(game.monuments || {})) {
-    for (const mark of game.monuments[name] || []) monBuilt[mark] = (monBuilt[mark] || 0) + 1;
-  }
   const rows = game.players
-    .map((seat) => ({
-      seat,
-      cities: seat.cities || 0,
-      mon: monBuilt[seat.mark] || 0,
-      devs: Array.isArray(seat.developments) ? seat.developments.length : 0,
-      lost: seat.points_lost || 0,
-      total: seat.score || 0,
-    }))
+    .map((seat) => {
+      const monuments = [];
+      for (const name of Object.keys(game.monuments || {})) {
+        const idx = (game.monuments[name] || []).indexOf(seat.mark);
+        if (idx === -1) continue;
+        const m = MON_BY_NAME[name];
+        if (m) monuments.push({ vp: idx === 0 ? m.first : m.later });
+      }
+      const b = scoreBreakdown({
+        developments: seat.developments || [],
+        monuments,
+        cities: seat.cities || 3,
+        pointsLost: seat.points_lost || 0,
+      });
+      return { seat, b, total: seat.score || 0 };
+    })
     .sort((a, b) => b.total - a.total)
-    .map(({ seat, cities, mon, devs, lost, total }) => {
+    .map(({ seat, b, total }) => {
       const me = seat.mark === myMark;
       const win = game.status === "complete" && seat.mark === game.winner;
       const name = seatName(room, seat.mark);
       const emoji = seatEmoji(room, seat.mark);
       return `<tr data-mark="${escapeName(seat.mark)}" class="${me ? "me" : ""}${win ? " win" : ""}">
         <td>${win ? "🏆 " : ""}${emoji} ${escapeName(name)}${seat.is_bot ? " 🤖" : ""}</td>
-        <td>${cities}</td><td>${mon}</td><td>${devs}</td><td>${lost}</td><td class="tot"><b>${total}</b></td>
+        <td>${b.dev}</td><td>${b.mon}</td><td>${b.bonus}</td><td>${b.dis ? "−" + b.dis : 0}</td><td class="tot"><b>${total}</b></td>
       </tr>`;
     }).join("");
   return `<table class="scoretab">
-    <tr><th>Player</th><th>Cities</th><th>Mon</th><th>Dev</th><th>−Lost</th><th>Total</th></tr>
-    ${rows}</table>${myBreakdownHtml(game, myMark)}`;
-}
-
-// "Your score" in points under the table — the columns above are COUNTS, and
-// count-vs-points is a real confusion (a Dev column of 3 can be 8 points).
-// Computed from the parity-tested client tables; always matches seat.score.
-function myBreakdownHtml(game, myMark) {
-  const seat = (game.players || []).find((s) => s.mark === myMark);
-  if (!seat) return "";
-  const monuments = [];
-  for (const name of Object.keys(game.monuments || {})) {
-    const idx = (game.monuments[name] || []).indexOf(myMark);
-    if (idx === -1) continue;
-    const m = MON_BY_NAME[name];
-    if (m) monuments.push({ vp: idx === 0 ? m.first : m.later });
-  }
-  const b = scoreBreakdown({
-    developments: seat.developments || [],
-    monuments,
-    cities: seat.cities || 3,
-    pointsLost: seat.points_lost || 0,
-  });
-  return `<p class="rtta-mybreak">Your points: 📜 Dev <b>${b.dev}</b> + 🏛️ Mon <b>${b.mon}</b>`
-    + (b.bonus ? ` + ✨ Bonus <b>${b.bonus}</b>` : "")
-    + ` − 💀 <b>${b.dis}</b> = <b>${b.total}</b></p>`;
+    <tr><th>Player</th><th>📜 Dev</th><th>🏛️ Mon</th><th>✨ Bonus</th><th>💀 Lost</th><th>Total</th></tr>
+    ${rows}</table>`;
 }
 
 function markForPlayer(room, playerId) {

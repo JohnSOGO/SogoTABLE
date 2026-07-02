@@ -110,10 +110,6 @@ export const RTTA_CSS = `
 .rtta-root .row.dev.paying{outline:1px solid var(--gold);outline-offset:-1px}
 .rtta-root .row.dev.unaffordable{opacity:.38}
 
-/* "Your points" breakdown under the standings table */
-.rtta-root .rtta-mybreak{margin:7px 0 0;font-size:.66rem;color:var(--muted);text-align:center}
-.rtta-root .rtta-mybreak b{color:var(--gold)}
-
 /* score table on the Discard tab */
 .rtta-root .scoretab{width:100%;border-collapse:collapse;font-size:.72rem}
 .rtta-root .scoretab th,.rtta-root .scoretab td{padding:5px 4px;text-align:center;border-bottom:1px solid #36291d}
