@@ -63,6 +63,7 @@ export function createRttaBoard(root, opts) {
   const payGoods = new Set();
   let payCoins = false;
   let payFood = 0;                           // food sold into the current dev purchase (Granaries)
+  let lastFoodTap = 0;                       // for the quick-second-tap-to-clear gesture
   // monuments seeded from the seat/game, re-applied whenever the tiles re-render
   const monSeed = {};                        // name -> {filled, built}
   for (const m of MONUMENTS) {
@@ -413,11 +414,17 @@ export function createRttaBoard(root, opts) {
     if (!payDev) return;
     const cost = devCost(payDev), paid = paidTotal();
     let html = '<span class="paylbl">Pay ' + cost + " →</span>";
+    // Granaries food leads the strip — the buff that is easiest to forget you
+    // can cash in. Tap cycles the count (rulebook: any number of food, 6 coins
+    // each, during the Buy step); a quick second tap clears back to zero.
+    if (ownsDev("Granaries") && (food > 0 || payFood > 0)) {
+      const label = payFood > 0
+        ? "🌾×" + payFood + " = " + (payFood * GRANARIES_RATE)
+        : "🌾 sell food · " + GRANARIES_RATE + " ea";
+      html += '<span class="cashchip pay' + (payFood > 0 ? " on" : "") + '" data-food="1">' + label + "</span>";
+    }
     if (coinValue() > 0) html += '<span class="cashchip pay' + (payCoins ? " on" : "") + '" data-coins="1">🪙 ' + coinValue() + "</span>";
     goodsHeld.forEach((q, i) => { if (q > 0) html += '<span class="cashchip pay' + (payGoods.has(i) ? " on" : "") + '" data-good="' + i + '">' + GOODS[i].name.split(" ")[0] + " " + goodValueLocal(i) + "</span>"; });
-    if (ownsDev("Granaries") && (food > 0 || payFood > 0)) {
-      html += '<span class="cashchip pay' + (payFood > 0 ? " on" : "") + '" data-food="1">🌾×' + payFood + " = " + (payFood * GRANARIES_RATE) + "</span>";
-    }
     html += '<span class="paystat' + (paid >= cost ? " ok" : "") + '">' + paid + "/" + cost + "</span>";
     if (paid >= cost) html += '<button class="cashchip paybuy" id="payConfirm">✓ Buy</button>';
     gid("goodsCash").innerHTML = html;
@@ -602,7 +609,12 @@ export function createRttaBoard(root, opts) {
     const paychip = e.target.closest("#goodsCash .cashchip.pay");
     if (paychip && payDev) {
       if (paychip.dataset.coins) payCoins = !payCoins;
-      else if (paychip.dataset.food) payFood = (payFood + 1) % (food + 1);   // cycle 0..food
+      else if (paychip.dataset.food) {
+        const now = Date.now();
+        if (now - lastFoodTap < 250) payFood = 0;                     // quick second tap clears
+        else payFood = (payFood + 1) % (food + 1);                    // cycle 0..food
+        lastFoodTap = now;
+      }
       else { const gi = +paychip.dataset.good; payGoods.has(gi) ? payGoods.delete(gi) : payGoods.add(gi); }
       renderPay(); return;
     }
