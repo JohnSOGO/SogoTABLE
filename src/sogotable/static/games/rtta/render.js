@@ -15,6 +15,7 @@
 import { renderHostStartLobby } from "../lobby.js";
 import { RTTA_CSS } from "./styles.js";
 import { createRttaBoard } from "./board.js";
+import { scoreBreakdown, MON_BY_NAME } from "./rules.js";
 
 let board = null;       // the mounted turn engine (during "playing")
 let mountedKey = "";    // room:epoch:round the board was built for
@@ -220,7 +221,31 @@ function standingsHtml(game, room, myMark) {
     }).join("");
   return `<table class="scoretab">
     <tr><th>Player</th><th>Cities</th><th>Mon</th><th>Dev</th><th>−Lost</th><th>Total</th></tr>
-    ${rows}</table>`;
+    ${rows}</table>${myBreakdownHtml(game, myMark)}`;
+}
+
+// "Your score" in points under the table — the columns above are COUNTS, and
+// count-vs-points is a real confusion (a Dev column of 3 can be 8 points).
+// Computed from the parity-tested client tables; always matches seat.score.
+function myBreakdownHtml(game, myMark) {
+  const seat = (game.players || []).find((s) => s.mark === myMark);
+  if (!seat) return "";
+  const monuments = [];
+  for (const name of Object.keys(game.monuments || {})) {
+    const idx = (game.monuments[name] || []).indexOf(myMark);
+    if (idx === -1) continue;
+    const m = MON_BY_NAME[name];
+    if (m) monuments.push({ vp: idx === 0 ? m.first : m.later });
+  }
+  const b = scoreBreakdown({
+    developments: seat.developments || [],
+    monuments,
+    cities: seat.cities || 3,
+    pointsLost: seat.points_lost || 0,
+  });
+  return `<p class="rtta-mybreak">Your points: 📜 Dev <b>${b.dev}</b> + 🏛️ Mon <b>${b.mon}</b>`
+    + (b.bonus ? ` + ✨ Bonus <b>${b.bonus}</b>` : "")
+    + ` − 💀 <b>${b.dis}</b> = <b>${b.total}</b></p>`;
 }
 
 function markForPlayer(room, playerId) {
