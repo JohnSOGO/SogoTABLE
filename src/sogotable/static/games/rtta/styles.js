@@ -201,6 +201,7 @@ export const RTTA_CSS = `
 .rtta-root .power .plabel{font-size:.46rem;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
 .rtta-root .goods-cash{width:100%;max-width:460px;margin:-2px 0 10px;font-size:.62rem;display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:0 0 auto}
 .rtta-root .goods-cash .cashchip{background:#34281d;border:1px solid var(--edge);border-radius:7px;padding:2px 7px;color:var(--gold)}
+.rtta-root .goods-cash button.cashchip{font:inherit;font-size:.62rem;cursor:pointer}
 .rtta-root .nodis{color:var(--muted);font-size:.72rem}
 
 /* barrier / review status + submit button */
