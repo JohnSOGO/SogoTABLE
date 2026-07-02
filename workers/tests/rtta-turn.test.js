@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   tallyFaces, upkeepPlan, collectGoods, discardExcess, paymentTotal,
-  goodsSaleValue, engineeringConvert, buildCommitPayload, GRANARIES_RATE, GOODS,
+  engineeringConvert, buildCommitPayload, GRANARIES_RATE, GOODS,
 } from "../../src/sogotable/static/games/rtta/rules.js";
 
 const owns = (...names) => new Set(names);
@@ -106,28 +106,19 @@ test("discard: down to 6 total, cheapest rows first — Caravans exempt", () => 
 // --- paymentTotal / engineeringConvert ------------------------------------------
 
 test("payment: coins are all-or-nothing at 7 each — 12 with Coinage", () => {
-  const sel = { payCoins: true, payGoodsCounts: [0, 0, 0, 0, 0], payFood: 0 };
+  const sel = { payCoins: true, payGoods: new Set(), payFood: 0 };
   assert.equal(paymentTotal(sel, { coinCount: 2, goods: [0, 0, 0, 0, 0], owns: owns() }), 14);
   assert.equal(paymentTotal(sel, { coinCount: 2, goods: [0, 0, 0, 0, 0], owns: owns("Coinage") }), 24);
 });
 
-test("goods sale: partial sales take the topmost marginals (chart stays coherent)", () => {
-  assert.equal(goodsSaleValue(0, 3, 3), 6);   // whole 3-wood stack = 1×tri(3)
-  assert.equal(goodsSaleValue(0, 3, 1), 3);   // top wood of 3 = its position value
-  assert.equal(goodsSaleValue(0, 3, 2), 5);   // top two = 3 + 2
-  assert.equal(goodsSaleValue(4, 2, 1), 10);  // top spearhead of 2 = 5×2
-  assert.equal(goodsSaleValue(1, 2, 5), 6);   // over-ask clamps to the stack (2×tri(2))
-  assert.equal(goodsSaleValue(2, 0, 1), 0);   // empty stack sells nothing
-});
-
-test("payment: per-type counts sold off the top (house rule) sum with coins", () => {
-  const sel = { payCoins: false, payGoodsCounts: [1, 0, 0, 0, 2], payFood: 0 };
-  // top wood of 3 = 3; both spearheads of 2 = 5×(1+2) = 15
-  assert.equal(paymentTotal(sel, { coinCount: 0, goods: [3, 0, 0, 0, 2], owns: owns() }), 18);
+test("payment: whole goods stacks at chart value (base × triangular)", () => {
+  const sel = { payCoins: false, payGoods: new Set([0, 4]), payFood: 0 };
+  // 3 wood = 1×(1+2+3) = 6; 2 spearheads = 5×(1+2) = 15
+  assert.equal(paymentTotal(sel, { coinCount: 0, goods: [3, 0, 0, 0, 2], owns: owns() }), 21);
 });
 
 test("payment: Granaries food sells at the Granaries rate", () => {
-  const sel = { payCoins: false, payGoodsCounts: [0, 0, 0, 0, 0], payFood: 3 };
+  const sel = { payCoins: false, payGoods: new Set(), payFood: 3 };
   assert.equal(paymentTotal(sel, { coinCount: 0, goods: [0, 0, 0, 0, 0], owns: owns("Granaries") }), 3 * GRANARIES_RATE);
 });
 

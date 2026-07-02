@@ -25,10 +25,9 @@ the 2025 PDF contains no monument table (score sheet is the only source).
   use a deterministic worker yield and never keep skulls. (Documented in
   `docs/game-rtta.md`; tension with the "bots run the human rules path" hard rule.)
 - **Longer Game variant (6 developments)** — intentionally not implemented.
-- **Partial goods payment** (MojoSOGO, 2026-07-02) — the rulebook spends goods
-  as whole stacks with no change; SogoTable sells goods **individually, off the
-  top of each stack** (each chip shows its position value, so the remaining
-  stack still matches the chart). Kinder to players: less overpay waste.
+- **Whole-stack goods payment stands** — a partial-goods (sell-off-the-top)
+  house rule shipped briefly on 2026-07-02 and was reverted the same day at
+  MojoSOGO's direction: the rulebook's whole-stack, no-change spend is the rule.
 
 ## Resolutions — 2026-07-01 (post-gate fix pass)
 
