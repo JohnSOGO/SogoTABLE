@@ -51,6 +51,12 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-kept b{color:var(--zd-ink);}
 .zombie-dice-root .zd-actions{display:flex;gap:10px;}
 .zombie-dice-root .zd-actions button{flex:1;padding:12px 8px;font-size:1.02rem;border-radius:12px;}
+/* The whole button face is one click target: hand cursor everywhere on it
+   (including over its label text), no text selection, and children never
+   intercept the pointer. */
+.zombie-dice-root button{cursor:pointer;user-select:none;-webkit-user-select:none;}
+.zombie-dice-root button:disabled{cursor:default;}
+.zombie-dice-root button *{pointer-events:none;}
 .zombie-dice-root .zd-actions .zd-bank{background:linear-gradient(180deg,#f2c85b,#d69a28);color:#2b1d04;
  border:none;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.4);}
 .zombie-dice-root .zd-actions .zd-bank:disabled{opacity:.4;box-shadow:none;}
