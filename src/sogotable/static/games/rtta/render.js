@@ -54,11 +54,11 @@ export function renderRttaGame(ctx) {
         myMark,
         round: game.round,
         players: (game.seat_order || game.players.map((p) => p.mark)).length,
-        scoreboardHtml: scoreboard,
+        scoreboard: (overlay) => standingsHtml(game, room, myMark, overlay),
         onCommit: (payload) => { ctx.makeMove(payload); },
       });
     } else {
-      board.setScoreboard(scoreboard);
+      board.setScoreboardBuilder((overlay) => standingsHtml(game, room, myMark, overlay));
     }
     return;
   }
@@ -196,24 +196,40 @@ function eventsHtml(game, room, mySeat, myMark) {
 // Shared standings — EVERY column is points (points are what players care
 // about): Dev + Mon + Bonus − Lost = Total. Parts come from scoreBreakdown on
 // the parity-tested client tables; Total stays the server's authoritative
-// seat.score (simulation-verified equal to the parts).
-function standingsHtml(game, room, myMark) {
+// seat.score — EXCEPT my own row while I play: `overlay` carries my in-progress
+// turn (dev bought, monuments completed, cities, points lost) so a purchase
+// projects into the standings the moment it happens (wu wei), not at the
+// barrier. A monument I completed this turn previews first-builder VP if no one
+// has claimed it in the snapshot (the server settles ties at the barrier).
+function standingsHtml(game, room, myMark, overlay) {
   const rows = game.players
     .map((seat) => {
+      const mine = !!overlay && seat.mark === myMark;
+      const devs = (seat.developments || []).slice();
+      if (mine && overlay.devBought && !devs.includes(overlay.devBought)) devs.push(overlay.devBought);
       const monuments = [];
+      const claimed = new Set();
       for (const name of Object.keys(game.monuments || {})) {
         const idx = (game.monuments[name] || []).indexOf(seat.mark);
         if (idx === -1) continue;
+        claimed.add(name);
         const m = MON_BY_NAME[name];
         if (m) monuments.push({ vp: idx === 0 ? m.first : m.later });
       }
+      if (mine) {
+        for (const name of overlay.monumentsCompleted || []) {
+          if (claimed.has(name)) continue;
+          const m = MON_BY_NAME[name];
+          if (m) monuments.push({ vp: (game.monuments[name] || []).length === 0 ? m.first : m.later });
+        }
+      }
       const b = scoreBreakdown({
-        developments: seat.developments || [],
+        developments: devs,
         monuments,
-        cities: seat.cities || 3,
-        pointsLost: seat.points_lost || 0,
+        cities: mine ? overlay.cities : (seat.cities || 3),
+        pointsLost: (seat.points_lost || 0) + (mine ? (overlay.pointsLost || 0) : 0),
       });
-      return { seat, b, total: seat.score || 0 };
+      return { seat, b, total: mine ? b.total : (seat.score || 0) };
     })
     .sort((a, b) => b.total - a.total)
     .map(({ seat, b, total }) => {
