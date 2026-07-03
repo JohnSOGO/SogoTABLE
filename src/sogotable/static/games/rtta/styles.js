@@ -156,6 +156,8 @@ export const RTTA_CSS = `
 .rtta-root .artdim{fill:#33271a}
 .rtta-root .green{fill:#5f9438}
 .rtta-root .wbox rect{fill:#1f1710;stroke:#7a6038;stroke-width:1.2;cursor:pointer}
+/* the build race: a rival has a worker here (my gold overrides where I match) */
+.rtta-root .wbox.rival rect{fill:#40201b;stroke:#d98a7a}
 .rtta-root .wbox text{text-anchor:middle;dominant-baseline:central;opacity:0;pointer-events:none;user-select:none}
 .rtta-root .wbox.filled rect{fill:#2a2018;stroke:var(--gold)}
 .rtta-root .wbox.other rect{fill:#1c2a33;stroke:#5aa0c8}

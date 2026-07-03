@@ -54,6 +54,11 @@ round**, not per-die/per-build messages.
   slots). `devBought/monumentsCompleted/skulls/pointsLostSelf` are **this-turn
   deltas**. The server clamps ranges and ignores an already-recorded monument or
   an owned/unknown development (idempotent).
+- **The Build page shows the race:** rivals' partial monument progress (from the
+  projection's per-seat `monumentBoxes`, refreshed mid-round as opponents
+  commit) tints worker boxes light red under my gold, and each monument badge
+  shows 🥇+first-VP while unclaimed, dropping to the later-builder VP once
+  someone scores it.
 - **`READY_NEXT`** (`{ type:"READY_NEXT" }`) leaves the review screen.
 - **Reconnect** re-seeds the board from the last server seat; an uncommitted turn is
   replayed from the authoritative state (nothing half-applied server-side).

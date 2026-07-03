@@ -36,7 +36,8 @@ export function createRttaBoard(root, opts) {
   const seat = opts.seat || {};
   const onCommit = opts.onCommit || (() => {});
   const myMark = opts.myMark;
-  const gameMon = opts.monuments || {};
+  let gameMon = opts.monuments || {};        // updated mid-round as opponents commit
+  let rivalBoxes = opts.rivalBoxes || {};    // monument -> furthest opponent progress
 
   // --- per-turn + seeded state (plain JS — the DOM only displays it) ---------
   let diceCount = Math.max(MIN_CITIES, Math.min(MAX_CITIES, seat.cities || 3));
@@ -562,6 +563,26 @@ export function createRttaBoard(root, opts) {
       if (seed.built) tile.classList.add("built");
     });
   }
+  // The build race: rival workers tint boxes light red (my gold overpaints
+  // where I've matched them), and the badge shows 🥇+first-VP while a monument
+  // is unclaimed, dropping to the later-builder VP once someone scores it.
+  function paintRace() {
+    qsa("#monArea .mon").forEach((tile) => {
+      const name = tile.dataset.name;
+      const m = MONUMENTS.find((x) => x.name === name);
+      if (!m) return;
+      const boxes = [...tile.querySelectorAll(".wbox")].sort(wboxOrder);
+      const rival = Math.max(0, Math.min(boxes.length, rivalBoxes[name] || 0));
+      boxes.forEach((b, i) => b.classList.toggle("rival", i < rival));
+      const claims = gameMon[name] || [];
+      const sc = tile.querySelector(".mscore");
+      if (!sc) return;
+      if (claims.length === 0) sc.textContent = "🥇 " + m.first;
+      else if (claims.includes(myMark)) sc.textContent = String(claims[0] === myMark ? m.first : m.later);
+      else sc.textContent = String(m.later);
+    });
+  }
+
   function renderMonuments(players) {
     const area = gid("monArea"); area.innerHTML = "";
     const vis = MONUMENTS.filter((m) => !(m.notAt || []).includes(players));
@@ -580,6 +601,7 @@ export function createRttaBoard(root, opts) {
   // The monument set is fixed by the room's seat count — never a mid-game choice.
   const playerCount = Math.max(1, opts.players || 1);
   renderMonuments(playerCount);
+  paintRace();
   const mp = gid("monPlayers"); if (mp) mp.textContent = playerCount === 1 ? "solo set" : playerCount + "-player set";
 
   // Developments list — mark seeded (owned) devs as locked
@@ -724,5 +746,7 @@ export function createRttaBoard(root, opts) {
     root,
     isSubmitted: () => submitted,
     setScoreboardBuilder: (fn) => { scoreBuilder = fn; refreshScoreboard(); },
+    // Mid-round snapshot: opponents committed — repaint the build race.
+    updateRace: (mon, rivals) => { gameMon = mon || {}; rivalBoxes = rivals || {}; paintRace(); },
   };
 }

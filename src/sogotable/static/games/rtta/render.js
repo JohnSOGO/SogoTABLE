@@ -51,6 +51,7 @@ export function renderRttaGame(ctx) {
       board = createRttaBoard(host, {
         seat: mySeat,
         monuments: game.monuments || {},
+        rivalBoxes: rivalMonumentBoxes(game, myMark),
         myMark,
         round: game.round,
         players: (game.seat_order || game.players.map((p) => p.mark)).length,
@@ -59,6 +60,7 @@ export function renderRttaGame(ctx) {
       });
     } else {
       board.setScoreboardBuilder((overlay) => standingsHtml(game, room, myMark, overlay));
+      board.updateRace(game.monuments || {}, rivalMonumentBoxes(game, myMark));
     }
     return;
   }
@@ -166,6 +168,17 @@ function flyArc(srcEl, targetEl, emoji, delay, onArrive) {
     document.body.appendChild(fly);
     setTimeout(() => { if (onArrive) onArrive(); fly.remove(); }, 950);
   }, delay);
+}
+
+// The furthest opponent progress per monument — drives the build-race tint.
+function rivalMonumentBoxes(game, myMark) {
+  const out = {};
+  for (const seat of game.players || []) {
+    if (seat.mark === myMark) continue;
+    const boxes = seat.monumentBoxes || {};
+    for (const name of Object.keys(boxes)) out[name] = Math.max(out[name] || 0, boxes[name] || 0);
+  }
+  return out;
 }
 
 // Why the game ended — names whose situation triggered it (server end_reason).
