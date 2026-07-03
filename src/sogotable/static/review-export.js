@@ -41,6 +41,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/zombie-dice/manifest.js",
   "src/sogotable/static/games/zombie-dice/render.js",
   "src/sogotable/static/games/zombie-dice/styles.js",
+  "src/sogotable/static/games/zombie-dice/phrases.js",
   "src/sogotable/static/games/rtta/manifest.js",
   "src/sogotable/static/games/rtta/rules.js",
   "src/sogotable/static/games/rtta/styles.js",

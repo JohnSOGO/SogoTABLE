@@ -8,6 +8,7 @@
 // onclick, and no imports from app.js.
 import { renderHostStartLobby } from "../lobby.js";
 import { ZD_CSS } from "./styles.js";
+import { zombieDiceRollPhrase } from "./phrases.js";
 
 const FACE_EMOJI = { brain: "\u{1F9E0}", feet: "\u{1F463}", shotgun: "\u{1F4A5}" };
 const ROLL_MOVE_TYPES = new Set(["roll", "bust"]);
@@ -120,6 +121,11 @@ function trayHtml(seat, game, room, pendingMove, animate) {
       ? `${fmt(total)} \u{1F9E0} Devoured!`
       : `${fmt(gained)} more \u{1F9E0} devoured! ${fmt(total)} total!`;
     noteHtml = `<p class="zd-msg">${devoured}</p>${seat.can_roll ? "" : waitingHtml(seat, game, room)}`;
+  } else if (seat.phase === "rolled" && rolled.length === 3) {
+    // Mid-turn roll, no outcome note owns the slot: a flavor quip keyed to the
+    // roll's shape (deterministic per roll, so re-renders don't swap the joke).
+    const quip = zombieDiceRollPhrase(rolled, Number(game.move_count || 0) * 31 + Number(seat.roll_count || 0) * 7);
+    if (quip) noteHtml = `<p class="zd-msg zd-quip">${quip}</p>`;
   }
   let actionsHtml;
   if (game.round_pending_advance) {

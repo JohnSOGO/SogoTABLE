@@ -7,6 +7,7 @@ module:
 
 - `render.js` — in-game UI adapter (ctx bag; shared host-start lobby pre-game)
 - `styles.js` — scoped `.zombie-dice-root` CSS, injected once (light + dark)
+- `phrases.js` — flavor quips for non-turn-ending rolls (indexed by roll shape)
 - `manifest.js` — module metadata (registration itself is `games/registry.js`)
 - `PLAN.md` — intake survey, deviations list, rules ledger, gate receipts
 
