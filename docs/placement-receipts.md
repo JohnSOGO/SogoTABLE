@@ -261,3 +261,29 @@ REORG RECEIPT
                 bot-turn orchestration, or the room-dict projections, and did NOT
                 pre-build the two guards the feature batch will add.
 - New owner row: | `workers/stats.js` | Room outcome stats: completed-room recording, Elo, high scores, personal stats | `workers/sogotable-api.js` |
+
+REORG RECEIPT
+- Trigger:      Mazewright gate-fix batch item 3 (client barrier UI, ~25-35 lines)
+                lands in src/sogotable/static/games/mazewright/render.js, which sat
+                at 775/800 (GLOBAL_FILE_CAP) — the placement named the MW_CSS
+                literal as the seam to open first.
+- Seam moved:   Mazewright injected-CSS template literal (MW_CSS, 112 lines) from
+                `src/sogotable/static/games/mazewright/render.js` to
+                `src/sogotable/static/games/mazewright/styles.js` [NEW FILE, no
+                owner row — covered by the games/ directory pattern], exactly
+                mirroring the rtta/styles.js precedent (export const MW_CSS;
+                render.js imports it; injectStyles unchanged).
+- Room opened:  render.js: 775 -> 664 lines vs the 800 global cap (per-file
+                ceiling: none — GLOBAL_FILE_CAP applies; no ratchet entry to move).
+- Behavior:     PRESERVED - verified via `npm test` (197/197 green); CSS moved
+                byte-for-byte, same style tag id (mazewright-styles), same
+                inject-once guard, identical DOM output.
+- Sources read: src/sogotable/static/games/rtta/styles.js + render.js (precedent);
+                src/sogotable/static/games/mazewright/render.js;
+                src/sogotable/static/review-export.js;
+                workers/tests/architecture.test.js (GLOBAL_FILE_CAP + import-closure
+                test, which requires the REVIEW_EXPORT_FILES entry added here).
+- Restraint:    CSS only — did NOT split render.js further (board svg, lobby,
+                final-screen sections stay put) and did NOT touch rules.js (716/800,
+                room enough for its items).
+- New owner row: none (games/ directory pattern covers per-game files).

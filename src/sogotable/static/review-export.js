@@ -113,6 +113,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/yahtzee/manifest.js",
   "src/sogotable/static/games/mazewright/rules.js",
   "src/sogotable/static/games/mazewright/render.js",
+  "src/sogotable/static/games/mazewright/styles.js",
   "src/sogotable/static/games/mazewright/manifest.js",
   "docs/adding-a-game.md",
   "docs/ai-difficulty.md",
