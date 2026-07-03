@@ -88,12 +88,17 @@ never replays it.
 
 ## Bots
 
-`workers/games/rtta/ai.js` — a deliberately light family-game opponent (not an
-optimiser): a rough per-round worker yield poured into the cheapest unclaimed
-**in-play** monument (completing it when reached), leftover workers grow a city, and the cheapest
-still-missing development bought now and then (more eagerly at higher levels — which
-is also how a bot drives the game toward its end). Bots keep no skulls, so they never
-trigger disasters. Cost tables are duplicated in `ai.js` to avoid an import cycle.
+`workers/games/rtta/ai.js` — bots **roll real dice** and run the same pure turn
+maths as the human client (imported from the client `rules.js` — one source of
+truth, no duplicated tables): roll → hold → tally → upkeep (feeding, famine,
+drought/invasion/revolt, honest skulls — a bot can pestilence the table) →
+collect goods → workers into the cheapest unclaimed **in-play** monument, then
+city boxes (partials persist) → buy ONE development with this turn's actual
+coins + whole goods stacks → discard to 6. The commit is exactly a human
+payload. The difficulty ladder is strategy, not free resources: level 1 takes
+the first roll, level 2 rerolls once (default), levels 3–4 use all three rolls
+with deeper monument lookahead, and level 4 buys the highest-VP development it
+can afford. Bots don't use Leadership/Engineering/Granaries taps.
 
 ## Scoreboard
 
