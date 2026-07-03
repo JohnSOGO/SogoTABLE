@@ -91,8 +91,9 @@ export const ZD_CSS = `
  text-align:left;padding:4px 6px;border-bottom:1px solid var(--zd-line);}
 .zombie-dice-root .zd-standings td{padding:7px 6px;border-bottom:1px solid var(--zd-line);font-size:.95rem;}
 .zombie-dice-root .zd-standings tr:last-child td{border-bottom:none;}
-.zombie-dice-root .zd-standings td:nth-child(3),.zombie-dice-root .zd-standings td:nth-child(4),
-.zombie-dice-root .zd-standings th:nth-child(3),.zombie-dice-root .zd-standings th:nth-child(4){text-align:right;}
+.zombie-dice-root .zd-standings td:nth-child(n+2),
+.zombie-dice-root .zd-standings th:nth-child(n+2){text-align:center;}
+.zombie-dice-root .zd-standings .zd-rounds{justify-content:center;}
 .zombie-dice-root .zd-player{display:flex;align-items:center;gap:7px;background:none;border:none;padding:0;
  color:var(--zd-ink);font:inherit;}
 .zombie-dice-root .zd-turn-gain{color:var(--zd-muted);font-size:.82rem;margin-left:4px;}
