@@ -230,3 +230,34 @@ PLACEMENT RECEIPT
 - New owner row: | `workers/stats.js` | Room outcome stats: completed-room recording,
                 Elo, high scores, personal stats | `workers/sogotable-api.js` |
                 (added by prep commit A; no other rows.)
+
+REORG RECEIPT
+- Trigger:      Mazewright gate-fix batch items 5,6 land in workers/sogotable-api.js,
+                which sat at 1800/1801 — the placement named the stats block
+                (lines 1511-1738) as the seam to open first.
+- Seam moved:   Room outcome stats (completed-room recording, Elo, high scores,
+                personal stats, incl. refreshPlayerStats — same golden-tables
+                concern) from `workers/sogotable-api.js` to `workers/stats.js`
+                [NEW owner row]. Boundary-forced relocations so stats.js never
+                imports the Worker back: roomStatus -> workers/projections.js
+                (room projection, invited by that module's header);
+                BOT_DEFINITIONS + isBotSeat -> workers/games/bots.js;
+                isBoxesGame -> workers/games/boxes/rules.js and isTacticalGame ->
+                workers/games/super-tic-tac-toe/rules.js (matching the isXGame
+                pattern every other game already exports).
+- Room opened:  workers/sogotable-api.js: 1800 -> 1530 lines; ceiling 1801 -> 1580
+                (post-extraction actual + ~2 small guards + modest slack).
+- Behavior:     PRESERVED - verified via `npm test` (197/197 green); all code moved
+                verbatim (no logic edits, no signature changes at any call site);
+                same D1 state shapes, same public stats payloads, same room dicts.
+- Sources read: docs/module-ownership.md; docs/modularity.md; docs/wu-wei-method.md;
+                workers/tests/architecture.test.js (live CEILINGS);
+                workers/sogotable-api.js; workers/projections.js;
+                workers/games/bots.js; workers/games/boxes/rules.js;
+                workers/games/super-tic-tac-toe/rules.js;
+                src/sogotable/static/review-export.js.
+- Restraint:    Only the advisor-named stats seam (plus its five boundary-forced
+                helper moves) — did NOT split GAME_HANDLERS, seat-color helpers,
+                bot-turn orchestration, or the room-dict projections, and did NOT
+                pre-build the two guards the feature batch will add.
+- New owner row: | `workers/stats.js` | Room outcome stats: completed-room recording, Elo, high scores, personal stats | `workers/sogotable-api.js` |

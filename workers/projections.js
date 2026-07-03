@@ -23,6 +23,14 @@ export function isHiddenTestRoom(room) {
   return Boolean(room && Array.isArray(room.players) && room.players.some(isHiddenPlayer));
 }
 
+// Room projection: derive the public room status from internal room state.
+// Moved from the Worker entry when workers/stats.js was extracted (both need it).
+export function roomStatus(room) {
+  if (["x_won", "o_won", "draw", "complete"].includes(room.game.status)) return "completed";
+  if (room.started) return "active";
+  return "waiting_for_player";
+}
+
 export function publicBot(bot) {
   const botLevel = botDifficultyLevel(bot);
   return {

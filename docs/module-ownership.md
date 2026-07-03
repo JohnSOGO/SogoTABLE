@@ -52,6 +52,7 @@ concern), then implement.
 | `src/sogotable/static/games/game-list-view.js` | Game-select list view | — |
 | `workers/sogotable-api.js` | Worker entry: routing, side-effect dispatch, Durable Objects, remaining domain handlers | — |
 | `workers/game-catalog.js` | Game id resolution + public game definitions | `workers/sogotable-api.js` |
+| `workers/stats.js` | Room outcome stats: completed-room recording, Elo, high scores, personal stats | `workers/sogotable-api.js` |
 | `workers/projections.js` | Public projections (player + bot views) | `workers/sogotable-api.js` |
 | `workers/test-players.js` | Reserved test-player identities | `workers/sogotable-api.js` |
 | `workers/platform/auth.js` | Owner-token + Sogo superuser auth primitives | `workers/sogotable-api.js` |
