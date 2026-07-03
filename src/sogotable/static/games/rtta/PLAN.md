@@ -44,6 +44,13 @@ the 2025 PDF contains no monument table (score sheet is the only source).
   round-start seat, so refreshing discards the turn and re-deals dice. Accepted
   at family scale (matches the Yahtzee trust model); the upgrade path is
   persisting the turn log server-side, not blocking refresh.
+- **Skip = a null turn** (2026-07-04): a player already done at a barrier may
+  skip an absent human. The skipped seat takes NO turn that round — rolls no
+  dice, feeds no cities, pays no famine (rulebook: every player takes a turn
+  each round; a skipped seat rolls no dice, so no city needs feeding). One
+  skip covers both barriers (a null turn has nothing to review), the seat is
+  marked `skipped` for the round, a late real commit from it is rejected
+  loudly, and the skipped player's screen says so instead of "Turn submitted".
 - **Same-round monument tie = commit arrival order, humans only** (2026-07-03,
   provisional): when two HUMANS complete the same monument in one round, "first
   builder" is whoever's commit reached the barrier first. Bots always resolve

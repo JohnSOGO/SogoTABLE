@@ -91,6 +91,9 @@ export function renderRttaGame(ctx) {
 
   let status;
   if (complete) status = endStatus(game, room, myMark);
+  // Honest copy for a skipped seat — "Turn submitted" would be a lie here,
+  // and their real turn (if they finish it) is rejected by the server.
+  else if (mySeat && mySeat.skipped) status = "⏭ The table skipped your turn this round — nothing was recorded for you. You're back in next round.";
   else if (game.phase === "playing") status = `Turn submitted. Waiting for ${waitingCount} player${waitingCount === 1 ? "" : "s"} to finish…`;
   else if (iAmReady) status = "Ready — waiting for the other players…";
   else status = "Round resolved. Review the standings, then ready up for the next round.";

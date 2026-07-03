@@ -456,7 +456,18 @@ test("skip: a waiting player can release the commit barrier over an absent human
   makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P3", round: 1 }); // P3's phone died
   assert.equal(g.phase, "review");
   assert.equal(g.players.P3.round_done, true);
+  assert.equal(g.players.P3.ready_next, true); // one skip covers BOTH barriers — no double skip
+  assert.equal(g.players.P3.skipped, true);
   assert.equal(g.players.P3.food, 3); // a skipped turn is a null turn — sheet untouched
+  // P3 finishes their turn anyway and submits — rejected LOUDLY, never a
+  // silent "duplicate" drop under a '✓ Turn submitted' success message.
+  assert.throws(() => makeRttaMove(g, "P3", commit({ round: 1 })), /turn was skipped/);
+  makeRttaMove(g, "P1", { type: "READY_NEXT" });
+  makeRttaMove(g, "P2", { type: "READY_NEXT" });
+  assert.equal(g.round, 2);
+  assert.equal(g.players.P3.skipped, false); // back in from the new round
+  makeRttaMove(g, "P3", commit({ round: 2 })); // and their next commit lands
+  assert.equal(g.players.P3.round_done, true);
 });
 
 test("skip: releases the ready barrier too, and rejects bots/self", () => {
@@ -487,7 +498,7 @@ test("rttaGameToDict projects the full public N-player state", () => {
   assert.deepEqual(Object.keys(dict.players[0]).sort(), [
     "cities", "cityBoxes", "developments", "finish_state", "food", "goods",
     "is_bot", "mark", "monumentBoxes", "name", "points_lost", "ready_next",
-    "round_done", "score",
+    "round_done", "score", "skipped",
   ]);
   assert.equal(dict.seat_order.length, 3);
   assert.equal(dict.players.length, 3);

@@ -39,8 +39,12 @@ Round lifecycle on the server (`workers/games/rtta/rules.js`):
 - **Skip — the barrier escape hatch** (`{ type:"SKIP_PLAYER", target, round }`):
   a player already done at the current barrier may skip a HUMAN seat that never
   arrived (dropped phone, closed tab), releasing the table. A skipped turn is a
-  null turn — that player's sheet is untouched. The waiting screen offers quiet
-  per-player ⏭ buttons (two taps to fire) once you yourself are done.
+  null turn — that player's sheet is untouched — and one skip covers both
+  barriers (nothing to review). The seat is marked `skipped` for the round: a
+  late real commit from it is rejected loudly ("your turn was skipped"), and
+  its own screen says the turn was skipped rather than "Turn submitted". The
+  waiting screen offers quiet per-player ⏭ buttons (two taps to fire) once you
+  yourself are done.
 
 ## Client ↔ server split (client computes its own turn)
 
