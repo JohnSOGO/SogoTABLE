@@ -342,3 +342,37 @@ PLACEMENT RECEIPT
       client-owned shared RNG.
 - New owner row: none — both subtrees covered by the standing directory-pattern rows;
                 the reorganizer's farkle-ack.js is likewise pattern-covered (no row).
+
+REORG RECEIPT (commit: pending)
+- Trigger:      The placement above: Zombie Dice needs ~50-80 lines of host-start shell
+                wiring in app.js, which sat AT both ratchets (2498/2498 lines, 33/33
+                top-level lets) — room had to open before the feature.
+- Seam moved:   Ten Thousand farkle auto-ack flow (TEN_THOUSAND_FARKLE_ACK_MS + dedupe
+                key + timer + maybeAutoAckTenThousandFarkle) from
+                `src/sogotable/static/app.js` to
+                `src/sogotable/static/games/ten-thousand/farkle-ack.js`, behind
+                wireTenThousandFarkleAck(ctx) [EXISTING games/ directory-pattern owner —
+                no owner row]. ctx injects isTenThousandGameState, localRoomSeat,
+                getCurrentRoom, makeTenThousandAction; setRoom's call site is unchanged.
+- Dead code:    maybeShowTenThousandFarklePrompt + lastTenThousandFarkleNoticeKey had NO
+                call site anywhere (repo-wide grep: only the definition itself) —
+                DELETED, not extracted, per the placement heads-up. The live inline
+                tray flow (red dice + "You Farkled" banner) superseded this popup.
+- Room opened:  app.js 2498 → 2445 lines; ceiling 2498 → 2497. Note: the mandated
+                "actual + 80 + slack" (2525+) exceeds the binding "net below 2498"
+                cap, so 2497 is the max ratchet-down — the implementer's wiring
+                budget is the full 52 freed lines. Top-level lets 33 → 30;
+                APP_TOP_LEVEL_LET_CAP 33 → 30.
+- Behavior:     PRESERVED — identical guards, dedupe-key shape, 2000 ms hold, and
+                ack_farkle action; module keeps its own key/timer state. Verified via
+                `npm test` (210/210 green, incl. architecture ratchets, review-export
+                closure with farkle-ack.js added to REVIEW_EXPORT_FILES, layering).
+- Sources read: docs/module-ownership.md; docs/modularity.md; docs/wu-wei-method.md
+                (per role brief); workers/tests/architecture.test.js (live CEILINGS,
+                let cap, layering + review-export closure tests); app.js farkle block
+                + imports + DOMContentLoaded wiring; controllers/room-sounds.js
+                (wireX/ctx precedent); review-export.js allowlist; this entry.
+- Restraint:    One seam only — did NOT touch battleship reveal state, makeTenThousand-
+                Action, localRoomSeat, or any other game's wiring; no ten-thousand
+                manifest/rows (tracked gap stays tracked); no Zombie Dice code.
+- New owner row: none — `src/sogotable/static/games/` directory pattern covers it.

@@ -106,6 +106,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/super-tic-tactical-toe/README.md",
   "src/sogotable/static/games/super-tic-tactical-toe/render.js",
   "src/sogotable/static/games/ten-thousand/10000_complete_scoring_set.md",
+  "src/sogotable/static/games/ten-thousand/farkle-ack.js",
   "src/sogotable/static/games/ten-thousand/render.js",
   "src/sogotable/static/games/ten-thousand/SCORING.md",
   "src/sogotable/static/games/yahtzee/rules.js",
