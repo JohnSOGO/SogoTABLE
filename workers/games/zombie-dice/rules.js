@@ -430,8 +430,9 @@ function resolveZombieDiceBots(game) {
 // human's move uses — no bot-only legality. Records a per-roll trajectory of
 // { total, status, shotguns } snapshots (trajectory[0] is the carried baseline)
 // so the client can replay the bot "playing along" paced to the human's rolls.
-// Bots resolve before humans act, so the standings they see are the previous
-// round's banked totals — known information, the same every seat can read.
+// Bots resolve sequentially at round start, so a later-seated bot's standings
+// read includes earlier bots' same-round banks — mirroring physical turn-order
+// information (PLAN.md deviation #6).
 function playZombieDiceBotTurn(game, mark, seat) {
   const trajectory = [{ total: seat.score, status: "rolling", shotguns: 0 }];
   const bestOpponentScore = Math.max(0, ...game.seat_order
