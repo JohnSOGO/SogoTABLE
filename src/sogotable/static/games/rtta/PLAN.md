@@ -115,6 +115,46 @@ GATE resilience — 2026-07-01 — 5 gaps —
   pass: duplicate submit (server+client+DO serialization), duplicate tab, out-of-order arrival (D1 optimistic lock + re-run), socket drop during barriers (flags in D1, reconnect backoff + re-fetch), refresh mid-turn (by design), no polling / write amplification
 ```
 
+```text
+GATE rules-fidelity — 2026-07-02 — 7 gaps —
+ 1 MAJOR wrong (partially known-open): developments usable the turn acquired against steps that already happened — a Dev-page purchase is not gated on Upkeep having run, so a 2/5-skull roller can buy Irrigation/Religion pre-Upkeep and dodge their own drought/revolt, or buy Leadership and reroll the same turn; server facet: resolveDisasters reads devs INCLUDING this round's devBought, so Religion/Medicine bought step 4 shields disasters resolving step 2 → gate purchases on upkeepDone + resolve disasters against pre-commit devs
+ 2 MAJOR wrong (known-open): Leadership not offered when the player stops rolling early (all dice held before roll 3) — leadershipReady requires rolls >= MAX_ROLLS; rulebook says "after your LAST roll" → gate on rolling-ended
+ 3 MED   missing (known-open): solo lacks solitaire rules (10-round cap; solo Pestilence never hits the roller) while manifest allows 1+ players → implement or set minPlayers 2
+ 4 LOW   missing (known-open): end-game tie-break by remaining goods value; completeGame awards the first tied seat in seat order → compare goods value on tie
+ 5 LOW   wrong (new): an undecided 2-food-or-2-workers choice die tallies as ZERO if the player taps Upkeep past the prompt — no pending-choice guard on onAction; the die is never worth nothing → block Upkeep while a choice is pending
+ 6 LOW   wrong (new): Leadership cannot reroll the choice die — onDieClick cycles a choice die before the leadMode branch, so one legal reroll target is unreachable → let leadMode taps reroll it
+ 7 LOW   deviation-undocumented (known-open): same-round monument "first builder" = commit arrival order within the barrier → MojoSOGO to sign or change
+ pass: all five calibration bugs stay caught-and-fixed; every die face, all 13 developments (2025 PDF values), all 7 monuments + seat-count sets, all disasters + famine, setup 3/3/0, both end conditions at every seat count; client/server/ai table parity pinned; on-screen ability/disaster text matches behavior (old gaps 11+12 closed)
+```
+
+```text
+GATE projection — 2026-07-02 — 3 gaps — (re-run: identical to 2026-07-01; nothing fixed, nothing new)
+  1 (med) projection-shape test still too shallow — none of the per-seat fields the client reads are pinned; a silent rename passes tests and breaks board seeding as undefined → extend the test
+  2 (low) seat.finish_state emitted, never read (client recomputes) → adopt (Yahtzee-style news strip) or drop
+  3 (low) seat.name emitted, never read (client resolves via room.players) → keep as convention or read as fallback
+  pass: ZERO read-but-never-emitted fields — the dangerous class is clean; pending_events.amount emit/read guards consistent
+```
+
+```text
+GATE sibling-parity — 2026-07-02 — 4 gaps —
+  1 (med) reconnect/resume vs initial join: refresh mid-turn silently discards the in-progress turn and deals fresh dice — an undetectable free reroll (turn state lives only in board.js closures; dice are client-rolled; server sees only the commit); matches the Yahtzee trust model but is documented NOWHERE as intentional → accept + sign the deviation here, or persist turn state
+  2 (low) bot vs human: bots buy ability developments they never exercise — cheapest-first makes Leadership (10) their preferred purchase yet no bot ever rerolls, converts stone (Engineering), or sells food (Granaries) → teach ai.js the abilities or steer purchases
+  3 (low) bot vs human: self-inflicted point loss caps at the 45-box disaster grid for humans (loseAPoint stops) but bots/server apply uncapped famine+disaster points → clamp server-side
+  4 (low) mobile vs desktop: 250ms double-tap undo + quick-second-tap food chip lack touch-action:manipulation in rtta styles (siblings set it) — iOS double-tap zoom can race the gesture → add touch-action to those surfaces
+  pass: bots import the client rules module and commit through the same clamps (2026-07-01 gap 1 structurally closed); monument seat sets + pestilence scaling at min/max counts; public-vs-private view; device-id seat identity; addEventListener-only wiring
+```
+
+```text
+GATE resilience — 2026-07-02 — 6 gaps — (gaps 1-5 unchanged from 2026-07-01; gap 6 newly listed)
+  1 (high) failed COMMIT_TURN / READY_NEXT strands the player: submitted=true latched + button disabled BEFORE the POST, error lands in #turnStatus which the shell hides for RTTA, and render.js keeps the mounted board so snapshots can't unstick it → re-enable on failure + surface the error in-board
+  2 (med) no round/epoch stamp on COMMIT_TURN/READY_NEXT and the server checks neither — a stale tab's round-N commit is accepted as the current round's whole turn → stamp + reject mismatches
+  3 (med) monumentsCompleted credited without cross-checking monumentBoxes[name] === workers — doctored commit gains first-builder VP and can trip the all-monuments game end (shared consequence); the lax behavior is even pinned by a test → validate against the clamped boxes
+  4 (low) goods have no upper clamp (only >= 0) — hostile commits bank absurd goods that reseed purchasing power and bloat the persisted blob → clamp to per-row track max
+  5 (low) invalid/stale/out-of-phase actions silently return ok:true — doctrine asks explicit rejection debug detail; sibling-consistent with Yahtzee/10k so a platform-level fix
+  6 (low) a permanently departed human deadlocks both barriers — no timeout/skip/kick; reset vote needs EVERY seat; only escape is /api/room/leave which deletes the room (mitigated by device-portable identities)
+  pass: duplicate submit (latch + round_done/ready_next + DO serialization, pinned); out-of-order (one DO per room + D1 optimistic lock); refresh/duplicate tab collapse to the barrier; no polling, one write + one broadcast per action; Leadership reroll is client-local (no new server surface); cityBoxes clamping correct and tested
+```
+
 ## Rules Ledger — rules-fidelity gate, 2026-07-01
 
 Status: ✓ correct · ✗ wrong · ◦ missing · Δ deviation (intended → listed above).

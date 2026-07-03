@@ -11,6 +11,42 @@ audit when the newest entry is stale (>14 days or >150 commits since).
 
 ---
 
+## 2026-07-02 — third steward pass (RTTA refinement train)
+
+- **Run:** Milestone (RTTA live-round refinement train landed — Leadership button,
+  upkeep pause, cityBoxes), scope: whole codebase. `main` at `a90375c`, 185/185 green.
+- **Verdict:** **MINOR DRIFT** — structure sound and the rtta train placed everything
+  correctly; drift is forward pressure on one hotspot plus two hardening gaps.
+- **Placement audit:** 0 new receipts since 2026-07-01 — correctly so: all 6 new files
+  fall under owned patterns (`games/rtta/`, `workers/tests/`, `scripts/`, `.claude/`).
+  Light-path train sampled — every placement correct against the map.
+- **Findings (ranked, handed off):**
+  1. *MED — `games/rtta/board.js` is the hotspot at 778/800* (16 commits since last
+     run, highest churn in the repo by 2×; already tripped the 800 backstop once,
+     commit `9fe6819`). → **reorganizer**: one S-sized prep commit extracting the pure
+     motion/FX helpers (`fly*`/`animate*`/`lose*Point`, ~70–80 lines) into
+     `games/rtta/board-fx.js` (sibling of the `board-art.js` precedent) before the
+     next refinement wave.
+  2. *MED — client `scoreBreakdown` not pinned to the server's `rttaScoreByMark`*
+     (the live-standings projection puts the client number on screen next to the
+     server's; neither computation is parity-tested). → **implementer**: one parity
+     test in `rtta-rules.test.js` asserting `scoreBreakdown(...).total ===
+     rttaScoreByMark(...)` for a representative seat.
+  3. *LOW-MED — the test gate is habit, not mechanism* (a red build rode to `main`
+     once, self-reported in `9fe6819`'s body). → **implementer**: a mechanical
+     pre-push hook / npm gate script under `scripts/` that blocks on non-zero exit.
+  4. *LOW — stray untracked `SogoUI/` at the repo root* (one file, outside the `AI/`
+     intake convention). → **MojoSOGO's call**: move under `AI/` or delete if absorbed
+     into `docs/adding-a-game.md`; do not commit as-is.
+- **Restraint (weighed, left alone):** app.js/worker parked 1 line under ceiling
+  (ratchet by design — the rtta train added zero pressure to either);
+  styles-games.css 1648/1700 (rtta styling correctly in injected `games/rtta/styles.js`);
+  shared client/server rtta data module (still speculative pre-lock); big-but-cold
+  mazewright/ten-thousand files (size without churn is cheap); the pinned worker
+  test-file exception; zero receipts for the rtta train (correct per the
+  directory-pattern rule); `games/rtta/PLAN.md` as a sanctioned gate artifact;
+  docs kept pace (`docs/game-rtta.md` updated in 9 of the rtta commits).
+
 ## 2026-07-01 — second steward pass (receipts-audit shakedown)
 
 - **Run:** On-demand (first exercise of the new receipts-vs-commits placement audit,
