@@ -23,6 +23,8 @@ export function createGameKinds(canonicalGameId) {
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.mazewright);
   const isRttaGameState = (game) =>
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.rtta);
+  const isZombieDiceGameState = (game) =>
+    Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.zombieDice);
   return {
     isTacticalGameState,
     isBoxesGameState,
@@ -32,5 +34,6 @@ export function createGameKinds(canonicalGameId) {
     isYahtzeeGameState,
     isMazewrightGameState,
     isRttaGameState,
+    isZombieDiceGameState,
   };
 }

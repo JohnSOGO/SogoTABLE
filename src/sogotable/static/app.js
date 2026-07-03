@@ -76,6 +76,8 @@ import {
 import { wireLobby, renderRoomSlots, renderRoomInviteStatus } from "./games/lobby.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
+import { wireTenThousandFarkleAck, maybeAutoAckTenThousandFarkle } from "./games/ten-thousand/farkle-ack.js";
+import { renderZombieDiceGame } from "./games/zombie-dice/render.js";
 import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { renderRttaGame } from "./games/rtta/render.js";
@@ -110,7 +112,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -133,12 +135,6 @@ let lastLobbyPlayersKey = "";
 let lastCurrentGameRoomsKey = "";
 let lastActiveGameNoticeKey = "";
 let lastSelectedPlayerStatsKey = "";
-// Farkle is player-declared (the Red X). Once declared, the red dice and the
-// "You Farkled" banner show for a beat, then the bust auto-acknowledges so the
-// round can advance.
-const TEN_THOUSAND_FARKLE_ACK_MS = 2000;
-let tenThousandFarkleAckKey = ""; // dedupe so each declared bust schedules once
-let tenThousandFarkleAckTimer = null;
 let selectedPlayerStatsRequestId = 0;
 let playerApiAvailable = true;
 let lastLegalBoardsKey = "";
@@ -147,7 +143,6 @@ let battleshipResultReveal = null;
 let battleshipResultTimer = null;
 let battleshipRevealQueue = [];
 let battleshipReviewMark = "";
-let lastTenThousandFarkleNoticeKey = "";
 let lastRenderedRoomKey = "";
 let pendingMove = null;
 const BATTLESHIP_RADAR_MS = 1000;          // radar scan before the hit/miss lands
@@ -183,6 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
     openBotOpponentModal,
   });
   wireRoomSounds({ localRoomSeat, isTenThousandGameState, isTacticalGameState, isBoxesGameState, isBotPlayer });
+  wireTenThousandFarkleAck({ isTenThousandGameState, localRoomSeat, getCurrentRoom: () => currentRoom, makeTenThousandAction });
   wireInvites({
     getCurrentRoom: () => currentRoom,
     getPlayers: () => players,
@@ -1594,54 +1590,6 @@ function setRoom(room) {
   handleIncomingResetRequest();
 }
 
-// After the local player declares a farkle (the Red X), the server marks the
-// seat "farkled_pending_ack" and the tray shows the red dice + "You Farkled"
-// banner. Hold that for TEN_THOUSAND_FARKLE_ACK_MS, then auto-acknowledge so the
-// round can advance — the player already chose to bust, so no extra tap.
-function maybeAutoAckTenThousandFarkle(room) {
-  if (!room || !isTenThousandGameState(room.game)) return;
-  const localSeat = localRoomSeat(room);
-  if (!localSeat) return;
-  const seatState = (room.game.players || []).find((seat) => seat.mark === localSeat.mark);
-  if (!seatState || seatState.finish_state !== "farkled_pending_ack") return;
-  const key = `${room.code}:${localSeat.mark}:${room.game.move_count}`;
-  if (key === tenThousandFarkleAckKey) return;
-  tenThousandFarkleAckKey = key;
-  if (tenThousandFarkleAckTimer) clearTimeout(tenThousandFarkleAckTimer);
-  tenThousandFarkleAckTimer = setTimeout(() => {
-    tenThousandFarkleAckTimer = null;
-    // Only acknowledge if the bust is still pending (the player may have already
-    // tapped through, or the room may have moved on).
-    if (!currentRoom || !isTenThousandGameState(currentRoom.game)) return;
-    const seat = localRoomSeat(currentRoom);
-    const state = seat && (currentRoom.game.players || []).find((entry) => entry.mark === seat.mark);
-    if (state && state.finish_state === "farkled_pending_ack") makeTenThousandAction({ type: "ack_farkle" });
-  }, TEN_THOUSAND_FARKLE_ACK_MS);
-}
-
-function maybeShowTenThousandFarklePrompt(previousRoom, room) {
-  if (!room || !isTenThousandGameState(room.game)) return;
-  const localSeat = localRoomSeat(room);
-  if (!localSeat) return;
-  const seatState = (room.game.players || []).find((seat) => seat.mark === localSeat.mark);
-  if (!seatState || seatState.phase !== "farkled") return;
-  const previousSeatState = previousRoom && previousRoom.code === room.code
-    ? (previousRoom.game && previousRoom.game.players || []).find((seat) => seat.mark === localSeat.mark)
-    : null;
-  if (previousSeatState && previousSeatState.phase === "farkled") return;
-  const lastMove = room.game.last_move || {};
-  if (lastMove.type !== "farkle" || lastMove.mark !== localSeat.mark) return;
-  const moveCount = Number(room.game.move_count || 0);
-  const nextKey = `${room.code}:${localSeat.mark}:${moveCount}`;
-  if (nextKey === lastTenThousandFarkleNoticeKey) return;
-  lastTenThousandFarkleNoticeKey = nextKey;
-  showInfoPrompt("You Farkled!", "Your turn score is lost. Tap OK to continue.")
-    .then(async (confirmed) => {
-      if (!confirmed) return;
-      await makeTenThousandAction({ type: "ack_farkle" });
-    });
-}
-
 function isStaleRoomSnapshot(current, next) {
   if (!current || !next || current.code !== next.code) return false;
   const currentRevision = Number(current.revision || 0);
@@ -1847,10 +1795,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
@@ -2011,7 +1959,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }

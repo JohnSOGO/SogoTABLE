@@ -1,0 +1,334 @@
+// Roll of the Dead (module id zombie-dice) — in-game UI adapter. Renders the
+// prepared server projection and captures intent; it computes NO rule outcomes
+// (bust/endgame/tiebreaker all arrive decided from the worker rules module).
+// The shell hands a ctx bag (host, game, room, started, isHost, localPlayerId,
+// pendingMove, makeMove, startGame, addBot, invitePlayer, escapeHtml) exactly
+// like the other host-start games; the pre-game screen is the shared
+// renderHostStartLobby template. All wiring is addEventListener — no inline
+// onclick, and no imports from app.js.
+import { renderHostStartLobby } from "../lobby.js";
+import { ZD_CSS } from "./styles.js";
+
+const FACE_EMOJI = { brain: "\u{1F9E0}", feet: "\u{1F463}", shotgun: "\u{1F4A5}" };
+const ROLL_MOVE_TYPES = new Set(["roll", "bust"]);
+let stylesInjected = false;
+let lastAnimatedMoveCount = -1;
+
+export function renderZombieDiceGame(ctx) {
+  const { host, game } = ctx;
+  if (!host || !game) return;
+  if (!stylesInjected) {
+    const style = document.createElement("style");
+    style.textContent = ZD_CSS;
+    document.head.appendChild(style);
+    stylesInjected = true;
+  }
+  host.className = "macro-board zombie-dice-table";
+  if (!ctx.started) {
+    renderHostStartLobby(host, ctx, {
+      wrap: "zombie-dice-root",
+      heading: "Players",
+      blurb: "Eat brains, dodge shotguns — 13 brains triggers the last round. Invite players or bots, then start.",
+    });
+    return;
+  }
+  renderZombieDicePlay(host, ctx);
+}
+
+function renderZombieDicePlay(host, ctx) {
+  const { room, game, pendingMove } = ctx;
+  const seats = Array.isArray(game.players) ? game.players : [];
+  const localMark = markForPlayer(room, ctx.localPlayerId);
+  const localSeat = seats.find((seat) => seat.mark === localMark) || null;
+  const complete = game.status === "complete";
+  // Bot rows replay paced to the local human's rolls this round; once the
+  // human's turn ends (or the game is over) the bots' final results show.
+  const pacing = {
+    rollCount: localSeat ? Number(localSeat.roll_count || 0) : 0,
+    humanDone: complete || Boolean(localSeat && localSeat.resolved),
+  };
+  // One animate decision for the whole snapshot: the rolling row's departures
+  // and the set-aside collection's arrivals must fire together.
+  const lastMove = game.last_move || {};
+  const moveCount = Number(game.move_count || 0);
+  const animate = Boolean(localSeat) && !pendingMove
+    && lastMove.mark === localSeat.mark
+    && ROLL_MOVE_TYPES.has(lastMove.type)
+    && moveCount !== lastAnimatedMoveCount;
+  if (animate) lastAnimatedMoveCount = moveCount;
+  host.innerHTML = `
+    <div class="zombie-dice-root">
+      ${bannerHtml(game, room)}
+      ${localSeat && !complete ? trayHtml(localSeat, game, room, pendingMove, animate) : ""}
+      ${standingsHtml(seats, room, game, pacing)}
+      ${localSeat && !complete && localSeat.active ? asideHtml(localSeat, animate) : ""}
+    </div>`;
+  if (localSeat && !complete) wireTray(host, localSeat, ctx);
+}
+
+function bannerHtml(game, room) {
+  if (game.status === "complete" && game.winner) {
+    const score = fmt((seatState(game, game.winner) || {}).score);
+    return `<p class="zd-banner zd-win">\u{1F3C6} ${escapeName(seatName(room, game.winner))} wins with ${score} brains!</p>`;
+  }
+  if (game.tiebreaker) {
+    const names = (game.active_marks || []).map((mark) => escapeName(seatName(room, mark))).join(" vs ");
+    return `<p class="zd-banner">☠️ Tiebreaker round — ${names}!</p>`;
+  }
+  return "";
+}
+
+function trayHtml(seat, game, room, pendingMove, animate) {
+  if (!seat.active) {
+    return `<p class="zd-msg">You're sitting out the tiebreaker — watch the leaders fight over the last brain.</p>`;
+  }
+  const busted = seat.finish_state === "busted";
+  const banked = seat.finish_state === "banked";
+  const rolled = Array.isArray(seat.rolled) ? seat.rolled : [];
+  // Brains and shotguns never re-roll: on a fresh roll they tumble in, then fly
+  // down to the set-aside collection (zd-depart). On a bust nothing departs —
+  // the fatal roll stays on the table to be read.
+  const diceHtml = rolled.length
+    ? rolled.map((die) => {
+      const departs = animate && !busted && die.face !== "feet";
+      return `
+      <span class="zd-die zd-big zd-${die.color}${animate ? " rolling" : ""}${departs ? " zd-depart" : ""}" role="img"
+        aria-label="${die.color} die: ${die.face}"><span>${FACE_EMOJI[die.face] || "?"}</span></span>`;
+    }).join("")
+    : [1, 2, 3].map(() => `<span class="zd-die zd-big zd-blank" aria-label="not rolled">?</span>`).join("");
+  // The cup, shown as the actual dice still inside it (blank faces — they
+  // have not been rolled), sorted green → yellow → red like the collection.
+  const cup = seat.cup || {};
+  const cupHtml = ["green", "yellow", "red"].map((color) =>
+    Array.from({ length: Math.max(0, Number(cup[color]) || 0) },
+      () => `<span class="zd-die zd-${color}" role="img" aria-label="${color} die in the cup"></span>`).join("")
+  ).join("");
+  const disabled = Boolean(pendingMove);
+  const canRoll = !disabled && Boolean(seat.can_roll) && game.status === "playing";
+  const canBank = !disabled && Boolean(seat.can_bank) && game.status === "playing";
+  let actionsHtml;
+  let noteHtml = "";
+  if (busted && !seat.can_roll) {
+    noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! No brains this turn.</p>${waitingHtml(seat, game, room)}`;
+    actionsHtml = "";
+  } else if (banked && !seat.can_roll) {
+    // First bank: "N 🧠 Devoured!" — later banks show the gain and the total.
+    const gained = Number(seat.turn_brains || 0);
+    const total = Number(seat.score || 0);
+    const devoured = gained === total
+      ? `${fmt(total)} \u{1F9E0} Devoured!`
+      : `${fmt(gained)} more \u{1F9E0} devoured! ${fmt(total)} total!`;
+    noteHtml = `<p class="zd-msg">${devoured}</p>${waitingHtml(seat, game, room)}`;
+    actionsHtml = "";
+  } else if (game.round_pending_advance) {
+    actionsHtml = `<button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
+      aria-label="Start the next round">\u{1F9DF} Begin next hunt \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>`;
+  } else if (seat.phase === "ready") {
+    actionsHtml = `<button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
+      aria-label="Roll three dice">\u{1F9DF} Hunt \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>`;
+  } else {
+    actionsHtml = `
+      <button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
+        aria-label="Push your luck — roll again">\u{1F9DF} Hunt \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>
+      <button class="zd-bank" type="button" data-zd="bank" ${canBank ? "" : "disabled"}
+        aria-label="Stop and score your brains">\u{1F9E0} Brains \u{1F9E0}</button>`;
+  }
+  return `
+    <section class="zd-cup${banked ? " zd-done" : ""}" aria-label="Dice in the cup">${cupHtml}</section>
+    <section class="zd-tray">
+      <div class="zd-dice${banked ? " zd-done" : ""}" aria-label="Rolled dice">${diceHtml}</div>
+      ${actionsHtml ? `<div class="zd-actions" aria-label="Turn actions">${actionsHtml}</div>` : ""}
+      ${noteHtml}
+      <p class="zd-msg" data-zd-note hidden></p>
+    </section>`;
+}
+
+// The set-aside collection, below the player/status table: every brain and
+// shotgun die kept this turn, in sorted rows (green → yellow → red). Newly
+// rolled keepers land with the zd-arrive drop-in, timed to follow the rolling
+// row's departure. After a bust the brains stay visible but gray out — they
+// were lost. (After a cup refill the brain DICE go back in the cup while the
+// tally survives, so the label counts the tally, not the dice on show.)
+const COLOR_ORDER = { green: 0, yellow: 1, red: 2 };
+
+function asideHtml(seat, animate) {
+  const busted = seat.finish_state === "busted";
+  const brains = Array.isArray(seat.brains_rolled) ? seat.brains_rolled : [];
+  const shotguns = Array.isArray(seat.shotguns_rolled) ? seat.shotguns_rolled : [];
+  if (!brains.length && !shotguns.length) return "";
+  const arriving = { brain: {}, shotgun: {} };
+  if (animate) {
+    (seat.rolled || []).forEach((die) => {
+      if (die.face === "brain" && !busted) arriving.brain[die.color] = (arriving.brain[die.color] || 0) + 1;
+      if (die.face === "shotgun") arriving.shotgun[die.color] = (arriving.shotgun[die.color] || 0) + 1;
+    });
+  }
+  const group = (colors, face) => {
+    const fresh = { ...arriving[face] };
+    return colors
+      .slice()
+      .sort((left, right) => COLOR_ORDER[left] - COLOR_ORDER[right])
+      .map((color) => {
+        const isNew = fresh[color] > 0;
+        if (isNew) fresh[color] -= 1;
+        const classes = ["zd-die", `zd-${color}`];
+        if (isNew) classes.push("zd-arrive");
+        if (busted && face === "brain") classes.push("zd-lost");
+        return `<span class="${classes.join(" ")}" role="img" aria-label="set-aside ${color} ${face}"><span>${FACE_EMOJI[face]}</span></span>`;
+      })
+      .join("");
+  };
+  return `
+    <section class="zd-aside" aria-label="Set-aside dice">
+      ${brains.length ? `
+      <div class="zd-aside-group">
+        <span class="zd-aside-label">\u{1F9E0} Brains (${fmt(seat.turn_brains)})${busted ? " — lost!" : ""}</span>
+        <div class="zd-aside-dice">${group(brains, "brain")}</div>
+      </div>` : ""}
+      ${shotguns.length ? `
+      <div class="zd-aside-group">
+        <span class="zd-aside-label">\u{1F4A5} Shotguns (${fmt(seat.shotguns)}/3)</span>
+        <div class="zd-aside-dice">${group(shotguns, "shotgun")}</div>
+      </div>` : ""}
+    </section>`;
+}
+
+function waitingHtml(seat, game, room) {
+  const active = game.tiebreaker ? (game.active_marks || []) : (game.players || []).map((other) => other.mark);
+  const stillPlaying = (game.players || [])
+    .filter((other) => active.includes(other.mark) && !other.resolved && other.mark !== seat.mark)
+    .map((other) => escapeName(seatName(room, other.mark)));
+  return `<p class="zd-msg">${stillPlaying.length
+    ? `Waiting for: ${stillPlaying.join(", ")}`
+    : "Waiting for the next round…"}</p>`;
+}
+
+function wireTray(host, seat, ctx) {
+  const note = host.querySelector("[data-zd-note]");
+  const wire = (key, action) => {
+    const button = host.querySelector(`[data-zd="${key}"]`);
+    if (!button) return;
+    button.addEventListener("click", async () => {
+      if (button.disabled) return;
+      const error = await ctx.makeMove(action);
+      if (error && note) {
+        note.textContent = error;
+        note.hidden = false;
+        note.classList.add("zd-error");
+      }
+    });
+  };
+  wire("roll", { type: "roll" });
+  wire("bank", { type: "bank" });
+}
+
+function standingsHtml(seats, room, game, pacing) {
+  const rows = seats
+    .slice()
+    .sort((left, right) => right.score - left.score)
+    .map((seat) => standingsRow(seat, room, game, pacing))
+    .join("");
+  return `
+    <section class="zd-standings" aria-label="Standings">
+      <table>
+        <thead><tr><th>Player</th><th aria-label="Status">Status</th><th>\u{1F4A5}</th><th>\u{1F9E0}</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </section>`;
+}
+
+function zombieDiceStatusEmoji(status) {
+  if (status === "banked") return "\u{1F9E0}"; // Brains! — no banks in the graveyard
+  if (status === "busted") return "\u{1F4A5}";
+  if (status === "sitting") return "\u{1F4A4}";
+  return "\u{1F9DF}"; // still hunting — zombie mode
+}
+
+function standingsRow(seat, room, game, pacing) {
+  const complete = game.status === "complete";
+  const paced = seat.is_bot ? zombieDiceBotPaced(seat, pacing) : null;
+  let status;
+  let shotguns;
+  let carried;
+  let gain;
+  if (paced) {
+    status = paced.status;
+    shotguns = paced.shotguns;
+    carried = paced.carried;
+    gain = paced.gain;
+  } else {
+    status = seat.active === false ? "sitting" : seat.finish_state === "active" ? "rolling" : seat.finish_state;
+    shotguns = Number(seat.shotguns || 0);
+    carried = Number(seat.score || 0);
+    gain = Number(seat.turn_brains || 0);
+  }
+  const isWinner = complete && seat.mark === game.winner;
+  const statusHtml = isWinner ? "\u{1F3C6}" : zombieDiceStatusEmoji(status);
+  // While rolling, show carried + the live turn gain; once banked the gain is
+  // already inside the total (the server folds it in at bank time).
+  const scoreHtml = !isWinner && status === "rolling" && gain > 0
+    ? `<strong>${fmt(carried)}</strong><span class="zd-turn-gain">+${fmt(gain)}</span>`
+    : `<strong>${fmt(paced && status === "banked" ? paced.carried + paced.gain : Number(seat.score || 0))}</strong>`;
+  const classes = ["zd-row"];
+  if (status === "busted") classes.push("zd-row-busted");
+  if (status === "sitting") classes.push("zd-row-sitting");
+  return `
+    <tr class="${classes.join(" ")}">
+      <td><span class="zd-player">${seatEmoji(room, seat.mark)} ${escapeName(seatName(room, seat.mark))}</span></td>
+      <td title="${status}">${statusHtml}</td>
+      <td>${status === "sitting" ? "—" : fmt(shotguns)}</td>
+      <td>${scoreHtml}</td>
+    </tr>`;
+}
+
+// Maps a bot's resolved-turn trajectory to what the human should see right now:
+// indexed by the local human's roll count this round, clamped to the final
+// entry once the human's turn ends. Mirrors the 10,000 pacing contract.
+function zombieDiceBotPaced(seat, pacing) {
+  const traj = Array.isArray(seat.bot_trajectory) ? seat.bot_trajectory : [];
+  if (!traj.length) {
+    return {
+      carried: Number(seat.score || 0),
+      gain: 0,
+      status: seat.active === false ? "sitting" : seat.finish_state === "active" ? "rolling" : seat.finish_state,
+      shotguns: Number(seat.shotguns || 0),
+    };
+  }
+  const lastIndex = traj.length - 1;
+  const index = pacing.humanDone ? lastIndex : Math.min(Math.max(pacing.rollCount, 0), lastIndex);
+  const snap = traj[index];
+  const carried = Number((traj[0] && traj[0].total) || 0);
+  return {
+    carried,
+    gain: Math.max(0, Number(snap.total || 0) - carried),
+    status: snap.status,
+    shotguns: Number(snap.shotguns || 0),
+  };
+}
+
+function seatState(game, mark) {
+  return (Array.isArray(game.players) ? game.players : []).find((seat) => seat.mark === mark) || null;
+}
+
+function markForPlayer(room, playerId) {
+  const seat = (room.players || []).find((player) => player.id === playerId);
+  return seat ? seat.mark : null;
+}
+
+function seatEmoji(room, mark) {
+  const seat = (room.players || []).find((player) => player.mark === mark);
+  return seat && seat.icon ? seat.icon : "\u{1F642}";
+}
+
+function seatName(room, mark) {
+  const seat = (room.players || []).find((player) => player.mark === mark);
+  return seat ? seat.name : mark;
+}
+
+function fmt(value) {
+  return Number(value || 0).toLocaleString();
+}
+
+function escapeName(value) {
+  return String(value || "").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
+}

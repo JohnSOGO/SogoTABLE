@@ -19,6 +19,7 @@ export const GAME_IDS = {
   yahtzee: "2c8a5f1e9d74",
   mazewright: "5e3b9a7c1f04",
   rtta: "7a1c3e9f5b28",
+  zombieDice: "3f9b7d2e8a41",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -123,6 +124,19 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["mazewright", "maze_wright", "dungeon_master"],
+  },
+  {
+    id: GAME_IDS.zombieDice,
+    lobbyMode: "hostStart",
+    name: "Roll of the Dead 🧟",
+    summary: "Zombie push-your-luck dice: draw from the cup, eat brains, and stop before three shotguns end your turn — 13 brains triggers the final round.",
+    players: "1+ players",
+    player_count: null,
+    host_start: true,
+    category: "dice",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["roll_of_the_dead", "zombie_dice", "zombie-dice"],
   },
   {
     id: GAME_IDS.rtta,

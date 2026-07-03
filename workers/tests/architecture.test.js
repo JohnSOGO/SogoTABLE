@@ -44,7 +44,7 @@ function gameDirOf(rel) {
 }
 
 const CEILINGS = {
-  "src/sogotable/static/app.js": 2498,
+  "src/sogotable/static/app.js": 2497,
   "workers/sogotable-api.js": 1580,
   "src/sogotable/static/styles.css": 375,
   "src/sogotable/static/styles-games.css": 1700,
@@ -66,7 +66,7 @@ for (const [rel, ceiling] of Object.entries(CEILINGS)) {
 // it must go in an owner module (e.g. client/session-store.js). Lower this when
 // you move state OUT, like the line ceilings. (Also catches incidental top-level
 // timers/keys — acceptable: it forces a deliberate choice on any new global.)
-const APP_TOP_LEVEL_LET_CAP = 33;
+const APP_TOP_LEVEL_LET_CAP = 30;
 test(`architecture: app.js keeps <= ${APP_TOP_LEVEL_LET_CAP} top-level let declarations`, () => {
   const count = (readFileSync(join(root, "src/sogotable/static/app.js"), "utf8").match(/^let /gm) || []).length;
   assert.ok(
