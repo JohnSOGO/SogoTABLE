@@ -25,7 +25,7 @@ player plays on their own device (no hot-seat / local opponent).
 2. **RUN (async).** The server distributes every maze (the deck) with a
    server-chosen **invert + ±90° rotation** per maze, so even your own dungeon is
    disorienting. Each player runs every maze under fog — moving blind via
-   **full-board swipe, a large D-pad, on-board pads, or arrow keys**, walls
+   **full-board swipe, a large D-pad, or arrow keys**, walls
    revealing on a bump, the arch appearing when reached. The **uncollected gems
    show through the fog** so the runner can weigh chasing the shiny vs. bolting for
    the exit; grabbed gems fly into the inventory. Each player posts only the
@@ -37,8 +37,10 @@ player plays on their own device (no hot-seat / local opponent).
    - 🏃 **Mazerunner** — fewest total moves across all mazes.
    - 💎 **Treasure Hunter** — most loot collected.
    - 🏆 **Champion** — a **rank-weighted composite of all three fields**. Each
-     player earns a per-category rank score in `[0, N−1]` (best = N−1; ties share
-     the average), weighted **5 author / 3 runner / 3 treasure**:
+     player earns a per-category *place* score in `[1, N]` (best = N, last = 1;
+     ties share the average) — zeroed only for a category you didn't contest
+     (e.g. solo Mazewright: no opponent ran your maze) — weighted
+     **5 author / 3 runner / 3 treasure**:
      `composite = 5·authorRank + 3·runnerRank + 3·treasureRank`. Ties break on
      fewest total moves, then seat order. This is `game.winner`, so an all-round
      2nd-place player beats a one-category specialist — running and treasure matter,
