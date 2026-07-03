@@ -100,7 +100,6 @@ function trayHtml(seat, game, room, pendingMove, animate) {
   const cup = seat.cup || {};
   const keptHtml = `
     <p class="zd-kept">
-      <span>\u{1F463} <b>${fmt((seat.hand || []).length)}</b> re-roll</span>
       <span>Cup ${["green", "yellow", "red"].map((color) => `${CUP_EMOJI[color]}${fmt(cup[color])}`).join(" ")}</span>
     </p>`;
   const disabled = Boolean(pendingMove);
@@ -112,7 +111,7 @@ function trayHtml(seat, game, room, pendingMove, animate) {
     noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! No brains this turn.</p>${waitingHtml(seat, game, room)}`;
     actionsHtml = "";
   } else if (banked && !seat.can_roll) {
-    noteHtml = `<p class="zd-msg">\u{1F9E0} Brains! ${fmt(seat.score)} safe.</p>${waitingHtml(seat, game, room)}`;
+    noteHtml = `<p class="zd-msg">${fmt(seat.score)} \u{1F9E0} Devoured!</p>${waitingHtml(seat, game, room)}`;
     actionsHtml = "";
   } else if (game.round_pending_advance) {
     actionsHtml = `<button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
