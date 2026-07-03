@@ -174,17 +174,20 @@ function eventsHtml(game, room, mySeat, myMark) {
   const events = Array.isArray(game.pending_events) ? game.pending_events : [];
   if (!events.length) return "";
   const myDevs = (mySeat && mySeat.developments) || [];
+  // Name everyone explicitly — "sent 3 skulls to 2 opponents" was ambiguous
+  // enough to read as the ROLLER being struck. "You" is always spelled out.
+  const who = (mark) => (mark === myMark ? "<b>you</b>" : escapeName(seatName(room, mark)));
   const lines = events.map((ev) => {
-    const from = escapeName(seatName(room, ev.from));
-    const n = Array.isArray(ev.to) ? ev.to.length : 0;
+    const from = ev.from === myMark ? "<b>You</b>" : escapeName(seatName(room, ev.from));
+    const victims = (ev.to || []).map(who).join(", ");
     const missedMe = ev.from !== myMark && !(ev.to || []).includes(myMark);
     if (ev.kind === "pestilence") {
-      let line = `☠️ <span class="rtta-event">Pestilence</span> — ${from} sent 3 skulls to ${n} opponent${n === 1 ? "" : "s"} (−3 each).`;
+      let line = `☠️ <span class="rtta-event">Pestilence</span> — ${from} rolled 3 skulls; ${victims || "no one"} lose${(ev.to || []).length === 1 ? "s" : ""} 3 points.`;
       if (missedMe && myDevs.includes("Medicine")) line += ` 🛡️ <b>Medicine</b> protected you.`;
       return line;
     }
     if (ev.kind === "revolt") {
-      let line = `🔥 <span class="rtta-event">Revolt</span> — ${from} wiped ${n} opponent${n === 1 ? "'s" : "s'"} goods.`;
+      let line = `🔥 <span class="rtta-event">Revolt</span> — ${from} rolled 5+ skulls with Religion; ${victims || "no one"} lose${(ev.to || []).length === 1 ? "s" : ""} all goods.`;
       if (missedMe && myDevs.includes("Religion")) line += ` 🛡️ <b>Religion</b> protected your goods.`;
       return line;
     }
