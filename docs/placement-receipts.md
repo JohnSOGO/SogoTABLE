@@ -289,7 +289,7 @@ REORG RECEIPT
 - New owner row: none (games/ directory pattern covers per-game files).
 
 ## 2026-07-03 — Zombie Dice (new game module) + app.js reorg-first
-Commit: pending
+Commit: 21287f9 feat(zombie-dice): Roll of the Dead 🧟 (reorg prep: 93387b4)
 
 PLACEMENT RECEIPT
 - Ask:          Place the Zombie Dice game (id `zombie-dice`) — shared-table turn-based
