@@ -136,6 +136,11 @@ export function makeRttaMove(game, mark, action, rng = Math.random) {
   if (Number.isFinite(stamped) && stamped !== game.round) {
     throw new Error(`Stale ${type === "COMMIT_TURN" ? "turn" : "ready"} from round ${stamped} — the table is on round ${game.round}. Refresh to catch up.`);
   }
+  if (type === "COMMIT_TURN" && seat.skipped) {
+    // Their real turn arrived after the table skipped them — a silent
+    // "duplicate" drop here once showed '✓ Turn submitted' over a voided turn.
+    throw new Error("Your turn was skipped this round while the table waited — you're back in from the next round.");
+  }
   if (type === "COMMIT_TURN" && game.phase === "playing" && !seat.round_done) {
     applyCommittedTurn(game, mark, action);
     seat.round_done = true;
@@ -162,6 +167,8 @@ function skipPlayer(game, actor, targetMark, rng) {
     if (!actor.round_done) throw new Error("Finish and submit your own turn before skipping a player.");
     if (target.round_done) return;
     target.round_done = true;
+    target.ready_next = true; // a null turn has nothing to review — one skip covers both barriers
+    target.skipped = true;    // honest client copy + loud rejection of a late real commit
   } else {
     if (!actor.ready_next) throw new Error("Press Ready yourself before skipping a player.");
     if (target.ready_next) return;
@@ -265,6 +272,7 @@ function advanceRound(game) {
     s.ready_next = false;
     s.skulls = 0;
     s.dev_this_round = null; // last round's purchase shields from now on
+    s.skipped = false;       // a skipped seat is back in from the new round
   }
   rememberOpenMonuments(game);
 }
@@ -416,7 +424,7 @@ export function rttaGameToDict(game) {
       cities: s.cities, cityBoxes, food: s.food, goods: s.goods.slice(),
       developments: s.developments.slice(), monumentBoxes: { ...s.monumentBoxes },
       points_lost: s.points_lost, score: s.score,
-      round_done: s.round_done, ready_next: s.ready_next,
+      round_done: s.round_done, ready_next: s.ready_next, skipped: !!s.skipped,
       finish_state: game.status === "complete" ? "complete"
         : game.phase === "review" ? (s.ready_next ? "ready" : "reviewing")
         : (s.round_done ? "waiting" : "playing"),
