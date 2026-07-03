@@ -11,6 +11,11 @@
 // Bots get an auto-built maze and simulated run results so they never block a
 // barrier (the Yahtzee pre-resolved-bot pattern).
 
+// Rejection policy (RTTA's): a rejected/stale/unknown action THROWS — the API
+// route turns that into an error response and skips the bump/save/broadcast,
+// so a no-op never burns a D1 write. A skipped seat is filled bot-style and
+// told the truth via seat.skipped.
+
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
 import {
   buildRandomMazeCode,
@@ -69,15 +74,16 @@ export function initMazewrightSeats(game, players, rng = Math.random) {
     if (seat.is_bot) { seat.maze = buildRandomMazeCode(rng); seat.built = true; }
     game.players[p.mark] = seat;
   }
-  maybeStartRunning(game, rng);   // bot-only / solo-bot rooms settle immediately
+  maybeStartRunning(game, rng);   // no-op with zero humans: a humanless room stays in "building" (unreachable today — the host always holds a seat)
 }
 
 // ---- BUILD barrier ----
 function submitMaze(game, mark, code, rng) {
   const seat = game.players && game.players[mark];
-  if (!seat || seat.is_bot || game.status !== "building") return;
-  if (!isValidMazeCode(code)) return;     // reject malformed/unsolvable
-  seat.maze = code;
+  if (!seat || seat.is_bot) throw new Error("You are not seated at this maze table.");
+  if (game.status !== "building") throw new Error("The build phase is over — refresh to catch up.");
+  if (!isValidMazeCode(code)) throw new Error("That maze is not valid — it needs a reachable exit, reachable treasure, and enough walls.");
+  seat.maze = code;   // resubmit-before-the-barrier legally overwrites
   seat.built = true;
   maybeStartRunning(game, rng);
 }
@@ -104,25 +110,72 @@ function maybeStartRunning(game, rng) {
 }
 
 // ---- RUN: a player posts one finished maze's result ----
+const MOVES_CEILING = 9999;   // like the loot clamp: Infinity/1e15 would D1-serialize to null and poison standings
+
 function postResult(game, mark, action) {
   const seat = game.players && game.players[mark];
-  if (!seat || seat.is_bot || game.status !== "running" || seat.runDone) return;
+  if (!seat || seat.is_bot) throw new Error("You are not seated at this maze table.");
+  if (game.status !== "running" || seat.runDone || !game.deck) throw new Error("No maze run is open for you — refresh to catch up.");
   const idx = seat.runIndex;
-  if (!game.deck || idx >= game.deck.length) return;
+  if (idx >= game.deck.length) throw new Error("No maze run is open for you — refresh to catch up.");
+  // The client stamps which deck slot it ran. A mismatch is a duplicate or a
+  // lagging tab — without this, that post would be credited to the WRONG maze
+  // and advance the pointer past it. Unstamped = legacy client mid-deploy,
+  // accepted (RTTA's stamp policy).
+  const stamped = action.index === undefined || action.index === null ? NaN : Math.trunc(Number(action.index));
+  if (Number.isFinite(stamped) && stamped !== idx) {
+    throw new Error(`Stale result for maze ${stamped + 1} — you are on maze ${idx + 1}. Refresh to catch up.`);
+  }
   // Family-trust, but no neon "front door": clamp the client-reported result to
   // the feasible band. moves can't beat the maze's shortest escape; loot can't
   // exceed the five hidden items. (Author can't inflate their own score either:
   // self-runs are excluded in computeStandings.)
   const author = game.deck[idx].author;
   const floor = Math.max(1, shortestPathFromCode(game.players[author].maze));
+  const rawMoves = Number(action.moves);
   seat.results.push({
     author,
-    moves: Math.max(floor, Math.round(Number(action.moves) || 0)),
+    moves: Math.min(MOVES_CEILING, Math.max(floor, Number.isFinite(rawMoves) ? Math.round(rawMoves) : 0)),
     loot: Math.min(5, Math.max(0, Math.round(Number(action.loot) || 0))),
   });
   seat.runIndex += 1;
   if (seat.runIndex >= game.deck.length) seat.runDone = true;
   maybeComplete(game);
+}
+
+// ---- barrier escape hatch (RTTA's SKIP_PLAYER) ----
+// Only a player already DONE at the current barrier may skip, and only over a
+// human seat that is not (a dropped phone must not deadlock the table; reset
+// can't recover either — it needs the absent player's vote). The skipped seat
+// is filled bot-style — an auto-built maze at BUILD, simulated runs at RUN —
+// so the game stays scoreable; seat.skipped tells the returning player the
+// truth. Skipping someone who arrived in the meantime is a silent no-op (races).
+function skipPlayer(game, mark, targetMark, rng) {
+  const actor = game.players && game.players[mark];
+  const target = game.players && game.players[targetMark];
+  if (!actor || actor.is_bot) throw new Error("You are not seated at this maze table.");
+  if (!target || target.is_bot || target === actor) throw new Error("Only another human player's seat can be skipped.");
+  if (game.status === "building") {
+    if (!actor.built) throw new Error("Submit your own maze before skipping a player.");
+    if (target.built) return;
+    target.maze = buildRandomMazeCode(rng);
+    target.built = true;
+    target.skipped = true;
+    maybeStartRunning(game, rng);
+  } else if (game.status === "running") {
+    if (!actor.runDone) throw new Error("Finish your own runs before skipping a player.");
+    if (target.runDone) return;
+    for (let i = target.runIndex; i < game.deck.length; i++) {
+      const r = simulateRun(game.players[game.deck[i].author].maze, rng);
+      target.results.push({ author: game.deck[i].author, moves: r.moves, loot: r.loot });
+    }
+    target.runIndex = game.deck.length;
+    target.runDone = true;
+    target.skipped = true;
+    maybeComplete(game);
+  } else {
+    throw new Error("Nothing to skip — the game is not at a barrier.");
+  }
 }
 
 // ---- TALLY barrier ----
@@ -156,9 +209,11 @@ function computePrizes(game) {
 }
 
 export function makeMazewrightMove(game, mark, action) {
-  if (!action || typeof action.type !== "string") return game;
-  if (action.type === "SUBMIT_MAZE") submitMaze(game, mark, action.code, Math.random);
-  else if (action.type === "POST_RESULT") postResult(game, mark, action);
+  const type = action && action.type;
+  if (type === "SUBMIT_MAZE") submitMaze(game, mark, action.code, Math.random);
+  else if (type === "POST_RESULT") postResult(game, mark, action);
+  else if (type === "SKIP_PLAYER") skipPlayer(game, mark, action.target, Math.random);
+  else throw new Error(`Unknown Mazewright action "${type}".`);
   return game;
 }
 
@@ -190,6 +245,7 @@ export function mazewrightGameToDict(game) {
       pts_runner: r1(parts[mark] && parts[mark].runner),
       pts_treasure: r1(parts[mark] && parts[mark].treasure),
       finish_state,
+      skipped: !!seat.skipped,   // barrier skip — the seat is told the truth
     };
   });
   // the deck (codes + transforms) is shared so each client can run every maze

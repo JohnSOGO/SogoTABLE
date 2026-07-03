@@ -1,12 +1,22 @@
 // Super Tic-Tac-Toe + Super-Tactical-Toe — server-authoritative rules for the
 // platform's two default games (they share the 9x9 macro board, win lines, and
 // move validation; Tactical adds pickups/treasure and score-based winners).
-// Phase 2 game module, esbuild-bundled into the Worker. Pure logic, no imports.
+// Phase 2 game module, esbuild-bundled into the Worker. Pure logic.
 //
 // The Worker keeps the dispatch glue that weaves these in: the makeMove router,
-// the isTacticalGame/isBoxesGame predicates, the inline newGame board creation,
-// and the scored bot (chooseScoredBotMove/scoreBotMove) — all of which call the
-// exports below. pushGameEvent lives here because only these games emit events.
+// the inline newGame board creation, and the scored bot (chooseScoredBotMove/
+// scoreBotMove) — all of which call the exports below. The isTacticalGame
+// predicate moved here alongside the other games' isXGame exports when
+// workers/stats.js was extracted. pushGameEvent lives here because only these
+// games emit events.
+import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
+import { cleanGameId } from "../../game-catalog.js";
+
+const TACTICAL_GAME_ID = GAME_IDS.tactical;
+
+export function isTacticalGame(game) {
+  return game && (cleanGameId(game.game_id) === TACTICAL_GAME_ID || Array.isArray(game.pickups));
+}
 
 const WIN_LINES = [
   [0, 1, 2],

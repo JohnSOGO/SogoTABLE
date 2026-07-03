@@ -1145,7 +1145,7 @@ test("creates a room, joins a second player, and rejects a third player", async 
 
   const third = await post(env, "/api/room/join", { code: room.code, player: player("third", "Third", "#c43d5d") });
   assert.equal(third.ok, false);
-  assert.equal(third.error, "Table already has two players.");
+  assert.equal(third.error, "This game already started — ask the host for a rematch to join.");
 });
 
 test("lists bots and lets the host seat a bot opponent", async () => withMockRandom([0], async () => {
@@ -2653,8 +2653,8 @@ test("Mazewright wrapper rejects an invalid maze code at the barrier", () => {
     { mark: "P1", name: "A", kind: "human" },
     { mark: "P2", name: "B", kind: "human" },
   ]);
-  makeMazewrightMove(game, "P1", { type: "SUBMIT_MAZE", code: "!!not-a-code!!" });
-  assert.equal(game.players.P1.built, false);          // malformed code rejected
+  assert.throws(() => makeMazewrightMove(game, "P1", { type: "SUBMIT_MAZE", code: "!!not-a-code!!" }), /not valid/);
+  assert.equal(game.players.P1.built, false);          // malformed code rejected LOUDLY
   assert.equal(game.status, "building");
 });
 

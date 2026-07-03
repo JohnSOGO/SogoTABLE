@@ -1323,7 +1323,7 @@ async function makeMove(board, cell, lineId = "") {
       owner_token: await ensureOwnerToken(player.id),
       board,
       cell,
-      line_id: lineId,
+      line_id: lineId, game_epoch: currentRoom.game_epoch,
     });
     pendingMove = null;
     setRoom(response.room);
@@ -1355,7 +1355,7 @@ async function makeBattleshipAction(action) {
       code: currentRoom.code,
       player_id: player.id,
       owner_token: await ensureOwnerToken(player.id),
-      action,
+      action, game_epoch: currentRoom.game_epoch,
     });
     pendingMove = null;
     // Don't clear reveals here: setRoom enqueues the fresh ones from the event
@@ -1392,7 +1392,7 @@ async function makeQuoridorAction(action) {
       code: currentRoom.code,
       player_id: player.id,
       owner_token: await ensureOwnerToken(player.id),
-      action,
+      action, game_epoch: currentRoom.game_epoch,
     });
     resetQuoridorDraft();
     pendingMove = null;
@@ -1433,7 +1433,7 @@ async function makeTenThousandAction(action) {
       code: currentRoom.code,
       player_id: player.id,
       owner_token: await ensureOwnerToken(player.id),
-      action,
+      action, game_epoch: currentRoom.game_epoch,
     });
     pendingMove = null;
     setRoom(response.room);
@@ -1487,7 +1487,7 @@ async function postRoomAction(action) {
       code: currentRoom.code,
       player_id: player.id,
       owner_token: await ensureOwnerToken(player.id),
-      action,
+      action, game_epoch: currentRoom.game_epoch,
     });
     pendingMove = null;
     setRoom(response.room);

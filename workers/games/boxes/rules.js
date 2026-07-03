@@ -1,10 +1,16 @@
 // Dots and Boxes — server-authoritative rules engine. Extracted from the Worker
 // god-file as the first Phase 2 game module. Pure game logic: no routing, auth,
-// persistence, or HTTP. esbuild bundles this into the Worker; the Worker keeps
-// the `isBoxesGame` dispatch predicate and calls the exports below.
+// persistence, or HTTP. esbuild bundles this into the Worker; the Worker calls
+// the exports below (the `isBoxesGame` predicate moved here alongside the other
+// games' isXGame exports when workers/stats.js was extracted).
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
+import { cleanGameId } from "../../game-catalog.js";
 
 const BOXES_GAME_ID = GAME_IDS.boxes;
+
+export function isBoxesGame(game) {
+  return Boolean(game && (cleanGameId(game.game_id) === BOXES_GAME_ID || Array.isArray(game.lines) && Array.isArray(game.boxes)));
+}
 
 function otherMark(mark) {
   return mark === "X" ? "O" : "X";

@@ -36,6 +36,18 @@ GATE resilience — 2026-07-03 — 5 gaps — POST_RESULT lacks deck index, dupl
 No gate passed clean on this first run; per doctrine each gate is re-run after
 fixes until its receipt says pass.
 
+**2026-07-03 — fix pass landed** (branch `fix/mazewright-gate-findings`, all 12
+items authorized by MojoSOGO): POST_RESULT deck-index stamp + reject; finite
+moves ceiling; loud throws on invalid/stale/unknown actions (no write on a
+no-op); SKIP_PLAYER barrier escape with honest `skipped` projection + client
+skip row; honest locked-maze screen on rejoin; late-join guard and game_epoch
+staleness guard (platform-wide, all five client posters stamp the epoch);
+spawn-cell gem collect; bot mazes validated through `isValidMazeCode`; doc +
+manifest text drift fixed. New pins in `workers/tests/mazewright-rules.test.js`
+(crawl engine, wire key sets, guards) — suite 210/210. Prep seams first:
+`workers/stats.js` extraction (worker ceiling 1801→1580) and mazewright
+`styles.js` extraction. **Gates are now due a fresh-session re-run.**
+
 ## Rules Ledger (rules-fidelity gate, 2026-07-03)
 
 Owners abbreviated: **core** = `src/sogotable/static/games/mazewright/rules.js`,
