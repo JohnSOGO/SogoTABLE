@@ -397,6 +397,22 @@ test("the game ends when a player owns 5 developments", () => {
   assert.deepEqual(g.end_reason.marks, ["P1"]);
 });
 
+test("a tied final score is broken by remaining goods value", () => {
+  const g = twoHumans();
+  const devs = ["Leadership", "Irrigation", "Agriculture", "Quarrying", "Medicine"];
+  for (const d of devs) {
+    makeRttaMove(g, "P1", commit({ devBought: d, goods: [1, 0, 0, 0, 0] })); // wood — worth 1
+    makeRttaMove(g, "P2", commit({ devBought: d, goods: [0, 1, 0, 0, 0] })); // stone — worth 2
+    if (g.status !== "complete") {
+      makeRttaMove(g, "P1", { type: "READY_NEXT" });
+      makeRttaMove(g, "P2", { type: "READY_NEXT" });
+    }
+  }
+  assert.equal(g.status, "complete");
+  assert.equal(g.players.P1.score, g.players.P2.score);
+  assert.equal(g.winner, "P2"); // seat order alone would have said P1
+});
+
 test("a bot-only room settles to completion without blocking", () => {
   const g = newRttaGame();
   initRttaSeats(g, [bot("P1", "Bot 1"), bot("P2", "Bot 2")]);

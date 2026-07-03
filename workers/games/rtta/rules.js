@@ -15,7 +15,7 @@
 //   phase "review"   — the Discard scoreboard shows totals + disaster events;
 //                      humans READY_NEXT; when all are ready the round advances.
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
-import { GOODS } from "../../../src/sogotable/static/games/rtta/rules.js";
+import { GOODS, goodValue } from "../../../src/sogotable/static/games/rtta/rules.js";
 import { cleanGameId } from "../../game-catalog.js";
 import { chooseRttaTurn } from "./ai.js";
 
@@ -363,10 +363,14 @@ function completeGame(game) {
   recomputeScores(game);
   game.status = "complete";
   game.end_reason = gameEndReason(game); // null when settled by the round guard
-  let best = -Infinity;
+  // Rulebook tie-break: equal scores go to the player whose remaining goods
+  // are worth more (chart value); after that, first in seat order stands.
+  const goodsWorth = (m) => game.players[m].goods.reduce((sum, q, i) => sum + goodValue(i, q), 0);
   let winner = null;
   for (const m of seatOrder(game)) {
-    if (game.players[m].score > best) { best = game.players[m].score; winner = m; }
+    if (winner === null) { winner = m; continue; }
+    const s = game.players[m].score, w = game.players[winner].score;
+    if (s > w || (s === w && goodsWorth(m) > goodsWorth(winner))) winner = m;
   }
   game.winner = winner;
 }
