@@ -234,7 +234,7 @@ function zombieDiceStatusEmoji(status) {
   if (status === "banked") return "\u{1F9E0}"; // Brains! — no banks in the graveyard
   if (status === "busted") return "\u{1F4A5}";
   if (status === "sitting") return "\u{1F4A4}";
-  return "\u{1F3B2}"; // rolling
+  return "\u{1F9DF}"; // still hunting — zombie mode
 }
 
 function standingsRow(seat, room, game, pacing) {
