@@ -18,6 +18,8 @@ export const RTTA_CSS = `
   grid-column:1/-1;width:100%;max-width:480px;margin:0 auto;color:var(--ink);
   font-family:"Trebuchet MS",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center}
 .rtta-root *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* quick double-taps carry meaning (build undo, food-chip clear) — stop iOS double-tap zoom racing them */
+.rtta-root .die,.rtta-root .mon,.rtta-root .city,.rtta-root .gv,.rtta-root .cashchip,.rtta-root button{touch-action:manipulation}
 .rtta-root h1{font-size:1.2rem;margin:0 0 2px;letter-spacing:.5px;color:var(--gold);text-align:center}
 .rtta-root .sub{color:var(--muted);font-size:.7rem;text-align:center}
 

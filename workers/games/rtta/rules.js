@@ -15,11 +15,14 @@
 //   phase "review"   — the Discard scoreboard shows totals + disaster events;
 //                      humans READY_NEXT; when all are ready the round advances.
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
+import { GOODS } from "../../../src/sogotable/static/games/rtta/rules.js";
 import { cleanGameId } from "../../game-catalog.js";
 import { chooseRttaTurn } from "./ai.js";
 
 export const RTTA_GAME_ID = GAME_IDS.rtta;
 const ROUND_GUARD = 500; // bot-only auto-advance backstop (game always ends first)
+const SOLO_ROUNDS = 10;  // rulebook solitaire variant: the game ends after 10 rounds
+const MAX_POINTS_LOST = 45; // the score sheet's disaster grid: 45 boxes, then it is full
 
 // Monument name → worker cost, first-builder VP, later-builder VP. 2025 rulebook
 // edition. `notAt` = seat counts at which the monument SITS OUT (2-player games
@@ -114,10 +117,23 @@ export function initRttaSeats(game, players, rng = Math.random) {
 
 // Humans post one committed turn per round (COMMIT_TURN) and one READY_NEXT to
 // leave the review screen. Both are barrier-gated; bots go through neither.
+//
+// Rejection policy: a same-round duplicate is a client retry — ignored
+// silently (idempotent, first commit wins). A round-STAMPED action from
+// another round is a stale tab and is rejected loudly, as is an unknown
+// action type; an unstamped action (legacy client mid-deploy) is accepted.
 export function makeRttaMove(game, mark, action) {
   const seat = game.players && game.players[mark];
   if (!seat || seat.is_bot) return game;
   const type = action && action.type;
+  if (type !== "COMMIT_TURN" && type !== "READY_NEXT") {
+    throw new Error(`Unknown Roll Through the Ages action "${type}".`);
+  }
+  if (game.status === "complete") throw new Error("The game is already over.");
+  const stamped = action.round === undefined || action.round === null ? NaN : Math.trunc(Number(action.round));
+  if (Number.isFinite(stamped) && stamped !== game.round) {
+    throw new Error(`Stale ${type === "COMMIT_TURN" ? "turn" : "ready"} from round ${stamped} — the table is on round ${game.round}. Refresh to catch up.`);
+  }
   if (type === "COMMIT_TURN" && game.phase === "playing" && !seat.round_done) {
     applyCommittedTurn(game, mark, action);
     seat.round_done = true;
@@ -147,7 +163,9 @@ function applyCommittedTurn(game, mark, turn) {
   }
   seat.food = clampInt(turn.food, 0, 15, seat.food);
   if (Array.isArray(turn.goods) && turn.goods.length === 5) {
-    seat.goods = turn.goods.map((g) => Math.max(0, Math.trunc(Number(g) || 0)));
+    // Each pegboard row has a hard top (GOODS[i].holes) — a hostile payload
+    // can't bank more of a good than the score sheet has spaces for.
+    seat.goods = turn.goods.map((g, i) => clampInt(g, 0, GOODS[i].holes, 0));
   }
   const inPlay = monumentsInPlay(seatOrder(game).length);
   if (turn.monumentBoxes && typeof turn.monumentBoxes === "object") {
@@ -158,13 +176,21 @@ function applyCommittedTurn(game, mark, turn) {
     }
     seat.monumentBoxes = boxes;
   }
-  const completed = Array.isArray(turn.monumentsCompleted) ? turn.monumentsCompleted : [];
-  for (const name of completed) {
-    if (inPlay.includes(name) && !game.monuments[name].includes(mark)) game.monuments[name].push(mark);
+  // Monument completion is DERIVED from the clamped boxes, never trusted from
+  // the payload's monumentsCompleted list — a doctored claim could steal
+  // first-builder VP and trip the SHARED all-monuments end condition.
+  for (const name of inPlay) {
+    if ((seat.monumentBoxes[name] || 0) >= MONUMENTS[name].workers && !game.monuments[name].includes(mark)) {
+      game.monuments[name].push(mark);
+    }
   }
   const dev = turn.devBought;
-  if (dev && DEVELOPMENTS[dev] && !seat.developments.includes(dev)) seat.developments.push(dev);
-  seat.points_lost += Math.max(0, Math.trunc(Number(turn.pointsLostSelf) || 0));
+  if (dev && DEVELOPMENTS[dev] && !seat.developments.includes(dev)) {
+    seat.developments.push(dev);
+    seat.dev_this_round = dev; // buys land AFTER Upkeep — no disaster shield this round
+  }
+  seat.points_lost = Math.min(MAX_POINTS_LOST,
+    seat.points_lost + Math.max(0, Math.trunc(Number(turn.pointsLostSelf) || 0)));
   seat.skulls = clampInt(turn.skulls, 0, 7, 0); // 7 cities → up to 7 skull dice
 }
 
@@ -209,6 +235,7 @@ function advanceRound(game, rng) {
     s.round_done = false;
     s.ready_next = false;
     s.skulls = 0;
+    s.dev_this_round = null; // last round's purchase shields from now on
   }
   rememberOpenMonuments(game);
   resolveBotRound(game, rng);
@@ -230,6 +257,20 @@ function resolveBotRound(game, rng = Math.random) {
 // (exactly 3 skulls) costs every OTHER player without Medicine 3 points; Revolt
 // (5+ skulls) with Religion wipes every opponent's goods. Events are recorded for
 // the client to animate (skulls flying to each opponent).
+//
+// Timing rule (signed adaptation, PLAN.md): disasters resolve during Upkeep,
+// which precedes the Buy step — so a development bought THIS round never
+// shields (or powers) THIS round's disasters, for the roller or a victim.
+function devsAtUpkeep(seat) {
+  return seat.dev_this_round
+    ? seat.developments.filter((d) => d !== seat.dev_this_round)
+    : seat.developments;
+}
+
+function losePoints(seat, n) {
+  seat.points_lost = Math.min(MAX_POINTS_LOST, seat.points_lost + n);
+}
+
 function resolveDisasters(game) {
   const events = [];
   const marks = seatOrder(game);
@@ -237,22 +278,31 @@ function resolveDisasters(game) {
     const seat = game.players[from];
     const skulls = seat.skulls || 0;
     if (skulls === 3) {
-      const to = [];
-      for (const other of marks) {
-        if (other === from) continue;
-        const os = game.players[other];
-        if (os.developments.includes("Medicine")) continue;
-        os.points_lost += 3;
-        to.push(other);
+      if (marks.length === 1) {
+        // Solitaire (rulebook solo variant): no opponents to strike —
+        // pestilence costs the roller 3 points instead, Medicine immune.
+        if (!devsAtUpkeep(seat).includes("Medicine")) {
+          losePoints(seat, 3);
+          events.push({ from, kind: "pestilence", to: [from], amount: 3 });
+        }
+      } else {
+        const to = [];
+        for (const other of marks) {
+          if (other === from) continue;
+          const os = game.players[other];
+          if (devsAtUpkeep(os).includes("Medicine")) continue;
+          losePoints(os, 3);
+          to.push(other);
+        }
+        if (to.length) events.push({ from, kind: "pestilence", to, amount: 3 });
       }
-      if (to.length) events.push({ from, kind: "pestilence", to, amount: 3 });
     }
-    if (skulls >= 5 && seat.developments.includes("Religion")) {
+    if (skulls >= 5 && devsAtUpkeep(seat).includes("Religion")) {
       const to = [];
       for (const other of marks) {
         if (other === from) continue;
         const os = game.players[other];
-        if (os.developments.includes("Religion")) continue; // Religion holders are unaffected
+        if (devsAtUpkeep(os).includes("Religion")) continue; // Religion holders are unaffected
         os.goods = [0, 0, 0, 0, 0];
         to.push(other);
       }
@@ -284,9 +334,10 @@ function recomputeScores(game) {
 }
 
 // The game ends when any player owns 5 developments OR every monument IN PLAY
-// for this seat count is built. gameEndReason names WHOSE situation triggered
-// it: the 5-development owner(s), or whoever first-built the monuments that
-// were still open at the start of the final round (tracked in open_monuments).
+// for this seat count is built — plus, in the solitaire variant, after the
+// 10th round. gameEndReason names WHOSE situation triggered it: the
+// 5-development owner(s), or whoever first-built the monuments that were
+// still open at the start of the final round (tracked in open_monuments).
 function gameEndReason(game) {
   const fiveDevs = seatOrder(game).filter((m) => game.players[m].developments.length >= 5);
   if (fiveDevs.length) return { kind: "five_devs", marks: fiveDevs, monuments: [] };
@@ -294,6 +345,9 @@ function gameEndReason(game) {
   if (inPlay.every((name) => (game.monuments[name] || []).length > 0)) {
     const closed = (game.open_monuments || []).filter((n) => (game.monuments[n] || []).length > 0);
     return { kind: "all_monuments", marks: [...new Set(closed.map((n) => game.monuments[n][0]))], monuments: closed };
+  }
+  if (seatOrder(game).length === 1 && game.round >= SOLO_ROUNDS) {
+    return { kind: "ten_rounds", marks: seatOrder(game).slice(), monuments: [] };
   }
   return null;
 }

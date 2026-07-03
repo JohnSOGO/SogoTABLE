@@ -137,15 +137,17 @@ export function createRttaBoard(root, opts) {
   function onDieClick(i) {
     if (busy() || submitted || upkeepDone) return;   // dice are settled once Upkeep runs
     const d = dice[i];
-    const ended = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
-    if (ended && d.face && d.face.choice) { cycleChoice(i); return; }   // choice taps always cycle
-    if (leadMode && leadershipReady() && d.face) {
-      leadershipReroll(i); return;   // 2025 rulebook: a skull die MAY be rerolled
-    }
+    // Leadership reroll wins the tap — ANY die is a legal target, even the
+    // choice die (2025 rulebook: "select 1 die and roll it again").
+    if (leadMode && leadershipReady() && d.face) { leadershipReroll(i); return; }
+    if (rollingEnded() && d.face && d.face.choice) { cycleChoice(i); return; }   // choice taps always cycle
     toggleLock(i);
   }
+  // "After your LAST roll" — the 3rd, or an earlier roll the player stopped at
+  // (all dice held). Owned at turn start: buys land after Upkeep, too late.
+  function rollingEnded() { return rolls >= MAX_ROLLS || (rolls > 0 && allHeld()); }
   function leadershipReady() {
-    return rolls >= MAX_ROLLS && ownsDev("Leadership") && !leadershipUsed && !upkeepDone;
+    return rollingEnded() && owned.has("Leadership") && !leadershipUsed && !upkeepDone;
   }
   // Explicit two-step reroll: the 👑 button appears after the final roll; only
   // AFTER pressing it do dice become rerollable (no accidental rerolls).
@@ -160,10 +162,11 @@ export function createRttaBoard(root, opts) {
   function leadershipReroll(i) {
     leadershipUsed = true;
     leadMode = false;
+    rolls = MAX_ROLLS;   // using Leadership DECLARES the roll final — no rolling on after it
     const rc = gid("rollCell"); rc.classList.add("busy");
     rollFlicker([dieEls[i]], () => {
       setFace(i, FACES[Math.floor(Math.random() * 6)]);
-      if (rolls >= MAX_ROLLS && !dice[i].face.skullFace) { dice[i].locked = true; paintDie(i); }
+      if (!dice[i].face.skullFace) { dice[i].locked = true; paintDie(i); }
       rc.classList.remove("busy"); tally(); markChoices(); updateButton();
     });
   }
@@ -181,13 +184,13 @@ export function createRttaBoard(root, opts) {
     tally(); markChoices();
   }
   function markChoices() {
-    const ended = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
+    const ended = rollingEnded();
     let pending = 0;
     const lead = leadershipReady();
     dice.forEach((d, i) => {
       const needsDecision = ended && d.face && d.face.choice === true && !d.choice;
       dieEls[i].classList.toggle("choice-pending", needsDecision);
-      dieEls[i].classList.toggle("lead-glow", leadMode && lead && !!d.face && !(d.face.choice && !d.choice));
+      dieEls[i].classList.toggle("lead-glow", leadMode && lead && !!d.face);
       if (needsDecision) pending++;
     });
     renderLead();
@@ -208,7 +211,7 @@ export function createRttaBoard(root, opts) {
   }
   function updateButton() {
     const rc = gid("rollCell"); if (!rc) return;
-    const bank = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
+    const bank = rollingEnded();
     rc.dataset.mode = bank ? "bank" : "roll";
     rc.textContent = bank ? "Upkeep" : "ROLL";
     rc.classList.toggle("bank", bank);
@@ -218,6 +221,14 @@ export function createRttaBoard(root, opts) {
     const rc = gid("rollCell");
     if (rc.classList.contains("busy") || submitted) return;
     if (rc.dataset.mode === "bank") {
+      // An undecided 🌾/⚒️ die is never worth NOTHING — block Upkeep until
+      // the player picks (tapping past the prompt used to tally it as zero).
+      if (dice.some((d) => d.face && d.face.choice && !d.choice)) {
+        const tip = gid("tipStrip");
+        tip.innerHTML = "Tap the blinking 🌾/⚒️ die first — <b>Food or Workers?</b>";
+        tip.classList.add("alert");
+        return;
+      }
       if (leadershipReady() && !upkeepConfirm) {
         upkeepConfirm = true;
         const tip = gid("tipStrip");
@@ -427,7 +438,7 @@ export function createRttaBoard(root, opts) {
     gid("goodsCash").innerHTML = html;
   }
   function confirmPay() {
-    if (!payDev || paidTotal() < devCost(payDev)) return;
+    if (!upkeepDone || !payDev || paidTotal() < devCost(payDev)) return;
     const r = payDev;
     if (payCoins) coinsSpent = true;   // turned in whole — overpay is lost, no change
     payGoods.forEach((i) => { goodsHeld[i] = 0; });
@@ -462,7 +473,17 @@ export function createRttaBoard(root, opts) {
     onCommit(buildCommitPayload({
       cities: builtCities, cityBoxes: cityBoxesState, food, goods: goodsHeld,
       monumentBoxes: monBoxes, devBought: boughtDev, skulls: turnSkulls, pointsLostSelf: turnLost,
+      round,   // stamps the payload — the server rejects a stale tab's commit
     }));
+  }
+  // A failed POST re-opens the turn: without this the latched `submitted` +
+  // disabled button strand the player at "Waiting…" until a manual refresh.
+  function commitFailed(message) {
+    submitted = false;
+    const sub = gid("submitBtn");
+    if (sub) { sub.textContent = "Submit turn"; sub.disabled = false; sub.classList.add("ready"); }
+    const st = gid("rttaStatus");
+    if (st) st.textContent = "⚠️ " + (message || "The turn didn't send") + " — tap Submit to retry.";
   }
 
   // --- build interactions (artwork + markup live in board-art.js) -------------
@@ -567,15 +588,21 @@ export function createRttaBoard(root, opts) {
     devBlock.appendChild(r);
   });
 
-  // Disasters list + points-lost grid
+  // Disasters list + points-lost grid. Solitaire has no opponents, so its
+  // Pestilence row strikes the roller (server rule) — say so, and let
+  // Medicine read as immunity there.
+  const baseEf = (n) => (playerCount === 1 && n === 3
+    ? "Pestilence — lose 3 points (no opponents)"
+    : DISASTERS.find((d) => d.count === n).ef);
   const disList = gid("disList");
-  DISASTERS.forEach((d) => { disList.insertAdjacentHTML("beforeend", '<div class="drow" data-skulls="' + d.count + '"><span class="sk">' + d.sk + '</span><span class="ef">' + d.ef + "</span></div>"); });
+  DISASTERS.forEach((d) => { disList.insertAdjacentHTML("beforeend", '<div class="drow" data-skulls="' + d.count + '"><span class="sk">' + d.sk + '</span><span class="ef">' + baseEf(d.count) + "</span></div>"); });
   // A disaster row you are covered against says WHY it can't hurt you instead
   // of listing a penalty that will not happen: Drought ↔ Irrigation, Invasion ↔
   // a completed Great Wall, Revolt ↔ Religion (redirected at your opponents).
   const wallWorkers = MONUMENTS.find((m) => m.name === "Great Wall").w;
   const IMMUNE_EF = {
     2: "Irrigation prevents Drought — no effect",
+    3: "Medicine prevents Pestilence — no effect",
     4: "Great Wall prevents Invasion — no effect",
     5: "Religion turns Revolt on opponents — they lose their goods",
   };
@@ -584,11 +611,12 @@ export function createRttaBoard(root, opts) {
       const n = +r.dataset.skulls;
       const immune =
         (n === 2 && ownsDev("Irrigation")) ||
+        (n === 3 && playerCount === 1 && ownsDev("Medicine")) ||
         (n === 4 && (monBoxes["Great Wall"] || 0) >= wallWorkers) ||
         (n === 5 && ownsDev("Religion"));
       r.classList.toggle("immune", immune);
       const ef = r.querySelector(".ef");
-      if (ef) ef.textContent = immune ? IMMUNE_EF[n] : DISASTERS.find((d) => d.count === n).ef;
+      if (ef) ef.textContent = immune ? IMMUNE_EF[n] : baseEf(n);
     });
   }
   function highlightDisaster(skulls) {
@@ -645,6 +673,12 @@ export function createRttaBoard(root, opts) {
     if (dev) {
       const rowEl = dev.closest(".row.dev");
       if (rowEl.classList.contains("locked")) return;   // owned — including bought this turn: final
+      if (!upkeepDone) {   // buys come AFTER Upkeep — no dodging your own disasters
+        const tip = gid("tipStrip");
+        tip.innerHTML = "⏳ Finish your roll and <b>Upkeep</b> first — developments are bought in the Buy step.";
+        tip.classList.add("alert");
+        return;
+      }
       if (boughtDev) { /* one dev per turn */ }
       else if (payDev === rowEl) { cancelPay(); }
       else if (!payDev) { startPay(rowEl); }
@@ -700,6 +734,7 @@ export function createRttaBoard(root, opts) {
   return {
     root,
     isSubmitted: () => submitted,
+    commitFailed,
     setScoreboardBuilder: (fn) => { scoreBuilder = fn; refreshScoreboard(); },
     // Mid-round snapshot: opponents committed — repaint the build race.
     updateRace: (mon, rivals) => { gameMon = mon || {}; rivalBoxes = rivals || {}; paintRace(); },
