@@ -112,7 +112,13 @@ function trayHtml(seat, game, room, pendingMove, animate) {
     noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! No brains this turn.</p>${waitingHtml(seat, game, room)}`;
     actionsHtml = "";
   } else if (banked && !seat.can_roll) {
-    noteHtml = `<p class="zd-msg">${fmt(seat.score)} \u{1F9E0} Devoured!</p>${waitingHtml(seat, game, room)}`;
+    // First bank: "N 🧠 Devoured!" — later banks show the gain and the total.
+    const gained = Number(seat.turn_brains || 0);
+    const total = Number(seat.score || 0);
+    const devoured = gained === total
+      ? `${fmt(total)} \u{1F9E0} Devoured!`
+      : `${fmt(gained)} more \u{1F9E0} devoured! ${fmt(total)} total!`;
+    noteHtml = `<p class="zd-msg">${devoured}</p>${waitingHtml(seat, game, room)}`;
     actionsHtml = "";
   } else if (game.round_pending_advance) {
     actionsHtml = `<button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
