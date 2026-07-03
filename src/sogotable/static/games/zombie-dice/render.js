@@ -129,7 +129,7 @@ function trayHtml(seat, game, room, pendingMove, animate) {
   }
   return `
     <section class="zd-tray">
-      <div class="zd-dice${busted || banked ? " zd-done" : ""}" aria-label="Rolled dice">${diceHtml}</div>
+      <div class="zd-dice${banked ? " zd-done" : ""}" aria-label="Rolled dice">${diceHtml}</div>
       ${keptHtml}
       ${actionsHtml ? `<div class="zd-actions" aria-label="Turn actions">${actionsHtml}</div>` : ""}
       ${noteHtml}
