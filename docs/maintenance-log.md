@@ -11,6 +11,28 @@ audit when the newest entry is stale (>14 days or >150 commits since).
 
 ---
 
+## 2026-07-03 — fourth steward pass (milestone: Mazewright locked, RTTA refining, theme landed)
+
+- **Run:** Milestone, scope: whole codebase. `main` at `512780d`, 197/197 green (verified).
+- **Verdict:** **SOUND** — nothing owed. All 3 findings from the 2026-07-02 pass verified
+  closed (board-fx.js extracted 729c447; score-parity test landed; pre-push gate a271506;
+  SogoUI/ gone). The 15-commit rtta delta placed everything correctly and added zero
+  pressure to any capped file; the board.js hotspot cooled (16 → 2 commits, 742/800).
+- **Placement audit:** 0 new receipts — correctly zero (both new files under standing
+  decisions: games/rtta/ pattern + exempt scripts/); 15 light-path commits sampled, all
+  clean; Two-Hats prep/feature split observed in practice (729c447 vs 4fd44ee).
+- **Findings:** none.
+- **Handoffs:** none.
+- **Restraint (weighed, left alone):** wireInvites ctx ~20 entries (cold boundary, zero
+  churn — revisit only when invites takes a feature); RTTA client/server duplication
+  (parity-pinned; consolidation deferred to RTTA lock — re-weigh at that milestone);
+  ten-thousand KNOWN_NO_MANIFEST (tracked, test-pinned, locked game); 1-line ceiling
+  headroom on app.js/worker (ratchet by design); pinned worker test-file exception;
+  big-but-cold mazewright/ten-thousand files.
+- **Sources read:** module-ownership.md, modularity.md, doctrine.md, placement-receipts.md,
+  maintenance-log.md, architecture.test.js (live ceilings), rtta-rules.test.js; git log/
+  diff/churn a90375c..HEAD; wc -l across runtime source; npm test.
+
 ## 2026-07-02 — third steward pass (RTTA refinement train)
 
 - **Run:** Milestone (RTTA live-round refinement train landed — Leadership button,
