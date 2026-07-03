@@ -136,7 +136,7 @@ export function createRttaBoard(root, opts) {
     const d = dice[i];
     const ended = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
     if (ended && d.face && d.face.choice) { cycleChoice(i); return; }   // choice taps always cycle
-    if (leadershipReady() && d.face) {
+    if (leadMode && leadershipReady() && d.face) {
       leadershipReroll(i); return;   // 2025 rulebook: a skull die MAY be rerolled
     }
     toggleLock(i);
@@ -144,8 +144,19 @@ export function createRttaBoard(root, opts) {
   function leadershipReady() {
     return rolls >= MAX_ROLLS && ownsDev("Leadership") && !leadershipUsed && !upkeepDone;
   }
+  // Explicit two-step reroll: the 👑 button appears after the final roll; only
+  // AFTER pressing it do dice become rerollable (no accidental rerolls).
+  let leadMode = false;
+  function renderLead() {
+    const el = gid("leadRow"); if (!el) return;
+    if (!leadershipReady()) { leadMode = false; el.innerHTML = ""; return; }
+    el.innerHTML = leadMode
+      ? '<button class="cashchip pay on" id="leadBtn" type="button">👑 Now tap the die to reroll — or tap here to cancel</button>'
+      : '<button class="cashchip pay" id="leadBtn" type="button">👑 Leadership: reroll a die</button>';
+  }
   function leadershipReroll(i) {
     leadershipUsed = true;
+    leadMode = false;
     const rc = gid("rollCell"); rc.classList.add("busy");
     const el = dieEls[i];
     el.className = "die rolling";
@@ -179,15 +190,18 @@ export function createRttaBoard(root, opts) {
     dice.forEach((d, i) => {
       const needsDecision = ended && d.face && d.face.choice === true && !d.choice;
       dieEls[i].classList.toggle("choice-pending", needsDecision);
-      dieEls[i].classList.toggle("lead-glow", lead && !!d.face && !(d.face.choice && !d.choice));
+      dieEls[i].classList.toggle("lead-glow", leadMode && lead && !!d.face && !(d.face.choice && !d.choice));
       if (needsDecision) pending++;
     });
+    renderLead();
     const tip = gid("tipStrip");
     if (pending > 0 && !upkeepDone) {
       tip.innerHTML = "Tap the blinking 🌾/⚒️ die — <b>Food or Workers?</b>"; tip.classList.add("alert");
+    } else if (lead && leadMode) {
+      tip.innerHTML = "👑 Tap the die to reroll — even a skull. You must accept the new result."; tip.classList.add("alert");
     } else if (lead) {
       tip.classList.remove("alert");
-      tip.innerHTML = "👑 <b>Leadership</b>: tap any die to reroll it once — even a skull. Or tap <b>Upkeep</b> to keep the roll.";
+      tip.innerHTML = "👑 <b>Leadership</b> is ready — tap the 👑 button to reroll one die, or tap <b>Upkeep</b> to keep the roll.";
     } else if (ended && !upkeepDone) {
       tip.classList.remove("alert");
       tip.innerHTML = "Roll finished — tap the green <b>Upkeep</b>: food stores, cities feed (1 each). Then spend workers on <b>2 Build</b>.";
@@ -210,7 +224,7 @@ export function createRttaBoard(root, opts) {
       if (leadershipReady() && !upkeepConfirm) {
         upkeepConfirm = true;
         const tip = gid("tipStrip");
-        tip.innerHTML = "👑 <b>Leadership unused</b> — tap a die to reroll it, or tap <b>Upkeep</b> again to skip.";
+        tip.innerHTML = "👑 <b>Leadership unused</b> — tap the 👑 button to reroll a die, or tap <b>Upkeep</b> again to skip.";
         tip.classList.add("alert");
         return;
       }
@@ -357,6 +371,7 @@ export function createRttaBoard(root, opts) {
     });
     gid("tipStrip").classList.remove("alert"); setTip("dice");
     gid("rollCell").classList.remove("ready");
+    leadMode = false; renderLead();
     dieEls.forEach((el) => el.classList.remove("choice-pending", "lead-glow"));
     animateHarvestToFood(() => animateFoodToDice(() => resolveDisasters(finishUpkeep)));
   }
@@ -692,6 +707,7 @@ export function createRttaBoard(root, opts) {
       else { const gi = +paychip.dataset.good; payGoods.has(gi) ? payGoods.delete(gi) : payGoods.add(gi); }
       renderPay(); return;
     }
+    if (e.target.closest("#leadBtn")) { leadMode = !leadMode; markChoices(); return; }
     if (e.target.closest("#engUse")) { engConvert(+1); return; }
     if (e.target.closest("#engUndo")) { engConvert(-1); return; }
     if (e.target.closest("#payConfirm")) { confirmPay(); return; }

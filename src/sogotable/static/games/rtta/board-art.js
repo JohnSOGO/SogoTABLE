@@ -71,6 +71,7 @@ export const MARKUP = `
   <main class="window" id="window">
     <section class="page active" id="page-dice">
       <div class="tray" id="tray"></div>
+      <div class="goods-cash" id="leadRow"></div>
       <div class="tally oneline"><div class="tally-grid">
         <div class="stat"><span class="icon">🌾</span><span class="meta"><b class="val" id="tFood">0</b><span class="nm">Food</span></span></div>
         <div class="stat"><span class="icon">⚒️</span><span class="meta"><b class="val" id="tWork">0</b><span class="nm">Work</span></span></div>
