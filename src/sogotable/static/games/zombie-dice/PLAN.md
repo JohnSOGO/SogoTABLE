@@ -101,10 +101,14 @@ GATE resilience — 2026-07-03 — pass — advisory: no round stamp on roll/ban
 ```
 
 All rules-fidelity / projection / sibling-parity gaps were fixed the same day
-(see the fix commit); re-run receipts below confirm pass.
+(commit 1b6ecd8); re-run receipts:
 
 ```text
-GATE rules-fidelity (re-run) — pending
-GATE projection (re-run)    — pending
-GATE sibling-parity (re-run) — pending
+GATE rules-fidelity (re-run) — 2026-07-03 — 1 gap — all four prior gaps verified fixed; new: rules.js playZombieDiceBotTurn comment still claimed bots see "previous round's banked totals", contradicting reworded deviation #6 — stale comment → fixed in 3a5132f
+GATE projection (re-run) — 2026-07-03 — pass — prior gap resolved by documented wire convention; read-direction clean
+GATE sibling-parity (re-run) — 2026-07-03 — 1 gap — both prior fixes verified in code+test (deviation #6 matches behavior; fallback human-proof, test exercises guard exhaustion; 229/229 green); same stale playZombieDiceBotTurn comment flagged (second sighting of the rules-fidelity re-run find) → fixed in 3a5132f
 ```
+
+Both re-run flags were one and the same comment line, corrected in 3a5132f
+before this stamp — all four gates closed as **pass**. Shipped to main the
+same day.
