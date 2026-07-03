@@ -71,7 +71,7 @@ export function renderRttaGame(ctx) {
   const iAmReady = reviewing && mySeat && mySeat.ready_next;
 
   let status;
-  if (complete) status = "🏆 Game over — final standings below.";
+  if (complete) status = endStatus(game, room, myMark);
   else if (game.phase === "playing") status = `Turn submitted. Waiting for ${waitingCount} player${waitingCount === 1 ? "" : "s"} to finish…`;
   else if (iAmReady) status = "Ready — waiting for the other players…";
   else status = "Round resolved. Review the standings, then ready up for the next round.";
@@ -166,6 +166,22 @@ function flyArc(srcEl, targetEl, emoji, delay, onArrive) {
     document.body.appendChild(fly);
     setTimeout(() => { if (onArrive) onArrive(); fly.remove(); }, 950);
   }, delay);
+}
+
+// Why the game ended — names whose situation triggered it (server end_reason).
+function endStatus(game, room, myMark) {
+  const r = game.end_reason;
+  const names = (marks) => escapeName(marks.map((m) => (m === myMark ? "you" : seatName(room, m))).join(", "));
+  if (r && r.kind === "five_devs" && (r.marks || []).length) {
+    return `🏆 Game over — ${names(r.marks)} reached <b>5 developments</b>. Final standings below.`;
+  }
+  if (r && r.kind === "all_monuments") {
+    const who = (r.marks || []).length
+      ? `${names(r.marks)} finished ${escapeName((r.monuments || []).join(", "))} — `
+      : "";
+    return `🏆 Game over — ${who}<b>every monument is built</b>. Final standings below.`;
+  }
+  return "🏆 Game over — final standings below.";
 }
 
 // Cross-player events surfaced by the server at the barrier — plus a line when
