@@ -217,6 +217,10 @@ test("the all-monuments end condition counts only in-play monuments", () => {
   makeRttaMove(g, "P2", commit());
   assert.equal(g.status, "complete");
   assert.equal(g.winner, "P1");
+  assert.equal(g.end_reason.kind, "all_monuments");
+  assert.deepEqual(g.end_reason.marks, ["P1"]); // P1 closed every open monument
+  assert.deepEqual([...g.end_reason.monuments].sort(), [...inPlay].sort());
+  assert.equal(rttaGameToDict(g).end_reason.kind, "all_monuments");
 });
 
 test("bots never build monuments that are out of play for the seat count", () => {
@@ -250,6 +254,8 @@ test("the game ends when a player owns 5 developments", () => {
   assert.equal(g.status, "complete");
   assert.equal(g.players.P1.developments.length, 5);
   assert.equal(g.winner, "P1");
+  assert.equal(g.end_reason.kind, "five_devs");
+  assert.deepEqual(g.end_reason.marks, ["P1"]);
 });
 
 test("a bot-only room settles to completion without blocking", () => {

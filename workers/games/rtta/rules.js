@@ -97,6 +97,7 @@ export function initRttaSeats(game, players, rng = Math.random) {
   game.phase = "playing";
   game.status = "playing";
   game.winner = null;
+  game.end_reason = null;
   game.seat_order = [];
   game.players = {};
   game.monuments = {};
@@ -106,6 +107,7 @@ export function initRttaSeats(game, players, rng = Math.random) {
     game.seat_order.push(p.mark);
     game.players[p.mark] = newSeat(p.name, p.kind === "bot", p.level);
   }
+  rememberOpenMonuments(game);
   resolveBotRound(game, rng);
   maybeAdvance(game, rng);
 }
@@ -208,6 +210,7 @@ function advanceRound(game, rng) {
     s.ready_next = false;
     s.skulls = 0;
   }
+  rememberOpenMonuments(game);
   resolveBotRound(game, rng);
 }
 
@@ -281,17 +284,31 @@ function recomputeScores(game) {
 }
 
 // The game ends when any player owns 5 developments OR every monument IN PLAY
-// for this seat count is built.
-function isGameOver(game) {
-  const fiveDevs = seatOrder(game).some((m) => game.players[m].developments.length >= 5);
-  const allMonuments = monumentsInPlay(seatOrder(game).length)
-    .every((name) => (game.monuments[name] || []).length > 0);
-  return fiveDevs || allMonuments;
+// for this seat count is built. gameEndReason names WHOSE situation triggered
+// it: the 5-development owner(s), or whoever first-built the monuments that
+// were still open at the start of the final round (tracked in open_monuments).
+function gameEndReason(game) {
+  const fiveDevs = seatOrder(game).filter((m) => game.players[m].developments.length >= 5);
+  if (fiveDevs.length) return { kind: "five_devs", marks: fiveDevs, monuments: [] };
+  const inPlay = monumentsInPlay(seatOrder(game).length);
+  if (inPlay.every((name) => (game.monuments[name] || []).length > 0)) {
+    const closed = (game.open_monuments || []).filter((n) => (game.monuments[n] || []).length > 0);
+    return { kind: "all_monuments", marks: [...new Set(closed.map((n) => game.monuments[n][0]))], monuments: closed };
+  }
+  return null;
+}
+
+function isGameOver(game) { return gameEndReason(game) !== null; }
+
+function rememberOpenMonuments(game) {
+  game.open_monuments = monumentsInPlay(seatOrder(game).length)
+    .filter((name) => (game.monuments[name] || []).length === 0);
 }
 
 function completeGame(game) {
   recomputeScores(game);
   game.status = "complete";
+  game.end_reason = gameEndReason(game); // null when settled by the round guard
   let best = -Infinity;
   let winner = null;
   for (const m of seatOrder(game)) {
@@ -324,6 +341,9 @@ export function rttaGameToDict(game) {
   return {
     game_id: game.game_id, round: game.round, phase: game.phase,
     status: game.status, winner: game.winner,
+    end_reason: game.end_reason
+      ? { kind: game.end_reason.kind, marks: (game.end_reason.marks || []).slice(), monuments: (game.end_reason.monuments || []).slice() }
+      : null,
     monuments, pending_events: (game.pending_events || []).slice(),
     seat_order: seatOrder(game).slice(), players,
   };
