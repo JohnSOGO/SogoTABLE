@@ -2,9 +2,9 @@
   "ok": true,
   "status": {
     "version": "0.1.2",
-    "revision": "37450c5",
-    "branch": "feature/rtta-leadership-button",
+    "revision": "60dd120",
+    "branch": "main",
     "dirty": true,
-    "summary": "SogoTable 0.1.2 rev 37450c5 branch feature/rtta-leadership-button dirty"
+    "summary": "SogoTable 0.1.2 rev 60dd120 branch main dirty"
   }
 }
