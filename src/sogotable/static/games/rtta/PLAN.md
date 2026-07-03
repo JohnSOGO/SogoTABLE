@@ -44,10 +44,13 @@ the 2025 PDF contains no monument table (score sheet is the only source).
   round-start seat, so refreshing discards the turn and re-deals dice. Accepted
   at family scale (matches the Yahtzee trust model); the upgrade path is
   persisting the turn log server-side, not blocking refresh.
-- **Same-round monument tie = commit arrival order** (2026-07-03, provisional):
-  when two players complete the same monument in one round, "first builder" is
-  whoever's commit reached the barrier first. Artifact of simultaneous play;
-  MojoSOGO may swap to both-score-first later.
+- **Same-round monument tie = commit arrival order, humans only** (2026-07-03,
+  provisional): when two HUMANS complete the same monument in one round, "first
+  builder" is whoever's commit reached the barrier first. Bots always resolve
+  AFTER every human (MojoSOGO ruled 2026-07-04: a pre-committing bot was
+  unfairly fast and sniped first-builder VP), so a bot can never win a
+  same-round tie against a human. MojoSOGO may swap the human tie to
+  both-score-first later.
 
 ## Resolutions — 2026-07-01 (post-gate fix pass)
 
@@ -111,10 +114,23 @@ the 2025 PDF contains no monument table (score sheet is the only source).
   rerolls a skull at exactly 2/4 skulls. Engineering/Granaries taps remain a
   documented light-opponent simplification.
 - **touch-action hardening** (parity gap 4 closed) on double-tap surfaces.
-- Still open, deliberately: barrier deadlock when a human never returns
-  (resilience gap 6 — needs a product decision on skip/timeout mechanics;
-  mitigated by device-portable identities), bots skipping Engineering/Granaries,
-  and the silent-ok:true pattern in OTHER games (platform-level).
+- Still open, deliberately: bots skipping Engineering/Granaries, and the
+  silent-ok:true pattern in OTHER games (platform-level).
+
+## Resolutions — 2026-07-04 (MojoSOGO directives)
+
+- **Barrier skip** (resilience gap 6 closed — MojoSOGO chose "skip"): a player
+  already done at the current barrier can skip a human seat that never arrived
+  (`SKIP_PLAYER`, two-tap ⏭ buttons on the waiting screen). A skipped turn is a
+  null turn; skipping an arrived seat is a silent no-op (races); bots/self/
+  not-yet-done actors are rejected loudly.
+- **Bots build AFTER the humans** (closes 2026-07-01 sibling-parity gap 3,
+  "bots always win same-round first-builder ties"): `resolveBotRound` moved
+  from round start to the barrier close, so bots roll/build on the humans'
+  post-commit board and can never beat a human to a monument completed the
+  same round. Bot-only rooms resolve straight through as before. Side effect:
+  a bot's build-race progress now appears at the round resolution instead of
+  live mid-round.
 
 ## Gate receipts
 

@@ -317,9 +317,11 @@ test("bots never build monuments that are out of play for the seat count", () =>
 
 test("bots roll real dice: an all-food roll banks food and builds nothing", () => {
   const g = newRttaGame();
+  initRttaSeats(g, [bot("P1", "Bot"), human("P2", "H")], () => 0);
+  assert.equal(g.players.P1.round_done, false); // bots wait for the humans now
   // rng 0 → every die lands FACES[0] (3 food); buy gate 0 < chance → wants to
   // buy, but 0 coins + 0 goods affords nothing. 9 food − 3 cities fed = +6.
-  initRttaSeats(g, [bot("P1", "Bot"), human("P2", "H")], () => 0);
+  makeRttaMove(g, "P2", commit(), () => 0); // barrier closes → the bot takes its turn
   const seat = g.players.P1;
   assert.equal(seat.food, 3 + 9 - 3); // started 3, harvested 9, fed 3
   assert.deepEqual(seat.monumentBoxes, {});
@@ -331,11 +333,23 @@ test("bots roll real dice: an all-skull roll pestilences the humans", () => {
   const g = newRttaGame();
   // rng 0.99 → every die lands the last face (2 goods + skull): 3 skulls.
   initRttaSeats(g, [bot("P1", "Bot"), human("P2", "H")], () => 0.99);
+  makeRttaMove(g, "P2", commit(), () => 0.99); // barrier closes → bot rolls, disasters resolve
   assert.equal(g.players.P1.skulls, 3);
-  makeRttaMove(g, "P2", commit()); // barrier closes → disasters resolve
   assert.equal(g.players.P2.points_lost, 3); // the BOT's pestilence struck the human
   assert.equal(g.pending_events[0].kind, "pestilence");
   assert.equal(g.pending_events[0].from, "P1");
+});
+
+test("bots build AFTER the humans — no first-builder sniping", () => {
+  const g = newRttaGame();
+  // rng 0.4 → every die lands FACES[2] (3 workers): the bot has 9 workers and
+  // would love the Step Pyramid. The human finishes it the same round — and
+  // wins first-builder VP, because the bot's turn resolves after every human.
+  initRttaSeats(g, [bot("P1", "Bot"), human("P2", "H")], () => 0.4);
+  makeRttaMove(g, "P2", commit(built("Step Pyramid")), () => 0.4);
+  assert.equal(g.monuments["Step Pyramid"][0], "P2"); // the human is FIRST
+  assert.ok((g.players.P1.monumentBoxes["Step Pyramid"] || 0) < 3
+    || g.monuments["Step Pyramid"].indexOf("P1") !== 0); // the bot never got there first
 });
 
 test("a reflected Revolt spares opponents who also own Religion", () => {
@@ -424,9 +438,39 @@ test("bots never block a room that has a human", () => {
   const g = newRttaGame();
   initRttaSeats(g, [human("P1", "Human"), bot("P2", "Bot")]);
   assert.equal(g.phase, "playing"); // waiting on the human, not the bot
-  assert.equal(g.players.P2.round_done, true); // bot already resolved its turn
   makeRttaMove(g, "P1", commit());
-  assert.equal(g.phase, "review"); // one human done → round resolves
+  assert.equal(g.phase, "review"); // one human done → bot takes its turn → round resolves
+  assert.equal(g.players.P2.round_done, true);
+  assert.equal(g.players.P2.ready_next, true); // and never holds the review barrier
+});
+
+test("skip: a waiting player can release the commit barrier over an absent human", () => {
+  const g = newRttaGame();
+  initRttaSeats(g, [human("P1"), human("P2"), human("P3")]);
+  // Nobody may skip before finishing their own turn.
+  assert.throws(() => makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P3" }), /Finish and submit/);
+  makeRttaMove(g, "P1", commit());
+  makeRttaMove(g, "P2", commit());
+  makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P2" }); // P2 already arrived — silent no-op
+  assert.equal(g.phase, "playing");
+  makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P3", round: 1 }); // P3's phone died
+  assert.equal(g.phase, "review");
+  assert.equal(g.players.P3.round_done, true);
+  assert.equal(g.players.P3.food, 3); // a skipped turn is a null turn — sheet untouched
+});
+
+test("skip: releases the ready barrier too, and rejects bots/self", () => {
+  const g = newRttaGame();
+  initRttaSeats(g, [human("P1"), human("P2"), bot("P3")]);
+  makeRttaMove(g, "P1", commit());
+  makeRttaMove(g, "P2", commit());
+  assert.equal(g.phase, "review");
+  assert.throws(() => makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P3" }), /human player/); // bots resolve themselves
+  assert.throws(() => makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P1" }), /human player/); // not yourself
+  assert.throws(() => makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P2" }), /Press Ready yourself/);
+  makeRttaMove(g, "P1", { type: "READY_NEXT" });
+  makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P2", round: 1 });
+  assert.equal(g.round, 2); // the table moved on
 });
 
 test("rttaGameToDict projects the full public N-player state", () => {

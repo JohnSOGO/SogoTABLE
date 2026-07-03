@@ -10,8 +10,9 @@
 // barrier. No hidden information: rttaGameToDict projects the full public state.
 //
 // Round lifecycle (two-phase barrier):
-//   phase "playing"  — humans COMMIT_TURN; when every human is done the server
-//                      resolves disasters + scores, then flips to "review".
+//   phase "playing"  — humans COMMIT_TURN; when every human is done the bots
+//                      take their turn (last — no first-builder sniping), then
+//                      disasters + scores resolve and the phase flips to "review".
 //   phase "review"   — the Discard scoreboard shows totals + disaster events;
 //                      humans READY_NEXT; when all are ready the round advances.
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
@@ -93,8 +94,8 @@ export function newRttaGame() {
   };
 }
 
-// Seat one civilization per player (3 cities / 3 dice each), then let bots take
-// the opening round and check the barrier (matters for a bot-only room).
+// Seat one civilization per player (3 cities / 3 dice each), then check the
+// barrier (a bot-only room resolves straight through to completion here).
 export function initRttaSeats(game, players, rng = Math.random) {
   game.round = 1;
   game.phase = "playing";
@@ -111,22 +112,23 @@ export function initRttaSeats(game, players, rng = Math.random) {
     game.players[p.mark] = newSeat(p.name, p.kind === "bot", p.level);
   }
   rememberOpenMonuments(game);
-  resolveBotRound(game, rng);
   maybeAdvance(game, rng);
 }
 
 // Humans post one committed turn per round (COMMIT_TURN) and one READY_NEXT to
 // leave the review screen. Both are barrier-gated; bots go through neither.
+// SKIP_PLAYER lets a player already waiting at a barrier release it over a
+// human seat that never arrived (a dropped phone must not deadlock the table).
 //
 // Rejection policy: a same-round duplicate is a client retry — ignored
 // silently (idempotent, first commit wins). A round-STAMPED action from
 // another round is a stale tab and is rejected loudly, as is an unknown
 // action type; an unstamped action (legacy client mid-deploy) is accepted.
-export function makeRttaMove(game, mark, action) {
+export function makeRttaMove(game, mark, action, rng = Math.random) {
   const seat = game.players && game.players[mark];
   if (!seat || seat.is_bot) return game;
   const type = action && action.type;
-  if (type !== "COMMIT_TURN" && type !== "READY_NEXT") {
+  if (type !== "COMMIT_TURN" && type !== "READY_NEXT" && type !== "SKIP_PLAYER") {
     throw new Error(`Unknown Roll Through the Ages action "${type}".`);
   }
   if (game.status === "complete") throw new Error("The game is already over.");
@@ -137,12 +139,35 @@ export function makeRttaMove(game, mark, action) {
   if (type === "COMMIT_TURN" && game.phase === "playing" && !seat.round_done) {
     applyCommittedTurn(game, mark, action);
     seat.round_done = true;
-    maybeAdvance(game);
+    maybeAdvance(game, rng);
   } else if (type === "READY_NEXT" && game.phase === "review" && !seat.ready_next) {
     seat.ready_next = true;
-    maybeAdvance(game);
+    maybeAdvance(game, rng);
+  } else if (type === "SKIP_PLAYER") {
+    skipPlayer(game, seat, action.target, rng);
   }
   return game;
+}
+
+// The barrier escape hatch: only a player who is already DONE at the current
+// barrier may skip, and only over a HUMAN seat that is not (bots resolve
+// themselves; a skipped turn is a null turn — nothing changes on that sheet).
+// Skipping someone who arrived in the meantime is a silent no-op (races).
+function skipPlayer(game, actor, targetMark, rng) {
+  const target = game.players[targetMark];
+  if (!target || target.is_bot || target === actor) {
+    throw new Error("Only another human player's seat can be skipped.");
+  }
+  if (game.phase === "playing") {
+    if (!actor.round_done) throw new Error("Finish and submit your own turn before skipping a player.");
+    if (target.round_done) return;
+    target.round_done = true;
+  } else {
+    if (!actor.ready_next) throw new Error("Press Ready yourself before skipping a player.");
+    if (target.ready_next) return;
+    target.ready_next = true;
+  }
+  maybeAdvance(game, rng);
 }
 
 // Trust-but-clamp: the client computed this turn; the server only bounds it to
@@ -202,14 +227,18 @@ function clampInt(value, lo, hi, fallback) {
 
 // The barrier. Loops only for a bot-only room (auto-advancing rounds until the
 // game ends); a room with humans returns to wait on the appropriate flag.
+//
+// Bots take their turn ONLY once every human has committed — going last, on
+// the humans' post-commit board. A pre-committing bot used to snipe the
+// first-builder VP on any monument a human was one worker from closing.
 function maybeAdvance(game, rng = Math.random) {
   if (!seatOrder(game).length) return;
   const humans = humanMarks(game);
   let guard = 0;
   while (game.status !== "complete" && guard++ < ROUND_GUARD) {
     if (game.phase === "playing") {
-      const marks = humans.length ? humans : seatOrder(game);
-      if (!marks.every((m) => game.players[m].round_done)) return;
+      if (humans.length && !humans.every((m) => game.players[m].round_done)) return;
+      resolveBotRound(game, rng);
       resolveDisasters(game);
       recomputeScores(game);
       game.phase = "review";
@@ -220,13 +249,13 @@ function maybeAdvance(game, rng = Math.random) {
     if (game.phase === "review") {
       const ready = humans.length ? humans.every((m) => game.players[m].ready_next) : true;
       if (!ready) return;
-      advanceRound(game, rng);
+      advanceRound(game);
     }
   }
   if (game.status !== "complete") completeGame(game); // guard tripped: settle
 }
 
-function advanceRound(game, rng) {
+function advanceRound(game) {
   game.round += 1;
   game.phase = "playing";
   game.pending_events = [];
@@ -238,11 +267,10 @@ function advanceRound(game, rng) {
     s.dev_this_round = null; // last round's purchase shields from now on
   }
   rememberOpenMonuments(game);
-  resolveBotRound(game, rng);
 }
 
-// Bots resolve their entire turn here and mark themselves done+ready, so they
-// never hold either barrier.
+// Bots resolve their entire turn at the barrier close (after every human) and
+// mark themselves done+ready, so they never hold either barrier.
 function resolveBotRound(game, rng = Math.random) {
   for (const m of seatOrder(game)) {
     const seat = game.players[m];

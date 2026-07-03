@@ -72,10 +72,22 @@ export function renderRttaGame(ctx) {
 
   // Not my turn to play: the barrier / review / complete screen.
   board = null; mountedKey = "";
-  const waitingCount = game.players.filter((s) => !s.round_done).length;
+  // Bots take their turn at the barrier close — only humans are ever waited on.
+  const waitingHumans = game.players.filter((s) => !s.is_bot
+    && (game.phase === "playing" ? !s.round_done : !s.ready_next));
+  const waitingCount = waitingHumans.length;
   const reviewing = !complete && game.phase === "review";
   const canReady = reviewing && mySeat && !mySeat.ready_next;
   const iAmReady = reviewing && mySeat && mySeat.ready_next;
+  // The barrier escape hatch: once I'M done, anyone I'm waiting on can be
+  // skipped (a dropped phone must not deadlock the table). Two taps to fire.
+  const iAmDone = !complete && mySeat
+    && (game.phase === "playing" ? mySeat.round_done : mySeat.ready_next);
+  const skippable = iAmDone ? waitingHumans.filter((s) => s.mark !== myMark) : [];
+  const skipHtml = skippable.length
+    ? `<div class="rtta-skiprow">${skippable.map((s) =>
+        `<button class="rtta-skip" type="button" data-mark="${escapeName(s.mark)}">⏭ Skip ${escapeName(seatName(room, s.mark))}</button>`).join("")}</div>`
+    : "";
 
   let status;
   if (complete) status = endStatus(game, room, myMark);
@@ -92,7 +104,9 @@ export function renderRttaGame(ctx) {
       ${eventsHtml(game, room, mySeat, myMark)}
       <p class="rtta-status">${status}</p>
       ${canReady ? '<button class="rtta-ready blink" id="rttaReady" type="button">Ready for next round →</button>' : ""}
+      ${skipHtml}
     </div>`;
+  wireSkipButtons(host, game, room, ctx);
   const readyBtn = host.querySelector("#rttaReady");
   if (readyBtn) readyBtn.addEventListener("click", async () => {
     readyBtn.disabled = true;
@@ -104,6 +118,29 @@ export function renderRttaGame(ctx) {
     }
   });
   animatePendingEvents(host, game, room, key);
+}
+
+// Skip needs two taps (arm, then fire) — a re-render from any snapshot resets
+// the armed state, which is fine: arming is cheap, skipping is not.
+function wireSkipButtons(host, game, room, ctx) {
+  host.querySelectorAll(".rtta-skip").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const name = seatName(room, btn.dataset.mark);
+      if (!btn.dataset.armed) {
+        btn.dataset.armed = "1";
+        btn.classList.add("armed");
+        btn.textContent = `⏭ Tap again — skip ${name}'s turn`;
+        return;
+      }
+      btn.disabled = true;
+      const err = await ctx.makeMove({ type: "SKIP_PLAYER", target: btn.dataset.mark, round: game.round });
+      if (err) {
+        btn.disabled = false;
+        const status = host.querySelector(".rtta-status");
+        if (status) status.innerHTML = `⚠️ ${escapeName(err)}`;
+      }
+    });
+  });
 }
 
 // Once per resolution, fly 3 skulls from each pestilent player's standings row to

@@ -220,6 +220,11 @@ export const RTTA_CSS = `
 .rtta-root .rtta-submit:active,.rtta-root .rtta-ready:active{transform:translateY(3px);box-shadow:0 1px 0 #835912}
 .rtta-root .rtta-submit.ready,.rtta-root .rtta-ready.blink{animation:rtta-blink 1s ease-in-out infinite}
 .rtta-root .rtta-event{color:var(--skull);font-weight:bold}
+/* the barrier escape hatch — deliberately quiet next to the golden Ready button */
+.rtta-root .rtta-skiprow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:4px 0 10px}
+.rtta-root .rtta-skip{padding:6px 12px;background:none;border:1px solid var(--edge);border-radius:10px;
+  color:var(--muted);font-size:.72rem;cursor:pointer}
+.rtta-root .rtta-skip.armed{border-color:var(--skull);color:var(--skull);font-weight:bold}
 /* a standings row struck by a cross-player disaster flashes red as its total ticks down */
 .rtta-root .scoretab tr.rtta-hit td{animation:rtta-flashRed .6s ease-out}
 .rtta-root .scoretab tr.rtta-hit .tot b{color:var(--skull)}
