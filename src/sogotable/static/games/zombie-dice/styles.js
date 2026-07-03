@@ -28,7 +28,11 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-scoreboard .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;color:var(--zd-muted);}
 .zombie-dice-root .zd-scoreboard strong{font-size:1.15rem;}
 .zombie-dice-root .zd-dice{display:flex;justify-content:center;gap:12px;}
+/* Dice are display-only: they must NEVER catch the pointer. The zd-depart
+   animation parks them, invisible, 110px down — directly over the action
+   buttons — so without this they block taps (the "dead button" bug). */
 .zombie-dice-root .zd-die{width:64px;height:64px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+ pointer-events:none;
  font-size:2rem;border:2px solid rgba(0,0,0,.35);box-shadow:inset 0 -4px 0 rgba(0,0,0,.18),0 2px 5px rgba(0,0,0,.45);}
 .zombie-dice-root .zd-die.zd-green{background:#43a558;}
 .zombie-dice-root .zd-die.zd-yellow{background:#e2c04c;}
@@ -49,7 +53,7 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-die span{filter:drop-shadow(0 1px 1px rgba(0,0,0,.35));}
 .zombie-dice-root .zd-kept{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;font-size:.85rem;color:var(--zd-muted);margin:0;}
 .zombie-dice-root .zd-kept b{color:var(--zd-ink);}
-.zombie-dice-root .zd-actions{display:flex;gap:10px;}
+.zombie-dice-root .zd-actions{display:flex;gap:10px;position:relative;z-index:2;}
 .zombie-dice-root .zd-actions button{flex:1;padding:12px 8px;font-size:1.02rem;border-radius:12px;}
 /* The whole button face is one click target: hand cursor everywhere on it
    (including over its label text), no text selection, and children never
