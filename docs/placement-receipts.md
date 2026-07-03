@@ -343,7 +343,7 @@ PLACEMENT RECEIPT
 - New owner row: none — both subtrees covered by the standing directory-pattern rows;
                 the reorganizer's farkle-ack.js is likewise pattern-covered (no row).
 
-REORG RECEIPT (commit: pending)
+REORG RECEIPT (commit 93387b4)
 - Trigger:      The placement above: Zombie Dice needs ~50-80 lines of host-start shell
                 wiring in app.js, which sat AT both ratchets (2498/2498 lines, 33/33
                 top-level lets) — room had to open before the feature.
