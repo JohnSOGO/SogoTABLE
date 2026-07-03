@@ -119,13 +119,13 @@ function trayHtml(seat, game, room, pendingMove, animate) {
       aria-label="Start the next round">\u{1F9DF} Begin next hunt \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>`;
   } else if (seat.phase === "ready") {
     actionsHtml = `<button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
-      aria-label="Roll three dice">\u{1F9DF} Hunt! \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>`;
+      aria-label="Roll three dice">\u{1F9DF} Hunt \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>`;
   } else {
     actionsHtml = `
       <button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
         aria-label="Push your luck — roll again">\u{1F9DF} Hunt \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>
       <button class="zd-bank" type="button" data-zd="bank" ${canBank ? "" : "disabled"}
-        aria-label="Stop and score your brains">\u{1F9E0} Brains! \u{1F9E0}</button>`;
+        aria-label="Stop and score your brains">\u{1F9E0} Brains \u{1F9E0}</button>`;
   }
   return `
     <section class="zd-tray">
