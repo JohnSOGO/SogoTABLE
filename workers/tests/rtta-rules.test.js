@@ -231,6 +231,29 @@ test("bots never build monuments that are out of play for the seat count", () =>
   assert.deepEqual(g.monuments["Great Pyramid"], []);
 });
 
+test("bots roll real dice: an all-food roll banks food and builds nothing", () => {
+  const g = newRttaGame();
+  // rng 0 → every die lands FACES[0] (3 food); buy gate 0 < chance → wants to
+  // buy, but 0 coins + 0 goods affords nothing. 9 food − 3 cities fed = +6.
+  initRttaSeats(g, [bot("P1", "Bot"), human("P2", "H")], () => 0);
+  const seat = g.players.P1;
+  assert.equal(seat.food, 3 + 9 - 3); // started 3, harvested 9, fed 3
+  assert.deepEqual(seat.monumentBoxes, {});
+  assert.deepEqual(seat.developments, []);
+  assert.equal(seat.skulls, 0);
+});
+
+test("bots roll real dice: an all-skull roll pestilences the humans", () => {
+  const g = newRttaGame();
+  // rng 0.99 → every die lands the last face (2 goods + skull): 3 skulls.
+  initRttaSeats(g, [bot("P1", "Bot"), human("P2", "H")], () => 0.99);
+  assert.equal(g.players.P1.skulls, 3);
+  makeRttaMove(g, "P2", commit()); // barrier closes → disasters resolve
+  assert.equal(g.players.P2.points_lost, 3); // the BOT's pestilence struck the human
+  assert.equal(g.pending_events[0].kind, "pestilence");
+  assert.equal(g.pending_events[0].from, "P1");
+});
+
 test("a reflected Revolt spares opponents who also own Religion", () => {
   const g = newRttaGame();
   initRttaSeats(g, [human("P1"), human("P2"), human("P3")]);

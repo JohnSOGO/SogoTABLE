@@ -21,9 +21,13 @@ the 2025 PDF contains no monument table (score sheet is the only source).
 - **Auto-discard at submit** — excess goods above 6 are discarded from Wood
   upward automatically (rulebook: player's choice). The player can hand-discard
   on the goods chart before submitting.
-- **Lightweight bots** — bots do not roll dice or pay development costs; they
-  use a deterministic worker yield and never keep skulls. (Documented in
-  `docs/game-rtta.md`; tension with the "bots run the human rules path" hard rule.)
+- **Bots roll real dice** (2026-07-02, superseding the "lightweight bots"
+  deviation): bots run the same pure turn functions as the human client — real
+  rolls with holds, feeding/famine/disasters with honest skulls, real
+  development payment from the turn's coins + goods, persisted partial city
+  progress. Levels differ by roll depth and buying strategy, not free
+  resources. Remaining simplifications: bots skip the Leadership/Engineering/
+  Granaries taps and hold a simple heuristic, not an optimiser.
 - **Longer Game variant (6 developments)** — intentionally not implemented.
 - **Whole-stack goods payment stands** — a partial-goods (sell-off-the-top)
   house rule shipped briefly on 2026-07-02 and was reverted the same day at
