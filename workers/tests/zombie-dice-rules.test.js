@@ -268,6 +268,29 @@ test("tiebreaker between bots only auto-resolves (no human roll can start it)", 
   assert.ok(g.players[g.winner].score > 13);
 });
 
+test("bots-only tiebreaker that never breaks resolves deterministically, no soft-lock", () => {
+  // Constant RNG: every draw picks the last stocked color and every face is a
+  // shotgun, so both bots bust every tiebreaker round and the tie never breaks
+  // on its own. The guard window must then end the game (earliest-seated tied
+  // leader) instead of stranding round_pending_advance with no legal roll.
+  setZombieDiceRandom(() => 0.99);
+  const g = newZombieDiceGame();
+  initZombieDiceSeats(g, [human("P1", "A"), bot("P2", "Buddy"), bot("P3", "Cipher", 3)]);
+  ["P2", "P3"].forEach((mark) => {
+    const seat = g.players[mark];
+    seat.score = 13;
+    seat.phase = "done";
+    seat.finish_state = "banked";
+    seat.resolved = true;
+  });
+  g.players.P1.turn_brains = 2;
+  g.players.P1.phase = "rolled";
+  makeZombieDiceMove(g, "P1", { type: "bank" });
+  assert.equal(g.status, "complete", "the guard window must end the game, not soft-lock it");
+  assert.equal(g.winner, "P2", "earliest-seated tied leader takes the unbreakable tie");
+  assert.equal(g.last_move.type, "complete");
+});
+
 // ---- bots ---------------------------------------------------------------------
 
 test("bots resolve their whole turn at round start via the human rules path", () => {

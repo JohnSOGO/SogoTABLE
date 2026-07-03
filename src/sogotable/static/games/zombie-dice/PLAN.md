@@ -36,13 +36,24 @@ name/art are — see Deviations #1).
 5. **Tiebreaker rounds are cumulative and repeat** among the current leaders
    until one leads outright (rulebook specifies one tiebreaker round among
    leaders; repetition on a re-tie is our reading of the obvious intent).
-6. **Bots are opponent-aware at round start only** (they resolve before humans
-   act, reading the previous round's banked totals — information every seat has).
+   **Edge rule:** a bots-only tiebreaker that stays exactly tied for the whole
+   26-round guard window ends deterministically — the earliest-seated tied
+   leader wins — so the room can never soft-lock with every human sitting out
+   (pinned by test; found by the 2026-07-03 gates).
+6. **Bots resolve sequentially at round start** via the human rules path. Each
+   bot's standings awareness (Overlord's pressure branch) reads the scores at
+   its own turn, so later-seated bots see earlier bots' same-round banked
+   totals — mirroring physical turn-order information. Humans see bot results
+   paced to their own rolls, but the full trajectory ships in the public
+   projection (a devtools reader could peek; accepted at family scale).
 7. **No expansions** (Double Feature / Horde) in v1.
 8. **Score authority is trusted at the family scale** for nothing — unlike the
    Game-Locked games there is NO client-posted score here: every roll is
    server-rolled and every bank is server-computed. (Listed to note the survey
    question was asked; the answer is full server authority.)
+9. **Solo play is allowed** (rulebook: "Two or more can play") — a one-player
+   room is a practice race to 13, ending the moment the solo seat banks past
+   the target, consistent with the platform's other host-start games.
 
 ## Architecture (Survey A–G)
 
@@ -54,6 +65,10 @@ name/art are — see Deviations #1).
 - State is plain serializable data; the RNG sits behind one seedable seam
   (`setZombieDiceRandom`); server re-validates every action and clamps
   persisted state on read.
+- Wire convention: the seat projection emits `hand` (kept feet colors) even
+  though the current UI infers feet from `rolled` — kept deliberately as
+  debug visibility and for a future kept-feet display (projection gate,
+  2026-07-03).
 - Bots: 4 tiers per `docs/ai-difficulty.md`, policy in `workers/games/zombie-dice/ai.js`,
   turns played through the human rules path; per-roll trajectory paced client-side.
 - Reuse: standard lobby/room/invite/presence/stats; `lobbyMode: "hostStart"`
@@ -76,11 +91,20 @@ name/art are — see Deviations #1).
 | Endgame | someone banks ≥13 | finish the round; most brains wins | "endgame: 13+ ends the game…" |
 | Tie | leaders tied at round close | leaders (only) play tiebreaker rounds until broken | "tiebreaker: tied leaders…", "tiebreaker between bots…" |
 
-## Verification Gates (fresh sessions — no receipts yet)
+## Verification Gates (fresh sessions)
 
 ```text
-GATE rules-fidelity — pending
-GATE projection    — pending
-GATE sibling-parity — pending
-GATE resilience    — pending
+GATE rules-fidelity — 2026-07-03 — 4 gaps — solo play allowed but rulebook says "two or more" and deviation unlisted → deviation #9 added; all-bot tiebreaker 26-round guard exit left game unadvanceable → deterministic fallback added to maybeAdvanceZombieDiceRound + test; deviation #6 said bots read previous-round totals but later bots see same-round bot banks → deviation #6 reworded; rules.js face-table comment claimed a client parity test that doesn't exist → comment fixed
+GATE projection — 2026-07-03 — 1 gap — seat.hand emitted but never read by any client (dead weight, low) → documented as intentional wire convention in Architecture notes
+GATE sibling-parity — 2026-07-03 — 2 gaps — later-seated bots read earlier bots' same-round banked totals while deviation #6 said prior-round only → deviation #6 reworded (mirrors physical turn-order information); guard-exhausted bots-only tiebreaker left round_pending_advance with no legal human roll (soft-lock) → deterministic earliest-seat resolution added + test
+GATE resilience — 2026-07-03 — pass — advisory: no round stamp on roll/bank (stale duplicate-tab roll can start the next round and spend its compulsory first roll — legal, uncorrupting, shared 10,000/Yahtzee tradeoff) · advisory: 26-round all-bot tiebreaker guard exhaustion soft-lock (since replaced by the deterministic fallback; reset vote also recovers)
+```
+
+All rules-fidelity / projection / sibling-parity gaps were fixed the same day
+(see the fix commit); re-run receipts below confirm pass.
+
+```text
+GATE rules-fidelity (re-run) — pending
+GATE projection (re-run)    — pending
+GATE sibling-parity (re-run) — pending
 ```

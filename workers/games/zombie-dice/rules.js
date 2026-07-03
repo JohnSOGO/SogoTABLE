@@ -32,8 +32,9 @@ const ZOMBIE_DICE_TARGET_BRAINS = 13;
 const ZOMBIE_DICE_COLORS = ["green", "yellow", "red"];
 // 13 dice: 6 green (easy victims), 4 yellow, 3 red (tough victims).
 export const ZOMBIE_DICE_CUP = { green: 6, yellow: 4, red: 3 };
-// Faces per die color (each die has 6 faces). Part of the spec — the client
-// table must match (parity-tested).
+// Faces per die color (each die has 6 faces). Part of the spec (pinned in
+// zombie-dice-rules.test.js). Single source of truth: the client renders the
+// projected faces and keeps no copy of this table.
 export const ZOMBIE_DICE_FACES = {
   green: { brain: 3, feet: 2, shotgun: 1 },
   yellow: { brain: 2, feet: 2, shotgun: 2 },
@@ -372,6 +373,17 @@ function maybeAdvanceZombieDiceRound(game) {
       }
       game.tiebreaker = true;
       game.active_marks = leaders;
+      // A bots-only tie that refuses to break before the guard runs out ends
+      // deterministically — earliest-seated tied leader takes it (edge rule in
+      // PLAN.md) — rather than leaving the room soft-locked with every human
+      // sitting out and no legal roll to advance the round.
+      if (guard === 25 && leaders.every((mark) => game.players[mark].is_bot)) {
+        game.status = "complete";
+        game.winner = leaders[0];
+        game.seat_order.forEach((mark) => { game.players[mark].phase = "done"; });
+        game.last_move = { type: "complete", round: game.round, winner: game.winner };
+        return;
+      }
     }
     game.round_pending_advance = true;
     const next = game.tiebreaker ? game.active_marks : game.seat_order;
