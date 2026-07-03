@@ -376,3 +376,61 @@ REORG RECEIPT (commit 93387b4)
                 Action, localRoomSeat, or any other game's wiring; no ten-thousand
                 manifest/rows (tracked gap stays tracked); no Zombie Dice code.
 - New owner row: none — `src/sogotable/static/games/` directory pattern covers it.
+
+## 2026-07-03 — Liar's Dice (new game module, hidden-info sanitizer)
+
+PLACEMENT RECEIPT
+- Ask:          Place Liar's Dice — full new game (hidden-cup bidding/bluff dice): pure
+                rules + bot, worker multiplayer integration, client UI, registration.
+- Verdict:      workers/games/liars-dice/{rules.js,ai.js} +
+                src/sogotable/static/games/liars-dice/{render.js,styles.js,manifest.js}
+                [EXISTING directory-pattern owners] + additive touches: games/registry.js
+                (GAME_IDS + entry), games/game-kinds.js (predicate), games/render-keys.js,
+                app.js (wiring, ~10-25 lines, no new lets), workers/sogotable-api.js
+                (import + GAME_HANDLERS row + gameToDictForViewer branch, ~8-12 lines),
+                review-export.js (allowlist), workers/tests/liars-dice-rules.test.js.
+                NO reorganizer required.
+- Flow stage:   validate + apply = workers/games/liars-dice/rules.js (bid legality,
+                challenge resolution, die loss, elimination — server RNG behind a
+                seedable seam); broadcast = the per-viewer sanitizer
+                liarsDiceGameToDictForViewer in rules.js, dispatched from the worker's
+                existing gameToDictForViewer seam (Battleship precedent — hidden cups
+                are a PROJECTION concern, never a renderer concern); render/intent =
+                games/liars-dice/render.js via ctx; persist/orchestrate/record =
+                existing platform paths, untouched.
+- Sources read: docs/module-ownership.md; docs/modularity.md; docs/wu-wei-method.md;
+                workers/tests/architecture.test.js (live CEILINGS: app.js 2497, worker
+                1580, styles-games.css 1700; let-cap 30; purity/layering/registry/
+                manifest/lobbyMode/review-export guards); docs/placement-receipts.md
+                (2026-07-03 Zombie Dice receipt as the template precedent); app.js
+                (2446 lines, 30/30 lets, zombie-dice touch sites at 80/115/1798/1801/
+                1962); workers/sogotable-api.js (1550 lines; GAME_HANDLERS 1406-1423;
+                roomToDictForViewer/gameToDictForViewer 1151-1173); workers/projections.js;
+                workers/games/ layout (battleship sanitizer, yahtzee/rtta/zombie-dice
+                ai.js precedent); games/zombie-dice/ client layout;
+                styles-games.css (1648 lines, untouched by this feature).
+- Considerations:
+    - app.js is at its top-level-let cap (30/30) with ~51 line headroom; Zombie Dice's
+      actual landed wiring pattern (~10-20 lines, 5 touch sites) fits, so no reorg —
+      but the placement is conditional: >~40 net lines or any new shell `let` flips it
+      to reorganizer-first.
+    - workers/sogotable-api.js has ~30 lines headroom vs a ~8-12 line touch — fits;
+      flagged as the last comfortable game before a worker extraction is owed.
+    - Hidden information is the game's structural novelty. Rejected: sanitizing in the
+      client renderer (leaks via wire), sanitizing in projections.js (would put
+      game-specific shape knowledge in a platform owner), a per-game branch fan in the
+      worker beyond one dispatch line. Chosen: sanitizer as a pure export of the game's
+      own rules.js, Battleship's exact seam.
+    - Rejected bot-inside-rules (ten-thousand cautionary, rules.js file-cap pressure);
+      rejected any cross-game import of dice helpers (games are siblings — share via
+      workers/games/util.js).
+    - Main stability threats avoided: hidden dice leaking through an unsanitized
+      snapshot path (WS broadcast must be verified); rule logic (bid legality/challenge
+      math) smuggled into the UI; new cross-cutting shell state at a full let-cap;
+      styles landing in the capped styles-games.css instead of the injected per-game
+      styles.js.
+    - Sibling flag: hot-seat/pass-and-play hidden info on one shared device needs a
+      deliberate product answer (peek-to-reveal UI or multiplayer-only) — decide and
+      document the exclusion, don't leak by default.
+- New owner row: none — both subtrees covered by the standing games/ directory-pattern
+                rows in docs/module-ownership.md.
