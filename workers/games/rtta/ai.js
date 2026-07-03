@@ -25,9 +25,9 @@ function botLevel(seat) {
 }
 
 // Roll `cities` dice with up to `maxRolls` passes. Hold policy: skulls freeze
-// (rule), workers and the choice die always stay, food stays while the larder
-// is thin, goods/coins stay at low levels (money) and reroll at high levels
-// (worker chase).
+// (rule); workers, the choice die, and goods always stay (goods compound into
+// development money); food stays while the larder is thin and is rerolled once
+// sated; coins stay at low levels and are chased away at 3-4 (worker hunt).
 function rollDice(cities, maxRolls, foodStored, level, rng) {
   const dice = Array.from({ length: cities }, () => ({ face: null, locked: false }));
   for (let pass = 0; pass < maxRolls; pass++) {
@@ -35,9 +35,9 @@ function rollDice(cities, maxRolls, foodStored, level, rng) {
       if (d.face && d.locked) continue;
       d.face = FACES[Math.floor(rng() * FACES.length)];
       const f = d.face;
-      if (f.skullFace || f.work || f.choice) d.locked = true;
-      else if (f.food) d.locked = foodStored < cities + 3 || level <= 2;
-      else d.locked = level <= 2;   // goods / coins
+      if (f.skullFace || f.work || f.choice || f.good) d.locked = true;
+      else if (f.food) d.locked = foodStored < cities + 3;
+      else d.locked = level <= 2;   // coins
     }
   }
   return dice;
