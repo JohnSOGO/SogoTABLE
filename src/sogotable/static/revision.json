@@ -2,9 +2,9 @@
   "ok": true,
   "status": {
     "version": "0.1.2",
-    "revision": "60dd120",
+    "revision": "5c08f88",
     "branch": "main",
-    "dirty": true,
-    "summary": "SogoTable 0.1.2 rev 60dd120 branch main dirty"
+    "dirty": false,
+    "summary": "SogoTable 0.1.2 rev 5c08f88 branch main clean"
   }
 }
