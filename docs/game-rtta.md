@@ -27,12 +27,20 @@ renders the set for the room's actual seat count.
 Round lifecycle on the server (`workers/games/rtta/rules.js`):
 
 - **`phase: "playing"`** — humans POST one `COMMIT_TURN`; when every human is
-  `round_done` the server resolves disasters, recomputes scores, and flips to review.
+  `round_done` the **bots take their turn** (`resolveBotRound`), then the server
+  resolves disasters, recomputes scores, and flips to review.
 - **`phase: "review"`** — the Discard scoreboard shows totals + disaster events;
-  humans POST `READY_NEXT`; when all are ready `advanceRound` bumps the round, resets
-  the flags, and lets bots pre-take the new round.
-- **Bots never block either barrier** — `resolveBotRound` plays them through the same
-  `applyCommittedTurn` pipeline and marks them `round_done` + `ready_next` at once.
+  humans POST `READY_NEXT`; when all are ready `advanceRound` bumps the round and
+  resets the flags.
+- **Bots go last and never block either barrier** — they play through the same
+  `applyCommittedTurn` pipeline at the barrier close and are marked `round_done` +
+  `ready_next` at once. Going last matters: a pre-committing bot used to snipe
+  the first-builder VP on any monument a human was one worker from closing.
+- **Skip — the barrier escape hatch** (`{ type:"SKIP_PLAYER", target, round }`):
+  a player already done at the current barrier may skip a HUMAN seat that never
+  arrived (dropped phone, closed tab), releasing the table. A skipped turn is a
+  null turn — that player's sheet is untouched. The waiting screen offers quiet
+  per-player ⏭ buttons (two taps to fire) once you yourself are done.
 
 ## Client ↔ server split (client computes its own turn)
 
@@ -112,7 +120,9 @@ drought/invasion/revolt, honest skulls — a bot can pestilence the table) →
 collect goods → workers into the cheapest unclaimed **in-play** monument, then
 city boxes (partials persist) → buy ONE development with this turn's actual
 coins + whole goods stacks → discard to 6. The commit is exactly a human
-payload. The difficulty ladder is strategy, not free resources: level 1 takes
+payload, and it lands **after every human's** — bots build on the humans'
+post-commit board, so a human racing a bot to a monument wins the same-round
+tie. The difficulty ladder is strategy, not free resources: level 1 takes
 the first roll, level 2 rerolls once (default), levels 3–4 use all three rolls
 with deeper monument lookahead, and level 4 buys the highest-VP development it
 can afford. A bot spends an owned Leadership rerolling a skull at exactly 2 or
