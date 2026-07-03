@@ -66,6 +66,13 @@ export function buildRoomRenderKey(room, gameId) {
       can_bank: room.game.can_bank,
       // 10,000 seat data (phase/score/turn_score/…) rides in `players_state`
       // above (room.game.players), which already invalidates the cache per seat.
+      // zombie dice (Roll of the Dead) — game-level fields; seat data rides in
+      // `players_state` like 10,000's.
+      round: room.game.round,
+      round_pending_advance: room.game.round_pending_advance,
+      tiebreaker: room.game.tiebreaker,
+      active_marks: room.game.active_marks,
+      target_brains: room.game.target_brains,
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,

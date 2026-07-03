@@ -96,6 +96,9 @@ import {
 import {
   RTTA_GAME_ID, isRttaGame, newRttaGame, initRttaSeats, makeRttaMove, rttaGameToDict, rttaScoreByMark,
 } from "./games/rtta/rules.js";
+import {
+  ZOMBIE_DICE_GAME_ID, isZombieDiceGame, newZombieDiceGame, initZombieDiceSeats, makeZombieDiceMove, zombieDiceGameToDict,
+} from "./games/zombie-dice/rules.js";
 
 const LOBBY_VIEWER_TTL_SECONDS = 45;
 const ROOM_SEAT_COLORS = [
@@ -1286,6 +1289,7 @@ function startRoom(room) {
   if (isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
   if (isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
   if (isRttaGame(room.game)) initRttaSeats(room.game, room.players);
+  if (isZombieDiceGame(room.game)) initZombieDiceSeats(room.game, room.players);
 }
 
 function playerMark(room, playerId) {
@@ -1365,6 +1369,7 @@ function handleResetVote(room, requesterId, approve) {
   if (room.started && isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
   if (room.started && isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
   if (room.started && isRttaGame(room.game)) initRttaSeats(room.game, room.players);
+  if (room.started && isZombieDiceGame(room.game)) initZombieDiceSeats(room.game, room.players);
   bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
@@ -1407,6 +1412,8 @@ const GAME_HANDLERS = [
     applyAction: (game, mark, payload) => makeMazewrightMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: RTTA_GAME_ID, is: isRttaGame, create: newRttaGame, toDict: rttaGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeRttaMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
+  { id: ZOMBIE_DICE_GAME_ID, is: isZombieDiceGame, create: newZombieDiceGame, toDict: zombieDiceGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeZombieDiceMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
