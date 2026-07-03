@@ -2,9 +2,9 @@
   "ok": true,
   "status": {
     "version": "0.1.2",
-    "revision": "182484b",
-    "branch": "main",
+    "revision": "ede3cfc",
+    "branch": "fix/rtta-leadership-pause",
     "dirty": true,
-    "summary": "SogoTable 0.1.2 rev 182484b branch main dirty"
+    "summary": "SogoTable 0.1.2 rev ede3cfc branch fix/rtta-leadership-pause dirty"
   }
 }

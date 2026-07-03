@@ -113,7 +113,7 @@ export function createRttaBoard(root, opts) {
   }
 
   function newTurn() {
-    rolls = 0; upkeepDone = false; plan = null; leadershipUsed = false; turnLost = 0; turnSkulls = 0;
+    rolls = 0; upkeepDone = false; plan = null; leadershipUsed = false; upkeepConfirm = false; turnLost = 0; turnSkulls = 0;
     buildTray(); tally(); updateButton();
   }
 
@@ -202,10 +202,20 @@ export function createRttaBoard(root, opts) {
     rc.textContent = bank ? "Upkeep" : "ROLL";
     rc.classList.toggle("bank", bank);
   }
+  let upkeepConfirm = false;   // one-tap pause while Leadership is still unused
   function onAction() {
     const rc = gid("rollCell");
     if (rc.classList.contains("busy") || submitted) return;
-    if (rc.dataset.mode === "bank") { runUpkeep(); return; }
+    if (rc.dataset.mode === "bank") {
+      if (leadershipReady() && !upkeepConfirm) {
+        upkeepConfirm = true;
+        const tip = gid("tipStrip");
+        tip.innerHTML = "👑 <b>Leadership unused</b> — tap a die to reroll it, or tap <b>Upkeep</b> again to skip.";
+        tip.classList.add("alert");
+        return;
+      }
+      runUpkeep(); return;
+    }
     doRoll();
   }
 
