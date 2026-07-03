@@ -1,0 +1,10 @@
+#!/bin/sh
+# Mechanical test gate (steward finding, 2026-07-02): a red build once rode to
+# main because the gate was a habit, not a mechanism. This hook makes it
+# mechanical — `npm test` must exit 0 or the push is blocked.
+# Install once per clone: `npm run hooks` (sets git core.hooksPath here).
+echo "pre-push: running npm test…"
+npm test || {
+  echo "pre-push: tests FAILED — push blocked. Fix the build before pushing."
+  exit 1
+}

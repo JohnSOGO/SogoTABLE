@@ -26,12 +26,28 @@ the 2025 PDF contains no monument table (score sheet is the only source).
   rolls with holds, feeding/famine/disasters with honest skulls, real
   development payment from the turn's coins + goods, persisted partial city
   progress. Levels differ by roll depth and buying strategy, not free
-  resources. Remaining simplifications: bots skip the Leadership/Engineering/
-  Granaries taps and hold a simple heuristic, not an optimiser.
+  resources. Since 2026-07-03 a bot also spends an owned Leadership rerolling
+  a skull at exactly 2 or 4 skulls (unless immune). Remaining simplifications:
+  bots skip the Engineering/Granaries taps and hold a simple heuristic, not an
+  optimiser.
 - **Longer Game variant (6 developments)** — intentionally not implemented.
 - **Whole-stack goods payment stands** — a partial-goods (sell-off-the-top)
   house rule shipped briefly on 2026-07-02 and was reverted the same day at
   MojoSOGO's direction: the rulebook's whole-stack, no-change spend is the rule.
+- **Development timing rule** (2026-07-03, adaptation of upkeep-before-buy to
+  simultaneous rounds): a development bought this round takes effect for
+  disaster resolution from the NEXT round on — for the roller AND for victims.
+  The client also gates Dev purchases on Upkeep having run, so a player cannot
+  see their skulls and buy the shield the same turn.
+- **Refresh mid-turn = a fresh roll** (2026-07-03, signed): in-progress turn
+  state (rolls, holds, builds) lives only on-device; a reload re-seeds from the
+  round-start seat, so refreshing discards the turn and re-deals dice. Accepted
+  at family scale (matches the Yahtzee trust model); the upgrade path is
+  persisting the turn log server-side, not blocking refresh.
+- **Same-round monument tie = commit arrival order** (2026-07-03, provisional):
+  when two players complete the same monument in one round, "first builder" is
+  whoever's commit reached the barrier first. Artifact of simultaneous play;
+  MojoSOGO may swap to both-score-first later.
 
 ## Resolutions — 2026-07-01 (post-gate fix pass)
 
@@ -63,11 +79,42 @@ the 2025 PDF contains no monument table (score sheet is the only source).
   a fully-funded development purchase that was never confirmed — it navigates
   to the Dev page with an alert instead (the likely cause of "my development
   points are missing" reports; server scoring itself verified correct).
-- Still open from the gate runs:
-  same-turn purchase-vs-disaster ordering (gap 5 in the 10-gap receipt),
-  tiebreak by goods value, solo-as-solitaire, resilience gaps 1–5 (stranded
-  failed commit, round stamp, completion cross-check, goods clamp, silent
-  no-ops), projection + parity low-priority items.
+## Resolutions — 2026-07-03 (post-gate-re-run fix pass, branch fix/rtta-gate-gaps)
+
+- **Solitaire variant implemented** (fidelity gap 3 closed): 10-round cap
+  (`ten_rounds` end reason) and pestilence strikes the roller (Medicine, from a
+  prior round, immune); the solo disaster table and review copy say so.
+- **Development timing** (fidelity gap 1 closed): disasters resolve against
+  pre-round developments (`dev_this_round` marker), and the client gates Dev
+  purchases + ✓ Buy on Upkeep having run. Signed as a deviation above.
+- **Leadership after an early stop** (fidelity gap 2 closed): offered whenever
+  rolling has ended (3rd roll OR all dice held); using it declares the roll
+  final. The choice die is now a legal reroll target (gap 6 closed), and an
+  undecided choice die blocks Upkeep instead of tallying zero (gap 5 closed).
+- **Tie-break by goods value** (fidelity gap 4 closed): equal final scores go
+  to the seat whose remaining goods are worth more.
+- **Stranded commit fixed** (resilience gap 1 closed): a failed COMMIT_TURN /
+  READY_NEXT unlatches the board (`commitFailed`), re-enables the button, and
+  surfaces the error in-board; `postRoomAction` reports failures to callers.
+- **Round stamp** (resilience gap 2 closed): COMMIT_TURN/READY_NEXT carry
+  `round`; a stamped action from another round rejects loudly, unknown actions
+  throw, same-round duplicates stay silently idempotent (partial gap 5).
+- **Completion cross-check** (resilience gap 3 closed): monument completion is
+  derived from the clamped boxes; bare claims are ignored.
+- **Goods + loss clamps** (resilience gap 4 closed): goods clamp to each row's
+  pegboard max; points_lost caps at the 45-box grid (bot/human parity).
+- **Score parity + projection shape pinned** (projection gap 1 + steward 2
+  closed): `scoreBreakdown === server score` test; the projection test pins the
+  exact wire-contract key sets. `finish_state`/`seat.name` stay emitted as
+  cross-game convention (projection gaps 2–3: accepted).
+- **Bots use Leadership** (parity gap 2 half-closed): an owned Leadership
+  rerolls a skull at exactly 2/4 skulls. Engineering/Granaries taps remain a
+  documented light-opponent simplification.
+- **touch-action hardening** (parity gap 4 closed) on double-tap surfaces.
+- Still open, deliberately: barrier deadlock when a human never returns
+  (resilience gap 6 — needs a product decision on skip/timeout mechanics;
+  mitigated by device-portable identities), bots skipping Engineering/Granaries,
+  and the silent-ok:true pattern in OTHER games (platform-level).
 
 ## Gate receipts
 

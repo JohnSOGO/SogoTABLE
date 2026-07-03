@@ -225,7 +225,8 @@ export function engineeringConvert({ goods, workers }, dir) {
 // contract in workers/games/rtta/rules.js). monumentBoxes = {name: filled};
 // cityBoxes = filled worker boxes on the 4th–7th city (partial progress
 // persists, like the paper score sheet) — the city count derives from full slots.
-export function buildCommitPayload({ cities, food, goods, monumentBoxes, cityBoxes, devBought, skulls, pointsLostSelf }) {
+// `round` stamps the payload so the server can reject a stale tab's commit.
+export function buildCommitPayload({ cities, food, goods, monumentBoxes, cityBoxes, devBought, skulls, pointsLostSelf, round }) {
   const boxes = {}; const completed = [];
   for (const m of MONUMENTS) {
     const filled = Math.max(0, Math.min(m.w, (monumentBoxes && monumentBoxes[m.name]) || 0));
@@ -236,6 +237,7 @@ export function buildCommitPayload({ cities, food, goods, monumentBoxes, cityBox
   const cboxes = cityCosts.map((cost, i) => Math.max(0, Math.min(cost, (cityBoxes && cityBoxes[i]) || 0)));
   return {
     type: "COMMIT_TURN",
+    ...(Number.isFinite(round) ? { round } : {}),
     cities: cityBoxes ? MIN_CITIES + cboxes.filter((v, i) => v >= cityCosts[i]).length : cities,
     cityBoxes: cboxes,
     food: Math.max(0, Math.min(15, food)),

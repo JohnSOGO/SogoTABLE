@@ -56,7 +56,12 @@ export function renderRttaGame(ctx) {
         round: game.round,
         players: (game.seat_order || game.players.map((p) => p.mark)).length,
         scoreboard: (overlay) => standingsHtml(game, room, myMark, overlay),
-        onCommit: (payload) => { ctx.makeMove(payload); },
+        // A failed POST must unlatch the board (submitted + disabled button)
+        // or the player is stranded at "Waiting…" until a manual refresh.
+        onCommit: async (payload) => {
+          const err = await ctx.makeMove(payload);
+          if (err && board) board.commitFailed(err);
+        },
       });
     } else {
       board.setScoreboardBuilder((overlay) => standingsHtml(game, room, myMark, overlay));
@@ -89,7 +94,15 @@ export function renderRttaGame(ctx) {
       ${canReady ? '<button class="rtta-ready blink" id="rttaReady" type="button">Ready for next round →</button>' : ""}
     </div>`;
   const readyBtn = host.querySelector("#rttaReady");
-  if (readyBtn) readyBtn.addEventListener("click", () => { readyBtn.disabled = true; ctx.makeMove({ type: "READY_NEXT" }); });
+  if (readyBtn) readyBtn.addEventListener("click", async () => {
+    readyBtn.disabled = true;
+    const err = await ctx.makeMove({ type: "READY_NEXT", round: game.round });
+    if (err) {   // re-enable on failure — a held barrier must stay escapable
+      readyBtn.disabled = false;
+      const status = host.querySelector(".rtta-status");
+      if (status) status.innerHTML = `⚠️ ${escapeName(err)} — tap Ready to retry.`;
+    }
+  });
   animatePendingEvents(host, game, room, key);
 }
 
@@ -194,6 +207,9 @@ function endStatus(game, room, myMark) {
       : "";
     return `🏆 Game over — ${who}<b>every monument is built</b>. Final standings below.`;
   }
+  if (r && r.kind === "ten_rounds") {
+    return "🏆 Game over — <b>10 rounds</b> complete (solitaire). Final score below.";
+  }
   return "🏆 Game over — final standings below.";
 }
 
@@ -206,17 +222,19 @@ function eventsHtml(game, room, mySeat, myMark) {
   // Name everyone explicitly — "sent 3 skulls to 2 opponents" was ambiguous
   // enough to read as the ROLLER being struck. "You" is always spelled out.
   const who = (mark) => (mark === myMark ? "<b>you</b>" : escapeName(seatName(room, mark)));
+  // "you lose" but "Bob loses" — and solitaire pestilence strikes the roller.
+  const verb = (to) => ((to || []).length === 1 && to[0] !== myMark ? "loses" : "lose");
   const lines = events.map((ev) => {
     const from = ev.from === myMark ? "<b>You</b>" : escapeName(seatName(room, ev.from));
     const victims = (ev.to || []).map(who).join(", ");
     const missedMe = ev.from !== myMark && !(ev.to || []).includes(myMark);
     if (ev.kind === "pestilence") {
-      let line = `☠️ <span class="rtta-event">Pestilence</span> — ${from} rolled 3 skulls; ${victims || "no one"} lose${(ev.to || []).length === 1 ? "s" : ""} 3 points.`;
+      let line = `☠️ <span class="rtta-event">Pestilence</span> — ${from} rolled 3 skulls; ${victims || "no one"} ${verb(ev.to)} 3 points.`;
       if (missedMe && myDevs.includes("Medicine")) line += ` 🛡️ <b>Medicine</b> protected you.`;
       return line;
     }
     if (ev.kind === "revolt") {
-      let line = `🔥 <span class="rtta-event">Revolt</span> — ${from} rolled 5+ skulls with Religion; ${victims || "no one"} lose${(ev.to || []).length === 1 ? "s" : ""} all goods.`;
+      let line = `🔥 <span class="rtta-event">Revolt</span> — ${from} rolled 5+ skulls with Religion; ${victims || "no one"} ${verb(ev.to)} all goods.`;
       if (missedMe && myDevs.includes("Religion")) line += ` 🛡️ <b>Religion</b> protected your goods.`;
       return line;
     }

@@ -21,6 +21,9 @@ import {
   engineeringConvert, buildCommitPayload, goodValue, coinFaceValue,
 } from "./rules.js";
 import { MARKUP, buildCitySVG, monTile, wboxOrder, splitRows } from "./board-art.js";
+import {
+  fillFood, flyEmoji, flashFirstFoodBox, rollFlicker, animateHarvestToFood, animateFoodToDice, resolveDisasters,
+} from "./board-fx.js";
 
 // Build a fresh board bound to `root`. opts:
 //   seat       - my server seat projection (cities, food, goods, developments,
@@ -134,15 +137,17 @@ export function createRttaBoard(root, opts) {
   function onDieClick(i) {
     if (busy() || submitted || upkeepDone) return;   // dice are settled once Upkeep runs
     const d = dice[i];
-    const ended = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
-    if (ended && d.face && d.face.choice) { cycleChoice(i); return; }   // choice taps always cycle
-    if (leadMode && leadershipReady() && d.face) {
-      leadershipReroll(i); return;   // 2025 rulebook: a skull die MAY be rerolled
-    }
+    // Leadership reroll wins the tap — ANY die is a legal target, even the
+    // choice die (2025 rulebook: "select 1 die and roll it again").
+    if (leadMode && leadershipReady() && d.face) { leadershipReroll(i); return; }
+    if (rollingEnded() && d.face && d.face.choice) { cycleChoice(i); return; }   // choice taps always cycle
     toggleLock(i);
   }
+  // "After your LAST roll" — the 3rd, or an earlier roll the player stopped at
+  // (all dice held). Owned at turn start: buys land after Upkeep, too late.
+  function rollingEnded() { return rolls >= MAX_ROLLS || (rolls > 0 && allHeld()); }
   function leadershipReady() {
-    return rolls >= MAX_ROLLS && ownsDev("Leadership") && !leadershipUsed && !upkeepDone;
+    return rollingEnded() && owned.has("Leadership") && !leadershipUsed && !upkeepDone;
   }
   // Explicit two-step reroll: the 👑 button appears after the final roll; only
   // AFTER pressing it do dice become rerollable (no accidental rerolls).
@@ -157,18 +162,13 @@ export function createRttaBoard(root, opts) {
   function leadershipReroll(i) {
     leadershipUsed = true;
     leadMode = false;
+    rolls = MAX_ROLLS;   // using Leadership DECLARES the roll final — no rolling on after it
     const rc = gid("rollCell"); rc.classList.add("busy");
-    const el = dieEls[i];
-    el.className = "die rolling";
-    const SYMS = ["🌾", "⚒️", "📦", "🪙", "💀", "🎲"];
-    el.querySelector(".emojis").textContent = "🎲";
-    const flick = setInterval(() => { el.querySelector(".emojis").textContent = SYMS[Math.floor(Math.random() * SYMS.length)]; }, 90);
-    setTimeout(() => {
-      clearInterval(flick);
+    rollFlicker([dieEls[i]], () => {
       setFace(i, FACES[Math.floor(Math.random() * 6)]);
-      if (rolls >= MAX_ROLLS && !dice[i].face.skullFace) { dice[i].locked = true; paintDie(i); }
+      if (!dice[i].face.skullFace) { dice[i].locked = true; paintDie(i); }
       rc.classList.remove("busy"); tally(); markChoices(); updateButton();
-    }, 700);
+    });
   }
   function toggleLock(i) {
     if (busy() || rolls === 0 || rolls >= MAX_ROLLS) return;
@@ -184,13 +184,13 @@ export function createRttaBoard(root, opts) {
     tally(); markChoices();
   }
   function markChoices() {
-    const ended = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
+    const ended = rollingEnded();
     let pending = 0;
     const lead = leadershipReady();
     dice.forEach((d, i) => {
       const needsDecision = ended && d.face && d.face.choice === true && !d.choice;
       dieEls[i].classList.toggle("choice-pending", needsDecision);
-      dieEls[i].classList.toggle("lead-glow", leadMode && lead && !!d.face && !(d.face.choice && !d.choice));
+      dieEls[i].classList.toggle("lead-glow", leadMode && lead && !!d.face);
       if (needsDecision) pending++;
     });
     renderLead();
@@ -211,7 +211,7 @@ export function createRttaBoard(root, opts) {
   }
   function updateButton() {
     const rc = gid("rollCell"); if (!rc) return;
-    const bank = rolls >= MAX_ROLLS || (rolls > 0 && allHeld());
+    const bank = rollingEnded();
     rc.dataset.mode = bank ? "bank" : "roll";
     rc.textContent = bank ? "Upkeep" : "ROLL";
     rc.classList.toggle("bank", bank);
@@ -221,6 +221,14 @@ export function createRttaBoard(root, opts) {
     const rc = gid("rollCell");
     if (rc.classList.contains("busy") || submitted) return;
     if (rc.dataset.mode === "bank") {
+      // An undecided 🌾/⚒️ die is never worth NOTHING — block Upkeep until
+      // the player picks (tapping past the prompt used to tally it as zero).
+      if (dice.some((d) => d.face && d.face.choice && !d.choice)) {
+        const tip = gid("tipStrip");
+        tip.innerHTML = "Tap the blinking 🌾/⚒️ die first — <b>Food or Workers?</b>";
+        tip.classList.add("alert");
+        return;
+      }
       if (leadershipReady() && !upkeepConfirm) {
         upkeepConfirm = true;
         const tip = gid("tipStrip");
@@ -272,94 +280,26 @@ export function createRttaBoard(root, opts) {
     const toRoll = dice.map((d, i) => (d.face && isHeld(d) ? -1 : i)).filter((i) => i >= 0);
     if (toRoll.length === 0) return;
     const rc = gid("rollCell"); rc.classList.add("busy");
-    const SYMS = ["🌾", "⚒️", "📦", "🪙", "💀", "🎲"];
-    toRoll.forEach((i) => { dieEls[i].className = "die rolling"; dieEls[i].querySelector(".emojis").textContent = "🎲"; });
-    const flick = setInterval(() => { toRoll.forEach((i) => { dieEls[i].querySelector(".emojis").textContent = SYMS[Math.floor(Math.random() * SYMS.length)]; }); }, 90);
-    setTimeout(() => {
-      clearInterval(flick);
+    rollFlicker(toRoll.map((i) => dieEls[i]), () => {
       toRoll.forEach((i) => setFace(i, FACES[Math.floor(Math.random() * 6)]));
       rolls++;
       if (rolls >= MAX_ROLLS) lockAll();
       tally(); rc.classList.remove("busy"); updateButton(); markChoices();
-    }, 700);
+    });
   }
   function lockAll() { dice.forEach((d, i) => { if (d.face && !d.face.skullFace) { d.locked = true; paintDie(i); } }); }
 
-  // --- upkeep animations ----------------------------------------------------
-  function fillFood(idx) { const a = root.querySelectorAll("#foodRoll .box")[idx]; if (a) a.classList.add("filled"); }
-  function flyFood(src, target, idx) {
-    const s = src.getBoundingClientRect(), t = target.getBoundingClientRect();
-    if (!t.width) { fillFood(idx); return; }
-    const fly = document.createElement("div"); fly.className = "rtta-fly"; fly.textContent = "🌾";
-    fly.style.left = (s.left + s.width / 2 - 10) + "px"; fly.style.top = (s.top + s.height / 2 - 10) + "px";
-    document.body.appendChild(fly);
-    requestAnimationFrame(() => {
-      fly.style.transform = "translate(" + (t.left - s.left + (t.width - s.width) / 2) + "px," + (t.top - s.top + (t.height - s.height) / 2) + "px) scale(.6)";
-      fly.style.opacity = "0.35";
-    });
-    setTimeout(() => { fillFood(idx); fly.remove(); }, 560);
-  }
-  function animateHarvestToFood(done) {
-    const src = gid("tFood").closest(".stat");
-    const boxes = root.querySelectorAll("#foodRoll .box");
-    const n = plan.foodAfterHarvest - food;   // harvest actually banked (track caps at 15)
-    for (let k = 0; k < n; k++) {
-      const target = boxes[food + k], idx = food + k; if (!target) break;
-      setTimeout(() => {
-        flyFood(src, target, idx);
-        const fc = gid("tFood"); fc.textContent = Math.max(0, (parseInt(fc.textContent, 10) || 0) - 1);
-      }, k * 240);
-    }
-    food = plan.foodAfterHarvest;
-    setTimeout(done, n * 240 + 650);
-  }
-  function animateFoodToDice(done) {
-    const filled = [...root.querySelectorAll("#foodRoll .box.filled")];
-    const feeds = plan.feeds;
-    for (let k = 0; k < feeds; k++) { const srcBox = filled[food - 1 - k], die = dieEls[k]; setTimeout(() => flyFoodToDie(srcBox, die), k * 240); }
-    food = plan.foodAfterFeeding;
-    setTimeout(done, feeds * 240 + 1000);
-  }
-  function flyEmoji(srcEl, targetEl, emoji, onArrive) {
-    const s = srcEl.getBoundingClientRect(), t = targetEl.getBoundingClientRect();
-    if (!s.width || !t.width) { onArrive(); return; }
-    const fly = document.createElement("div"); fly.className = "rtta-fly arc"; fly.textContent = emoji;
-    fly.style.left = (s.left + s.width / 2 - 12) + "px"; fly.style.top = (s.top + s.height / 2 - 12) + "px";
-    fly.style.setProperty("--dx", (t.left - s.left + (t.width - s.width) / 2) + "px");
-    fly.style.setProperty("--dy", (t.top - s.top + (t.height - s.height) / 2) + "px");
-    document.body.appendChild(fly);
-    setTimeout(() => { onArrive(); fly.remove(); }, 950);
-  }
+  // --- upkeep animations (motion FX live in board-fx.js) ---------------------
+  // Each step hands board-fx the counts/elements to animate, then applies the
+  // state transition itself — the fly/fill visuals never own food or points.
   function loseAPoint(srcEl) {
     const target = disOrder[lostPoints]; if (!target) return;
     lostPoints++; turnLost++;
     flyEmoji(srcEl, target, "💀", () => target.classList.add("filled"));
   }
-  function loseFoodPoint() {
-    const box0 = root.querySelector("#foodRoll .box");
-    if (box0) { box0.classList.remove("flash-red"); void box0.offsetWidth; box0.classList.add("flash-red"); }
-    loseAPoint(box0);
-  }
-  function resolveDisasters(done) {
-    const { famine, disasterPts } = plan;
-    const skullSrc = gid("tSkull").closest(".stat");
-    if (famine > 0 || disasterPts > 0) gid("disBoxes").scrollIntoView({ block: "center" });
-    let delay = 0;
-    for (let i = 0; i < famine; i++) { setTimeout(loseFoodPoint, delay); delay += 260; }
-    for (let i = 0; i < disasterPts; i++) {
-      setTimeout(() => {
-        loseAPoint(skullSrc);
-        const sc = gid("tSkull"); sc.textContent = Math.max(0, (parseInt(sc.textContent, 10) || 0) - 1);
-      }, delay);
-      delay += 260;
-    }
-    setTimeout(done, (famine + disasterPts > 0) ? delay + 1100 : 250);
-  }
-  function flyFoodToDie(srcBox, die) {
-    if (!srcBox || !die) return;
-    srcBox.classList.remove("filled");
-    flyEmoji(srcBox, die, "🌾", () => { die.classList.add("fed"); setTimeout(() => die.classList.remove("fed"), 450); });
-  }
+  function loseFoodPoint() { loseAPoint(flashFirstFoodBox(root)); }
+  const harvestStep = (done) => { animateHarvestToFood(root, food, plan.foodAfterHarvest, done); food = plan.foodAfterHarvest; };
+  const feedStep = (done) => { animateFoodToDice(root, food, plan.feeds, dieEls, done); food = plan.foodAfterFeeding; };
   function runUpkeep() {
     if (upkeepDone) return;
     upkeepDone = true;
@@ -373,7 +313,7 @@ export function createRttaBoard(root, opts) {
     gid("rollCell").classList.remove("ready");
     leadMode = false; renderLead();
     dieEls.forEach((el) => el.classList.remove("choice-pending", "lead-glow"));
-    animateHarvestToFood(() => animateFoodToDice(() => resolveDisasters(finishUpkeep)));
+    harvestStep(() => feedStep(() => resolveDisasters(root, plan.famine, plan.disasterPts, loseFoodPoint, loseAPoint, finishUpkeep)));
   }
   function finishUpkeep() {
     const rc = gid("rollCell"); rc.classList.remove("ready"); rc.textContent = "✓";
@@ -453,7 +393,7 @@ export function createRttaBoard(root, opts) {
 
   const foodRoll = gid("foodRoll");
   for (let i = 1; i <= 15; i++) foodRoll.appendChild(box("em-food", ""));
-  for (let i = 0; i < food; i++) fillFood(i);
+  for (let i = 0; i < food; i++) fillFood(root, i);
 
   const goodsBlock = gid("goodsBlock");
   GOODS.map((g, i) => ({ g, i })).reverse().forEach(({ g, i }) => {
@@ -498,7 +438,7 @@ export function createRttaBoard(root, opts) {
     gid("goodsCash").innerHTML = html;
   }
   function confirmPay() {
-    if (!payDev || paidTotal() < devCost(payDev)) return;
+    if (!upkeepDone || !payDev || paidTotal() < devCost(payDev)) return;
     const r = payDev;
     if (payCoins) coinsSpent = true;   // turned in whole — overpay is lost, no change
     payGoods.forEach((i) => { goodsHeld[i] = 0; });
@@ -533,7 +473,17 @@ export function createRttaBoard(root, opts) {
     onCommit(buildCommitPayload({
       cities: builtCities, cityBoxes: cityBoxesState, food, goods: goodsHeld,
       monumentBoxes: monBoxes, devBought: boughtDev, skulls: turnSkulls, pointsLostSelf: turnLost,
+      round,   // stamps the payload — the server rejects a stale tab's commit
     }));
+  }
+  // A failed POST re-opens the turn: without this the latched `submitted` +
+  // disabled button strand the player at "Waiting…" until a manual refresh.
+  function commitFailed(message) {
+    submitted = false;
+    const sub = gid("submitBtn");
+    if (sub) { sub.textContent = "Submit turn"; sub.disabled = false; sub.classList.add("ready"); }
+    const st = gid("rttaStatus");
+    if (st) st.textContent = "⚠️ " + (message || "The turn didn't send") + " — tap Submit to retry.";
   }
 
   // --- build interactions (artwork + markup live in board-art.js) -------------
@@ -638,15 +588,21 @@ export function createRttaBoard(root, opts) {
     devBlock.appendChild(r);
   });
 
-  // Disasters list + points-lost grid
+  // Disasters list + points-lost grid. Solitaire has no opponents, so its
+  // Pestilence row strikes the roller (server rule) — say so, and let
+  // Medicine read as immunity there.
+  const baseEf = (n) => (playerCount === 1 && n === 3
+    ? "Pestilence — lose 3 points (no opponents)"
+    : DISASTERS.find((d) => d.count === n).ef);
   const disList = gid("disList");
-  DISASTERS.forEach((d) => { disList.insertAdjacentHTML("beforeend", '<div class="drow" data-skulls="' + d.count + '"><span class="sk">' + d.sk + '</span><span class="ef">' + d.ef + "</span></div>"); });
+  DISASTERS.forEach((d) => { disList.insertAdjacentHTML("beforeend", '<div class="drow" data-skulls="' + d.count + '"><span class="sk">' + d.sk + '</span><span class="ef">' + baseEf(d.count) + "</span></div>"); });
   // A disaster row you are covered against says WHY it can't hurt you instead
   // of listing a penalty that will not happen: Drought ↔ Irrigation, Invasion ↔
   // a completed Great Wall, Revolt ↔ Religion (redirected at your opponents).
   const wallWorkers = MONUMENTS.find((m) => m.name === "Great Wall").w;
   const IMMUNE_EF = {
     2: "Irrigation prevents Drought — no effect",
+    3: "Medicine prevents Pestilence — no effect",
     4: "Great Wall prevents Invasion — no effect",
     5: "Religion turns Revolt on opponents — they lose their goods",
   };
@@ -655,11 +611,12 @@ export function createRttaBoard(root, opts) {
       const n = +r.dataset.skulls;
       const immune =
         (n === 2 && ownsDev("Irrigation")) ||
+        (n === 3 && playerCount === 1 && ownsDev("Medicine")) ||
         (n === 4 && (monBoxes["Great Wall"] || 0) >= wallWorkers) ||
         (n === 5 && ownsDev("Religion"));
       r.classList.toggle("immune", immune);
       const ef = r.querySelector(".ef");
-      if (ef) ef.textContent = immune ? IMMUNE_EF[n] : DISASTERS.find((d) => d.count === n).ef;
+      if (ef) ef.textContent = immune ? IMMUNE_EF[n] : baseEf(n);
     });
   }
   function highlightDisaster(skulls) {
@@ -716,6 +673,12 @@ export function createRttaBoard(root, opts) {
     if (dev) {
       const rowEl = dev.closest(".row.dev");
       if (rowEl.classList.contains("locked")) return;   // owned — including bought this turn: final
+      if (!upkeepDone) {   // buys come AFTER Upkeep — no dodging your own disasters
+        const tip = gid("tipStrip");
+        tip.innerHTML = "⏳ Finish your roll and <b>Upkeep</b> first — developments are bought in the Buy step.";
+        tip.classList.add("alert");
+        return;
+      }
       if (boughtDev) { /* one dev per turn */ }
       else if (payDev === rowEl) { cancelPay(); }
       else if (!payDev) { startPay(rowEl); }
@@ -771,6 +734,7 @@ export function createRttaBoard(root, opts) {
   return {
     root,
     isSubmitted: () => submitted,
+    commitFailed,
     setScoreboardBuilder: (fn) => { scoreBuilder = fn; refreshScoreboard(); },
     // Mid-round snapshot: opponents committed — repaint the build race.
     updateRace: (mon, rivals) => { gameMon = mon || {}; rivalBoxes = rivals || {}; paintRace(); },

@@ -85,6 +85,8 @@ npm test
 
 `npm test` is an alias for `npm run test:worker`, which runs the Node test files under `workers/tests/`. Game rules are tested without a browser.
 
+Run `npm run hooks` once per clone to install the git pre-push hook that runs `npm test` and blocks a red push (the mechanical test gate).
+
 ## Principles
 
 - The platform is multi-game; never collapse it into a single-game app.

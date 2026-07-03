@@ -52,6 +52,18 @@ export function chooseRttaTurn(game, mark, rng = Math.random) {
   // --- roll + tally (choice dice feed the cities first, then work) ----------
   const maxRolls = level <= 1 ? 1 : level === 2 ? 2 : MAX_ROLLS;
   const dice = rollDice(cities, maxRolls, seat.food || 0, level, rng);
+  const hasGreatWall = (game.monuments["Great Wall"] || []).includes(mark);
+  // Leadership (owned at turn start, like a human's): one reroll after the
+  // last roll, spent dodging the bot's own disaster — a skull rerolled at
+  // exactly 2 skulls (drought, unless Irrigation) or 4 (invasion, unless the
+  // Great Wall). 3 skulls stay: pestilence strikes the OPPONENTS. Honest
+  // dice — the reroll may land another skull.
+  if (owns.has("Leadership")) {
+    const skullIdx = dice.map((d, i) => (d.face.skullFace ? i : -1)).filter((i) => i >= 0);
+    const dodge = (skullIdx.length === 2 && !owns.has("Irrigation"))
+      || (skullIdx.length === 4 && !hasGreatWall);
+    if (dodge) dice[skullIdx[0]].face = FACES[Math.floor(rng() * FACES.length)];
+  }
   let plannedFood = dice.reduce((a, d) => a + (d.face.food || 0), 0);
   const keys = dice.map((d) => {
     if (!d.face.choice) return { key: d.face.key, choice: null };
@@ -62,7 +74,6 @@ export function chooseRttaTurn(game, mark, rng = Math.random) {
   const tally = tallyFaces(keys, owns);
 
   // --- upkeep: feed, famine, self-disasters (same plan the human board runs) --
-  const hasGreatWall = (game.monuments["Great Wall"] || []).includes(mark);
   const plan = upkeepPlan({
     harvest: tally.food, foodStored: seat.food || 0, diceCount: cities,
     skulls: tally.skull, owns, hasGreatWall,

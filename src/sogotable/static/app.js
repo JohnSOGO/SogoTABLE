@@ -1473,11 +1473,10 @@ async function startTenThousandGame(openingMinimum) {
   }
 }
 
-// Game-Locked Yahtzee: the local player runs their own game on-device and posts
-// only committed category scores; any unfinished seat may score anytime.
+// Game-Locked move poster — resolves to an error message on failure; RTTA unlatches Submit/Ready on it (#turnStatus is hidden for these games).
 async function postRoomAction(action) {
   const player = selectedPlayer();
-  if (!player || !currentRoom || !currentRoom.game || pendingMove) return;
+  if (!player || !currentRoom || !currentRoom.game || pendingMove) return "Not sent — another action is still on its way. Try again.";
   pendingMove = {
     key: moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action)),
     roomCode: currentRoom.code,
@@ -1495,6 +1494,7 @@ async function postRoomAction(action) {
   } catch (error) {
     pendingMove = null;
     showTurnStatus(null, error.message);
+    return error.message || "The move failed to send. Try again.";
   }
 }
 
