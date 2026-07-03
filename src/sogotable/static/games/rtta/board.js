@@ -356,12 +356,17 @@ export function createRttaBoard(root, opts) {
       && collectGoods(goodsHeld, turnTally.good, ownsAll())[1] > collectGoods(goodsHeld, turnTally.good, noQuarry)[1];
     goodsHeld = collectGoods(goodsHeld, turnTally.good, ownsAll());
     goodsOriginal = goodsHeld.slice();
+    const nextStep = workersToSpend > 0
+      ? "Spend your ⚒️ workers on <b>2 Build</b>."
+      : "No workers this turn — see <b>3 Dev</b> to buy, then <b>4 Discard</b> to submit.";
     if (plan.revolt) {   // revolt: all goods lost (Religion turns it on opponents instead)
       goodsHeld = [0, 0, 0, 0, 0]; goodsOriginal = [0, 0, 0, 0, 0];
       const tip = gid("tipStrip");
-      tip.innerHTML = "🔥 <b>Revolt!</b> Your people revolt — all your goods are lost."; tip.classList.add("alert");
+      tip.innerHTML = "🔥 <b>Revolt!</b> All your goods are lost. " + nextStep; tip.classList.add("alert");
     } else if (quarryBonus) {
-      gid("tipStrip").innerHTML = "🪨 <b>Quarrying</b>: +1 bonus stone added to your goods.";
+      gid("tipStrip").innerHTML = "🪨 <b>Quarrying</b>: +1 bonus stone. ✓ Upkeep done — " + nextStep;
+    } else {
+      gid("tipStrip").innerHTML = "✓ Upkeep done — " + nextStep;
     }
     markGoodsChart(); computePower();
     gid("tWorkBuild").textContent = workersToSpend;
