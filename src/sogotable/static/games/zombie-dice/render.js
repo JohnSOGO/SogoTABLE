@@ -128,8 +128,8 @@ function trayHtml(seat, game, room, pendingMove, animate) {
         aria-label="Stop and score your brains">\u{1F9E0} Brains \u{1F9E0}</button>`;
   }
   return `
+    <section class="zd-cup${banked ? " zd-done" : ""}" aria-label="Dice in the cup">${cupHtml}</section>
     <section class="zd-tray">
-      <div class="zd-cup${banked ? " zd-done" : ""}" aria-label="Dice in the cup">${cupHtml}</div>
       <div class="zd-dice${banked ? " zd-done" : ""}" aria-label="Rolled dice">${diceHtml}</div>
       ${actionsHtml ? `<div class="zd-actions" aria-label="Turn actions">${actionsHtml}</div>` : ""}
       ${noteHtml}

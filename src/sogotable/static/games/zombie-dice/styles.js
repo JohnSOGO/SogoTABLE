@@ -28,7 +28,13 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-scoreboard .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;color:var(--zd-muted);}
 .zombie-dice-root .zd-scoreboard strong{font-size:1.15rem;}
 .zombie-dice-root .zd-dice{display:flex;justify-content:center;gap:12px;}
-.zombie-dice-root .zd-cup{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:64px;}
+/* The cup: its own panel above the tray. Dice are shrunk so all 13 sit on
+   one row inside the 440px panel. */
+.zombie-dice-root .zd-cup{width:100%;max-width:440px;background:var(--zd-panel);border:1px solid var(--zd-line);
+ border-radius:14px;padding:8px 10px;box-sizing:border-box;
+ display:flex;flex-wrap:wrap;gap:4px;justify-content:center;min-height:26px;}
+.zombie-dice-root .zd-cup .zd-die{width:26px;height:26px;border-radius:7px;border-width:1.5px;
+ box-shadow:inset 0 -2px 0 rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.45);}
 /* Turn over: the cup and active dice hide but keep their space, so the
    controls below never move. */
 .zombie-dice-root .zd-dice.zd-done,.zombie-dice-root .zd-cup.zd-done{visibility:hidden;}
