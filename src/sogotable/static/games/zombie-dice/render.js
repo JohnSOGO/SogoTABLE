@@ -106,23 +106,27 @@ function trayHtml(seat, game, room, pendingMove, animate) {
   const disabled = Boolean(pendingMove);
   const canRoll = !disabled && Boolean(seat.can_roll) && game.status === "playing";
   const canBank = !disabled && Boolean(seat.can_bank) && game.status === "playing";
-  let actionsHtml;
+  // The turn-outcome note always shows once the seat is resolved — including
+  // when the round closed instantly (solo human + bots) and the Begin-next-hunt
+  // button is already up. Without this, a solo player never saw "Devoured!".
   let noteHtml = "";
-  if (busted && !seat.can_roll) {
-    noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! No brains this turn.</p>${waitingHtml(seat, game, room)}`;
-    actionsHtml = "";
-  } else if (banked && !seat.can_roll) {
+  if (busted) {
+    noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! No brains this turn.</p>${seat.can_roll ? "" : waitingHtml(seat, game, room)}`;
+  } else if (banked) {
     // First bank: "N 🧠 Devoured!" — later banks show the gain and the total.
     const gained = Number(seat.turn_brains || 0);
     const total = Number(seat.score || 0);
     const devoured = gained === total
       ? `${fmt(total)} \u{1F9E0} Devoured!`
       : `${fmt(gained)} more \u{1F9E0} devoured! ${fmt(total)} total!`;
-    noteHtml = `<p class="zd-msg">${devoured}</p>${waitingHtml(seat, game, room)}`;
-    actionsHtml = "";
-  } else if (game.round_pending_advance) {
+    noteHtml = `<p class="zd-msg">${devoured}</p>${seat.can_roll ? "" : waitingHtml(seat, game, room)}`;
+  }
+  let actionsHtml;
+  if (game.round_pending_advance) {
     actionsHtml = `<button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
       aria-label="Start the next round">\u{1F9DF} Begin next hunt \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>`;
+  } else if (busted || banked) {
+    actionsHtml = ""; // resolved, others still hunting — the note carries the waiting list
   } else if (seat.phase === "ready") {
     actionsHtml = `<button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
       aria-label="Roll three dice">\u{1F9DF} Hunt \u{1F9DF}\u{200D}\u{2640}\u{FE0F}</button>`;
