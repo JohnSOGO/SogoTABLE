@@ -129,11 +129,6 @@ function trayHtml(seat, game, room, pendingMove, animate) {
   }
   return `
     <section class="zd-tray">
-      <div class="zd-scoreboard">
-        <div><span class="label">Banked</span><strong>${fmt(seat.score)}</strong></div>
-        <div><span class="label">This turn</span><strong>${fmt(seat.turn_brains)}</strong></div>
-        <div><span class="label">Shotguns</span><strong>${fmt(seat.shotguns)}/3</strong></div>
-      </div>
       <div class="zd-dice" aria-label="Rolled dice">${diceHtml}</div>
       ${keptHtml}
       ${actionsHtml ? `<div class="zd-actions" aria-label="Turn actions">${actionsHtml}</div>` : ""}
