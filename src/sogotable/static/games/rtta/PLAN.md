@@ -218,6 +218,22 @@ GATE resilience — 2026-07-02 — 6 gaps — (gaps 1-5 unchanged from 2026-07-0
   pass: duplicate submit (latch + round_done/ready_next + DO serialization, pinned); out-of-order (one DO per room + D1 optimistic lock); refresh/duplicate tab collapse to the barrier; no polling, one write + one broadcast per action; Leadership reroll is client-local (no new server surface); cityBoxes clamping correct and tested
 ```
 
+```text
+GATE rules-fidelity — 2026-07-04 — 3 gaps — all 7 prior gaps verified closed (dev timing client+server · Leadership after early stop ends rolling · solitaire 10-round cap + self-pestilence · goods-value tie-break · choice die blocks Upkeep · Leadership rerolls choice die · arrival-order tie signed); barrier-close bots still run the human commit path; SKIP is a clean null turn → 1 LOW skip-null-turn deviation absent from Survey H list → add a row; 2 LOW skipped seat's late real commit silently swallowed → reject loudly; 3 LOW gap-2/5/6 fixes unpinned (board.js DOM-only) → extract or pin
+```
+
+```text
+GATE projection — 2026-07-04 — pass — zero read-but-never-emitted; shape test pins exact game+seat key sets; finish_state/seat.name accepted+pinned convention; no internal-field leaks (skulls/dev_this_round/level/open_monuments); is_bot/round_done/ready_next (the new waiting/skip reads) confirmed emitted
+```
+
+```text
+GATE sibling-parity — 2026-07-04 — 2 gaps — skipped-player false "submitted" copy + post-skip commit silently swallowed (low) · late-join-into-started-room spectator / unenforced max seats (low, platform-level, persists from 07-01); all four 07-02 gaps verified closed/signed; bots-go-last + SKIP_PLAYER verified pinned; bot/human, public/private, min/max seats, touch/pointer, skip-visibility pass
+```
+
+```text
+GATE resilience — 2026-07-04 — pass — dup-submit idempotent · round-stamp COMMIT/READY/SKIP (unstamped SKIP tolerated, no extra power) · retry-after-applied-write safe · bots zero-write at barrier · reconnect replays snapshot · start double-fire guarded · advisory: skip has no server-side anti-grief guard (client two-tap only, accepted family-game tradeoff)
+```
+
 ## Rules Ledger — rules-fidelity gate, 2026-07-01
 
 Status: ✓ correct · ✗ wrong · ◦ missing · Δ deviation (intended → listed above).
