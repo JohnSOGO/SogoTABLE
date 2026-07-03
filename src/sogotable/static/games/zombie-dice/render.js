@@ -10,7 +10,6 @@ import { renderHostStartLobby } from "../lobby.js";
 import { ZD_CSS } from "./styles.js";
 
 const FACE_EMOJI = { brain: "\u{1F9E0}", feet: "\u{1F463}", shotgun: "\u{1F4A5}" };
-const CUP_EMOJI = { green: "\u{1F7E9}", yellow: "\u{1F7E8}", red: "\u{1F7E5}" };
 const ROLL_MOVE_TYPES = new Set(["roll", "bust"]);
 let stylesInjected = false;
 let lastAnimatedMoveCount = -1;
@@ -97,11 +96,13 @@ function trayHtml(seat, game, room, pendingMove, animate) {
         aria-label="${die.color} die: ${die.face}"><span>${FACE_EMOJI[die.face] || "?"}</span></span>`;
     }).join("")
     : [1, 2, 3].map(() => `<span class="zd-die zd-big zd-blank" aria-label="not rolled">?</span>`).join("");
+  // The cup, shown as the actual dice still inside it (blank faces — they
+  // have not been rolled), sorted green → yellow → red like the collection.
   const cup = seat.cup || {};
-  const keptHtml = `
-    <p class="zd-kept">
-      <span>Cup ${["green", "yellow", "red"].map((color) => `${CUP_EMOJI[color]}${fmt(cup[color])}`).join(" ")}</span>
-    </p>`;
+  const cupHtml = ["green", "yellow", "red"].map((color) =>
+    Array.from({ length: Math.max(0, Number(cup[color]) || 0) },
+      () => `<span class="zd-die zd-${color}" role="img" aria-label="${color} die in the cup"></span>`).join("")
+  ).join("");
   const disabled = Boolean(pendingMove);
   const canRoll = !disabled && Boolean(seat.can_roll) && game.status === "playing";
   const canBank = !disabled && Boolean(seat.can_bank) && game.status === "playing";
@@ -128,8 +129,8 @@ function trayHtml(seat, game, room, pendingMove, animate) {
   }
   return `
     <section class="zd-tray">
+      <div class="zd-cup${banked ? " zd-done" : ""}" aria-label="Dice in the cup">${cupHtml}</div>
       <div class="zd-dice${banked ? " zd-done" : ""}" aria-label="Rolled dice">${diceHtml}</div>
-      ${keptHtml}
       ${actionsHtml ? `<div class="zd-actions" aria-label="Turn actions">${actionsHtml}</div>` : ""}
       ${noteHtml}
       <p class="zd-msg" data-zd-note hidden></p>

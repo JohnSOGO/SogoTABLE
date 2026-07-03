@@ -28,9 +28,10 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-scoreboard .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;color:var(--zd-muted);}
 .zombie-dice-root .zd-scoreboard strong{font-size:1.15rem;}
 .zombie-dice-root .zd-dice{display:flex;justify-content:center;gap:12px;}
-/* Turn over: the active dice hide but keep their space, so the controls
-   below never move. */
-.zombie-dice-root .zd-dice.zd-done{visibility:hidden;}
+.zombie-dice-root .zd-cup{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:64px;}
+/* Turn over: the cup and active dice hide but keep their space, so the
+   controls below never move. */
+.zombie-dice-root .zd-dice.zd-done,.zombie-dice-root .zd-cup.zd-done{visibility:hidden;}
 /* Dice are display-only: they must NEVER catch the pointer. The zd-depart
    animation parks them, invisible, 110px down — directly over the action
    buttons — so without this they block taps (the "dead button" bug). */
