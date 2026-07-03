@@ -186,6 +186,9 @@ export function createRttaBoard(root, opts) {
     } else if (lead) {
       tip.classList.remove("alert");
       tip.innerHTML = "👑 <b>Leadership</b>: tap any die to reroll it once — even a skull. Or tap <b>Upkeep</b> to keep the roll.";
+    } else if (ended && !upkeepDone) {
+      tip.classList.remove("alert");
+      tip.innerHTML = "Roll finished — tap the green <b>Upkeep</b>: food stores, cities feed (1 each). Then spend workers on <b>2 Build</b>.";
     } else { tip.classList.remove("alert"); setTip("dice"); }
     const rc = gid("rollCell");
     if (rc) rc.classList.toggle("ready", ended && pending === 0 && !upkeepDone);
