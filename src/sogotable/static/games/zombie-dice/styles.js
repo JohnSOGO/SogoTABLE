@@ -13,7 +13,7 @@
 export const ZD_CSS = `
 #macroBoard:has(.zombie-dice-root){display:block;aspect-ratio:auto;background:none;border:none;}
 .zombie-dice-root{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;
- width:100%;box-sizing:border-box;padding:19% 10px 24%;border-radius:18px;
+ width:100%;box-sizing:border-box;padding:39% 10px 24%;border-radius:18px;
  aspect-ratio:846/1854;
  background:#141b22 url("games/zombie-dice/board-bg.jpg") center top/cover no-repeat;
  --zd-panel:rgba(11,19,17,.74);--zd-ink:#eef3ee;--zd-muted:#a9bcae;--zd-line:rgba(233,255,238,.16);
@@ -35,13 +35,25 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-die.zd-red{background:#cf4a45;}
 .zombie-dice-root .zd-die.zd-blank{background:rgba(0,0,0,.25);border-style:dashed;border-color:var(--zd-line);
  color:var(--zd-muted);font-size:1.3rem;box-shadow:none;}
+.zombie-dice-root .zd-die.zd-big{width:88px;height:88px;font-size:2.7rem;border-radius:16px;}
 .zombie-dice-root .zd-die.rolling{animation:zd-tumble .45s ease;}
 @keyframes zd-tumble{0%{transform:rotate(-14deg) scale(.55);opacity:.2;}60%{transform:rotate(9deg) scale(1.08);}100%{transform:none;opacity:1;}}
+/* Brains and shotguns never re-roll: after the tumble they fly down out of the
+   rolling row (zd-depart) and land in the sorted set-aside collection below the
+   standings (zd-arrive). Feet stay put — they re-roll. */
+.zombie-dice-root .zd-die.zd-depart{animation:zd-tumble .45s ease,zd-depart .5s ease 1.05s forwards;}
+@keyframes zd-depart{0%{transform:none;opacity:1;}100%{transform:translateY(110px) scale(.7);opacity:0;}}
+.zombie-dice-root .zd-die.zd-arrive{animation:zd-arrive .5s ease 1.45s backwards;}
+@keyframes zd-arrive{0%{transform:translateY(-110px) scale(1.3);opacity:0;}100%{transform:none;opacity:1;}}
+.zombie-dice-root .zd-die.zd-lost{opacity:.35;filter:grayscale(.6);}
 .zombie-dice-root .zd-die span{filter:drop-shadow(0 1px 1px rgba(0,0,0,.35));}
 .zombie-dice-root .zd-kept{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;font-size:.85rem;color:var(--zd-muted);margin:0;}
 .zombie-dice-root .zd-kept b{color:var(--zd-ink);}
 .zombie-dice-root .zd-actions{display:flex;gap:10px;}
 .zombie-dice-root .zd-actions button{flex:1;padding:12px 8px;font-size:1.02rem;border-radius:12px;}
+.zombie-dice-root .zd-actions .zd-bank{background:linear-gradient(180deg,#f2c85b,#d69a28);color:#2b1d04;
+ border:none;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.4);}
+.zombie-dice-root .zd-actions .zd-bank:disabled{opacity:.4;box-shadow:none;}
 .zombie-dice-root .zd-msg{margin:0;font-size:.9rem;color:var(--zd-muted);text-align:center;}
 .zombie-dice-root .zd-msg.zd-bust{color:#ff7a70;font-weight:700;font-size:1rem;}
 .zombie-dice-root .zd-msg.zd-error{color:#ff7a70;}
@@ -61,4 +73,9 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-turn-gain{color:var(--zd-muted);font-size:.82rem;margin-left:4px;}
 .zombie-dice-root .zd-row-busted td{opacity:.75;}
 .zombie-dice-root .zd-row-sitting td{opacity:.55;}
+.zombie-dice-root .zd-aside{width:100%;max-width:440px;background:var(--zd-panel);border:1px solid var(--zd-line);
+ border-radius:14px;padding:10px 12px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;}
+.zombie-dice-root .zd-aside-group{display:flex;flex-direction:column;gap:6px;}
+.zombie-dice-root .zd-aside-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;color:var(--zd-muted);}
+.zombie-dice-root .zd-aside-dice{display:flex;flex-wrap:wrap;gap:8px;}
 `;

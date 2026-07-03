@@ -48,11 +48,21 @@ function renderZombieDicePlay(host, ctx) {
     rollCount: localSeat ? Number(localSeat.roll_count || 0) : 0,
     humanDone: complete || Boolean(localSeat && localSeat.resolved),
   };
+  // One animate decision for the whole snapshot: the rolling row's departures
+  // and the set-aside collection's arrivals must fire together.
+  const lastMove = game.last_move || {};
+  const moveCount = Number(game.move_count || 0);
+  const animate = Boolean(localSeat) && !pendingMove
+    && lastMove.mark === localSeat.mark
+    && ROLL_MOVE_TYPES.has(lastMove.type)
+    && moveCount !== lastAnimatedMoveCount;
+  if (animate) lastAnimatedMoveCount = moveCount;
   host.innerHTML = `
     <div class="zombie-dice-root">
       ${bannerHtml(game, room)}
-      ${localSeat && !complete ? trayHtml(localSeat, game, room, pendingMove) : ""}
+      ${localSeat && !complete ? trayHtml(localSeat, game, room, pendingMove, animate) : ""}
       ${standingsHtml(seats, room, game, pacing)}
+      ${localSeat && !complete && localSeat.active ? asideHtml(localSeat, animate) : ""}
     </div>`;
   if (localSeat && !complete) wireTray(host, localSeat, ctx);
 }
@@ -69,30 +79,27 @@ function bannerHtml(game, room) {
   return "";
 }
 
-function trayHtml(seat, game, room, pendingMove) {
+function trayHtml(seat, game, room, pendingMove, animate) {
   if (!seat.active) {
     return `<p class="zd-msg">You're sitting out the tiebreaker — watch the leaders fight over the last brain.</p>`;
   }
   const busted = seat.finish_state === "busted";
   const banked = seat.finish_state === "banked";
-  const lastMove = game.last_move || {};
-  const moveCount = Number(game.move_count || 0);
-  const animate = !pendingMove
-    && lastMove.mark === seat.mark
-    && ROLL_MOVE_TYPES.has(lastMove.type)
-    && moveCount !== lastAnimatedMoveCount;
-  if (animate) lastAnimatedMoveCount = moveCount;
   const rolled = Array.isArray(seat.rolled) ? seat.rolled : [];
+  // Brains and shotguns never re-roll: on a fresh roll they tumble in, then fly
+  // down to the set-aside collection (zd-depart). On a bust nothing departs —
+  // the fatal roll stays on the table to be read.
   const diceHtml = rolled.length
-    ? rolled.map((die) => `
-      <span class="zd-die zd-${die.color}${animate ? " rolling" : ""}" role="img"
-        aria-label="${die.color} die: ${die.face}"><span>${FACE_EMOJI[die.face] || "?"}</span></span>`).join("")
-    : [1, 2, 3].map(() => `<span class="zd-die zd-blank" aria-label="not rolled">?</span>`).join("");
+    ? rolled.map((die) => {
+      const departs = animate && !busted && die.face !== "feet";
+      return `
+      <span class="zd-die zd-big zd-${die.color}${animate ? " rolling" : ""}${departs ? " zd-depart" : ""}" role="img"
+        aria-label="${die.color} die: ${die.face}"><span>${FACE_EMOJI[die.face] || "?"}</span></span>`;
+    }).join("")
+    : [1, 2, 3].map(() => `<span class="zd-die zd-big zd-blank" aria-label="not rolled">?</span>`).join("");
   const cup = seat.cup || {};
   const keptHtml = `
     <p class="zd-kept">
-      <span>\u{1F9E0} <b>${fmt(seat.turn_brains)}</b></span>
-      <span>\u{1F4A5} <b>${fmt(seat.shotguns)}</b>/3</span>
       <span>\u{1F463} <b>${fmt((seat.hand || []).length)}</b> re-roll</span>
       <span>Cup ${["green", "yellow", "red"].map((color) => `${CUP_EMOJI[color]}${fmt(cup[color])}`).join(" ")}</span>
     </p>`;
@@ -117,7 +124,7 @@ function trayHtml(seat, game, room, pendingMove) {
     actionsHtml = `
       <button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
         aria-label="Push your luck — roll again">\u{1F3B2} Roll again</button>
-      <button class="secondary" type="button" data-zd="bank" ${canBank ? "" : "disabled"}
+      <button class="zd-bank" type="button" data-zd="bank" ${canBank ? "" : "disabled"}
         aria-label="Stop and bank your brains">\u{1F3E6} Bank ${fmt(seat.turn_brains)}</button>`;
   }
   return `
@@ -132,6 +139,56 @@ function trayHtml(seat, game, room, pendingMove) {
       ${actionsHtml ? `<div class="zd-actions" aria-label="Turn actions">${actionsHtml}</div>` : ""}
       ${noteHtml}
       <p class="zd-msg" data-zd-note hidden></p>
+    </section>`;
+}
+
+// The set-aside collection, below the player/status table: every brain and
+// shotgun die kept this turn, in sorted rows (green → yellow → red). Newly
+// rolled keepers land with the zd-arrive drop-in, timed to follow the rolling
+// row's departure. After a bust the brains stay visible but gray out — they
+// were lost. (After a cup refill the brain DICE go back in the cup while the
+// tally survives, so the label counts the tally, not the dice on show.)
+const COLOR_ORDER = { green: 0, yellow: 1, red: 2 };
+
+function asideHtml(seat, animate) {
+  const busted = seat.finish_state === "busted";
+  const brains = Array.isArray(seat.brains_rolled) ? seat.brains_rolled : [];
+  const shotguns = Array.isArray(seat.shotguns_rolled) ? seat.shotguns_rolled : [];
+  if (!brains.length && !shotguns.length) return "";
+  const arriving = { brain: {}, shotgun: {} };
+  if (animate) {
+    (seat.rolled || []).forEach((die) => {
+      if (die.face === "brain" && !busted) arriving.brain[die.color] = (arriving.brain[die.color] || 0) + 1;
+      if (die.face === "shotgun") arriving.shotgun[die.color] = (arriving.shotgun[die.color] || 0) + 1;
+    });
+  }
+  const group = (colors, face) => {
+    const fresh = { ...arriving[face] };
+    return colors
+      .slice()
+      .sort((left, right) => COLOR_ORDER[left] - COLOR_ORDER[right])
+      .map((color) => {
+        const isNew = fresh[color] > 0;
+        if (isNew) fresh[color] -= 1;
+        const classes = ["zd-die", `zd-${color}`];
+        if (isNew) classes.push("zd-arrive");
+        if (busted && face === "brain") classes.push("zd-lost");
+        return `<span class="${classes.join(" ")}" role="img" aria-label="set-aside ${color} ${face}"><span>${FACE_EMOJI[face]}</span></span>`;
+      })
+      .join("");
+  };
+  return `
+    <section class="zd-aside" aria-label="Set-aside dice">
+      ${brains.length ? `
+      <div class="zd-aside-group">
+        <span class="zd-aside-label">\u{1F9E0} Brains (${fmt(seat.turn_brains)})${busted ? " — lost!" : ""}</span>
+        <div class="zd-aside-dice">${group(brains, "brain")}</div>
+      </div>` : ""}
+      ${shotguns.length ? `
+      <div class="zd-aside-group">
+        <span class="zd-aside-label">\u{1F4A5} Shotguns (${fmt(seat.shotguns)}/3)</span>
+        <div class="zd-aside-dice">${group(shotguns, "shotgun")}</div>
+      </div>` : ""}
     </section>`;
 }
 
