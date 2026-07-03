@@ -186,3 +186,47 @@ PLACEMENT RECEIPT
       REVIEW_EXPORT_FILES allowlist.
 - New owner row: | `src/sogotable/static/games/game-kinds.js` | Client game-kind
                 predicates (classify a room game blob by id) | `src/sogotable/static/app.js` |
+
+## 2026-07-03 — Mazewright gate-fix batch (12 items)
+
+PLACEMENT RECEIPT
+- Ask:          Place a 12-item Mazewright gate-fix batch (validation throws, barrier
+                skip, client barrier UI, engine fixes, late-join + epoch guards,
+                client epoch stamp, new test file, trivia).
+- Verdict:      workers/games/mazewright/rules.js (items 1,2,11) [EXISTING];
+                src/sogotable/static/games/mazewright/render.js (item 3) [EXISTING,
+                REORG FIRST]; src/sogotable/static/games/mazewright/rules.js (item 4)
+                [EXISTING]; workers/sogotable-api.js (items 5,6) [EXISTING, REORG
+                FIRST — new owner workers/stats.js created by the prep refactor];
+                src/sogotable/static/app.js (item 7) [EXISTING, net-zero only];
+                workers/tests/mazewright-rules.test.js (item 8) [NEW FILE, exempt
+                prefix — no owner row]; manifest.js / docs/game-mazewright.md
+                (items 9,10) [EXISTING, light path].
+- Flow stage:   1,2 validate+apply (server); 3 render/intent-capture; 4 apply (pure
+                rules); 5,6 orchestrate/persist guards (platform); 7 normalize-action
+                transport stamp; 8 record/verify; 9-11 docs/metadata.
+- Sources read: docs/module-ownership.md; workers/tests/architecture.test.js;
+                docs/modularity.md; docs/wu-wei-method.md;
+                workers/games/mazewright/rules.js (head + line count);
+                function maps + line counts of workers/sogotable-api.js (1800/1801),
+                src/sogotable/static/app.js (at 2498 ceiling),
+                games/mazewright/render.js (775/800) and rules.js (716/800);
+                src/sogotable/static/review-export.js (allowlist entries).
+- Considerations:
+    - sogotable-api.js and app.js have ZERO headroom; render.js has 25 lines vs a
+      25-35 line addition — three of twelve items pressure capped files.
+    - Alternatives rejected: seat-color helper extraction from the worker (~40 lines,
+      opens room but is not a concern-level seam; stats lines 1511-1738 are a
+      golden-table concern of their own); putting the epoch guard in the game wrapper
+      (it is game-agnostic staleness rejection — platform's job); a board-fx-style
+      render extraction (the MW_CSS literal is the smaller, already-precedented
+      rtta styles.js seam); adding an owner row for the test file (workers/tests/ is
+      exempt — a row would be map noise).
+    - Main stability threats avoided: growing two files sitting exactly at their
+      ratchets; a skip button smuggling absence-eligibility rules into the UI;
+      forking a second bot-resolve path instead of reusing simulateRun/
+      buildRandomMazeCode; a refactor hidden inside a feature commit via line
+      compaction in app.js.
+- New owner row: | `workers/stats.js` | Room outcome stats: completed-room recording,
+                Elo, high scores, personal stats | `workers/sogotable-api.js` |
+                (added by prep commit A; no other rows.)
