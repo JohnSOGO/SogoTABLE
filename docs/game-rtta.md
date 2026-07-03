@@ -97,7 +97,10 @@ trigger disasters. Cost tables are duplicated in `ai.js` to avoid an import cycl
 Monument points give the first builder the higher VP, later builders the lower;
 Bonus is Architecture (+2/monument) and Empire (+1/city). Parts are computed
 client-side from the parity-tested tables; Total is the server's authoritative
-score.
+score — except **my own row while I play**, which projects the in-progress turn
+(dev bought, monuments completed, points lost) the moment it happens, wu-wei
+style; everyone else's rows settle at the barrier. **A development purchase is
+final once ✓ Buy is tapped** (rulebook posture — there is no undo).
 
 ## Files
 

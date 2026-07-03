@@ -27,7 +27,9 @@ import {
 //   monuments  - game.monuments {name:[marks]} so already-claimed monuments show.
 //   myMark     - my seat mark (to read the monuments map).
 //   players    - seat count (drives which monuments are in play).
-//   scoreboardHtml - initial shared-scoreboard HTML for the Discard page.
+//   scoreboard - (overlay) => html builder for the shared scoreboard. The board
+//                calls it with MY in-progress turn overlay whenever the local
+//                score changes (wu wei: state transition → projection → render).
 //   onCommit   - (payload) => void, called once when the player submits the turn.
 export function createRttaBoard(root, opts) {
   const seat = opts.seat || {};
@@ -360,6 +362,7 @@ export function createRttaBoard(root, opts) {
     markGoodsChart(); computePower();
     gid("tWorkBuild").textContent = workersToSpend;
     renderEng();
+    refreshScoreboard();   // famine/disaster points just landed — project them
     blinkTab("build");
   }
 
@@ -460,14 +463,14 @@ export function createRttaBoard(root, opts) {
   }
   function confirmPay() {
     if (!payDev || paidTotal() < devCost(payDev)) return;
-    const r = payDev, paid = [];
-    payGoods.forEach((i) => { paid.push([i, goodsHeld[i]]); goodsHeld[i] = 0; });
-    r._paid = paid;
-    if (payFood > 0) { r._paidFood = payFood; food = Math.max(0, food - payFood); syncFoodTrack(); }
-    r.classList.add("bought"); r.classList.remove("paying");
+    const r = payDev;
+    payGoods.forEach((i) => { goodsHeld[i] = 0; });
+    if (payFood > 0) { food = Math.max(0, food - payFood); syncFoodTrack(); }
+    r.classList.add("bought", "locked");   // a purchase is FINAL once bought (rulebook has no undo)
+    r.classList.remove("paying");
     boughtDev = r.querySelector(".nm").textContent;
     payDev = null; payGoods.clear(); payCoins = false; payFood = 0;
-    blinkTab("goods"); markGoodsChart(); computePower();
+    blinkTab("goods"); markGoodsChart(); computePower(); refreshScoreboard();
   }
   function syncFoodTrack() { root.querySelectorAll("#foodRoll .box").forEach((b, i) => b.classList.toggle("filled", i < food)); }
 
@@ -549,6 +552,7 @@ export function createRttaBoard(root, opts) {
       if (workersToSpend === 0) blinkTab("dev");
       renderEng();
       if (filledCount + 1 === boxes.length) onBuildingComplete(tile);
+      refreshScoreboard();
     }
   }
   function buildUndo(tile) {
@@ -566,6 +570,7 @@ export function createRttaBoard(root, opts) {
     if (tile.classList.contains("city") && tile.classList.contains("done")) {
       tile.classList.remove("done"); builtCities = Math.max(MIN_CITIES, builtCities - 1); diceCount = builtCities;
     }
+    refreshScoreboard();
   }
   function onBuildingComplete(tile) {
     if (tile.classList.contains("city")) {
@@ -689,14 +694,8 @@ export function createRttaBoard(root, opts) {
     const dev = e.target.closest(".row.dev .cost");
     if (dev) {
       const rowEl = dev.closest(".row.dev");
-      if (rowEl.classList.contains("locked")) return;
-      if (rowEl.classList.contains("bought")) {
-        rowEl.classList.remove("bought");
-        boughtDev = null;
-        if (rowEl._paid) { rowEl._paid.forEach(([i, q]) => goodsHeld[i] = q); rowEl._paid = null; }
-        if (rowEl._paidFood) { food = Math.min(15, food + rowEl._paidFood); rowEl._paidFood = 0; syncFoodTrack(); }
-        markGoodsChart(); computePower();
-      } else if (boughtDev) { /* one dev per turn */ }
+      if (rowEl.classList.contains("locked")) return;   // owned — including bought this turn: final
+      if (boughtDev) { /* one dev per turn */ }
       else if (payDev === rowEl) { cancelPay(); }
       else if (!payDev) { startPay(rowEl); }
     }
@@ -731,13 +730,28 @@ export function createRttaBoard(root, opts) {
   setTip("dice");
 
   // seed the shared scoreboard + round label + start the turn
+  let scoreBuilder = opts.scoreboard || null;
   const roundLabel = gid("roundNum"); if (roundLabel) roundLabel.textContent = String(round);
-  setScoreboard(opts.scoreboardHtml || "");
+  refreshScoreboard();
   newTurn();
 
   function setScoreboard(html) { const el = gid("sharedScore"); if (el) el.innerHTML = html; }
+  // MY in-progress turn, projected into the shared standings (my row only).
+  function localOverlay() {
+    return {
+      devBought: boughtDev,
+      monumentsCompleted: MONUMENTS.filter((m) => (monBoxes[m.name] || 0) >= m.w).map((m) => m.name),
+      cities: builtCities,
+      pointsLost: turnLost,
+    };
+  }
+  function refreshScoreboard() { if (scoreBuilder) setScoreboard(scoreBuilder(localOverlay())); }
 
-  return { root, setScoreboard, isSubmitted: () => submitted };
+  return {
+    root,
+    isSubmitted: () => submitted,
+    setScoreboardBuilder: (fn) => { scoreBuilder = fn; refreshScoreboard(); },
+  };
 }
 
 // Static page shell (ids kept from the prototype, queried within `root`).
