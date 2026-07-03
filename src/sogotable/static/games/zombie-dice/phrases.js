@@ -124,6 +124,165 @@ export const ZD_ROLL_PHRASES = {
   ],
 };
 
+// Banked-turn quips, 10 per brain COUNT (0-10; MANY covers 11+ with {n}
+// substituted). render.js appends the running total after the phrase.
+export const ZD_BANK_PHRASES = {
+  0: [
+    "Zero 🧠. A dignified retreat.",
+    "No brains, but no new holes!",
+    "Banked... absolutely nothing.",
+    "A zero-brain diet day.",
+    "Empty belly, intact hide.",
+    "You quit while behind. Bold.",
+    "Nothing gained, nothing pierced.",
+    "The hunt was... educational.",
+    "Zero 🧠 — call it a scouting run.",
+    "Even zombies have off nights.",
+  ],
+  1: [
+    "One 🧠 in my belly!",
+    "A single, artisanal brain.",
+    "One brain is still a brain.",
+    "Snack-sized victory!",
+    "One 🧠 down the hatch.",
+    "Quality over quantity, right?",
+    "A polite little nibble.",
+    "One brain, zero regrets.",
+    "Every horde starts with one.",
+    "Just an amuse-bouche.",
+  ],
+  2: [
+    "Two 🧠 in my belly!",
+    "A brain for each cheek.",
+    "Double helping, no seconds.",
+    "Two down the gullet!",
+    "Twin snacks acquired.",
+    "Two 🧠 — balanced breakfast.",
+    "A pair of thinkers, devoured.",
+    "Two brains, one happy zombie.",
+    "Stereo crunching sounds.",
+    "Two scoops of gray matter.",
+  ],
+  3: [
+    "Three 🧠 in my belly!",
+    "A brain hat trick!",
+    "Three-course cranium dinner.",
+    "Triple crunch combo!",
+    "Three thinkers, zero survivors.",
+    "Hat trick of head snacks.",
+    "Three 🧠 — now we're feasting.",
+    "A trio down the hatch.",
+    "Third brain's the charm.",
+    "Three! The horde approves.",
+  ],
+  4: [
+    "Four 🧠 in my belly!",
+    "Four-brain feast mode.",
+    "A quartet of craniums!",
+    "Four down. Still peckish.",
+    "Four 🧠 — that's a banquet.",
+    "Quad-core snacking.",
+    "Four thinkers deep.",
+    "Four brains, no brakes.",
+    "A four-skull salute!",
+    "Four! Save room for dessert.",
+  ],
+  5: [
+    "Five 🧠 in my belly!",
+    "A high-five of brains!",
+    "Five-star zombie dining.",
+    "Handful of heads, devoured.",
+    "Five 🧠 — gourmet gluttony.",
+    "A full fist of brains!",
+    "Five-course tasting menu.",
+    "Five down the hatch. Burp.",
+    "Five! The town's half empty.",
+    "Cinco de Braino!",
+  ],
+  6: [
+    "Six 🧠 in my belly!",
+    "Half a dozen headlights out.",
+    "Six-pack of gray matter!",
+    "Six brains, one sitting.",
+    "Six 🧠 — glorious gluttony.",
+    "A six-course skull buffet.",
+    "Six! Someone stop this zombie.",
+    "Half-dozen down the hatch.",
+    "Six brains richer.",
+    "Six! The horde is jealous.",
+  ],
+  7: [
+    "Seven 🧠 in my belly!",
+    "Lucky number brain-seven!",
+    "Seven skulls lighter, that town.",
+    "A magnificent seven, eaten.",
+    "Seven 🧠 — showing off now.",
+    "Seven! Save some for the rest.",
+    "Seven-brain winning streak.",
+    "Seven down. Unstoppable.",
+    "A week's worth in one turn!",
+    "Seven! Absolute unit.",
+  ],
+  8: [
+    "Eight 🧠 in my belly!",
+    "An octet of intellects!",
+    "Eight brains. EIGHT.",
+    "Crazy eights, zombie style.",
+    "Eight 🧠 — legendary appetite.",
+    "Eight skulls emptied tonight.",
+    "Eight! The town is trembling.",
+    "An eight-brain bender!",
+    "Eight down. No shame.",
+    "Eight! Michelin-star monster.",
+  ],
+  9: [
+    "Nine 🧠 in my belly!",
+    "Cloud nine of carnage!",
+    "A nine-brain masterpiece.",
+    "Nine skulls, one legend.",
+    "Nine 🧠 — peak zombie.",
+    "Dressed to the nines in brains.",
+    "Nine! One for the history books.",
+    "Nine-brain rampage complete.",
+    "Nine down. Utterly stuffed.",
+    "Nine! The horde bows to you.",
+  ],
+  10: [
+    "Ten 🧠 in my belly!",
+    "A perfect ten!",
+    "Double-digit devouring!",
+    "Ten skulls. TEN.",
+    "Ten 🧠 — hall of fame hunt.",
+    "A ten-brain thunder run!",
+    "Ten! The stuff of legends.",
+    "Ten-course tasting of terror.",
+    "Ten down. Waddle home happy.",
+    "Ten! Nobody will believe this.",
+  ],
+  MANY: [
+    "{n} 🧠 in my belly!",
+    "{n}?! That's a census, not a snack.",
+    "{n} brains! Utterly mythical.",
+    "{n} 🧠 — rewrite the record books.",
+    "A {n}-brain apocalypse!",
+    "{n}! The town is a ghost town now.",
+    "{n} brains in ONE hunt?!",
+    "{n}! Statues will be built.",
+    "{n} 🧠. Absolute legend.",
+    "{n}! Even Overlord is scared.",
+  ],
+};
+
+// Deterministic banked-turn quip for `count` brains; {n} carries the count in
+// the 11+ tier.
+export function zombieDiceBankPhrase(count, seed) {
+  const n = Math.max(0, Math.trunc(Number(count) || 0));
+  const list = n > 10 ? ZD_BANK_PHRASES.MANY : ZD_BANK_PHRASES[n];
+  if (!list || !list.length) return "";
+  const index = Math.abs(Math.trunc(Number(seed) || 0)) % list.length;
+  return list[index].replace(/\{n\}/g, String(n));
+}
+
 const FACE_LETTER = { brain: "B", feet: "F", shotgun: "S" };
 
 // "BFS"-style key for a rolled trio; empty string when the roll is malformed.

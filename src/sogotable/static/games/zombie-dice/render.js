@@ -8,7 +8,7 @@
 // onclick, and no imports from app.js.
 import { renderHostStartLobby } from "../lobby.js";
 import { ZD_CSS } from "./styles.js";
-import { zombieDiceRollPhrase } from "./phrases.js";
+import { zombieDiceRollPhrase, zombieDiceBankPhrase } from "./phrases.js";
 
 const FACE_EMOJI = { brain: "\u{1F9E0}", feet: "\u{1F463}", shotgun: "\u{1F4A5}" };
 const ROLL_MOVE_TYPES = new Set(["roll", "bust"]);
@@ -114,13 +114,11 @@ function trayHtml(seat, game, room, pendingMove, animate) {
   if (busted) {
     noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! No brains this turn.</p>${seat.can_roll ? "" : waitingHtml(seat, game, room)}`;
   } else if (banked) {
-    // First bank: "N 🧠 Devoured!" — later banks show the gain and the total.
+    // A count-keyed quip ("Five 🧠 in my belly!") plus the running total.
     const gained = Number(seat.turn_brains || 0);
     const total = Number(seat.score || 0);
-    const devoured = gained === total
-      ? `${fmt(total)} \u{1F9E0} Devoured!`
-      : `${fmt(gained)} more \u{1F9E0} devoured! ${fmt(total)} total!`;
-    noteHtml = `<p class="zd-msg">${devoured}</p>${seat.can_roll ? "" : waitingHtml(seat, game, room)}`;
+    const quip = zombieDiceBankPhrase(gained, Number(game.move_count || 0) * 31 + Number(seat.roll_count || 0) * 7);
+    noteHtml = `<p class="zd-msg">${quip} <b>${fmt(total)} total.</b></p>${seat.can_roll ? "" : waitingHtml(seat, game, room)}`;
   } else if (seat.phase === "rolled" && rolled.length === 3) {
     // Mid-turn roll, no outcome note owns the slot: a flavor quip keyed to the
     // roll's shape (deterministic per roll, so re-renders don't swap the joke).
