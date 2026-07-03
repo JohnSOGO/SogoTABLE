@@ -114,4 +114,7 @@ export const MW_CSS = `
 .mazewright-root .mw-sctable tr.you .mw-scname{color:var(--mw-ink);}
 .mazewright-root .mw-legend{margin-top:10px;color:var(--mw-muted);font-size:.76rem;line-height:1.5;text-align:center;}
 .mw-flying{position:fixed;z-index:50;font-size:26px;pointer-events:none;transform:translate(-50%,-50%) scale(1.4);transition:left .6s cubic-bezier(.35,.1,.2,1),top .6s cubic-bezier(.35,.1,.2,1),transform .6s,opacity .6s;filter:drop-shadow(0 0 7px rgba(120,210,255,.9));}
+.mazewright-root .mw-lockednote{padding:36px 12px;text-align:center;font-weight:600;opacity:.85;line-height:1.7;}
+.mazewright-root .mw-skiprow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px;}
+.mazewright-root .mw-skip{padding:7px 12px;border-radius:9px;border:1px solid var(--mw-grid);background:transparent;color:var(--mw-muted);font-size:.8rem;cursor:pointer;}
 `;

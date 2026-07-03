@@ -674,6 +674,12 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const room = roomFromPayload(data, payload);
       const player = playerFromPayload(payload);
       await assertPlayerOwner(data, player.id, payload.owner_token, options);
+      // Seats are fixed at start: a NEW player joining a started room would get a
+      // mark with no game seat and every action would no-op (silent ghost seat).
+      // A rejoin (same id) passes — addPlayerToRoom dedupes it.
+      if (room.started && !room.players.some((seat) => seat.id === player.id)) {
+        throw new Error("This game already started — ask the host for a rematch to join.");
+      }
       if (payload.local) room.local_mode = true;
       addPlayerToRoom(room, player);
       activateRoomIfReady(room);
@@ -738,6 +744,13 @@ async function routeRequest(method, url, payload, data, options = {}) {
       await assertPlayerOwner(data, playerId, payload.owner_token, options);
       const mark = playerMark(room, playerId);
       if (!mark) throw new Error("Player is not at this table.");
+      // Epoch stamp (optional — legacy clients omit it): a move built against a
+      // previous game of this room (pre-reset tab) must not land in the fresh
+      // one. Bot turns never traverse this route, so bots are unaffected.
+      const stampedEpoch = payload.game_epoch === undefined || payload.game_epoch === null ? NaN : Number(payload.game_epoch);
+      if (Number.isFinite(stampedEpoch) && stampedEpoch !== room.game_epoch) {
+        throw new Error("This move is from a previous game of this table — refresh to catch up.");
+      }
       const moveHandler = GAME_HANDLERS.find((entry) => entry.applyAction && entry.is(room.game));
       if (moveHandler) {
         if (moveHandler.preMove) moveHandler.preMove(room);

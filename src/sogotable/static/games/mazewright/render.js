@@ -39,6 +39,7 @@ let runState = null;
 let runLoaded = -1;     // deck index runState is built for
 let dragging = false;
 let posting = false;    // guard against double POST_RESULT
+let submittedCode = ""; // the mazeCode actually sent — a rejoin must not pass a blank draft off as the locked maze
 let wonSound = false;   // play the win fanfare once per game
 
 const root = () => ctx.host.querySelector(".mazewright-root");
@@ -163,7 +164,7 @@ function renderBuildPhase(game, myMark) {
   hide(".mw-inventory"); hide(".mw-done");
 
   const rk = `${ctx.room.code}:${ctx.room.game_epoch || 0}`;
-  if (rk !== buildKey) { buildKey = rk; wonSound = false; selectedItem = null; buildState = createGame({ seats: [{ name: "You", color: seatProfile(myMark).color, emoji: seatProfile(myMark).icon }] }); }
+  if (rk !== buildKey) { buildKey = rk; wonSound = false; selectedItem = null; submittedCode = ""; buildState = createGame({ seats: [{ name: "You", color: seatProfile(myMark).color, emoji: seatProfile(myMark).icon }] }); }
   runState = null; runLoaded = -1;
 
   const me = seatProfile(myMark);
@@ -172,10 +173,20 @@ function renderBuildPhase(game, myMark) {
   tag("Build", "build");
 
   if (submitted) {
-    setText(".mw-sub", "Locked in — waiting for the others…");
+    setText(".mw-sub", seat.skipped
+      ? "You were skipped at the barrier — an auto-maze plays for you this game."
+      : "Locked in — waiting for the others…");
     q(".mw-controls").style.display = "none";
     hide(".mw-advanced"); hide(".mw-modes");
-    renderBoardInto(buildState, "build", { readOnly: true });
+    if (submittedCode && mazeCode(buildState) === submittedCode) {
+      renderBoardInto(buildState, "build", { readOnly: true });
+    } else {
+      // Rejoined after submitting: the local draft is a blank default, not the
+      // locked maze (the projection hides mazes until the runs) — tell the truth
+      // instead of rendering a fake empty board as "your" dungeon.
+      q(".mw-board").innerHTML = '<div class="mw-lockednote">🔒 Your maze is locked in.<br>It stays hidden until the runs begin.</div>';
+    }
+    renderSkipRow(game, "building", "an auto-maze fills their seat");
     return;
   }
   const modes = q(".mw-modes"); modes.style.display = "flex";
@@ -228,7 +239,22 @@ function submitMaze() {
     return;
   }
   playConfirm();
-  ctx.makeMove({ type: "SUBMIT_MAZE", code: mazeCode(buildState) });
+  submittedCode = mazeCode(buildState);
+  ctx.makeMove({ type: "SUBMIT_MAZE", code: submittedCode });
+}
+
+// Barrier escape hatch UI — intent capture only: list the humans the table is
+// waiting on and post SKIP_PLAYER; eligibility (who may skip whom, and races)
+// is entirely the server's call, and its answer renders back through ctx.game.
+function renderSkipRow(game, phase, consequence) {
+  const stuck = (game.players || []).filter((s) => !s.is_bot && (phase === "building" ? !s.built : !s.run_done));
+  if (!stuck.length) { hide(".mw-done"); return; }
+  const done = q(".mw-done"); show(".mw-done");
+  done.innerHTML = `<div class="mw-help">Waiting on a player who dropped? Anyone already done can skip them — ${consequence}.</div>` +
+    `<div class="mw-skiprow">` + stuck.map((s) =>
+      `<button class="mw-skip" data-mark="${s.mark}">⏭ Skip ${seatProfile(s.mark).name || s.name || s.mark}</button>`).join("") + `</div>`;
+  done.querySelectorAll(".mw-skip").forEach((b) => b.addEventListener("click", () =>
+    ctx.makeMove({ type: "SKIP_PLAYER", target: b.dataset.mark })));
 }
 
 // ---------- run phase ----------
@@ -243,9 +269,12 @@ function renderRunPhase(game, myMark) {
 
   if (!seat || seat.run_done) {
     setText(".mw-turnname", "🏁 all mazes run"); tag("Done", "crawl");
-    setText(".mw-sub", "All mazes done — waiting for the others…");
+    setText(".mw-sub", seat && seat.skipped
+      ? "You were skipped — simulated runs were posted for you."
+      : "All mazes done — waiting for the others…");
     hide(".mw-done"); hide(".mw-inventory"); setDpad(false);
     q(".mw-board").innerHTML = "";
+    if (seat) renderSkipRow(game, "running", "simulated runs fill their results");
     return;
   }
   const idx = Math.min(seat.run_index, deck.length - 1);
@@ -306,8 +335,9 @@ function postRunResult() {
   if (posting) return;
   posting = true;
   const loot = runState.inventory.length;
+  const index = runLoaded;   // stamp which deck slot this result is for — the server rejects a mismatch (duplicate/lagging tab)
   runLoaded = -1;   // force-load the next maze when the server confirms
-  ctx.makeMove({ type: "POST_RESULT", moves: runState.moves, loot });
+  ctx.makeMove({ type: "POST_RESULT", index, moves: runState.moves, loot });
 }
 
 // ---------- complete (champion + standings) ----------
@@ -374,7 +404,8 @@ function renderLeaderboard(game, myMark) {
   if (!table) return;
   table.style.display = "block";
   const statusChip = (seat) =>
-    status === "building" ? (seat.built ? "ready ✅" : "building…")
+    seat.skipped ? "skipped ⏭"
+      : status === "building" ? (seat.built ? "ready ✅" : "building…")
       : seat.run_done ? "🏁" : `maze ${Math.min(seat.run_index + 1, seat.run_total)}/${seat.run_total}`;
 
   // per-view column values + the optional total column

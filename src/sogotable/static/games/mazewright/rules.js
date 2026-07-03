@@ -151,6 +151,15 @@ function resetFog(state) {
   state.exitRevealed = false;
   state.moves = 0;
   state.phase = PHASE.CRAWL;
+  // A gem placed on the start cell is collected on spawn — MOVE only collects
+  // on *entering* a cell, so without this the runner would have to step off
+  // and back on to claim loot they are standing on.
+  for (const it of state.items) {
+    if (!it.collected && it.cell[0] === state.pos[0] && it.cell[1] === state.pos[1]) {
+      it.collected = true;
+      state.inventory.push(it.type);
+    }
+  }
 }
 
 function loadMaze(state, design, rng) {
@@ -245,10 +254,18 @@ function autoBuild(state, rng) {
 }
 
 // SERVER: a random solvable maze as a code (used to give bots a maze).
+// Bots must pass the same gate humans do: autoBuild guarantees solvability
+// structurally but hits MIN_WALLS only statistically, so retry until the code
+// clears isValidMazeCode (in practice the first attempt almost always does).
 export function buildRandomMazeCode(rng = Math.random) {
-  const g = createGame();
-  autoBuild(g, rng);
-  return mazeCode(g);
+  let code = "";
+  for (let i = 0; i < 25; i++) {
+    const g = createGame();
+    autoBuild(g, rng);
+    code = mazeCode(g);
+    if (isValidMazeCode(code)) return code;
+  }
+  return code;
 }
 
 // BFS shortest-path step count between two cells (walls respected).
