@@ -287,3 +287,58 @@ REORG RECEIPT
                 final-screen sections stay put) and did NOT touch rules.js (716/800,
                 room enough for its items).
 - New owner row: none (games/ directory pattern covers per-game files).
+
+## 2026-07-03 — Zombie Dice (new game module) + app.js reorg-first
+Commit: pending
+
+PLACEMENT RECEIPT
+- Ask:          Place the Zombie Dice game (id `zombie-dice`) — shared-table turn-based
+                push-your-luck dice, Ten Thousand's structural twin; hostStart lobby via
+                games/lobby.js; bots required; no hidden info.
+- Verdict:      workers/games/zombie-dice/{rules.js,ai.js} + src/sogotable/static/games/
+                zombie-dice/{render.js,styles.js,manifest.js,PLAN.md,README.md}
+                [EXISTING directory-pattern owners — NO new owner row] + additive touches:
+                games/registry.js (GAME_IDS + entry), workers/sogotable-api.js (import +
+                GAME_HANDLERS row only, ~13 lines), games/game-kinds.js (predicate),
+                games/render-keys.js (key fields), app.js (host-start wiring, REORG FIRST),
+                review-export.js (allowlist), workers/tests/zombie-dice-rules.test.js
+                (exempt prefix), docs/game-zombie-dice.md.
+- Flow stage:   validate + apply = workers/games/zombie-dice/rules.js (server-owned RNG
+                behind a seedable seam); render/intent-capture = games/zombie-dice/render.js
+                via ctx bag + shared host-start lobby; normalize/classify = game-kinds.js
+                predicate + applyAction row; persist/broadcast/orchestrate = existing
+                platform paths, untouched; record = stats via existing completed-room flow.
+- Sources read: docs/module-ownership.md; docs/adding-a-game.md; workers/tests/
+                architecture.test.js (live CEILINGS: app.js 2498, worker 1580; let-cap 33;
+                manifest + lobbyMode + review-export + purity + layering guards);
+                docs/placement-receipts.md (2026-07-01 scope note); AI/zombie-dice/PLAN.md;
+                games/registry.js; games/game-kinds.js; games/render-keys.js;
+                workers/sogotable-api.js (GAME_HANDLERS 1401-1416, __test tail, 1542 lines);
+                app.js (ten-thousand wiring + farkle-ack block 139-150/1586-1643, 2498 lines);
+                workers/games/ten-thousand/rules.js (784/800, bot-in-rules cautionary);
+                review-export.js allowlist; on-disk layouts of ten-thousand/yahtzee/
+                mazewright/rtta (client + worker).
+- Considerations:
+    - New game subtrees are the map's designed extension point (directory-pattern rows):
+      zero fan-in leaves, no owner rows needed — adding rows would be map noise.
+    - app.js is AT BOTH ratchets (2498/2498 lines, 33/33 top-level lets) and the host-start
+      shell wiring is ~50-80 unavoidable additive lines → REORGANIZER FIRST: extract the
+      Ten Thousand farkle-ack flow (const + 3 lets at 139-150, maybeAutoAckTenThousandFarkle
+      1601-1620, maybeShowTenThousandFarklePrompt 1622-1643 — the latter appears to have NO
+      call site; verify and delete if dead) to a new games/ten-thousand/farkle-ack.js behind
+      wireTenThousandFarkleAck(ctx); frees ~55-80 lines + 3 lets; ratchet the ceiling to
+      post-extraction actual + wiring budget + modest slack (net below 2498). Game-specific
+      orchestration leaves the shell — correct ownership independent of Zombie Dice.
+    - workers/sogotable-api.js has ~38 lines headroom vs a ~13-line touch — fits; import +
+      one GAME_HANDLERS row and nothing else lands in the hub. No sanitizer branch (no
+      hidden info).
+    - Bot goes in a separate ai.js (yahtzee/rtta precedent), rejected bot-inside-rules
+      (ten-thousand's rules.js sits at 784/800 for exactly that reason). Rejected any
+      import of ten-thousand code for dice helpers (game-to-game ban; share via
+      workers/games/util.js if ever needed). Rejected Game-Locked shape (endgame/tiebreaker
+      couples all seats — shared-table turnBased, per the intake survey).
+    - Main stability threats avoided: pushing an at-ceiling god file over its ratchet;
+      rule logic (bust/endgame/tiebreaker) leaking into the UI or shell; a second lobby;
+      client-owned shared RNG.
+- New owner row: none — both subtrees covered by the standing directory-pattern rows;
+                the reorganizer's farkle-ack.js is likewise pattern-covered (no row).
