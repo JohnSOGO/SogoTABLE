@@ -39,6 +39,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/rtta/rules.js",
   "src/sogotable/static/games/rtta/styles.js",
   "src/sogotable/static/games/rtta/board.js",
+  "src/sogotable/static/games/rtta/board-art.js",
   "src/sogotable/static/games/rtta/render.js",
   "src/sogotable/static/index.html",
   "src/sogotable/static/app.js",
