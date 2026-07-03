@@ -65,6 +65,7 @@ export function createRttaBoard(root, opts) {
   let payDev = null;
   const payGoods = new Set();
   let payCoins = false;
+  let coinsSpent = false;                    // coins turned in with a purchase are gone (no change)
   let payFood = 0;                           // food sold into the current dev purchase (Granaries)
   let lastFoodTap = 0;                       // for the quick-second-tap-to-clear gesture
   // monuments seeded from the seat/game, re-applied whenever the tiles re-render
@@ -447,7 +448,7 @@ export function createRttaBoard(root, opts) {
   // --- development payment ---------------------------------------------------
   const devCost = (r) => parseInt(r.querySelector(".cost").textContent, 10) || 0;
   const goodValueLocal = (i) => goodValue(i, goodsHeld[i]);
-  const coinValue = () => turnTally.coin * coinFaceValue(ownsAll());
+  const coinValue = () => (coinsSpent ? 0 : turnTally.coin * coinFaceValue(ownsAll()));
   const paidTotal = () => paymentTotal({ payCoins, payGoods, payFood }, { coinCount: turnTally.coin, goods: goodsHeld, owns: ownsAll() });
   function startPay(r) { payDev = r; payGoods.clear(); payCoins = false; payFood = 0; qsa("#devBlock .row.dev").forEach((x) => x.classList.toggle("paying", x === r)); renderPay(); }
   function cancelPay() { payDev = null; payGoods.clear(); payCoins = false; payFood = 0; qsa("#devBlock .row.dev").forEach((x) => x.classList.remove("paying")); computePower(); }
@@ -473,6 +474,7 @@ export function createRttaBoard(root, opts) {
   function confirmPay() {
     if (!payDev || paidTotal() < devCost(payDev)) return;
     const r = payDev;
+    if (payCoins) coinsSpent = true;   // turned in whole — overpay is lost, no change
     payGoods.forEach((i) => { goodsHeld[i] = 0; });
     if (payFood > 0) { food = Math.max(0, food - payFood); syncFoodTrack(); }
     r.classList.add("bought", "locked");   // a purchase is FINAL once bought (rulebook has no undo)
