@@ -112,7 +112,7 @@ function trayHtml(seat, game, room, pendingMove, animate) {
     noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! No brains this turn.</p>${waitingHtml(seat, game, room)}`;
     actionsHtml = "";
   } else if (banked && !seat.can_roll) {
-    noteHtml = `<p class="zd-msg">\u{1F9E0} Banked ${fmt(seat.score)}.</p>${waitingHtml(seat, game, room)}`;
+    noteHtml = `<p class="zd-msg">\u{1F9E0} Brains! ${fmt(seat.score)} safe.</p>${waitingHtml(seat, game, room)}`;
     actionsHtml = "";
   } else if (game.round_pending_advance) {
     actionsHtml = `<button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
@@ -125,7 +125,7 @@ function trayHtml(seat, game, room, pendingMove, animate) {
       <button class="primary" type="button" data-zd="roll" ${canRoll ? "" : "disabled"}
         aria-label="Push your luck — roll again">\u{1F3B2} Roll again</button>
       <button class="zd-bank" type="button" data-zd="bank" ${canBank ? "" : "disabled"}
-        aria-label="Stop and bank your brains">\u{1F3E6} Bank ${fmt(seat.turn_brains)}</button>`;
+        aria-label="Stop and score your brains">\u{1F9E0} Brains! (${fmt(seat.turn_brains)})</button>`;
   }
   return `
     <section class="zd-tray">
@@ -237,7 +237,7 @@ function standingsHtml(seats, room, game, pacing) {
 }
 
 function zombieDiceStatusEmoji(status) {
-  if (status === "banked") return "\u{1F3E6}";
+  if (status === "banked") return "\u{1F9E0}"; // Brains! — no banks in the graveyard
   if (status === "busted") return "\u{1F4A5}";
   if (status === "sitting") return "\u{1F4A4}";
   return "\u{1F3B2}"; // rolling
