@@ -239,10 +239,23 @@ function standingsHtml(seats, room, game, pacing) {
   return `
     <section class="zd-standings" aria-label="Standings">
       <table>
-        <thead><tr><th>Player</th><th aria-label="Status">Status</th><th>\u{1F4A5}</th><th>\u{1F9E0}</th></tr></thead>
+        <thead><tr><th>Player</th><th aria-label="Status">Status</th><th>Rounds</th><th>\u{1F9E0}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </section>`;
+}
+
+// Per-round history chips: brains banked that round, 💥 for a no-score round
+// (bust or zero bank), – for a tiebreaker round sat out. A bot's current-round
+// entry stays hidden until the paced replay reveals its result.
+function zombieDiceRoundsHtml(seat, paced) {
+  const rounds = Array.isArray(seat.rounds) ? seat.rounds : [];
+  const shown = paced && paced.status === "rolling" && rounds.length ? rounds.slice(0, -1) : rounds;
+  return shown.map((value) => value > 0
+    ? `<span class="zd-round-chip">${fmt(value)}</span>`
+    : value === -1
+      ? `<span class="zd-round-chip zd-chip-sit">–</span>`
+      : `<span class="zd-round-chip zd-chip-bust">\u{1F4A5}</span>`).join("");
 }
 
 function zombieDiceStatusEmoji(status) {
@@ -256,17 +269,14 @@ function standingsRow(seat, room, game, pacing) {
   const complete = game.status === "complete";
   const paced = seat.is_bot ? zombieDiceBotPaced(seat, pacing) : null;
   let status;
-  let shotguns;
   let carried;
   let gain;
   if (paced) {
     status = paced.status;
-    shotguns = paced.shotguns;
     carried = paced.carried;
     gain = paced.gain;
   } else {
     status = seat.active === false ? "sitting" : seat.finish_state === "active" ? "rolling" : seat.finish_state;
-    shotguns = Number(seat.shotguns || 0);
     carried = Number(seat.score || 0);
     gain = Number(seat.turn_brains || 0);
   }
@@ -284,7 +294,7 @@ function standingsRow(seat, room, game, pacing) {
     <tr class="${classes.join(" ")}">
       <td><span class="zd-player">${seatEmoji(room, seat.mark)} ${escapeName(seatName(room, seat.mark))}</span></td>
       <td title="${status}">${statusHtml}</td>
-      <td>${status === "sitting" ? "—" : fmt(shotguns)}</td>
+      <td><span class="zd-rounds">${zombieDiceRoundsHtml(seat, paced)}</span></td>
       <td>${scoreHtml}</td>
     </tr>`;
 }
@@ -299,7 +309,6 @@ function zombieDiceBotPaced(seat, pacing) {
       carried: Number(seat.score || 0),
       gain: 0,
       status: seat.active === false ? "sitting" : seat.finish_state === "active" ? "rolling" : seat.finish_state,
-      shotguns: Number(seat.shotguns || 0),
     };
   }
   const lastIndex = traj.length - 1;
@@ -310,7 +319,6 @@ function zombieDiceBotPaced(seat, pacing) {
     carried,
     gain: Math.max(0, Number(snap.total || 0) - carried),
     status: snap.status,
-    shotguns: Number(snap.shotguns || 0),
   };
 }
 

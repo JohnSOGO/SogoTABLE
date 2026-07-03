@@ -198,6 +198,27 @@ test("round barrier: next round starts on a roll; scores and cups reset per turn
   assert.equal(g.players.P1.turn_brains, 1);
   assert.equal(g.players.P2.phase, "ready");
   assert.deepEqual(g.players.P2.cup, { green: 6, yellow: 4, red: 3 }, "each turn rolls from a full cup");
+  assert.deepEqual(g.players.P1.rounds, [3], "round history records the banked count");
+  assert.deepEqual(g.players.P2.rounds, [0], "a no-score round records 0");
+});
+
+test("round history: a bust records 0, sitting out records -1", () => {
+  const g = twoHumans();
+  rig([0, 0, 0, 0.99, 0.99, 0.99]); // instant triple-shotgun bust
+  makeZombieDiceMove(g, "P1", { type: "roll" });
+  assert.deepEqual(g.players.P1.rounds, [0], "a bust is a no-score round");
+  const t = newZombieDiceGame();
+  initZombieDiceSeats(t, [human("P1", "A"), human("P2", "B"), human("P3", "C")]);
+  ["P1", "P2"].forEach((mark) => {
+    t.players[mark].turn_brains = 13;
+    t.players[mark].phase = "rolled";
+    makeZombieDiceMove(t, mark, { type: "bank" });
+  });
+  t.players.P3.phase = "rolled";
+  makeZombieDiceMove(t, "P3", { type: "bank" }); // banks 0, triggers the tiebreaker
+  rig([0, 0, 0, 0.1, 0.6, 0.6]);
+  makeZombieDiceMove(t, "P1", { type: "roll" }); // opens the tiebreaker round
+  assert.deepEqual(t.players.P3.rounds, [0, -1], "a sat-out tiebreaker round records -1");
 });
 
 test("endgame: 13+ ends the game at the round's close, most brains wins", () => {
@@ -338,7 +359,7 @@ test("projection: toDict emits every field the client reads, per seat and game",
   });
   assert.deepEqual(dict.players.map((seat) => seat.mark), ["P1", "P2"]);
   const seat = dict.players[0];
-  ["mark", "score", "turn_brains", "shotguns", "cup", "hand", "brains_rolled",
+  ["mark", "score", "turn_brains", "shotguns", "rounds", "cup", "hand", "brains_rolled",
     "shotguns_rolled", "rolled", "phase", "finish_state", "resolved", "is_bot",
     "active", "roll_count", "bot_trajectory", "can_roll", "can_bank"].forEach((key) => {
     assert.ok(key in seat, `seat field ${key} missing from projection`);

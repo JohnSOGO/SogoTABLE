@@ -96,6 +96,12 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-player{display:flex;align-items:center;gap:7px;background:none;border:none;padding:0;
  color:var(--zd-ink);font:inherit;}
 .zombie-dice-root .zd-turn-gain{color:var(--zd-muted);font-size:.82rem;margin-left:4px;}
+.zombie-dice-root .zd-rounds{display:flex;flex-wrap:wrap;gap:3px;}
+.zombie-dice-root .zd-round-chip{min-width:19px;height:19px;padding:0 2px;border-radius:5px;box-sizing:border-box;
+ display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;
+ background:rgba(255,255,255,.08);border:1px solid var(--zd-line);}
+.zombie-dice-root .zd-round-chip.zd-chip-bust{font-size:.62rem;}
+.zombie-dice-root .zd-round-chip.zd-chip-sit{color:var(--zd-muted);}
 .zombie-dice-root .zd-row-busted td{opacity:.75;}
 .zombie-dice-root .zd-row-sitting td{opacity:.55;}
 .zombie-dice-root .zd-aside{width:100%;max-width:440px;background:var(--zd-panel);border:1px solid var(--zd-line);

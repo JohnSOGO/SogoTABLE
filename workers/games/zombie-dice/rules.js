@@ -91,6 +91,7 @@ function newZombieDiceSeat(seat) {
     score: 0,
     turn_brains: 0,
     shotguns: 0,
+    rounds: [], // per-round history: brains banked (0 = busted/no score, -1 = sat out)
     cup: { ...ZOMBIE_DICE_CUP },
     hand: [], // feet colors carried to the next roll
     brains_rolled: [], // brain die colors set aside (they return on a cup refill)
@@ -122,6 +123,7 @@ export function zombieDiceGameToDict(game) {
       score: seat.score,
       turn_brains: seat.turn_brains,
       shotguns: seat.shotguns,
+      rounds: seat.rounds.slice(),
       cup: { ...seat.cup },
       hand: seat.hand.slice(),
       brains_rolled: seat.brains_rolled.slice(),
@@ -176,6 +178,7 @@ function normalizeZombieDiceSeat(seat) {
     score: clampInteger(source.score, 0, 999, 0),
     turn_brains: clampInteger(source.turn_brains, 0, 999, 0),
     shotguns: clampInteger(source.shotguns, 0, 99, 0),
+    rounds: normalizeZombieDiceRounds(source.rounds),
     cup: normalizeZombieDiceCup(source.cup),
     hand: normalizeZombieDiceColors(source.hand, 3),
     brains_rolled: normalizeZombieDiceColors(source.brains_rolled, 13),
@@ -189,6 +192,11 @@ function normalizeZombieDiceSeat(seat) {
     roll_count: clampInteger(source.roll_count, 0, 999999, 0),
     bot_trajectory: normalizeZombieDiceTrajectory(source.bot_trajectory),
   };
+}
+
+function normalizeZombieDiceRounds(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 200).map((entry) => clampInteger(entry, -1, 999, 0));
 }
 
 function normalizeZombieDiceCup(cup) {
@@ -293,6 +301,7 @@ function rollZombieDice(seat) {
     seat.phase = "done";
     seat.finish_state = "busted";
     seat.resolved = true;
+    seat.rounds.push(0);
   } else {
     seat.phase = "rolled";
     seat.finish_state = "active";
@@ -305,6 +314,7 @@ function bankZombieDiceBrains(seat) {
   seat.phase = "done";
   seat.finish_state = "banked";
   seat.resolved = true;
+  seat.rounds.push(seat.turn_brains);
 }
 
 function zombieDiceCupTotal(cup) {
@@ -411,6 +421,7 @@ function startZombieDiceRound(game) {
     seat.phase = active ? "ready" : "done";
     seat.finish_state = active ? "active" : "sitting";
     seat.resolved = !active;
+    if (!active) seat.rounds.push(-1); // keeps the round history aligned while sitting out
     seat.roll_count = 0;
     seat.bot_trajectory = [];
   });
