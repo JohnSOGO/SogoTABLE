@@ -192,6 +192,7 @@ export const RTTA_CSS = `
 
 /* build page workers-to-spend + dev payment chips */
 .rtta-root .big-stat{font-size:1.7rem;color:var(--gold);font-weight:bold;text-align:center}
+.rtta-root .big-stat button.cashchip{background:#34281d;border:1px solid var(--edge);border-radius:7px;padding:3px 9px;color:var(--gold);font:inherit;font-size:.72rem;font-weight:bold;vertical-align:middle;margin-left:8px}
 .rtta-root #page-build > .block{width:100%;max-width:460px}
 .rtta-root .cashchip.pay{cursor:pointer}
 .rtta-root .cashchip.pay.on{background:var(--gold);border-color:var(--gold);color:#2a1c08}
