@@ -1,16 +1,19 @@
 # No Thanks! 🃏 (module id `no-thanks`)
 
-The classic press-your-luck card auction (Thorsten Gimmler, 3–7 players) and
-SogoTable's **first card game** — its `cards.js` module is the pilot for the
-platform's card look/tap/drag UI work. One card is face up at a time: pay a
-chip to dodge it, or take it with every chip riding on it. Lowest score wins.
+The classic press-your-luck card auction (Thorsten Gimmler) and SogoTable's
+**first card game** — its `cards.js` module is the pilot for the platform's
+card look/tap/drag UI work. One card is face up at a time: pay a chip to
+dodge it, or take it with every chip riding on it. Lowest score wins.
+**N-player** with a 3-seat minimum (bots fill the gaps); the box says 3–7,
+we don't cap.
 
 ## How it plays (v1, classic rules)
 
 - Deck is cards **3–35**; **9 are removed unseen** (24 in play — no one, not
   even the server projection, ever reveals which 9 are missing).
 - Starting chips scale with the table: **3–5 players: 11**, **6 players: 9**,
-  **7 players: 7**.
+  **7+ players: 7** (the 8+ stack is our house rule — the printed game stops
+  at 7 seats; the platform goal is N-player wherever a game seats 3+).
 - On your turn, either:
   - **Take the card** — it joins your tableau along with every chip on it,
     and **you decide first on the next flipped card** (that's the rule, not a
@@ -25,13 +28,14 @@ chip to dodge it, or take it with every chip riding on it. Lowest score wins.
   the thinner card pile, then seat order.
 - **Deliberate v1 exclusions:** hot-seat / pass-and-play — chip stacks are
   hidden information on one shared screen, so No Thanks is **multi-phone
-  only** (bots fill empty seats for a small table; minimum 3 seats).
+  only** (bots fill empty seats for a small table; minimum 3 seats, no
+  maximum).
 
 ## Architecture
 
 - **Timing:** strict `turnBased`, clockwise around `seat_order`, on the
   host-start lobby path (host taps Start; `initNoThanksSeats` rejects a start
-  outside 3–7 seats).
+  under 3 seats — there is no upper bound).
 - **Hidden information (two secrets):**
   1. **Chip stacks** — the Battleship/Liar's-Dice projection seam.
      `noThanksGameToDictForViewer` in the game's own `rules.js` masks every

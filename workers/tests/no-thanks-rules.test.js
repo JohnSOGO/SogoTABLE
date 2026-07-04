@@ -62,16 +62,18 @@ test("setup: 24 cards in play, 11 chips each, P1 opens on the first flip", () =>
   );
 });
 
-test("setup: seat counts outside 3-7 are rejected; chip stacks scale down", () => {
+test("setup: N-player with a 3-seat floor; chip stacks scale down and hold at 7", () => {
   const g = newNoThanksGame();
-  assert.throws(() => initNoThanksSeats(g, [human("P1", "A"), human("P2", "B")]), /3-7 players/);
-  assert.throws(
-    () => initNoThanksSeats(g, "P1 P2 P3 P4 P5 P6 P7 P8".split(" ").map((mark) => human(mark, mark))),
-    /3-7 players/,
-  );
+  assert.throws(() => initNoThanksSeats(g, [human("P1", "A"), human("P2", "B")]), /at least 3 players/);
+  // No ceiling (N-player, MojoSOGO 2026-07-04): 8 seats deal fine on 7 chips.
+  rig();
+  initNoThanksSeats(g, "P1 P2 P3 P4 P5 P6 P7 P8".split(" ").map((mark) => human(mark, mark)));
+  assert.equal(g.seat_order.length, 8);
+  assert.deepEqual(Object.values(g.players).map((seat) => seat.chips), Array(8).fill(7));
   assert.equal(noThanksStartingChips(5), 11);
   assert.equal(noThanksStartingChips(6), 9);
   assert.equal(noThanksStartingChips(7), 7);
+  assert.equal(noThanksStartingChips(12), 7); // house rule past the box's 7
 });
 
 // ---- run scoring ---------------------------------------------------------------

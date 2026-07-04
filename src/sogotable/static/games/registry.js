@@ -172,7 +172,7 @@ export const GAME_REGISTRY = [
     lobbyMode: "hostStart",
     name: "🃏 No Thanks!",
     summary: "Press-your-luck card auction: pay a chip to dodge the card or take it with every chip riding on it — lowest score wins.",
-    players: "3-7 players",
+    players: "3+ players",
     player_count: null,
     host_start: true,
     category: "card",

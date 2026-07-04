@@ -11,7 +11,9 @@
 // which passes the decision clockwise. Out of chips = forced take. The game
 // ends when the last card is taken. Score = the LOWEST card of each
 // consecutive run you hold, summed, minus your chips — lowest total wins.
-// 3–5 players start with 11 chips, 6 players 9, 7 players 7.
+// 3–5 players start with 11 chips, 6 players 9, 7 players 7. N-PLAYER
+// (MojoSOGO 2026-07-04): no seat ceiling — 8+ players keep the 7-chip stack
+// as a house rule (the box stops at 7); minimum stays 3, bots fill gaps.
 //
 // DANGER ZONE: two secrets live here. (1) Player chip counts are hidden from
 // the other seats — noThanksGameToDictForViewer is the ONLY thing masking
@@ -28,7 +30,6 @@ import { noThanksBotAction } from "./ai.js";
 
 export const NO_THANKS_GAME_ID = GAME_IDS.noThanks;
 export const NO_THANKS_MIN_PLAYERS = 3;
-export const NO_THANKS_MAX_PLAYERS = 7;
 const NO_THANKS_LOW_CARD = 3;
 const NO_THANKS_HIGH_CARD = 35;
 const NO_THANKS_REMOVED = 9;
@@ -80,8 +81,8 @@ export function initNoThanksSeats(game, seats) {
     };
   });
   const count = game.seat_order.length;
-  if (count < NO_THANKS_MIN_PLAYERS || count > NO_THANKS_MAX_PLAYERS) {
-    throw new Error(`No Thanks! seats ${NO_THANKS_MIN_PLAYERS}-${NO_THANKS_MAX_PLAYERS} players — invite players or bots.`);
+  if (count < NO_THANKS_MIN_PLAYERS) {
+    throw new Error(`No Thanks! needs at least ${NO_THANKS_MIN_PLAYERS} players — invite players or bots to fill the table.`);
   }
   const chips = noThanksStartingChips(count);
   game.seat_order.forEach((mark) => { game.players[mark].chips = chips; });

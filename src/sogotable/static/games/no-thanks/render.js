@@ -38,7 +38,7 @@ export function renderNoThanksGame(ctx) {
     renderHostStartLobby(host, ctx, {
       wrap: "no-thanks-root",
       heading: "Players",
-      blurb: "One card is up at a time — pay a chip to dodge it or take it with the pot. Needs 3-7 players; invite players or bots, then start.",
+      blurb: "One card is up at a time — pay a chip to dodge it or take it with the pot. Needs 3+ players; invite players or bots to fill the table, then start.",
     });
     return;
   }
