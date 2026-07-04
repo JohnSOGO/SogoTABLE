@@ -18,9 +18,13 @@ import { noThanksCardHtml, noThanksRunsHtml, noThanksChipsHtml } from "./cards.j
 import { NT_CSS } from "./styles.js";
 
 const BOT_STEP_MS = 1100;
+const TAKE_ANIM_MS = 2000; // a take animates for 2s before anyone (AI or player) visibly acts again
 let stylesInjected = false;
 // Event replay cursor: how far into game.events the display has advanced.
 let pace = { key: "", shown: 0, timer: null };
+// The take being animated: the card flies from the table to the taker's
+// panel; `flown` guards the overlay against re-paints mid-flight.
+let takeAnim = { key: "", moveCount: 0, until: 0, flown: false };
 // The table card last painted — a changed value replays the deal-in flip.
 let lastCardShown = null;
 // Chip counts last painted (pot + own stack), keyed by room+epoch: a value
@@ -64,27 +68,44 @@ function renderNoThanksPlay(host, ctx) {
   const paceKey = `${room.code}:${room.game_epoch}`;
   const target = Number(game.move_count || 0);
   const events = Array.isArray(game.events) ? game.events : [];
-  if (pace.key !== paceKey) pace = { key: paceKey, shown: target, timer: null };
+  if (pace.key !== paceKey) {
+    pace = { key: paceKey, shown: target, timer: null };
+    takeAnim = { key: paceKey, moveCount: target, until: 0, flown: false }; // a fresh join never animates history
+  }
   if (pace.shown < target) {
     const next = events.find((event) => Number(event.move_count) > pace.shown);
     pace.shown = next ? Number(next.move_count) : target;
   }
   if (pace.shown > target) pace.shown = target;
   const caughtUp = pace.shown >= target;
-  if (!caughtUp) {
-    pace.timer = setTimeout(() => {
-      if (host.isConnected && host.querySelector(".no-thanks-root")) renderNoThanksPlay(host, ctx);
-    }, BOT_STEP_MS);
-  }
   const visible = events.filter((event) => Number(event.move_count) <= pace.shown);
   const lastVisible = visible[visible.length - 1] || null;
+  const rerender = () => {
+    if (host.isConnected && host.querySelector(".no-thanks-root")) renderNoThanksPlay(host, ctx);
+  };
+  // ---- take animation: a NEWLY shown take holds the display for 2s while
+  // the card flies to the taker; the next event (or interactivity) waits. ----
+  const now = Date.now();
+  if (lastVisible && lastVisible.type === "take" && Number(lastVisible.move_count) > takeAnim.moveCount) {
+    takeAnim = { key: paceKey, moveCount: Number(lastVisible.move_count), until: now + TAKE_ANIM_MS, flown: false };
+  }
+  const animatingTake = Boolean(lastVisible && lastVisible.type === "take" &&
+    takeAnim.moveCount === Number(lastVisible.move_count) && now < takeAnim.until);
+  if (animatingTake) {
+    pace.timer = setTimeout(rerender, takeAnim.until - now);
+  } else if (!caughtUp) {
+    pace.timer = setTimeout(rerender, BOT_STEP_MS);
+  }
   // Mid-replay the table redraws the shown event's moment (each event carries
-  // card + pot); caught up it paints the authoritative state.
-  const table = caughtUp || !lastVisible
-    ? { card: game.current_card, pot: Number(game.pot || 0) }
-    : tableAtEvent(lastVisible);
-  const showResults = caughtUp && complete;
-  const myTurn = caughtUp && !movePending && Boolean(localSeat && localSeat.is_turn) && !complete;
+  // card + pot); during a take animation it holds the PRE-take moment (the
+  // taken card ghosted under the flying clone); caught up, the live state.
+  const table = animatingTake
+    ? { card: lastVisible.card, pot: Number(lastVisible.chips_gained || 0), taking: true }
+    : (caughtUp || !lastVisible
+      ? { card: game.current_card, pot: Number(game.pot || 0) }
+      : tableAtEvent(lastVisible));
+  const showResults = caughtUp && complete && !animatingTake;
+  const myTurn = caughtUp && !animatingTake && !movePending && Boolean(localSeat && localSeat.is_turn) && !complete;
   // Watchdog: if actions are suppressed only by the pending latch, re-render
   // shortly — this board must never wedge on a player's turn.
   if (caughtUp && movePending && !complete) {
@@ -101,9 +122,10 @@ function renderNoThanksPlay(host, ctx) {
   const chipsFlash = localSeat !== null && myChips > lastChips.mine;
   lastChips.pot = table.pot;
   lastChips.mine = myChips;
-  // Whose decision the DISPLAY is on: the live turn once caught up, or the
-  // `next` mark the shown event named mid-replay.
-  const actorMark = caughtUp ? game.current_player : (lastVisible ? lastVisible.next : null);
+  // Whose decision the DISPLAY is on: the taker mid-animation, the live turn
+  // once caught up, or the `next` mark the shown event named mid-replay.
+  const actorMark = animatingTake ? lastVisible.mark
+    : caughtUp ? game.current_player : (lastVisible ? lastVisible.next : null);
   // Who has said No Thanks to the card ON the table: every pass event since
   // the last take (a take flips a fresh card, resetting the tally). Derived
   // from the VISIBLE events so the ❌s land one at a time during replay.
@@ -112,7 +134,7 @@ function renderNoThanksPlay(host, ctx) {
   host.innerHTML = `
     <div class="no-thanks-root">
       ${showResults && game.winner ? `<p class="nt-panel nt-banner">\u{1F3C6} ${escapeName(seatName(room, game.winner))} wins No Thanks!</p>` : ""}
-      ${tipHtml(game, room, localSeat, { caughtUp, myTurn, complete, lastVisible })}
+      ${tipHtml(game, room, localSeat, { caughtUp, myTurn, complete, lastVisible, animatingTake })}
       ${showResults ? resultsHtml(game, room) : tableHtml(table, game, room, { caughtUp, flip, actorMark, localMark, passedMarks, potFlash })}
       ${myTurn ? actionsHtml(localSeat, table) : ""}
       <p class="nt-msg" data-nt-note hidden></p>
@@ -120,6 +142,36 @@ function renderNoThanksPlay(host, ctx) {
       ${othersHtml(seats, room, game, localSeat, { caughtUp, complete })}
     </div>`;
   wireNoThanks(host, ctx, myTurn);
+  if (animatingTake && !takeAnim.flown) {
+    takeAnim.flown = true;
+    flyTakenCard(host, lastVisible.mark);
+  }
+}
+
+// The taken card lifts off the table spot and flies into the taker's seat
+// panel — a fixed-position clone over the live layout, so it works at any
+// viewport size; the original ghosts out underneath it.
+function flyTakenCard(host, takerMark) {
+  const root = host.querySelector(".no-thanks-root");
+  const cardEl = host.querySelector(".nt-spot .nt-card-big");
+  const targetEl = host.querySelector(`[data-nt-seat="${takerMark}"]`) || host.querySelector(".nt-turn-list");
+  if (!root || !cardEl || !targetEl) return;
+  const from = cardEl.getBoundingClientRect();
+  const to = targetEl.getBoundingClientRect();
+  const clone = cardEl.cloneNode(true);
+  clone.classList.remove("nt-ghost", "nt-flip-in");
+  clone.classList.add("nt-fly");
+  clone.style.cssText += `;position:fixed;left:${from.left}px;top:${from.top}px;width:${from.width}px;height:${from.height}px;margin:0;`;
+  // Inside the root so the scoped card styles dress the clone; the 2s
+  // re-render replaces the root's innerHTML, which also sweeps it away.
+  root.appendChild(clone);
+  const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+  const dy = to.top + Math.min(to.height / 2, 44) - (from.top + from.height / 2);
+  requestAnimationFrame(() => {
+    clone.style.transform = `translate(${dx}px, ${dy}px) scale(.32) rotate(6deg)`;
+    clone.style.opacity = "0.2";
+  });
+  setTimeout(() => clone.remove(), TAKE_ANIM_MS);
 }
 
 // ---------- projections of the replay cursor ----------
@@ -136,7 +188,10 @@ function tableAtEvent(event) {
 
 function tipHtml(game, room, localSeat, view) {
   let tip = "";
-  if (view.complete && view.caughtUp && game.winner) {
+  if (view.animatingTake) {
+    const event = view.lastVisible;
+    tip = `${escapeName(seatName(room, event.mark))} takes the ${event.card}${event.chips_gained ? ` and ${fmt(event.chips_gained)} \u{1FA99}` : ""}!`;
+  } else if (view.complete && view.caughtUp && game.winner) {
     tip = `Game over — ${escapeName(seatName(room, game.winner))} takes it with the lowest score.`;
   } else if (view.myTurn) {
     tip = Number(localSeat.chips) > 0
@@ -183,7 +238,7 @@ function tableHtml(table, game, room, view) {
         <span class="nt-deck-label">deck</span>
       </div>
       <div class="nt-spot">
-        ${table.card === null ? `<span class="nt-no-cards">no card</span>` : noThanksCardHtml(table.card, { size: "big", flip: view.flip })}
+        ${table.card === null ? `<span class="nt-no-cards">no card</span>` : noThanksCardHtml(table.card, { size: "big", flip: view.flip && !table.taking, extraClass: table.taking ? "nt-ghost" : "" })}
         <div>
           <span class="nt-pot${table.pot ? "" : " nt-pot-empty"}${view.potFlash ? " nt-flash" : ""}" aria-label="${table.pot} chips on the card">\u{1FA99} ${fmt(table.pot)}</span>
         </div>
@@ -206,7 +261,7 @@ function actionsHtml(localSeat, table) {
 // Shown during play AND at game over — the final screen lists every seat's
 // card+chip summary, the local player's included (MojoSOGO 2026-07-04).
 function mySeatHtml(seat, chipsFlash, isWinner) {
-  return `<section class="nt-panel nt-seat" aria-label="Your cards and chips">
+  return `<section class="nt-panel nt-seat" data-nt-seat="${seat.mark}" aria-label="Your cards and chips">
     <div class="nt-seat-head">
       <span class="nt-seat-name">Your hand${isWinner ? " \u{1F3C6}" : ""}</span>
       <span class="nt-score-tag">cards ${fmt(seat.card_score)} − chips = ${fmt(seat.card_score - Number(seat.chips || 0))}</span>
@@ -220,7 +275,7 @@ function othersHtml(seats, room, game, localSeat, view) {
   const localMark = localSeat ? localSeat.mark : null;
   return seats.filter((seat) => seat.mark !== localMark).map((seat) => {
     const isTurn = view.caughtUp && !view.complete && seat.is_turn;
-    return `<section class="nt-panel nt-seat${isTurn ? " nt-turn-seat" : ""}" aria-label="${escapeName(seatName(room, seat.mark))}'s table">
+    return `<section class="nt-panel nt-seat${isTurn ? " nt-turn-seat" : ""}" data-nt-seat="${seat.mark}" aria-label="${escapeName(seatName(room, seat.mark))}'s table">
       <div class="nt-seat-head">
         <span class="nt-seat-name">${seatEmoji(room, seat.mark)} ${escapeName(seatName(room, seat.mark))}${view.complete && seat.mark === game.winner ? " \u{1F3C6}" : ""}</span>
         <span class="nt-score-tag">cards ${fmt(seat.card_score)}</span>

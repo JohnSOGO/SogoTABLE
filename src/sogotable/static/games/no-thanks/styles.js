@@ -55,6 +55,11 @@ export const NT_CSS = `
 /* Deal-in: the fresh table card flips up from the deck. */
 .no-thanks-root .nt-flip-in{animation:nt-flip .45s ease;}
 @keyframes nt-flip{0%{transform:rotateY(90deg) scale(.9);opacity:0;}100%{transform:none;opacity:1;}}
+/* Take: a fixed-position clone flies from the table spot to the taker's
+   panel (transform+opacity over ~2s); the original ghosts out beneath it. */
+.no-thanks-root .nt-card.nt-fly{z-index:999;pointer-events:none;
+ transition:transform 1.6s cubic-bezier(.45,.05,.35,1),opacity 1.6s ease;}
+.no-thanks-root .nt-card-big.nt-ghost{opacity:.12;}
 /* ---- the table: deck + face-up card + pot, turn list to the right ---- */
 .no-thanks-root .nt-table{display:flex;align-items:center;gap:12px;padding:14px 12px;}
 .no-thanks-root .nt-table-main{display:flex;align-items:center;justify-content:center;gap:14px;
