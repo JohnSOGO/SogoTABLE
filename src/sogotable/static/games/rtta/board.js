@@ -58,7 +58,7 @@ export function createRttaBoard(root, opts) {
   let turnLost = 0;                          // points lost THIS turn (famine + drought/invasion)
   let turnSkulls = 0;                        // final skull count THIS turn (for pestilence)
   let workersToSpend = 0;
-  let buildClickTimer = null, buildClickTile = null;
+  let undoMode = false;                      // sticky ↩️ toggle — build taps refund workers instead of spending
   let goodsHeld = (seat.goods && seat.goods.length === 5) ? seat.goods.slice() : [0, 0, 0, 0, 0];
   let goodsOriginal = goodsHeld.slice();
   const owned = new Set(seat.developments || []);   // owned at turn start
@@ -639,12 +639,10 @@ export function createRttaBoard(root, opts) {
   // delegated tap handler across pages
   gid("window").addEventListener("click", (e) => {
     if (submitted) return;
+    // Build taps apply IMMEDIATELY (no double-tap timer — fast tapping works);
+    // the sticky ↩️ toggle flips taps from spending workers to refunding them.
     const tile = e.target.closest("#monArea .mon, #cityRow .city");
-    if (tile) {
-      if (buildClickTimer && buildClickTile === tile) { clearTimeout(buildClickTimer); buildClickTimer = null; buildUndo(tile); }
-      else { if (buildClickTimer) { clearTimeout(buildClickTimer); buildAdd(buildClickTile); } buildClickTile = tile; buildClickTimer = setTimeout(() => { buildClickTimer = null; buildAdd(tile); }, 250); }
-      return;
-    }
+    if (tile) { (undoMode ? buildUndo : buildAdd)(tile); return; }
     const gv = e.target.closest("#goodsBlock .gv");
     if (gv) {
       const rowEl = gv.closest(".grow"), i = +rowEl.dataset.good;
@@ -665,6 +663,8 @@ export function createRttaBoard(root, opts) {
       renderPay(); return;
     }
     if (e.target.closest("#leadBtn")) { leadMode = !leadMode; markChoices(); return; }
+    const undoBtn = e.target.closest("#undoModeBtn");
+    if (undoBtn) { undoMode = !undoMode; undoBtn.classList.toggle("on", undoMode); return; }
     if (e.target.closest("#engUse")) { engConvert(+1); return; }
     if (e.target.closest("#engUndo")) { engConvert(-1); return; }
     if (e.target.closest("#payConfirm")) { confirmPay(); return; }

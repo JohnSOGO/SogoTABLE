@@ -84,7 +84,7 @@ export const MARKUP = `
       <div class="block"><h3>Disaster results <small>from skulls</small></h3><div class="dis" id="disList"></div></div>
     </section>
     <section class="page" id="page-build">
-      <div class="block workers-panel"><h3>Workers to spend <small>from this roll</small></h3><div class="big-stat">⚒️ <span id="tWorkBuild">0</span></div><div class="goods-cash" id="engRow"></div></div>
+      <div class="block workers-panel"><h3>Workers to spend <small>from this roll</small></h3><div class="big-stat">⚒️ <span id="tWorkBuild">0</span> <button class="cashchip pay" id="undoModeBtn" type="button">↩️ undo</button></div><div class="goods-cash" id="engRow"></div></div>
       <div class="block"><h3>Cities <small>start with 3 · build with workers</small></h3><div id="cityRow"></div></div>
       <div class="block" id="monBlock"><h3>Monuments <small id="monPlayers"></small></h3>
         <div id="monArea"></div>
