@@ -20,6 +20,11 @@ spec, deviations list, and rules ledger live in
 - First to bank **13 brains** triggers the end: the round is finished so
   everyone has equal turns, then most brains wins. Tied leaders (only) play
   tiebreaker rounds until someone shambles ahead.
+- **Solo survival mode** (one-seat rooms, automatic): race to 13 with **3
+  lives** — each bust costs one, zero lives is defeat (banked score recorded,
+  no winner). Solo-with-bots plays the normal race. House mode #10 in the
+  module's PLAN.md; rooms started before the mode existed keep the old
+  unloseable race.
 
 ## Architecture
 
@@ -47,4 +52,6 @@ spec, deviations list, and rules ledger live in
 `playing` rounds → barrier sees a banked score ≥ 13 → single leader: complete —
 tied leaders: `tiebreaker` (active_marks = leaders; other seats sit out with
 their scores frozen) → repeat until one leader. A tiebreaker among bots only
-auto-plays at the barrier (no human roll is available to advance it).
+auto-plays at the barrier (no human roll is available to advance it). In solo
+survival, a bust at the last life short-circuits to `complete` with
+`winner: null` (`last_move.type: "defeat"`) before the barrier runs.
