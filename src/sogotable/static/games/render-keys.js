@@ -73,6 +73,12 @@ export function buildRoomRenderKey(room, gameId) {
       tiebreaker: room.game.tiebreaker,
       active_marks: room.game.active_marks,
       target_brains: room.game.target_brains,
+      // liar's dice — seat data (dice/dice_count/eliminated) rides in
+      // `players_state`; the sanitizer masks other cups before this key builds.
+      current_bid: room.game.current_bid,
+      last_reveal: room.game.last_reveal,
+      total_dice: room.game.total_dice,
+      raise_options: room.game.raise_options,
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,
