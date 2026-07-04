@@ -386,6 +386,13 @@ game hits (all learned on Yahtzee):
   — reading state out of CSS classes — so no test could see them; that is how
   four rules bugs shipped.) A headless engine is also what makes bot
   benchmarking, self-play, and future bot training possible at all.
+- **One layout on every device.** The arrangement of panels and controls is
+  identical on phone, tablet, and desktop — however that needs to happen.
+  Breakpoints may shrink sizes, ellipsize names, tighten gaps, or make a
+  region scroll; they must never restack, rearrange, or drop elements.
+  Design mobile-first at the narrowest width and let wider screens render
+  the same arrangement larger. (Mixed-device family tables: "tap the button
+  on the left" must be true on every screen. MojoSOGO decision, 2026-07-04.)
 - **Controls never jump: disable, don't hide.** If removing an element would
   shift the position of on-screen controls, keep it rendered and disable it
   instead (e.g. No Thanks keeps its Take/No-Thanks buttons visible — greyed —
