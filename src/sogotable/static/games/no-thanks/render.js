@@ -72,13 +72,19 @@ function renderNoThanksPlay(host, ctx) {
   const paceKey = `${room.code}:${room.game_epoch}`;
   const target = Number(game.move_count || 0);
   const events = Array.isArray(game.events) ? game.events : [];
+  const now = Date.now();
   if (pace.key !== paceKey) {
-    pace = { key: paceKey, shown: target, timer: null };
+    pace = { key: paceKey, shown: target, timer: null, nextAt: 0 };
     takeAnim = { key: paceKey, moveCount: target, until: 0, flown: false }; // a fresh join never animates history
   }
-  if (pace.shown < target) {
+  // Advance the cursor on a TIME gate, not per paint: snapshots can arrive
+  // back-to-back (HTTP response + websocket broadcast), and an ungated
+  // advance let the second paint skip an event's dwell — at game over that
+  // cut the final take's 2s animation short and showed the results early.
+  if (pace.shown < target && now >= (pace.nextAt || 0)) {
     const next = events.find((event) => Number(event.move_count) > pace.shown);
     pace.shown = next ? Number(next.move_count) : target;
+    pace.nextAt = now + (next && next.type === "take" ? TAKE_ANIM_MS : BOT_STEP_MS);
   }
   if (pace.shown > target) pace.shown = target;
   const caughtUp = pace.shown >= target;
@@ -89,7 +95,6 @@ function renderNoThanksPlay(host, ctx) {
   };
   // ---- take animation: a NEWLY shown take holds the display for 2s while
   // the card flies to the taker; the next event (or interactivity) waits. ----
-  const now = Date.now();
   if (lastVisible && lastVisible.type === "take" && Number(lastVisible.move_count) > takeAnim.moveCount) {
     takeAnim = { key: paceKey, moveCount: Number(lastVisible.move_count), until: now + TAKE_ANIM_MS, flown: false };
   }
@@ -98,7 +103,7 @@ function renderNoThanksPlay(host, ctx) {
   if (animatingTake) {
     pace.timer = setTimeout(rerender, takeAnim.until - now);
   } else if (!caughtUp) {
-    pace.timer = setTimeout(rerender, BOT_STEP_MS);
+    pace.timer = setTimeout(rerender, Math.max(60, (pace.nextAt || 0) - now));
   }
   // Mid-replay the table redraws the shown event's moment (each event carries
   // card + pot); during a take animation the NEXT deck card flips up in the
