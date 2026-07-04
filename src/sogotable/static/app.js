@@ -1807,6 +1807,7 @@ function renderGame() {
       isHost: currentRoom.host_id === getDeviceSelectedPlayerId(),
       localPlayerId: localSeat ? localSeat.id : (getSelectedPlayerId() || getDeviceSelectedPlayerId()),
       pendingMove,
+      isMovePending: () => Boolean(pendingMove), // live check for renders driven by a game's own timers
       makeMove: postRoomAction,
       startGame: startYahtzeeGame,
       addBot: openBotOpponentModal,

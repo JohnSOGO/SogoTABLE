@@ -53,7 +53,12 @@ export function renderLiarsDiceGame(ctx) {
 }
 
 function renderLiarsDicePlay(host, ctx) {
-  const { room, game, pendingMove } = ctx;
+  const { room, game } = ctx;
+  // Read the pending-move latch LIVE, not from the captured ctx: replay-timer
+  // re-renders reuse an old ctx, and a stale `pendingMove: true` in it would
+  // suppress the picker forever if no fresh snapshot arrives (the "SOGO stuck
+  // on his turn with no buttons" freeze, 2026-07-03).
+  const movePending = typeof ctx.isMovePending === "function" ? ctx.isMovePending() : Boolean(ctx.pendingMove);
   const seats = Array.isArray(game.players) ? game.players : [];
   const localMark = markForPlayer(room, ctx.localPlayerId);
   const localSeat = seats.find((seat) => seat.mark === localMark) || null;
@@ -79,19 +84,30 @@ function renderLiarsDicePlay(host, ctx) {
 
   const visible = events.filter((event) => Number(event.move_count) <= pace.shown);
   const lastVisible = visible[visible.length - 1] || null;
-  const viewRound = lastVisible ? Number(lastVisible.round) : Number(game.round || 1);
+  // History clears on a re-roll: once caught up, only the CURRENT round's
+  // events show (game.round advances at next_round, leaving the log empty
+  // until the first bid). Mid-replay, follow the round of the shown event.
+  const viewRound = caughtUp || !lastVisible ? Number(game.round || 1) : Number(lastVisible.round);
   const roundEvents = visible.filter((event) => Number(event.round) === viewRound);
   const shownBid = caughtUp ? game.current_bid : replayStandingBid(roundEvents);
   const showReveal = caughtUp && game.phase === "reveal" && game.last_reveal;
-  const myTurn = caughtUp && !pendingMove && Boolean(localSeat && localSeat.is_turn) && game.phase === "bidding" && !complete;
+  const myTurn = caughtUp && !movePending && Boolean(localSeat && localSeat.is_turn) && game.phase === "bidding" && !complete;
   if (myTurn) syncPicker(room, game);
+  // Watchdog: if actions are suppressed only by the pending latch, re-render
+  // shortly — the shell may not re-render on its own (identical snapshot), and
+  // this board must never wedge on a player's turn.
+  if (caughtUp && movePending && !complete) {
+    pace.timer = setTimeout(() => {
+      if (host.isConnected && host.querySelector(".liars-dice-root")) renderLiarsDicePlay(host, ctx);
+    }, 900);
+  }
 
   const showCup = !complete && localSeat && !localSeat.eliminated && game.phase === "bidding";
   host.innerHTML = `
     <div class="liars-dice-root">
       ${complete && game.winner ? `<p class="ld-panel ld-banner ld-win">\u{1F3C6} ${escapeName(seatName(room, game.winner))} wins Liar's Dice!</p>` : ""}
       ${tipHtml(game, room, localSeat, { caughtUp, showReveal, myTurn, shownBid, roundEvents, complete })}
-      ${showReveal ? revealHtml(game, room, localSeat, complete, pendingMove) : ""}
+      ${showReveal ? revealHtml(game, room, localSeat, complete, movePending) : ""}
       ${showCup ? cupHtml(localSeat) : ""}
       ${myTurn ? pickerHtml(game) : ""}
       ${tablesHtml(seats, room, game, { roundEvents, caughtUp, myTurn, shownBid, complete })}
@@ -112,17 +128,12 @@ function replayStandingBid(roundEvents) {
   return bid;
 }
 
-// Whose action the display is waiting on mid-replay: the seat after the last
-// visible bid (final-state eliminated flags are close enough for a label).
+// Whose action the display is waiting on mid-replay: turn order is fewest-
+// plays with random tie-breaks (server-decided), so the client cannot derive
+// it — each bid event carries the chosen `next` mark instead.
 function replayActor(seats, roundEvents) {
   const lastBid = [...roundEvents].reverse().find((event) => event.type === "bid");
-  if (!lastBid) return null;
-  const index = seats.findIndex((seat) => seat.mark === lastBid.mark);
-  for (let step = 1; step <= seats.length; step += 1) {
-    const seat = seats[(index + step) % seats.length];
-    if (!seat.eliminated) return seat.mark;
-  }
-  return null;
+  return lastBid && lastBid.next ? lastBid.next : null;
 }
 
 // ---------- html builders ----------
@@ -158,7 +169,7 @@ function tipHtml(game, room, localSeat, view) {
   } else {
     tip = "Waiting for the next round…";
   }
-  return `<p class="ld-tip${lost ? " ld-lost" : ""}">${tip}</p>`;
+  return `<p class="ld-tip${lost ? " ld-lost" : ""}${view.myTurn ? " ld-your-turn" : ""}">${tip}</p>`;
 }
 
 function cupHtml(seat) {
@@ -245,7 +256,7 @@ function tablesHtml(seats, room, game, view) {
   </div>`;
 }
 
-function revealHtml(game, room, localSeat, complete, pendingMove) {
+function revealHtml(game, room, localSeat, complete, movePending) {
   const reveal = game.last_reveal;
   const bid = reveal.bid || {};
   const rows = Object.entries(reveal.dice || {}).map(([mark, dice]) => {
@@ -259,7 +270,7 @@ function revealHtml(game, room, localSeat, complete, pendingMove) {
       <div class="ld-dice-row">${diceHtml}</div>
     </div>`;
   }).join("");
-  const canContinue = !complete && localSeat && !localSeat.eliminated && !pendingMove;
+  const canContinue = !complete && localSeat && !localSeat.eliminated && !movePending;
   return `<section class="ld-panel ld-reveal" aria-label="The reveal">
     <p class="ld-reveal-outcome${localSeat && reveal.loser === localSeat.mark ? " ld-lost" : ""}">
       ${escapeName(seatName(room, reveal.challenger))} called LIAR on ${escapeName(seatName(room, bid.mark))}'s ${fmt(bid.quantity)} ${FTXT[bid.face]}</p>

@@ -142,7 +142,7 @@ export const GAME_REGISTRY = [
   {
     id: GAME_IDS.liarsDice,
     lobbyMode: "hostStart",
-    name: "Liar's Dice 🤥",
+    name: "🤥 Liar's Dice 🎲",
     summary: "Roll a hidden cup, raise the bid on what's under everyone's cups, and call LIAR when the bluff gets too big — last player with dice wins.",
     players: "2+ players",
     player_count: null,

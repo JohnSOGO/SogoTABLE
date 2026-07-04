@@ -351,7 +351,7 @@ test("lists ready games from the hosted game registry", async () => {
   assert.equal(listed.games[7].name, "Mazewright");
   assert.equal(listed.games[8].name, "Roll of the Dead 🧟");
   assert.equal(listed.games[8].player_count, null);
-  assert.equal(listed.games[9].name, "Liar's Dice 🤥");
+  assert.equal(listed.games[9].name, "🤥 Liar's Dice 🎲");
   assert.equal(listed.games[9].player_count, null);
   assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);

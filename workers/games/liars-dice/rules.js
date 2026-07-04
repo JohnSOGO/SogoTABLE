@@ -4,13 +4,19 @@
 // startRoom/reset; bots resolve internally through the same bid/challenge
 // internals humans use, with the decision policy in ./ai.js.
 //
-// Ruleset (v1, classic family rules): everyone rolls a hidden cup, turns go
-// around the seat order. On your turn you either RAISE the bid (strictly more
-// dice, or the same count on a higher face) or call LIAR — all dice reveal,
-// and whoever was wrong loses a die. Ones are wild (they count toward any bid,
-// and bids on ones are not allowed). Out of dice = out of the game; last
-// player holding dice wins. The die-loser opens the next round. Spot-on and
-// hot-seat play are deliberate v1 exclusions (docs/game-liars-dice.md).
+// Ruleset (v1, classic family rules): everyone rolls a hidden cup. On your
+// turn you either RAISE the bid (strictly more dice, or the same count on a
+// higher face) or call LIAR — all dice reveal, and whoever was wrong loses a
+// die. Ones are wild (they count toward any bid, and bids on ones are not
+// allowed). Out of dice = out of the game; last player holding dice wins. The
+// die-loser opens the next round. Spot-on and hot-seat play are deliberate v1
+// exclusions (docs/game-liars-dice.md).
+//
+// Turn order (MojoSOGO 2026-07-03): NOT circular. Every seat tracks how many
+// plays (bids + challenges) it has made; after each bid the next actor is
+// drawn from the active seats with the FEWEST plays (never the seat that just
+// acted), ties broken randomly through the seeded RNG seam. The die-loser
+// still opens each round.
 //
 // DANGER ZONE: liarsDiceGameToDictForViewer is the ONLY thing that hides other
 // players' cups from a viewer. Dice leave the live seats and move into the
@@ -69,6 +75,7 @@ export function initLiarsDiceSeats(game, seats) {
       dice_count: LIARS_DICE_STARTING_DICE,
       dice: [],
       eliminated: false,
+      plays: 0,
       is_bot: Boolean(seat && seat.kind === "bot"),
     };
   });
@@ -161,6 +168,7 @@ export function liarsDiceGameToDict(game) {
       dice_count: seat.dice_count,
       dice: seat.dice.slice(),
       eliminated: seat.eliminated,
+      plays: seat.plays,
       is_bot: seat.is_bot,
       is_turn: game.status === "playing" && game.phase === "bidding" && mark === game.current_player,
     };
@@ -217,6 +225,7 @@ function normalizeLiarsDiceGame(game) {
       dice_count: clampInteger(seat.dice_count, 0, LIARS_DICE_STARTING_DICE, 0),
       dice: normalizeLiarsDiceDice(seat.dice),
       eliminated: Boolean(seat.eliminated),
+      plays: clampInteger(seat.plays, 0, 999999, 0),
       is_bot: Boolean(seat.is_bot),
     };
   });
@@ -289,28 +298,33 @@ function startLiarsDiceRound(game) {
   resolveLiarsDiceBots(game);
 }
 
-function nextActiveMark(game, fromMark) {
-  const order = game.seat_order;
-  const from = order.indexOf(fromMark);
-  for (let step = 1; step <= order.length; step += 1) {
-    const mark = order[(from + step) % order.length];
-    if (!game.players[mark].eliminated) return mark;
-  }
-  return fromMark;
+// N-player turn selection: the next actor is drawn from the active seats with
+// the fewest plays — never the seat that just acted — ties broken randomly.
+// A single candidate is returned without consuming RNG (keeps 2-player games
+// and rigged tests deterministic).
+function pickNextLiarsDiceActor(game, lastMark) {
+  const candidates = game.seat_order.filter((mark) => mark !== lastMark && !game.players[mark].eliminated);
+  if (!candidates.length) return lastMark;
+  const fewest = Math.min(...candidates.map((mark) => game.players[mark].plays));
+  const pool = candidates.filter((mark) => game.players[mark].plays === fewest);
+  return pool.length === 1 ? pool[0] : pool[Math.floor(liarsDiceRandom() * pool.length)];
 }
 
 function applyLiarsDiceBid(game, mark, quantity, face) {
   assertLegalLiarsDiceBid(game, quantity, face);
   game.current_bid = { quantity, face, mark };
-  game.current_player = nextActiveMark(game, mark);
+  game.players[mark].plays += 1;
+  game.current_player = pickNextLiarsDiceActor(game, mark);
   game.move_count += 1;
-  game.last_move = { type: "bid", mark, quantity, face, round: game.round, move_count: game.move_count };
+  // `next` rides the public event so the client replay can name who is up.
+  game.last_move = { type: "bid", mark, quantity, face, next: game.current_player, round: game.round, move_count: game.move_count };
   pushLiarsDiceEvent(game, game.last_move);
 }
 
 function applyLiarsDiceChallenge(game, mark) {
   const bid = game.current_bid;
   if (!bid) throw new Error("There is no bid to challenge — open the bidding instead.");
+  game.players[mark].plays += 1;
   const actual = countLiarsDiceMatches(game, bid.face);
   const bidHolds = actual >= bid.quantity;
   const loser = bidHolds ? mark : bid.mark;

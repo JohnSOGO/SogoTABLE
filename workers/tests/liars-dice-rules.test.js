@@ -101,6 +101,28 @@ test("raise options: same quantity climbs the face, higher quantities reopen at 
   assert.deepEqual(dict.raise_options, [{ quantity: 10, min_face: 2 }]);
 });
 
+// ---- N-player turn selection ----------------------------------------------------
+
+test("turns: fewest plays act next, ties break via RNG, never twice in a row", () => {
+  const g = newLiarsDiceGame();
+  // 15 rolls (3 seats x 5 dice), then one tie-break draw for P1's first bid.
+  rig([...Array.from({ length: 15 }, () => face(2)), 0.99, 0.0]);
+  initLiarsDiceSeats(g, [human("P1", "A"), human("P2", "B"), human("P3", "C")]);
+  assert.equal(g.current_player, "P1");
+  makeLiarsDiceMove(g, "P1", { type: "bid", quantity: 1, face: 2 });
+  // P2 and P3 tie at 0 plays: rigged 0.99 draws the second of [P2, P3].
+  assert.equal(g.current_player, "P3");
+  assert.equal(g.last_move.next, "P3"); // the public event names who is up
+  makeLiarsDiceMove(g, "P3", { type: "bid", quantity: 1, face: 3 });
+  // P2 (0 plays) beats P1 (1 play) — deterministic, no RNG consumed.
+  assert.equal(g.current_player, "P2");
+  makeLiarsDiceMove(g, "P2", { type: "bid", quantity: 1, face: 4 });
+  // Everyone is at 1 play; candidates exclude P2; rigged 0.0 draws P1.
+  assert.equal(g.current_player, "P1");
+  const dict = liarsDiceGameToDict(g);
+  assert.deepEqual(dict.players.map((seat) => seat.plays), [1, 1, 1]);
+});
+
 // ---- turn + actor validation ---------------------------------------------------
 
 test("validation: out-of-turn, bot seats, and junk actions are rejected", () => {

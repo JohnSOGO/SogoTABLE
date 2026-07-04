@@ -8,9 +8,13 @@ holding dice wins.
 ## How it plays (v1 house rules)
 
 - Everyone starts with **5 dice**, rolled hidden at the top of each round.
-- Turns go around the seat order. On your turn either **raise the bid**
-  (strictly more dice, or the same count on a **higher face**) or call
-  **LIAR** on the standing bid.
+- **Turn order is not circular** (N-player rule, 2026-07-03): every seat
+  tracks how many plays (bids + challenges) it has made; after each bid the
+  next actor is drawn from the active seats with the **fewest plays** — never
+  the seat that just acted — ties broken randomly (server RNG). The die-loser
+  still opens each round. On your turn either **raise the bid** (strictly more
+  dice, or the same count on a **higher face**) or call **LIAR** on the
+  standing bid.
 - **Ones are wild** — every ⚀ counts toward whatever face is bid, and bids on
   ones themselves are not allowed.
 - On a LIAR call all dice reveal. Bid true (count ≥ quantity): the challenger

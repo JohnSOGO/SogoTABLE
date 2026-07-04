@@ -25,6 +25,10 @@ export const LD_CSS = `
  padding:9px 12px;border-radius:12px;background:var(--ld-panel);border:1px solid var(--ld-line);
  font-size:.9rem;text-align:center;color:var(--ld-ink);min-height:38px;}
 .liars-dice-root .ld-tip.ld-lost{color:var(--ld-danger);font-weight:600;}
+/* Your turn: a few soft pulses, then a quiet gold edge — noticeable, not
+   annoying (MojoSOGO: "flash softly"). */
+.liars-dice-root .ld-tip.ld-your-turn{border-color:var(--ld-gold);animation:ld-turn-pulse 1.2s ease-in-out 3;}
+@keyframes ld-turn-pulse{50%{background:rgba(231,194,86,.16);box-shadow:0 0 0 3px rgba(231,194,86,.18);}}
 /* Dice: white with dark drawn pips in every theme (physical pieces). The pip
    layout is a 3x3 grid; display-only — dice never catch the pointer. */
 .liars-dice-root .ld-die{width:52px;height:52px;border-radius:12px;background:#fbfaf6;color:#1c2320;

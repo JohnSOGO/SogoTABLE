@@ -1,7 +1,7 @@
 // Module metadata for Liar's Dice (descriptive; registration is via registry.js).
 export const liarsDiceManifest = {
   id: "liars-dice", // registry alias — resolves to the opaque GAME_IDS.liarsDice
-  name: "Liar's Dice 🤥",
+  name: "🤥 Liar's Dice 🎲",
   description:
     "Classic bluffing dice: everyone rolls a hidden cup, bids climb on how many of a face are " +
     "on the whole table (ones are wild), and a LIAR call turns every die face-up — whoever was " +
