@@ -283,6 +283,54 @@ export function zombieDiceBankPhrase(count, seed) {
   return list[index].replace(/\{n\}/g, String(n));
 }
 
+// Solo survival mode: life-loss quips keyed by lives REMAINING after the bust
+// (2, 1) and defeat lines (0, shown in the game-over banner). One line each.
+export const ZD_LIFE_PHRASES = {
+  2: [
+    "That one stung. Two ❤️ left.",
+    "Walk it off — two lives to go.",
+    "A flesh wound! (You're already dead.)",
+    "Two hearts left. Zombies heal, right?",
+    "One down. Plenty of unlife left.",
+    "Shrug it off — two ❤️ remain.",
+    "The first hole is free. Two left.",
+    "'Tis but a scratch. ❤️❤️",
+    "Two lives left. Hunt smarter.",
+    "Ouch. Still shambling though.",
+  ],
+  1: [
+    "LAST ❤️. Every roll counts.",
+    "One life left. Gulp.",
+    "Held together by hope now.",
+    "Final heart. Make it legendary.",
+    "One ❤️ between you and the grave.",
+    "Critical! One life remaining.",
+    "The town smells victory. One left.",
+    "Last legs. Literally.",
+    "One heart left — no pressure.",
+    "Down to one ❤️. Tiptoe time.",
+  ],
+  0: [
+    "☠️ The town got you.",
+    "☠️ Out of lives. Out of luck.",
+    "☠️ Three strikes, zombie's out.",
+    "☠️ The shotguns won this time.",
+    "☠️ Re-deadened. Rest in pieces.",
+    "☠️ The hunt ends here.",
+    "☠️ So close to those 13 🧠...",
+    "☠️ The horde mourns you.",
+    "☠️ Shotgunned into retirement.",
+    "☠️ Game over, brain lover.",
+  ],
+};
+
+// Deterministic life-loss/defeat quip for `livesLeft` (0-2).
+export function zombieDiceLifePhrase(livesLeft, seed) {
+  const list = ZD_LIFE_PHRASES[Math.max(0, Math.min(2, Math.trunc(Number(livesLeft) || 0)))];
+  if (!list || !list.length) return "";
+  return list[Math.abs(Math.trunc(Number(seed) || 0)) % list.length];
+}
+
 const FACE_LETTER = { brain: "B", feet: "F", shotgun: "S" };
 
 // "BFS"-style key for a rolled trio; empty string when the roll is malformed.
