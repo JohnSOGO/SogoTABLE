@@ -54,10 +54,10 @@ holding dice wins.
 - **Client:** `src/sogotable/static/games/liars-dice/render.js` + injected
   `styles.js` — renders the projection, computes no rules. Bid picker is a
   quantity stepper + face row bounded by `raise_options`; the reveal shows all
-  cups with bid-matching dice ringed. The board commits to its tavern-table art
-  (`board-bg.jpg`, provided by MojoSOGO; the title is baked into the art's top
-  band) in both themes — the zombie-dice game-specific-board-palette
-  precedent; dice stay white with dark pips (docs/theme.md).
+  cups with bid-matching dice ringed. The board commits to a card-table felt
+  look in both themes (game-specific board palette precedent; a tavern art
+  background was tried and rejected 2026-07-03); dice stay white with dark
+  pips (docs/theme.md).
 - **Tests:** `workers/tests/liars-dice-rules.test.js` — rules, wild counting,
   raise legality, challenge/elimination, the viewer sanitizer (opponent cups
   masked pre-reveal, public at reveal, spectators see nothing), and bot games

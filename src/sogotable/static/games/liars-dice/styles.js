@@ -2,20 +2,18 @@
 // line-capped styles-games.css), mirroring the zombie-dice/rtta/mazewright
 // styles.js precedent. Every rule is prefixed under `.liars-dice-root`.
 //
-// Theme: the board COMMITS to its tavern-table art (board-bg.jpg, provided by
-// MojoSOGO 2026-07-03; the title is baked into the art's top band) in BOTH
-// light and dark modes — the zombie-dice/mazewright "game-specific board
-// palette" precedent. Panels are translucent dark over the art; the dice stay
-// white with dark pips in every theme (docs/theme.md: physical pieces keep
-// their natural color). Only the pre-game lobby panel follows the global
-// theme (shared host-start template).
+// Theme: the board COMMITS to a card-table look — deep green felt with
+// translucent dark panels — in BOTH light and dark modes (the "game-specific
+// board palette" precedent; MojoSOGO rejected a tavern art background
+// 2026-07-03). The dice stay white with dark pips in every theme
+// (docs/theme.md: physical pieces keep their natural color). Only the
+// pre-game lobby panel follows the global theme (shared host-start template).
 export const LD_CSS = `
 #macroBoard:has(.liars-dice-root){display:block;aspect-ratio:auto;background:none;border:none;}
 .liars-dice-root{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;
- width:100%;box-sizing:border-box;padding:26% 10px 12%;border-radius:18px;
- aspect-ratio:768/1344;
- background:#171009 url("games/liars-dice/board-bg.jpg") center top/cover no-repeat;
- --ld-panel:rgba(18,10,5,.72);--ld-ink:#f2ead9;--ld-muted:#c4b295;--ld-line:rgba(255,236,200,.16);
+ width:100%;box-sizing:border-box;padding:16px 10px 22px;border-radius:18px;
+ background:radial-gradient(ellipse at 50% 30%,#1d6b45 0%,#14513a 55%,#0d3a2b 100%);
+ --ld-panel:rgba(6,24,17,.72);--ld-ink:#eef5ef;--ld-muted:#a7c4b2;--ld-line:rgba(233,255,240,.16);
  --ld-gold:#e7c256;--ld-danger:#e2574b;
  color:var(--ld-ink);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
 .liars-dice-root .ld-panel{width:100%;max-width:440px;background:var(--ld-panel);border:1px solid var(--ld-line);
@@ -37,7 +35,7 @@ export const LD_CSS = `
  box-shadow:inset 0 -3px 0 rgba(0,0,0,.12),0 2px 5px rgba(0,0,0,.4);}
 .liars-dice-root .ld-die.ld-wild{background:#fdf3d3;}
 .liars-dice-root .ld-die.ld-hit{outline:3px solid var(--ld-gold);outline-offset:-2px;}
-.liars-dice-root .ld-die.ld-hidden{background:#3a2418;color:#b39877;font-size:1.25rem;border-style:dashed;
+.liars-dice-root .ld-die.ld-hidden{background:#274a3a;color:#8fb59f;font-size:1.25rem;border-style:dashed;
  border-color:var(--ld-line);box-shadow:none;}
 .liars-dice-root .ld-die.ld-small{width:30px;height:30px;font-size:1.65rem;border-radius:8px;}
 .liars-dice-root .ld-dice-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
