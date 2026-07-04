@@ -32,6 +32,7 @@ For future changes, start the audit with `docs/doctrine.md` first, then follow t
 - The user values copious documentation as the project evolves, especially project goals, decisions, preferences, and test workflows.
 - The user wants SogoTable to use a Wu Wei / downhill-flow programming method adapted from Ozymandias2: shape the app so correct play naturally flows through the right boundaries instead of relying on scattered special cases. The durable SogoTable version lives in `docs/wu-wei-method.md`.
 - The user wants explicit refresh behavior rather than hidden background polling loops. If a manual refresh is desired, the page title or game title can be the refresh affordance.
+- Skipping a stalled player is a UNANIMOUS group act, everywhere (decision 2026-07-04, from live play): one vote opens a visible proposal (the skip button highlights on every phone), players discuss or just see it, and the skip executes only when all eligible waiting players have voted. Never a unilateral skip. Shared protocol: `workers/games/skip-vote.js`.
 - The user wants `/arec` or `AREC` to trigger the shared AREC review protocol. Use the local Codex skill at `C:\Users\johns\.codex\skills\arec` when available, then apply SogoTable's product-specific checks in `docs/AREC.md`.
 - The user prefers small playable improvements over large speculative architecture.
 - The user likes clear, polished mobile UI details: centered marks, obvious valid moves, visual win lines, player-name win declarations, and celebratory feedback.

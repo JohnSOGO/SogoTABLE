@@ -243,16 +243,22 @@ function submitMaze() {
   ctx.makeMove({ type: "SUBMIT_MAZE", code: submittedCode });
 }
 
-// Barrier escape hatch UI — intent capture only: list the humans the table is
-// waiting on and post SKIP_PLAYER; eligibility (who may skip whom, and races)
-// is entirely the server's call, and its answer renders back through ctx.game.
+// Barrier escape hatch UI — intent capture only: one tap = one vote (tap
+// again to retract). The proposal state is the server-projected skip_votes —
+// every phone shows the same highlighted buttons and vote counts; the skip
+// executes server-side only when ALL done players have voted (skip-vote.js).
 function renderSkipRow(game, phase, consequence) {
   const stuck = (game.players || []).filter((s) => !s.is_bot && (phase === "building" ? !s.built : !s.run_done));
   if (!stuck.length) { hide(".mw-done"); return; }
+  const votes = game.skip_votes || {};
+  const needed = (game.players || []).filter((s) => !s.is_bot && (phase === "building" ? s.built : s.run_done)).length;
   const done = q(".mw-done"); show(".mw-done");
-  done.innerHTML = `<div class="mw-help">Waiting on a player who dropped? Anyone already done can skip them — ${consequence}.</div>` +
-    `<div class="mw-skiprow">` + stuck.map((s) =>
-      `<button class="mw-skip" data-mark="${s.mark}">⏭ Skip ${seatProfile(s.mark).name || s.name || s.mark}</button>`).join("") + `</div>`;
+  done.innerHTML = `<div class="mw-help">Waiting on a player who dropped? Vote to skip them — ALL done players must agree — ${consequence}.</div>` +
+    `<div class="mw-skiprow">` + stuck.map((s) => {
+      const cast = Array.isArray(votes[s.mark]) ? votes[s.mark].length : 0;
+      const name = seatProfile(s.mark).name || s.name || s.mark;
+      return `<button class="mw-skip${cast ? " armed" : ""}" data-mark="${s.mark}">⏭ Skip ${name}${cast ? ` (${cast}/${needed})` : ""}</button>`;
+    }).join("") + `</div>`;
   done.querySelectorAll(".mw-skip").forEach((b) => b.addEventListener("click", () =>
     ctx.makeMove({ type: "SKIP_PLAYER", target: b.dataset.mark })));
 }

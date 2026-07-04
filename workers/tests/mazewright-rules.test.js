@@ -203,7 +203,12 @@ test("Mazewright wrapper: SKIP_PLAYER at the run barrier posts simulated runs; s
   makeMazewrightMove(game, "P1", { type: "SKIP_PLAYER", target: "P2" });   // already done — races resolve silently
   assert.equal(game.players.P2.skipped, undefined);
   assert.equal(game.status, "running");
-  makeMazewrightMove(game, "P1", { type: "SKIP_PLAYER", target: "P3" });
+  makeMazewrightMove(game, "P1", { type: "SKIP_PLAYER", target: "P3" });   // P1 proposes
+  assert.equal(game.status, "running", "one vote of two is a proposal, not a skip");
+  assert.deepEqual(game.skip_votes, { P3: ["P1"] });
+  assert.equal(mazewrightGameToDict(game).skip_votes.P3.length, 1, "the proposal rides the projection");
+  makeMazewrightMove(game, "P2", { type: "SKIP_PLAYER", target: "P3" });   // unanimous — executes
+  assert.deepEqual(game.skip_votes, {});
   assert.equal(game.players.P3.runDone, true);
   assert.equal(game.players.P3.results.length, 3);                // simulated runs, the bot pre-resolve path
   assert.equal(game.players.P3.skipped, true);
@@ -219,7 +224,7 @@ test("Mazewright projection: the exact key sets are pinned (game, seat, deck ent
   // The projection IS the wire contract: a silent rename must fail HERE, not
   // as an `undefined` in the client (the RTTA key-set pin, applied here).
   assert.deepEqual(Object.keys(dict).sort(), [
-    "deck", "game_id", "players", "prizes", "seat_order", "status", "winner",
+    "deck", "game_id", "players", "prizes", "seat_order", "skip_votes", "status", "winner",
   ]);
   assert.deepEqual(Object.keys(dict.players[0]).sort(), [
     "author_points", "built", "composite", "finish_state", "is_bot", "mark",

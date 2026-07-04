@@ -25,6 +25,7 @@ import {
   shortestPathFromCode,
   computeStandings,
 } from "../../../src/sogotable/static/games/mazewright/rules.js";
+import { normalizeSkipVotes, castSkipVote, pruneSkipVotes } from "../skip-vote.js";
 
 export const MAZEWRIGHT_GAME_ID = GAME_IDS.mazewright;
 
@@ -41,7 +42,25 @@ export function newMazewrightGame() {
     deck: null,            // [{ author: mark, transform: {axis, rot} }]
     prizes: null,          // { mazewright, mazerunner, treasureHunter } (marks)
     winner: null,
+    skip_votes: {},
   };
+}
+
+// Who may vote to skip `targetMark` at the current barrier — humans already
+// done at it, excluding the target. Null when the target is not skippable.
+function mazewrightSkipEligibility(game, targetMark) {
+  const target = game.players && game.players[targetMark];
+  if (!target || target.is_bot) return null;
+  const humans = humanMarks(game);
+  if (game.status === "building") {
+    if (target.built) return null;
+    return humans.filter((m) => m !== targetMark && game.players[m].built);
+  }
+  if (game.status === "running") {
+    if (target.runDone) return null;
+    return humans.filter((m) => m !== targetMark && game.players[m].runDone);
+  }
+  return null;
 }
 
 function newSeat(name, isBot, level) {
@@ -68,6 +87,7 @@ export function initMazewrightSeats(game, players, rng = Math.random) {
   game.deck = null;
   game.prizes = null;
   game.winner = null;
+  game.skip_votes = {};
   for (const p of players) {
     game.seat_order.push(p.mark);
     const seat = newSeat(p.name, p.kind === "bot", p.level);
@@ -143,10 +163,12 @@ function postResult(game, mark, action) {
   maybeComplete(game);
 }
 
-// ---- barrier escape hatch (RTTA's SKIP_PLAYER) ----
-// Only a player already DONE at the current barrier may skip, and only over a
+// ---- barrier escape hatch (RTTA's SKIP_PLAYER), as a UNANIMOUS vote ----
+// Only a player already DONE at the current barrier may vote, and only over a
 // human seat that is not (a dropped phone must not deadlock the table; reset
-// can't recover either — it needs the absent player's vote). The skipped seat
+// can't recover either — it needs the absent player's vote). The first vote
+// opens a proposal every client sees; voting again retracts; the skip fires
+// only when every eligible waiter has voted (skip-vote.js). The skipped seat
 // is filled bot-style — an auto-built maze at BUILD, simulated runs at RUN —
 // so the game stays scoreable; seat.skipped tells the returning player the
 // truth. Skipping someone who arrived in the meantime is a silent no-op (races).
@@ -158,13 +180,23 @@ function skipPlayer(game, mark, targetMark, rng) {
   if (game.status === "building") {
     if (!actor.built) throw new Error("Submit your own maze before skipping a player.");
     if (target.built) return;
+  } else if (game.status === "running") {
+    if (!actor.runDone) throw new Error("Finish your own runs before skipping a player.");
+    if (target.runDone) return;
+  } else {
+    throw new Error("Nothing to skip — the game is not at a barrier.");
+  }
+  const eligible = mazewrightSkipEligibility(game, targetMark) || [];
+  const { votes, unanimous } = castSkipVote(game.skip_votes, mark, targetMark, eligible);
+  game.skip_votes = votes;
+  if (!unanimous) return; // proposal recorded — the projection shows it to everyone
+  delete game.skip_votes[targetMark];
+  if (game.status === "building") {
     target.maze = buildRandomMazeCode(rng);
     target.built = true;
     target.skipped = true;
     maybeStartRunning(game, rng);
-  } else if (game.status === "running") {
-    if (!actor.runDone) throw new Error("Finish your own runs before skipping a player.");
-    if (target.runDone) return;
+  } else {
     for (let i = target.runIndex; i < game.deck.length; i++) {
       const r = simulateRun(game.players[game.deck[i].author].maze, rng);
       target.results.push({ author: game.deck[i].author, moves: r.moves, loot: r.loot });
@@ -173,8 +205,6 @@ function skipPlayer(game, mark, targetMark, rng) {
     target.runDone = true;
     target.skipped = true;
     maybeComplete(game);
-  } else {
-    throw new Error("Nothing to skip — the game is not at a barrier.");
   }
 }
 
@@ -214,6 +244,9 @@ export function makeMazewrightMove(game, mark, action) {
   else if (type === "POST_RESULT") postResult(game, mark, action);
   else if (type === "SKIP_PLAYER") skipPlayer(game, mark, action.target, Math.random);
   else throw new Error(`Unknown Mazewright action "${type}".`);
+  // Re-validate open skip proposals after every action (arrived targets and
+  // advanced barriers clear; ineligible voters drop out).
+  game.skip_votes = pruneSkipVotes(game.skip_votes, (target) => mazewrightSkipEligibility(game, target));
   return game;
 }
 
@@ -264,6 +297,7 @@ export function mazewrightGameToDict(game) {
     deck,
     prizes: game.prizes,
     winner: game.winner,
+    skip_votes: normalizeSkipVotes(game.skip_votes),
   };
 }
 

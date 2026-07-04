@@ -361,6 +361,11 @@ game hits (all learned on Yahtzee):
   the projection's emitted fields in lockstep, and assert the projected shape in a
   test, not just the internal state.
 - **Bots run the human path.** No bot-only rule mutations.
+- **A barrier skip is a unanimous proposal, never a unilateral act.** Any
+  SKIP_PLAYER-style escape hatch records a VOTE (server state, projected to
+  every client as a highlighted proposal) and executes only when all eligible
+  waiters have joined; voting again retracts. Use `workers/games/skip-vote.js`
+  with a game-specific eligibility predicate. (MojoSOGO decision, 2026-07-04.)
 - **Rule maths lives DOM-free.** Every Rules-Ledger row is implemented in a
   rules module (client `rules.js` and/or worker `rules.js`) and pinned by a
   browser-free test. UI files render outcomes and capture intent — they never

@@ -25,6 +25,7 @@ const REVIEW_EXPORT_FILES = [
   "workers/tests/architecture.test.js",
   "workers/games/bots.js",
   "workers/games/util.js",
+  "workers/games/skip-vote.js",
   "workers/games/boxes/rules.js",
   "workers/games/battleship/rules.js",
   "workers/games/quoridor/rules.js",
