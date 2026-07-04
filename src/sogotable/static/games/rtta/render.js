@@ -79,14 +79,33 @@ export function renderRttaGame(ctx) {
   const reviewing = !complete && game.phase === "review";
   const canReady = reviewing && mySeat && !mySeat.ready_next;
   const iAmReady = reviewing && mySeat && mySeat.ready_next;
-  // The barrier escape hatch: once I'M done, anyone I'm waiting on can be
-  // skipped (a dropped phone must not deadlock the table). Two taps to fire.
+  // The barrier escape hatch, as a unanimous vote: once I'M done, anyone I'm
+  // waiting on can be PROPOSED for a skip. A vote highlights the button on
+  // every phone (server-projected skip_votes — no local shadow state); it
+  // executes only when every waiting-side player has joined. Tap again to
+  // retract your vote.
   const iAmDone = !complete && mySeat
     && (game.phase === "playing" ? mySeat.round_done : mySeat.ready_next);
+  const skipVotes = game.skip_votes || {};
+  const doneHumans = game.players.filter((s) => !s.is_bot
+    && (game.phase === "playing" ? s.round_done : s.ready_next));
   const skippable = iAmDone ? waitingHumans.filter((s) => s.mark !== myMark) : [];
   const skipHtml = skippable.length
-    ? `<div class="rtta-skiprow">${skippable.map((s) =>
-        `<button class="rtta-skip" type="button" data-mark="${escapeName(s.mark)}">⏭ Skip ${escapeName(seatName(room, s.mark))}</button>`).join("")}</div>`
+    ? `<div class="rtta-skiprow">${skippable.map((s) => {
+        const votes = Array.isArray(skipVotes[s.mark]) ? skipVotes[s.mark] : [];
+        const needed = doneHumans.filter((d) => d.mark !== s.mark).length;
+        const mine = votes.includes(myMark);
+        const label = votes.length
+          ? `⏭ Skip ${escapeName(seatName(room, s.mark))} (${votes.length}/${needed}${mine ? " — tap to retract" : ""})`
+          : `⏭ Skip ${escapeName(seatName(room, s.mark))}`;
+        return `<button class="rtta-skip${votes.length ? " armed" : ""}" type="button" data-mark="${escapeName(s.mark)}">${label}</button>`;
+      }).join("")}</div>`
+    : "";
+  // Everyone (including players without buttons) sees an open proposal.
+  const proposalNames = Object.keys(skipVotes)
+    .map((mark) => `${escapeName(seatName(room, mark))} (${skipVotes[mark].length} vote${skipVotes[mark].length === 1 ? "" : "s"})`);
+  const proposalHtml = proposalNames.length
+    ? `<p class="rtta-status">⏭ Skip proposed for: ${proposalNames.join(", ")} — all waiting players must agree.</p>`
     : "";
 
   let status;
@@ -107,6 +126,7 @@ export function renderRttaGame(ctx) {
       ${eventsHtml(game, room, mySeat, myMark)}
       <p class="rtta-status">${status}</p>
       ${canReady ? '<button class="rtta-ready blink" id="rttaReady" type="button">Ready for next round →</button>' : ""}
+      ${proposalHtml}
       ${skipHtml}
     </div>`;
   wireSkipButtons(host, game, room, ctx);
@@ -123,18 +143,12 @@ export function renderRttaGame(ctx) {
   animatePendingEvents(host, game, room, key);
 }
 
-// Skip needs two taps (arm, then fire) — a re-render from any snapshot resets
-// the armed state, which is fine: arming is cheap, skipping is not.
+// One tap = one vote (tap again to retract). The old client-side two-tap arm
+// is gone: the visible proposal state is the server's skip_votes, so every
+// phone shows the same highlight and no rule state shadows in the UI.
 function wireSkipButtons(host, game, room, ctx) {
   host.querySelectorAll(".rtta-skip").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const name = seatName(room, btn.dataset.mark);
-      if (!btn.dataset.armed) {
-        btn.dataset.armed = "1";
-        btn.classList.add("armed");
-        btn.textContent = `⏭ Tap again — skip ${name}'s turn`;
-        return;
-      }
       btn.disabled = true;
       const err = await ctx.makeMove({ type: "SKIP_PLAYER", target: btn.dataset.mark, round: game.round });
       if (err) {

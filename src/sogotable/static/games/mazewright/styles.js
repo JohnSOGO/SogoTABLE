@@ -117,4 +117,5 @@ export const MW_CSS = `
 .mazewright-root .mw-lockednote{padding:36px 12px;text-align:center;font-weight:600;opacity:.85;line-height:1.7;}
 .mazewright-root .mw-skiprow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px;}
 .mazewright-root .mw-skip{padding:7px 12px;border-radius:9px;border:1px solid var(--mw-grid);background:transparent;color:var(--mw-muted);font-size:.8rem;cursor:pointer;}
+.mazewright-root .mw-skip.armed{border-color:var(--mw-gold);color:var(--mw-gold);font-weight:700;}
 `;

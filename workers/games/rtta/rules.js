@@ -18,6 +18,7 @@
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
 import { GOODS, goodValue } from "../../../src/sogotable/static/games/rtta/rules.js";
 import { cleanGameId } from "../../game-catalog.js";
+import { normalizeSkipVotes, castSkipVote, pruneSkipVotes } from "../skip-vote.js";
 import { chooseRttaTurn } from "./ai.js";
 
 export const RTTA_GAME_ID = GAME_IDS.rtta;
@@ -91,7 +92,26 @@ export function newRttaGame() {
   return {
     game_id: RTTA_GAME_ID, round: 1, phase: "playing", status: "playing",
     winner: null, seat_order: [], players: {}, monuments: {}, pending_events: [],
+    skip_votes: {},
   };
+}
+
+// Who may vote to skip `targetMark` at the current barrier — humans already
+// done at it, excluding the target. Null when the target is not skippable
+// (arrived, bot, unknown, or the game is over): null clears the proposal.
+function rttaSkipEligibility(game, targetMark) {
+  const target = game.players[targetMark];
+  if (game.status === "complete" || !target || target.is_bot) return null;
+  const humans = humanMarks(game);
+  if (game.phase === "playing") {
+    if (target.round_done) return null;
+    return humans.filter((m) => m !== targetMark && game.players[m].round_done);
+  }
+  if (game.phase === "review") {
+    if (target.ready_next) return null;
+    return humans.filter((m) => m !== targetMark && game.players[m].ready_next);
+  }
+  return null;
 }
 
 // Seat one civilization per player (3 cities / 3 dice each), then check the
@@ -102,6 +122,7 @@ export function initRttaSeats(game, players, rng = Math.random) {
   game.status = "playing";
   game.winner = null;
   game.end_reason = null;
+  game.skip_votes = {};
   game.seat_order = [];
   game.players = {};
   game.monuments = {};
@@ -149,16 +170,23 @@ export function makeRttaMove(game, mark, action, rng = Math.random) {
     seat.ready_next = true;
     maybeAdvance(game, rng);
   } else if (type === "SKIP_PLAYER") {
-    skipPlayer(game, seat, action.target, rng);
+    skipPlayer(game, mark, action.target, rng);
   }
+  // Every action re-validates open skip proposals: a target who arrived (or a
+  // barrier that advanced) clears its proposal; voters who lost eligibility
+  // drop out. Keeps the highlighted proposal honest on every client.
+  game.skip_votes = pruneSkipVotes(game.skip_votes, (target) => rttaSkipEligibility(game, target));
   return game;
 }
 
-// The barrier escape hatch: only a player who is already DONE at the current
-// barrier may skip, and only over a HUMAN seat that is not (bots resolve
-// themselves; a skipped turn is a null turn — nothing changes on that sheet).
-// Skipping someone who arrived in the meantime is a silent no-op (races).
-function skipPlayer(game, actor, targetMark, rng) {
+// The barrier escape hatch, as a UNANIMOUS vote (skip-vote.js): only a player
+// already DONE at the current barrier may vote, and only over a HUMAN seat
+// that is not (bots resolve themselves). The first vote opens a proposal
+// every client sees; voting again retracts it; the skip executes only when
+// every eligible waiter has voted. Skipping someone who arrived in the
+// meantime is a silent no-op (races).
+function skipPlayer(game, actorMark, targetMark, rng) {
+  const actor = game.players[actorMark];
   const target = game.players[targetMark];
   if (!target || target.is_bot || target === actor) {
     throw new Error("Only another human player's seat can be skipped.");
@@ -166,12 +194,20 @@ function skipPlayer(game, actor, targetMark, rng) {
   if (game.phase === "playing") {
     if (!actor.round_done) throw new Error("Finish and submit your own turn before skipping a player.");
     if (target.round_done) return;
+  } else {
+    if (!actor.ready_next) throw new Error("Press Ready yourself before skipping a player.");
+    if (target.ready_next) return;
+  }
+  const eligible = rttaSkipEligibility(game, targetMark) || [];
+  const { votes, unanimous } = castSkipVote(game.skip_votes, actorMark, targetMark, eligible);
+  game.skip_votes = votes;
+  if (!unanimous) return; // proposal recorded — the projection shows it to everyone
+  delete game.skip_votes[targetMark];
+  if (game.phase === "playing") {
     target.round_done = true;
     target.ready_next = true; // a null turn has nothing to review — one skip covers both barriers
     target.skipped = true;    // honest client copy + loud rejection of a late real commit
   } else {
-    if (!actor.ready_next) throw new Error("Press Ready yourself before skipping a player.");
-    if (target.ready_next) return;
     target.ready_next = true;
   }
   maybeAdvance(game, rng);
@@ -440,6 +476,7 @@ export function rttaGameToDict(game) {
       : null,
     monuments, pending_events: (game.pending_events || []).slice(),
     seat_order: seatOrder(game).slice(), players,
+    skip_votes: normalizeSkipVotes(game.skip_votes),
   };
 }
 

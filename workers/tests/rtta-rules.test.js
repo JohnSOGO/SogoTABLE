@@ -444,7 +444,7 @@ test("bots never block a room that has a human", () => {
   assert.equal(g.players.P2.ready_next, true); // and never holds the review barrier
 });
 
-test("skip: a waiting player can release the commit barrier over an absent human", () => {
+test("skip: a unanimous vote of the waiting players releases the commit barrier", () => {
   const g = newRttaGame();
   initRttaSeats(g, [human("P1"), human("P2"), human("P3")]);
   // Nobody may skip before finishing their own turn.
@@ -453,7 +453,15 @@ test("skip: a waiting player can release the commit barrier over an absent human
   makeRttaMove(g, "P2", commit());
   makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P2" }); // P2 already arrived — silent no-op
   assert.equal(g.phase, "playing");
-  makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P3", round: 1 }); // P3's phone died
+  makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P3", round: 1 }); // P3's phone died — P1 proposes
+  assert.equal(g.phase, "playing", "one vote of two is a proposal, not a skip");
+  assert.deepEqual(g.skip_votes, { P3: ["P1"] }, "the proposal is server state every client sees");
+  assert.equal(rttaGameToDict(g).skip_votes.P3.length, 1, "and it rides the projection");
+  makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P3", round: 1 }); // voting again retracts
+  assert.deepEqual(g.skip_votes, {});
+  makeRttaMove(g, "P1", { type: "SKIP_PLAYER", target: "P3", round: 1 }); // re-propose
+  makeRttaMove(g, "P2", { type: "SKIP_PLAYER", target: "P3", round: 1 }); // unanimous — executes
+  assert.deepEqual(g.skip_votes, {}, "an executed proposal clears");
   assert.equal(g.phase, "review");
   assert.equal(g.players.P3.round_done, true);
   assert.equal(g.players.P3.ready_next, true); // one skip covers BOTH barriers — no double skip
@@ -493,7 +501,7 @@ test("rttaGameToDict projects the full public N-player state", () => {
   // `undefined` in the board seeding.
   assert.deepEqual(Object.keys(dict).sort(), [
     "end_reason", "game_id", "monuments", "pending_events", "phase",
-    "players", "round", "seat_order", "status", "winner",
+    "players", "round", "seat_order", "skip_votes", "status", "winner",
   ]);
   assert.deepEqual(Object.keys(dict.players[0]).sort(), [
     "cities", "cityBoxes", "developments", "finish_state", "food", "goods",

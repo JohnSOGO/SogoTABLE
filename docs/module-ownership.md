@@ -61,6 +61,7 @@ concern), then implement.
 | `workers/persistence/state.js` | D1 state load / save / retry / migrate | — |
 | `workers/games/bots.js` | Shared bot helpers | — |
 | `workers/games/util.js` | Shared game utilities | — |
+| `workers/games/skip-vote.js` | Unanimous barrier-skip vote protocol (toggle / prune-ineligible / unanimity / clear) — eligibility predicate injected per game | — |
 
 ## Owned directory patterns
 
