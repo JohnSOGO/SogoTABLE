@@ -52,12 +52,17 @@ holding dice wins.
   Bot turns run through the same bid/challenge internals as human moves; an
   all-bot table (every human eliminated) plays itself out.
 - **Client:** `src/sogotable/static/games/liars-dice/render.js` + injected
-  `styles.js` — renders the projection, computes no rules. Bid picker is a
-  quantity stepper + face row bounded by `raise_options`; the reveal shows all
-  cups with bid-matching dice ringed. The board commits to a card-table felt
-  look in both themes (game-specific board palette precedent; a tavern art
-  background was tried and rejected 2026-07-03); dice stay white with dark
-  pips (docs/theme.md).
+  `styles.js` — renders the projection, computes no rules. UI per the
+  2026-07-03 preview review (`AI/liars-dice/preview.html` is the spec): a tip
+  strip carries all long guidance/verdicts; your cup renders face-down until
+  the dead-man peek button is HELD; bidding is tap-to-count (tap a face to
+  select at its minimum legal count from `raise_options`, keep tapping to
+  raise, switch faces to reset); this round's history table (bids as real
+  pip dice) sits beside a compact standings table; the reveal shows all cups
+  with bid-matching dice in green. Bot chains resolve server-side in one
+  snapshot and are replayed client-side one event per ~1.4s. The board rides
+  the shell's standard light/dark tokens (tavern art and a felt palette were
+  tried and rejected); dice stay white with drawn pips (docs/theme.md).
 - **Tests:** `workers/tests/liars-dice-rules.test.js` — rules, wild counting,
   raise legality, challenge/elimination, the viewer sanitizer (opponent cups
   masked pre-reveal, public at reveal, spectators see nothing), and bot games
