@@ -170,7 +170,7 @@ function renderNoThanksPlay(host, ctx) {
       ${showResults && game.winner ? `<p class="nt-panel nt-banner">\u{1F3C6} ${escapeName(seatName(room, game.winner))} wins No Thanks!</p>` : ""}
       ${tipHtml(game, room, localSeat, { caughtUp, myTurn, complete, lastVisible, animatingTake })}
       ${showResults ? resultsHtml(game, room) : tableHtml(table, game, room, { caughtUp, flip, actorMark, localMark, passedMarks, potFlash })}
-      ${myTurn ? actionsHtml(localSeat, table) : ""}
+      ${displayLocal && !showResults ? actionsHtml(displayLocal, table, myTurn) : ""}
       <p class="nt-msg" data-nt-note hidden></p>
       ${displayLocal ? mySeatHtml(displayLocal, chipsFlash, showResults && displayLocal.mark === game.winner, displayLocal.mark === ghostMark ? ghostCard : null) : ""}
       ${othersHtml(displaySeats, room, game, displayLocal, { caughtUp, complete, ghostMark, ghostCard })}
@@ -289,12 +289,16 @@ function tableHtml(table, game, room, view) {
   </section>`;
 }
 
-function actionsHtml(localSeat, table) {
-  const canPass = Number(localSeat.chips) > 0;
+// Always rendered for a seated player (disabled off-turn and during the take
+// animation) — hiding this row would make the controls below it jump, and
+// jumping tap targets cause mistaps (docs/adding-a-game.md hard rule,
+// MojoSOGO 2026-07-04).
+function actionsHtml(localSeat, table, enabled) {
+  const canPass = enabled && Number(localSeat.chips) > 0;
   return `<div class="nt-actions">
     <button class="nt-pass" type="button" data-nt="pass" ${canPass ? "" : "disabled"}
       aria-label="Pay one chip to pass">\u{1F645} No Thanks! −1 \u{1FA99}</button>
-    <button class="nt-take" type="button" data-nt="take"
+    <button class="nt-take" type="button" data-nt="take" ${enabled ? "" : "disabled"}
       aria-label="Take the card and ${table.pot} chips">\u{1F0CF} Take Card ${table.pot ? `+${fmt(table.pot)} \u{1FA99}` : ""}</button>
   </div>`;
 }

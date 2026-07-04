@@ -319,6 +319,15 @@ game hits (all learned on Yahtzee):
   `#gamePlayerSwitch`). `#turnStatus` is styled `#turnStatus{display:grid}`, which
   beats `.hidden` by ID specificity — collapse it with a scoped
   `#turnStatus:has(~ #macroBoard .<game>-root){display:none}`, not a class.
+- **Stable layout from the FIRST UI draft: never hide what makes controls
+  jump.** A general truth across all games, historically under-documented:
+  when state changes (off-turn, an animation playing, a move pending), keep
+  action buttons and the panels above them rendered and **disable/grey** them
+  — do not conditionally omit them, or everything below shifts and a phone
+  tap lands on the wrong target. Reserve hiding for whole-screen transitions
+  (lobby → play → results). Bake this into the first generated draft rather
+  than retrofitting it (No Thanks shipped with `${myTurn ? actions : ""}` and
+  had to be reworked). Also a hard rule below.
 - **The client wiring is more than the one-liner.** The "one `GAME_HANDLERS` row"
   is the *worker* side. A host-start / Game-Locked game also adds, in `app.js` (all
   additive, beside the existing games — never replacing them): an import, a
@@ -373,6 +382,13 @@ game hits (all learned on Yahtzee):
   — reading state out of CSS classes — so no test could see them; that is how
   four rules bugs shipped.) A headless engine is also what makes bot
   benchmarking, self-play, and future bot training possible at all.
+- **Controls never jump: disable, don't hide.** If removing an element would
+  shift the position of on-screen controls, keep it rendered and disable it
+  instead (e.g. No Thanks keeps its Take/No-Thanks buttons visible — greyed —
+  through the take animation and off-turn waits). Hiding is fine only for
+  whole-screen transitions (lobby → play → results) or elements below the
+  controls. Jumping tap targets cause mistaps on phones. (MojoSOGO decision,
+  2026-07-04.)
 - **Declare the timing mode.** Turn-based is supported today; solo/real-time is a
   product decision first.
 - **Lowercase directory names.** A capital-cased dir (e.g. `Quoridor/`) collides
