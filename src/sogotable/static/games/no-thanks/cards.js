@@ -33,7 +33,7 @@ export function noThanksCardHtml(value, opts = {}) {
   const classes = ["nt-card", `nt-card-${size}`, `nt-tier-${cardTier(value)}`];
   if (opts.flip) classes.push("nt-flip-in");
   if (opts.extraClass) classes.push(opts.extraClass);
-  return `<span class="${classes.join(" ")}"${Number.isInteger(opts.zIndex) ? ` style="z-index:${opts.zIndex}"` : ""} role="img" aria-label="card ${value}">
+  return `<span class="${classes.join(" ")}" data-nt-card="${value}"${Number.isInteger(opts.zIndex) ? ` style="z-index:${opts.zIndex}"` : ""} role="img" aria-label="card ${value}">
     <span class="nt-corner nt-corner-tl">${value}</span>
     <span class="nt-value">${value}</span>
     <span class="nt-corner nt-corner-br">${value}</span>

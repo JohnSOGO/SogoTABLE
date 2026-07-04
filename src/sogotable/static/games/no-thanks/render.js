@@ -144,34 +144,43 @@ function renderNoThanksPlay(host, ctx) {
   wireNoThanks(host, ctx, myTurn);
   if (animatingTake && !takeAnim.flown) {
     takeAnim.flown = true;
-    flyTakenCard(host, lastVisible.mark);
+    flyTakenCard(host, lastVisible.mark, lastVisible.card);
   }
 }
 
-// The taken card lifts off the table spot and flies into the taker's seat
-// panel — a fixed-position clone over the live layout, so it works at any
-// viewport size; the original ghosts out underneath it.
-function flyTakenCard(host, takerMark) {
+// The taken card lifts off the table spot and flies to its RESTING PLACE in
+// the taker's panel — the seat panels already paint the post-take hand, so
+// the exact destination card exists in the DOM: hide it, glide a clone onto
+// its rect (position AND size), and the post-anim repaint swaps them
+// seamlessly. Live rects keep it correct at any viewport size; the panel
+// rect is the fallback if the destination card is ever missing.
+function flyTakenCard(host, takerMark, cardValue) {
   const root = host.querySelector(".no-thanks-root");
   const cardEl = host.querySelector(".nt-spot .nt-card-big");
-  const targetEl = host.querySelector(`[data-nt-seat="${takerMark}"]`) || host.querySelector(".nt-turn-list");
-  if (!root || !cardEl || !targetEl) return;
+  const panel = host.querySelector(`[data-nt-seat="${takerMark}"]`);
+  if (!root || !cardEl || !panel) return;
+  const destCard = panel.querySelector(`.nt-cards-row [data-nt-card="${cardValue}"]`);
   const from = cardEl.getBoundingClientRect();
-  const to = targetEl.getBoundingClientRect();
+  const to = (destCard || panel).getBoundingClientRect();
   const clone = cardEl.cloneNode(true);
   clone.classList.remove("nt-ghost", "nt-flip-in");
   clone.classList.add("nt-fly");
-  clone.style.cssText += `;position:fixed;left:${from.left}px;top:${from.top}px;width:${from.width}px;height:${from.height}px;margin:0;`;
+  clone.style.cssText += `;position:fixed;left:${from.left}px;top:${from.top}px;width:${from.width}px;height:${from.height}px;margin:0;transform-origin:top left;`;
   // Inside the root so the scoped card styles dress the clone; the 2s
-  // re-render replaces the root's innerHTML, which also sweeps it away.
+  // re-render replaces the root's innerHTML, which also sweeps both the
+  // clone and the visibility:hidden below away.
   root.appendChild(clone);
-  const dx = to.left + to.width / 2 - (from.left + from.width / 2);
-  const dy = to.top + Math.min(to.height / 2, 44) - (from.top + from.height / 2);
+  if (destCard) destCard.style.visibility = "hidden"; // the clone IS this card until it lands
   requestAnimationFrame(() => {
-    clone.style.transform = `translate(${dx}px, ${dy}px) scale(.32) rotate(6deg)`;
-    clone.style.opacity = "0.2";
+    clone.style.transform = destCard
+      ? `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})`
+      : `translate(${to.left + to.width / 2 - (from.left + from.width / 2)}px, ${to.top + Math.min(to.height / 2, 44) - (from.top + from.height / 2)}px) scale(.32) rotate(6deg)`;
+    if (!destCard) clone.style.opacity = "0.2";
   });
-  setTimeout(() => clone.remove(), TAKE_ANIM_MS);
+  setTimeout(() => {
+    if (destCard) destCard.style.visibility = "";
+    clone.remove();
+  }, TAKE_ANIM_MS);
 }
 
 // ---------- projections of the replay cursor ----------
