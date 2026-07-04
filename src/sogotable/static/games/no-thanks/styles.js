@@ -55,9 +55,24 @@ export const NT_CSS = `
 /* Deal-in: the fresh table card flips up from the deck. */
 .no-thanks-root .nt-flip-in{animation:nt-flip .45s ease;}
 @keyframes nt-flip{0%{transform:rotateY(90deg) scale(.9);opacity:0;}100%{transform:none;opacity:1;}}
-/* ---- the table: deck + face-up card + pot ---- */
-.no-thanks-root .nt-table{display:flex;align-items:center;justify-content:center;gap:18px;
- padding:14px 12px;}
+/* ---- the table: deck + face-up card + pot, turn list to the right ---- */
+.no-thanks-root .nt-table{display:flex;align-items:center;gap:12px;padding:14px 12px;}
+.no-thanks-root .nt-table-main{display:flex;align-items:center;justify-content:center;gap:14px;
+ flex:0 0 auto;}
+/* Turn list: every seat in order, 🤔 on whose decision it is. Flexes into the
+   remaining width (min-width:0 so long names ellipsize instead of overflowing
+   on narrow phones) and scrolls past ~5 rows for big N-player tables. */
+.no-thanks-root .nt-turn-list{flex:1;min-width:0;margin:0;padding:0;list-style:none;
+ max-height:158px;overflow-y:auto;align-self:stretch;display:flex;flex-direction:column;
+ justify-content:center;gap:2px;}
+.no-thanks-root .nt-turn-row{display:flex;align-items:center;gap:4px;padding:3px 6px;
+ border-radius:8px;font-size:.82rem;color:var(--nt-muted);}
+.no-thanks-root .nt-turn-row .nt-turn-name{flex:1;min-width:0;overflow:hidden;
+ text-overflow:ellipsis;white-space:nowrap;}
+.no-thanks-root .nt-turn-row .nt-turn-flag{flex:0 0 20px;text-align:center;}
+.no-thanks-root .nt-turn-row.nt-turn-you .nt-turn-name{font-weight:700;color:var(--nt-ink);}
+.no-thanks-root .nt-turn-row.nt-turn-now{background:rgba(231,194,86,.16);color:var(--nt-ink);
+ border:1px solid var(--nt-gold);padding:2px 5px;}
 .no-thanks-root .nt-deck{position:relative;width:72px;height:102px;border-radius:10px;
  background:linear-gradient(135deg,#28527a,#1b3a58);border:1px solid rgba(0,0,0,.4);
  box-shadow:2px 2px 0 rgba(0,0,0,.2),4px 4px 0 rgba(0,0,0,.12);
@@ -110,4 +125,17 @@ export const NT_CSS = `
 .no-thanks-root .nt-results-table td.nt-num{font-variant-numeric:tabular-nums;}
 .no-thanks-root .nt-results-table td.nt-total{font-weight:800;}
 .no-thanks-root .nt-results-table tr.nt-winner-row td{background:rgba(231,194,86,.14);}
+/* ---- narrow phones: shrink the table pieces so deck + card + turn list
+   always share one row without horizontal overflow ---- */
+@media (max-width:430px){
+  .no-thanks-root .nt-card-big{width:92px;height:130px;font-size:2.4rem;}
+  .no-thanks-root .nt-deck{width:58px;height:82px;font-size:.95rem;}
+  .no-thanks-root .nt-table{gap:8px;}
+  .no-thanks-root .nt-table-main{gap:10px;}
+}
+@media (max-width:350px){
+  .no-thanks-root .nt-card-big{width:78px;height:110px;font-size:2rem;}
+  .no-thanks-root .nt-deck{width:48px;height:68px;font-size:.85rem;}
+  .no-thanks-root .nt-turn-row{font-size:.76rem;}
+}
 `;

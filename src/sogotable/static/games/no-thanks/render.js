@@ -91,11 +91,19 @@ function renderNoThanksPlay(host, ctx) {
 
   const flip = table.card !== null && table.card !== lastCardShown;
   lastCardShown = table.card;
+  // Whose decision the DISPLAY is on: the live turn once caught up, or the
+  // `next` mark the shown event named mid-replay.
+  const actorMark = caughtUp ? game.current_player : (lastVisible ? lastVisible.next : null);
+  // Who has said No Thanks to the card ON the table: every pass event since
+  // the last take (a take flips a fresh card, resetting the tally). Derived
+  // from the VISIBLE events so the ❌s land one at a time during replay.
+  const lastTake = visible.map((event) => event.type).lastIndexOf("take");
+  const passedMarks = new Set(visible.slice(lastTake + 1).filter((event) => event.type === "pass").map((event) => event.mark));
   host.innerHTML = `
     <div class="no-thanks-root">
       ${showResults && game.winner ? `<p class="nt-panel nt-banner">\u{1F3C6} ${escapeName(seatName(room, game.winner))} wins No Thanks!</p>` : ""}
       ${tipHtml(game, room, localSeat, { caughtUp, myTurn, complete, lastVisible })}
-      ${showResults ? resultsHtml(game, room) : tableHtml(table, game, caughtUp, flip)}
+      ${showResults ? resultsHtml(game, room) : tableHtml(table, game, room, { caughtUp, flip, actorMark, localMark, passedMarks })}
       ${myTurn ? actionsHtml(localSeat, table) : ""}
       <p class="nt-msg" data-nt-note hidden></p>
       ${localSeat && !showResults ? mySeatHtml(localSeat) : ""}
@@ -137,19 +145,41 @@ function tipHtml(game, room, localSeat, view) {
   return `<p class="nt-tip${view.myTurn ? " nt-your-turn" : ""}">${tip}</p>`;
 }
 
-function tableHtml(table, game, caughtUp, flip) {
-  const deckCount = caughtUp ? Number(game.deck_count || 0) : null;
+// The table: deck + face-up card on the left, the turn list on the right —
+// YOU at the top, then the seats in the order they act after you (the house
+// table style: name left, single-emoji status column beside it). The emoji
+// tells this card's story: 🤔 = deciding now, ❌ = already said No Thanks to
+// the card on the table. Turn-based games always show the seat list + whose
+// turn (MojoSOGO 2026-07-04).
+function tableHtml(table, game, room, view) {
+  const deckCount = view.caughtUp ? Number(game.deck_count || 0) : null;
+  let seats = Array.isArray(game.players) ? game.players : [];
+  const localIndex = seats.findIndex((seat) => seat.mark === view.localMark);
+  if (localIndex > 0) seats = [...seats.slice(localIndex), ...seats.slice(0, localIndex)];
+  const flag = (seat) => {
+    if (seat.mark === view.actorMark) return "\u{1F914}";
+    if (view.passedMarks && view.passedMarks.has(seat.mark)) return "❌";
+    return "";
+  };
+  const rows = seats.map((seat) => `
+    <li class="nt-turn-row${seat.mark === view.actorMark ? " nt-turn-now" : ""}${seat.mark === view.localMark ? " nt-turn-you" : ""}">
+      <span class="nt-turn-name">${seatEmoji(room, seat.mark)} ${escapeName(seatName(room, seat.mark))}</span>
+      <span class="nt-turn-flag">${flag(seat)}</span>
+    </li>`).join("");
   return `<section class="nt-panel nt-table" aria-label="The table">
-    <div>
-      <div class="nt-deck"><span class="nt-deck-count">${deckCount === null ? "…" : fmt(deckCount)}</span></div>
-      <span class="nt-deck-label">deck</span>
-    </div>
-    <div class="nt-spot">
-      ${table.card === null ? `<span class="nt-no-cards">no card</span>` : noThanksCardHtml(table.card, { size: "big", flip })}
+    <div class="nt-table-main">
       <div>
-        <span class="nt-pot${table.pot ? "" : " nt-pot-empty"}" aria-label="${table.pot} chips on the card">\u{1FA99} ${fmt(table.pot)}</span>
+        <div class="nt-deck"><span class="nt-deck-count">${deckCount === null ? "…" : fmt(deckCount)}</span></div>
+        <span class="nt-deck-label">deck</span>
+      </div>
+      <div class="nt-spot">
+        ${table.card === null ? `<span class="nt-no-cards">no card</span>` : noThanksCardHtml(table.card, { size: "big", flip: view.flip })}
+        <div>
+          <span class="nt-pot${table.pot ? "" : " nt-pot-empty"}" aria-label="${table.pot} chips on the card">\u{1FA99} ${fmt(table.pot)}</span>
+        </div>
       </div>
     </div>
+    <ul class="nt-turn-list" aria-label="Turn order">${rows}</ul>
   </section>`;
 }
 
