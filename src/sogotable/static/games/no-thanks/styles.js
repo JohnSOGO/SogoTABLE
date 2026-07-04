@@ -60,6 +60,9 @@ export const NT_CSS = `
 .no-thanks-root .nt-card.nt-fly{z-index:999;pointer-events:none;
  transition:transform 1.6s cubic-bezier(.45,.05,.35,1),opacity 1.6s ease;}
 .no-thanks-root .nt-card-big.nt-ghost{opacity:.12;}
+/* The landing pad: the taken card's slot in the hand holds layout space but
+   stays unrevealed until the flight ends (the repaint then swaps it in). */
+.no-thanks-root .nt-card.nt-ghost-slot{visibility:hidden;}
 /* ---- the table: deck + face-up card + pot, turn list to the right ---- */
 .no-thanks-root .nt-table{display:flex;align-items:center;gap:12px;padding:14px 12px;}
 .no-thanks-root .nt-table-main{display:flex;align-items:center;justify-content:center;gap:14px;

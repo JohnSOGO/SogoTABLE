@@ -14,7 +14,7 @@
 // carries the public table (card + pot), so mid-replay frames redraw the
 // exact moment. Interactions stay hidden until the replay catches up.
 import { renderHostStartLobby } from "../lobby.js";
-import { noThanksCardHtml, noThanksRunsHtml, noThanksChipsHtml } from "./cards.js";
+import { noThanksCardHtml, noThanksRunsHtml, noThanksChipsHtml, groupNoThanksRuns } from "./cards.js";
 import { NT_CSS } from "./styles.js";
 
 const BOT_STEP_MS = 1100;
@@ -106,6 +106,40 @@ function renderNoThanksPlay(host, ctx) {
       : tableAtEvent(lastVisible));
   const showResults = caughtUp && complete && !animatingTake;
   const myTurn = caughtUp && !animatingTake && !movePending && Boolean(localSeat && localSeat.is_turn) && !complete;
+  // ---- replay-true seat panels: the snapshot carries END-state hands, so
+  // rewind them to the shown moment — cards from not-yet-shown takes are
+  // absent, chips not yet paid/collected are restored, and the card being
+  // ANIMATED holds an invisible slot (its landing pad) until the flight ends.
+  const ghostMark = animatingTake ? lastVisible.mark : null;
+  const ghostCard = animatingTake ? lastVisible.card : null;
+  const stateShown = animatingTake ? Number(lastVisible.move_count) - 1 : pace.shown;
+  const futureCards = {}; // mark -> Set of cards not taken yet at the shown moment
+  const chipRewind = {}; // mark -> delta restoring chips to the shown moment
+  events.forEach((event) => {
+    const mc = Number(event.move_count);
+    if (event.type === "take" && mc > pace.shown) (futureCards[event.mark] = futureCards[event.mark] || new Set()).add(event.card);
+    if (mc > stateShown) {
+      if (event.type === "pass") chipRewind[event.mark] = (chipRewind[event.mark] || 0) + 1;
+      if (event.type === "take") chipRewind[event.mark] = (chipRewind[event.mark] || 0) - Number(event.chips_gained || 0);
+    }
+  });
+  // Sum of run heads — the same public math the server's card_score uses,
+  // duplicated for DISPLAY only (mid-replay hands have no server score).
+  const displayScore = (cards) => groupNoThanksRuns(cards).reduce((sum, run) => sum + run[0], 0);
+  const displaySeats = seats.map((seat) => {
+    const hide = futureCards[seat.mark];
+    const ghost = seat.mark === ghostMark ? ghostCard : null;
+    const chipDelta = chipRewind[seat.mark] || 0;
+    if (!hide && ghost === null && !chipDelta) return seat;
+    const cards = hide ? seat.cards.filter((card) => !hide.has(card)) : seat.cards;
+    return {
+      ...seat,
+      cards,
+      chips: Number.isInteger(seat.chips) ? seat.chips + chipDelta : seat.chips,
+      card_score: hide || ghost !== null ? displayScore(cards.filter((card) => card !== ghost)) : seat.card_score,
+    };
+  });
+  const displayLocal = displaySeats.find((seat) => seat.mark === localMark) || null;
   // Watchdog: if actions are suppressed only by the pending latch, re-render
   // shortly — this board must never wedge on a player's turn.
   if (caughtUp && movePending && !complete) {
@@ -116,7 +150,7 @@ function renderNoThanksPlay(host, ctx) {
 
   const flip = table.card !== null && table.card !== lastCardShown;
   lastCardShown = table.card;
-  const myChips = localSeat ? Number(localSeat.chips || 0) : -1;
+  const myChips = displayLocal ? Number(displayLocal.chips || 0) : -1;
   if (lastChips.key !== paceKey) lastChips = { key: paceKey, pot: table.pot, mine: myChips }; // fresh table: no flash
   const potFlash = table.pot > lastChips.pot;
   const chipsFlash = localSeat !== null && myChips > lastChips.mine;
@@ -138,8 +172,8 @@ function renderNoThanksPlay(host, ctx) {
       ${showResults ? resultsHtml(game, room) : tableHtml(table, game, room, { caughtUp, flip, actorMark, localMark, passedMarks, potFlash })}
       ${myTurn ? actionsHtml(localSeat, table) : ""}
       <p class="nt-msg" data-nt-note hidden></p>
-      ${localSeat ? mySeatHtml(localSeat, chipsFlash, showResults && localSeat.mark === game.winner) : ""}
-      ${othersHtml(seats, room, game, localSeat, { caughtUp, complete })}
+      ${displayLocal ? mySeatHtml(displayLocal, chipsFlash, showResults && displayLocal.mark === game.winner, displayLocal.mark === ghostMark ? ghostCard : null) : ""}
+      ${othersHtml(displaySeats, room, game, displayLocal, { caughtUp, complete, ghostMark, ghostCard })}
     </div>`;
   wireNoThanks(host, ctx, myTurn);
   if (animatingTake && !takeAnim.flown) {
@@ -170,17 +204,15 @@ function flyTakenCard(host, takerMark, cardValue) {
   // re-render replaces the root's innerHTML, which also sweeps both the
   // clone and the visibility:hidden below away.
   root.appendChild(clone);
-  if (destCard) destCard.style.visibility = "hidden"; // the clone IS this card until it lands
+  // The destination is the ghost slot (rendered invisible) — the clone IS
+  // the card until the post-anim repaint swaps the real one in.
   requestAnimationFrame(() => {
     clone.style.transform = destCard
       ? `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})`
       : `translate(${to.left + to.width / 2 - (from.left + from.width / 2)}px, ${to.top + Math.min(to.height / 2, 44) - (from.top + from.height / 2)}px) scale(.32) rotate(6deg)`;
     if (!destCard) clone.style.opacity = "0.2";
   });
-  setTimeout(() => {
-    if (destCard) destCard.style.visibility = "";
-    clone.remove();
-  }, TAKE_ANIM_MS);
+  setTimeout(() => clone.remove(), TAKE_ANIM_MS);
 }
 
 // ---------- projections of the replay cursor ----------
@@ -269,14 +301,14 @@ function actionsHtml(localSeat, table) {
 
 // Shown during play AND at game over — the final screen lists every seat's
 // card+chip summary, the local player's included (MojoSOGO 2026-07-04).
-function mySeatHtml(seat, chipsFlash, isWinner) {
+function mySeatHtml(seat, chipsFlash, isWinner, ghostCard) {
   return `<section class="nt-panel nt-seat" data-nt-seat="${seat.mark}" aria-label="Your cards and chips">
     <div class="nt-seat-head">
       <span class="nt-seat-name">Your hand${isWinner ? " \u{1F3C6}" : ""}</span>
       <span class="nt-score-tag">cards ${fmt(seat.card_score)} − chips = ${fmt(seat.card_score - Number(seat.chips || 0))}</span>
       ${noThanksChipsHtml(seat.chips, chipsFlash ? { extraClass: "nt-flash" } : {})}
     </div>
-    <div class="nt-cards-row">${noThanksRunsHtml(seat.cards, { size: "hand" })}</div>
+    <div class="nt-cards-row">${noThanksRunsHtml(seat.cards, { size: "hand", ghost: ghostCard })}</div>
   </section>`;
 }
 
@@ -290,7 +322,7 @@ function othersHtml(seats, room, game, localSeat, view) {
         <span class="nt-score-tag">cards ${fmt(seat.card_score)}</span>
         ${noThanksChipsHtml(seat.chips)}
       </div>
-      <div class="nt-cards-row">${noThanksRunsHtml(seat.cards, { size: "mini" })}</div>
+      <div class="nt-cards-row">${noThanksRunsHtml(seat.cards, { size: "mini", ghost: seat.mark === view.ghostMark ? view.ghostCard : null })}</div>
     </section>`;
   }).join("");
 }

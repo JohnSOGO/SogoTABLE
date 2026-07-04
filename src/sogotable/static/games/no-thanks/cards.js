@@ -44,12 +44,17 @@ export function noThanksCardHtml(value, opts = {}) {
 // score (the rest count nothing), so it sits ON TOP of the stack, fully
 // visible, with the higher cards tucked behind it — descending z-index,
 // since DOM paint order alone would bury the card that matters.
+// opts.ghost: that card renders as an invisible slot — the landing pad for
+// the take animation; it holds the layout without revealing the card early.
 export function noThanksRunsHtml(cards, opts = {}) {
   const size = opts.size || "hand";
   const runs = groupNoThanksRuns(cards);
   if (!runs.length) return `<span class="nt-no-cards">no cards</span>`;
-  return runs.map((run) => `<span class="nt-run">${run.map((card, index) =>
-    noThanksCardHtml(card, { size, extraClass: index === 0 ? "nt-run-head" : "nt-run-tail", zIndex: run.length - index })).join("")}</span>`).join("");
+  return runs.map((run) => `<span class="nt-run">${run.map((card, index) => noThanksCardHtml(card, {
+    size,
+    extraClass: `${index === 0 ? "nt-run-head" : "nt-run-tail"}${card === opts.ghost ? " nt-ghost-slot" : ""}`,
+    zIndex: run.length - index,
+  })).join("")}</span>`).join("");
 }
 
 // A chip stack: token glyphs for small stacks, token + count beyond that.
