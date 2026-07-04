@@ -116,7 +116,7 @@ function renderNoThanksPlay(host, ctx) {
       ${showResults ? resultsHtml(game, room) : tableHtml(table, game, room, { caughtUp, flip, actorMark, localMark, passedMarks, potFlash })}
       ${myTurn ? actionsHtml(localSeat, table) : ""}
       <p class="nt-msg" data-nt-note hidden></p>
-      ${localSeat && !showResults ? mySeatHtml(localSeat, chipsFlash) : ""}
+      ${localSeat ? mySeatHtml(localSeat, chipsFlash, showResults && localSeat.mark === game.winner) : ""}
       ${othersHtml(seats, room, game, localSeat, { caughtUp, complete })}
     </div>`;
   wireNoThanks(host, ctx, myTurn);
@@ -203,10 +203,12 @@ function actionsHtml(localSeat, table) {
   </div>`;
 }
 
-function mySeatHtml(seat, chipsFlash) {
+// Shown during play AND at game over — the final screen lists every seat's
+// card+chip summary, the local player's included (MojoSOGO 2026-07-04).
+function mySeatHtml(seat, chipsFlash, isWinner) {
   return `<section class="nt-panel nt-seat" aria-label="Your cards and chips">
     <div class="nt-seat-head">
-      <span class="nt-seat-name">Your hand</span>
+      <span class="nt-seat-name">Your hand${isWinner ? " \u{1F3C6}" : ""}</span>
       <span class="nt-score-tag">cards ${fmt(seat.card_score)} − chips = ${fmt(seat.card_score - Number(seat.chips || 0))}</span>
       ${noThanksChipsHtml(seat.chips, chipsFlash ? { extraClass: "nt-flash" } : {})}
     </div>
