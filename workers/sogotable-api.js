@@ -99,6 +99,9 @@ import {
 import {
   ZOMBIE_DICE_GAME_ID, isZombieDiceGame, newZombieDiceGame, initZombieDiceSeats, makeZombieDiceMove, zombieDiceGameToDict,
 } from "./games/zombie-dice/rules.js";
+import {
+  LIARS_DICE_GAME_ID, isLiarsDiceGame, newLiarsDiceGame, initLiarsDiceSeats, makeLiarsDiceMove, liarsDiceGameToDict, liarsDiceGameToDictForViewer,
+} from "./games/liars-dice/rules.js";
 
 const LOBBY_VIEWER_TTL_SECONDS = 45;
 const ROOM_SEAT_COLORS = [
@@ -1157,8 +1160,9 @@ function roomToDictForViewer(data, room, viewerPlayerId = "") {
 }
 
 function gameToDictForViewer(game, viewerMark, roomStatusValue) {
-  if (!isBattleshipGame(game)) return game;
-  return battleshipGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isBattleshipGame(game)) return battleshipGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isLiarsDiceGame(game)) return liarsDiceGameToDictForViewer(game, viewerMark, roomStatusValue);
+  return game;
 }
 
 function responseForViewer(response, viewerPlayerId = "") {
@@ -1290,6 +1294,7 @@ function startRoom(room) {
   if (isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
   if (isRttaGame(room.game)) initRttaSeats(room.game, room.players);
   if (isZombieDiceGame(room.game)) initZombieDiceSeats(room.game, room.players);
+  if (isLiarsDiceGame(room.game)) initLiarsDiceSeats(room.game, room.players);
 }
 
 function playerMark(room, playerId) {
@@ -1370,6 +1375,7 @@ function handleResetVote(room, requesterId, approve) {
   if (room.started && isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
   if (room.started && isRttaGame(room.game)) initRttaSeats(room.game, room.players);
   if (room.started && isZombieDiceGame(room.game)) initZombieDiceSeats(room.game, room.players);
+  if (room.started && isLiarsDiceGame(room.game)) initLiarsDiceSeats(room.game, room.players);
   bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
@@ -1414,6 +1420,8 @@ const GAME_HANDLERS = [
     applyAction: (game, mark, payload) => makeRttaMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: ZOMBIE_DICE_GAME_ID, is: isZombieDiceGame, create: newZombieDiceGame, toDict: zombieDiceGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeZombieDiceMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
+  { id: LIARS_DICE_GAME_ID, is: isLiarsDiceGame, create: newLiarsDiceGame, toDict: liarsDiceGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeLiarsDiceMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),

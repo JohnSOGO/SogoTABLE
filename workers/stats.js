@@ -14,6 +14,7 @@ import { isYahtzeeGame, yahtzeeScoreByMark } from "./games/yahtzee/rules.js";
 import { isMazewrightGame, mazewrightScoreByMark } from "./games/mazewright/rules.js";
 import { isRttaGame, rttaScoreByMark } from "./games/rtta/rules.js";
 import { isZombieDiceGame, zombieDiceScoreByMark } from "./games/zombie-dice/rules.js";
+import { isLiarsDiceGame, liarsDiceScoreByMark } from "./games/liars-dice/rules.js";
 import { isBoxesGame } from "./games/boxes/rules.js";
 import { isTacticalGame } from "./games/super-tic-tac-toe/rules.js";
 
@@ -58,6 +59,7 @@ function scoreByMarkForRoom(room) {
   }
   if (isRttaGame(room.game)) return rttaScoreByMark(room.game);
   if (isZombieDiceGame(room.game)) return zombieDiceScoreByMark(room.game);
+  if (isLiarsDiceGame(room.game)) return liarsDiceScoreByMark(room.game); // dice still held at game end
   if (isBoxesGame(room.game)) {
     return {
       X: Number(room.game.scores && room.game.scores.X || 0),

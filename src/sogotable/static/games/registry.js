@@ -20,6 +20,7 @@ export const GAME_IDS = {
   mazewright: "5e3b9a7c1f04",
   rtta: "7a1c3e9f5b28",
   zombieDice: "3f9b7d2e8a41",
+  liarsDice: "b6e4a2d91f57",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -137,6 +138,19 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["roll_of_the_dead", "zombie_dice", "zombie-dice"],
+  },
+  {
+    id: GAME_IDS.liarsDice,
+    lobbyMode: "hostStart",
+    name: "Liar's Dice 🤥",
+    summary: "Roll a hidden cup, raise the bid on what's under everyone's cups, and call LIAR when the bluff gets too big — last player with dice wins.",
+    players: "2+ players",
+    player_count: null,
+    host_start: true,
+    category: "dice",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["liars_dice", "liars-dice", "liar_dice", "dudo"],
   },
   {
     id: GAME_IDS.rtta,
