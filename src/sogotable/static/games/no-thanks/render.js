@@ -23,6 +23,10 @@ let stylesInjected = false;
 let pace = { key: "", shown: 0, timer: null };
 // The table card last painted — a changed value replays the deal-in flip.
 let lastCardShown = null;
+// Chip counts last painted (pot + own stack), keyed by room+epoch: a value
+// that GREW since the last paint flashes green. Repaints at the same value
+// stay quiet, so the flash fires once per gain, including per replay step.
+let lastChips = { key: "", pot: -1, mine: -1 };
 
 export function renderNoThanksGame(ctx) {
   const { host, game } = ctx;
@@ -91,6 +95,12 @@ function renderNoThanksPlay(host, ctx) {
 
   const flip = table.card !== null && table.card !== lastCardShown;
   lastCardShown = table.card;
+  const myChips = localSeat ? Number(localSeat.chips || 0) : -1;
+  if (lastChips.key !== paceKey) lastChips = { key: paceKey, pot: table.pot, mine: myChips }; // fresh table: no flash
+  const potFlash = table.pot > lastChips.pot;
+  const chipsFlash = localSeat !== null && myChips > lastChips.mine;
+  lastChips.pot = table.pot;
+  lastChips.mine = myChips;
   // Whose decision the DISPLAY is on: the live turn once caught up, or the
   // `next` mark the shown event named mid-replay.
   const actorMark = caughtUp ? game.current_player : (lastVisible ? lastVisible.next : null);
@@ -103,10 +113,10 @@ function renderNoThanksPlay(host, ctx) {
     <div class="no-thanks-root">
       ${showResults && game.winner ? `<p class="nt-panel nt-banner">\u{1F3C6} ${escapeName(seatName(room, game.winner))} wins No Thanks!</p>` : ""}
       ${tipHtml(game, room, localSeat, { caughtUp, myTurn, complete, lastVisible })}
-      ${showResults ? resultsHtml(game, room) : tableHtml(table, game, room, { caughtUp, flip, actorMark, localMark, passedMarks })}
+      ${showResults ? resultsHtml(game, room) : tableHtml(table, game, room, { caughtUp, flip, actorMark, localMark, passedMarks, potFlash })}
       ${myTurn ? actionsHtml(localSeat, table) : ""}
       <p class="nt-msg" data-nt-note hidden></p>
-      ${localSeat && !showResults ? mySeatHtml(localSeat) : ""}
+      ${localSeat && !showResults ? mySeatHtml(localSeat, chipsFlash) : ""}
       ${othersHtml(seats, room, game, localSeat, { caughtUp, complete })}
     </div>`;
   wireNoThanks(host, ctx, myTurn);
@@ -175,7 +185,7 @@ function tableHtml(table, game, room, view) {
       <div class="nt-spot">
         ${table.card === null ? `<span class="nt-no-cards">no card</span>` : noThanksCardHtml(table.card, { size: "big", flip: view.flip })}
         <div>
-          <span class="nt-pot${table.pot ? "" : " nt-pot-empty"}" aria-label="${table.pot} chips on the card">\u{1FA99} ${fmt(table.pot)}</span>
+          <span class="nt-pot${table.pot ? "" : " nt-pot-empty"}${view.potFlash ? " nt-flash" : ""}" aria-label="${table.pot} chips on the card">\u{1FA99} ${fmt(table.pot)}</span>
         </div>
       </div>
     </div>
@@ -193,12 +203,12 @@ function actionsHtml(localSeat, table) {
   </div>`;
 }
 
-function mySeatHtml(seat) {
+function mySeatHtml(seat, chipsFlash) {
   return `<section class="nt-panel nt-seat" aria-label="Your cards and chips">
     <div class="nt-seat-head">
       <span class="nt-seat-name">Your hand</span>
       <span class="nt-score-tag">cards ${fmt(seat.card_score)} − chips = ${fmt(seat.card_score - Number(seat.chips || 0))}</span>
-      ${noThanksChipsHtml(seat.chips)}
+      ${noThanksChipsHtml(seat.chips, chipsFlash ? { extraClass: "nt-flash" } : {})}
     </div>
     <div class="nt-cards-row">${noThanksRunsHtml(seat.cards, { size: "hand" })}</div>
   </section>`;

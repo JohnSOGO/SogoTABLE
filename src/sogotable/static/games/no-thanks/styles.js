@@ -85,6 +85,12 @@ export const NT_CSS = `
  padding:3px 10px;border-radius:11px;background:rgba(231,194,86,.18);border:1px solid var(--nt-gold);
  font-weight:800;font-size:.95rem;}
 .no-thanks-root .nt-pot.nt-pot-empty{opacity:.45;border-style:dashed;font-weight:600;}
+/* Chip gain: the pot (on a pass) and your own stack (on a take) flash green
+   once per increase — the class only rides a paint where the count GREW. */
+@keyframes nt-chip-flash{0%{background:rgba(99,189,116,.85);box-shadow:0 0 0 4px rgba(99,189,116,.35);}
+ 100%{box-shadow:0 0 0 0 rgba(99,189,116,0);}}
+.no-thanks-root .nt-pot.nt-flash{animation:nt-chip-flash .8s ease;}
+.no-thanks-root .nt-chips.nt-flash{animation:nt-chip-flash .8s ease;border-radius:9px;padding:0 4px;}
 /* ---- actions: two big thumb targets ---- */
 .no-thanks-root .nt-actions{display:flex;gap:10px;width:100%;max-width:440px;}
 .no-thanks-root .nt-actions button{flex:1;padding:16px 8px;font-size:1.05rem;font-weight:800;border-radius:14px;

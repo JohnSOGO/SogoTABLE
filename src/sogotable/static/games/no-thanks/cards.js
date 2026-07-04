@@ -60,5 +60,6 @@ export function noThanksChipsHtml(count, opts = {}) {
   }
   const value = Number(count) || 0;
   const label = opts.label || "chips";
-  return `<span class="nt-chips" aria-label="${value} ${label}">\u{1FA99} ${value}</span>`;
+  const classes = opts.extraClass ? `nt-chips ${opts.extraClass}` : "nt-chips";
+  return `<span class="${classes}" aria-label="${value} ${label}">\u{1FA99} ${value}</span>`;
 }
