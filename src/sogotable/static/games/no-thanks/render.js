@@ -97,10 +97,11 @@ function renderNoThanksPlay(host, ctx) {
     pace.timer = setTimeout(rerender, BOT_STEP_MS);
   }
   // Mid-replay the table redraws the shown event's moment (each event carries
-  // card + pot); during a take animation it holds the PRE-take moment (the
-  // taken card ghosted under the flying clone); caught up, the live state.
+  // card + pot); during a take animation the NEXT deck card flips up in the
+  // spot while the taken card (a clone) flies away — no ghosted duplicate;
+  // caught up, the live state.
   const table = animatingTake
-    ? { card: lastVisible.card, pot: Number(lastVisible.chips_gained || 0), taking: true }
+    ? { card: lastVisible.next_card ?? null, pot: 0 }
     : (caughtUp || !lastVisible
       ? { card: game.current_card, pot: Number(game.pot || 0) }
       : tableAtEvent(lastVisible));
@@ -184,20 +185,24 @@ function renderNoThanksPlay(host, ctx) {
 
 // The taken card lifts off the table spot and flies to its RESTING PLACE in
 // the taker's panel — the seat panels already paint the post-take hand, so
-// the exact destination card exists in the DOM: hide it, glide a clone onto
-// its rect (position AND size), and the post-anim repaint swaps them
-// seamlessly. Live rects keep it correct at any viewport size; the panel
-// rect is the fallback if the destination card is ever missing.
+// the exact destination card exists in the DOM (as the invisible ghost
+// slot): glide a fresh clone onto its rect (position AND size), and the
+// post-anim repaint swaps them seamlessly. The clone is BUILT from the taken
+// value — the spot itself already shows the NEXT deck card, so cloning it
+// would fly the wrong card. Live rects keep it correct at any viewport size;
+// the panel rect is the fallback if the destination card is ever missing.
 function flyTakenCard(host, takerMark, cardValue) {
   const root = host.querySelector(".no-thanks-root");
-  const cardEl = host.querySelector(".nt-spot .nt-card-big");
+  const spot = host.querySelector(".nt-spot");
   const panel = host.querySelector(`[data-nt-seat="${takerMark}"]`);
-  if (!root || !cardEl || !panel) return;
+  if (!root || !spot || !panel) return;
+  const spotCard = spot.querySelector(".nt-card-big");
   const destCard = panel.querySelector(`.nt-cards-row [data-nt-card="${cardValue}"]`);
-  const from = cardEl.getBoundingClientRect();
+  const from = (spotCard || spot).getBoundingClientRect();
   const to = (destCard || panel).getBoundingClientRect();
-  const clone = cardEl.cloneNode(true);
-  clone.classList.remove("nt-ghost", "nt-flip-in");
+  const holder = document.createElement("div");
+  holder.innerHTML = noThanksCardHtml(cardValue, { size: "big" });
+  const clone = holder.firstElementChild;
   clone.classList.add("nt-fly");
   clone.style.cssText += `;position:fixed;left:${from.left}px;top:${from.top}px;width:${from.width}px;height:${from.height}px;margin:0;transform-origin:top left;`;
   // Inside the root so the scoped card styles dress the clone; the 2s
@@ -279,7 +284,7 @@ function tableHtml(table, game, room, view) {
         <span class="nt-deck-label">deck</span>
       </div>
       <div class="nt-spot">
-        ${table.card === null ? `<span class="nt-no-cards">no card</span>` : noThanksCardHtml(table.card, { size: "big", flip: view.flip && !table.taking, extraClass: table.taking ? "nt-ghost" : "" })}
+        ${table.card === null ? `<span class="nt-no-cards">no card</span>` : noThanksCardHtml(table.card, { size: "big", flip: view.flip })}
         <div>
           <span class="nt-pot${table.pot ? "" : " nt-pot-empty"}${view.potFlash ? " nt-flash" : ""}" aria-label="${table.pot} chips on the card">\u{1FA99} ${fmt(table.pot)}</span>
         </div>
