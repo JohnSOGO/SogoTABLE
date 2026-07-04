@@ -434,3 +434,42 @@ PLACEMENT RECEIPT
       document the exclusion, don't leak by default.
 - New owner row: none — both subtrees covered by the standing games/ directory-pattern
                 rows in docs/module-ownership.md.
+
+## 2026-07-04 — Unanimous barrier-skip votes (new shared owner: skip-vote.js)
+Commit: pending
+
+PLACEMENT RECEIPT
+- Ask:          Make SKIP_PLAYER a unanimous vote (propose / toggle / prune /
+                execute-on-unanimity / clear-on-advance) across RTTA and Mazewright,
+                with shared tally logic and a doctrine home.
+- Verdict:      workers/games/skip-vote.js [NEW owner row] for the shared protocol;
+                vote state + gate in workers/games/rtta/rules.js and
+                workers/games/mazewright/rules.js [EXISTING]; proposal rendering in
+                src/sogotable/static/games/{rtta,mazewright}/render.js [EXISTING];
+                standing rule -> docs/adding-a-game.md hard rules, dated decision ->
+                docs/project-memory.md.
+- Flow stage:   validate via rules + apply state transition (vote is server game
+                state); projection carries skip_votes at broadcast; render only
+                displays and captures intent — RTTA's client-side two-tap arm is
+                removed as shadow rule state.
+- Sources read: docs/module-ownership.md, docs/modularity.md, docs/wu-wei-method.md,
+                docs/adding-a-game.md (hard rules), workers/tests/architecture.test.js
+                (live CEILINGS + coverage/layering/purity guards), workers/games/util.js,
+                workers/games/rtta/rules.js, workers/games/mazewright/rules.js,
+                src/sogotable/static/games/rtta/render.js (skip/arm section),
+                src/sogotable/static/review-export.js, line counts of all touched files.
+- Considerations:
+    - workers/games/ directory pattern covers only games/<id>/<file>; a file directly
+      in workers/games/ needs its own owner row (bots.js/util.js precedent).
+    - Rejected util.js (junk-drawer smell: its concern is generic scalar helpers) and
+      per-game duplication (three drifting copies; games cannot import each other).
+    - Line health: rtta/rules.js 451/800, mazewright/rules.js 276/800, rtta/render.js
+      362/800 (shrinks — arm deleted), mazewright/render.js 694/800 (tightest; keep the
+      addition small), rtta-rules.test.js 522/800. Reorganizer NOT required.
+    - Main threat avoided: rule state (armed/vote progress) living in the UI layer —
+      the unanimity gate is server-authoritative; the projection is the wire contract.
+    - Zombie-dice has no skip at all; deliberately deferred as its own future
+      placement — the injected eligibility predicate reserves the seam.
+- New owner row: | workers/games/skip-vote.js | Unanimous barrier-skip vote protocol
+                (toggle / prune-ineligible / unanimity / clear) — eligibility predicate
+                injected per game | workers/sogotable-api.js |
