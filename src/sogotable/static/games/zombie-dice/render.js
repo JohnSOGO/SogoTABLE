@@ -8,7 +8,7 @@
 // onclick, and no imports from app.js.
 import { renderHostStartLobby } from "../lobby.js";
 import { ZD_CSS } from "./styles.js";
-import { zombieDiceRollPhrase, zombieDiceBankPhrase } from "./phrases.js";
+import { zombieDiceRollPhrase, zombieDiceBankPhrase, zombieDiceLifePhrase } from "./phrases.js";
 
 const FACE_EMOJI = { brain: "\u{1F9E0}", feet: "\u{1F463}", shotgun: "\u{1F4A5}" };
 const ROLL_MOVE_TYPES = new Set(["roll", "bust"]);
@@ -72,6 +72,12 @@ function bannerHtml(game, room) {
     const score = fmt((seatState(game, game.winner) || {}).score);
     return `<p class="zd-banner zd-win">\u{1F3C6} ${escapeName(seatName(room, game.winner))} wins with ${score} brains!</p>`;
   }
+  if (game.status === "complete" && !game.winner && game.lives === 0) {
+    // Survival defeat: out of lives before 13 brains.
+    const seat = (Array.isArray(game.players) ? game.players : [])[0] || {};
+    const quip = zombieDiceLifePhrase(0, Number(game.move_count || 0) * 31);
+    return `<p class="zd-banner zd-win">${quip} ${fmt(seat.score)} \u{1F9E0} banked.</p>`;
+  }
   if (game.tiebreaker) {
     const names = (game.active_marks || []).map((mark) => escapeName(seatName(room, mark))).join(" vs ");
     return `<p class="zd-banner">☠️ Tiebreaker round — ${names}!</p>`;
@@ -112,7 +118,11 @@ function trayHtml(seat, game, room, pendingMove, animate) {
   // button is already up. Without this, a solo player never saw "Devoured!".
   let noteHtml = "";
   if (busted) {
-    noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! No brains this turn.</p>${seat.can_roll ? "" : waitingHtml(seat, game, room)}`;
+    // Survival mode swaps the plain bust line for a life-loss quip.
+    const bustLine = Number.isInteger(game.lives)
+      ? zombieDiceLifePhrase(game.lives, Number(game.move_count || 0) * 31)
+      : "No brains this turn.";
+    noteHtml = `<p class="zd-msg zd-bust">\u{1F4A5}\u{1F4A5}\u{1F4A5} Shotgunned! ${bustLine}</p>${seat.can_roll ? "" : waitingHtml(seat, game, room)}`;
   } else if (banked) {
     // A count-keyed quip ("Five 🧠 in my belly!") plus the running total.
     const gained = Number(seat.turn_brains || 0);
@@ -141,9 +151,14 @@ function trayHtml(seat, game, room, pendingMove, animate) {
       <button class="zd-bank" type="button" data-zd="bank" ${canBank ? "" : "disabled"}
         aria-label="Stop and score your brains">\u{1F9E0} Brains \u{1F9E0}</button>`;
   }
+  // Survival mode: hearts above the dice (lost lives go dark).
+  const livesHtml = Number.isInteger(game.lives)
+    ? `<p class="zd-lives" aria-label="${fmt(game.lives)} lives left">${"❤️".repeat(game.lives)}${"\u{1F5A4}".repeat(Math.max(0, 3 - game.lives))}</p>`
+    : "";
   return `
     <section class="zd-cup${banked ? " zd-done" : ""}" aria-label="Dice in the cup">${cupHtml}</section>
     <section class="zd-tray">
+      ${livesHtml}
       <div class="zd-dice${banked ? " zd-done" : ""}" aria-label="Rolled dice">${diceHtml}</div>
       ${actionsHtml ? `<div class="zd-actions" aria-label="Turn actions">${actionsHtml}</div>` : ""}
       ${noteHtml}

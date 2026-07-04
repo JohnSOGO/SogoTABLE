@@ -52,8 +52,14 @@ name/art are — see Deviations #1).
    server-rolled and every bank is server-computed. (Listed to note the survey
    question was asked; the answer is full server authority.)
 9. **Solo play is allowed** (rulebook: "Two or more can play") — a one-player
-   room is a practice race to 13, ending the moment the solo seat banks past
-   the target, consistent with the platform's other host-start games.
+   room is a race to 13, consistent with the platform's other host-start games.
+10. **Solo survival mode** (original house mode, AREC 2026-07-03): a one-seat
+    room automatically plays with **3 lives** — each three-shotgun bust costs
+    one; at zero lives the game completes as a **defeat** (no winner, banked
+    score recorded); banking to 13 first is the win. Seeded only at game start,
+    so rooms started before the mode existed keep the unloseable practice race.
+    **Parked:** solo-with-bots stays a normal race (bots supply the tension);
+    multiplayer survival/elimination is explicitly out of scope for now.
 
 ## Architecture (Survey A–G)
 
@@ -90,6 +96,10 @@ name/art are — see Deviations #1).
 | Cup refill | cup can't cover the draw | note brains, brain dice return, shotguns stay out | "cup refill: brains return…" |
 | Endgame | someone banks ≥13 | finish the round; most brains wins | "endgame: 13+ ends the game…" |
 | Tie | leaders tied at round close | leaders (only) play tiebreaker rounds until broken | "tiebreaker: tied leaders…", "tiebreaker between bots…" |
+| Survival: seed (house mode #10) | one-seat game start | lives = 3; multi-seat = null; pre-mode rooms stay null | "survival: a one-seat room gets 3 lives…" |
+| Survival: life loss | bust in a lives game | lives -1; banked score untouched; round advances | "survival: a bust costs a life…" |
+| Survival: defeat | bust at 1 life | complete, winner null, last_move "defeat" | "survival: the third bust is defeat…" |
+| Survival: win | bank to ≥13 with lives left | normal win, lives kept | "survival: banking to 13 wins…" |
 
 ## Verification Gates (fresh sessions)
 

@@ -82,6 +82,7 @@ export const ZD_CSS = `
 .zombie-dice-root .zd-msg.zd-error{color:#ff7a70;}
 .zombie-dice-root .zd-msg.zd-quip{font-style:italic;white-space:nowrap;overflow:hidden;
  text-overflow:ellipsis;max-width:100%;}
+.zombie-dice-root .zd-lives{margin:0;text-align:center;font-size:1.15rem;letter-spacing:3px;}
 .zombie-dice-root > .zd-msg{background:var(--zd-panel);border:1px solid var(--zd-line);border-radius:12px;
  padding:10px 12px;max-width:440px;}
 .zombie-dice-root .zd-standings{width:100%;max-width:440px;background:var(--zd-panel);border:1px solid var(--zd-line);

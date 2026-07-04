@@ -53,6 +53,7 @@ export function newZombieDiceGame() {
   return {
     game_id: ZOMBIE_DICE_GAME_ID,
     target_brains: ZOMBIE_DICE_TARGET_BRAINS,
+    lives: null, // solo survival mode: 3 lives seeded at a one-seat start; null = normal race
     status: "playing",
     round: 1,
     round_pending_advance: false,
@@ -79,6 +80,11 @@ export function initZombieDiceSeats(game, seats) {
   game.round_pending_advance = false;
   game.tiebreaker = false;
   game.active_marks = game.seat_order.slice();
+  // Survival mode (AREC 2026-07-03): a one-seat room races 13 brains against 3
+  // lives — a bust costs one, zero is defeat. Seeded ONLY here, so rooms
+  // started before the mode existed (lives undefined -> null) keep playing the
+  // unloseable practice race. Solo-with-bots stays a normal race (parked).
+  game.lives = game.seat_order.length === 1 ? 3 : null;
   game.winner = null;
   game.status = "playing";
   game.move_count = 0;
@@ -155,6 +161,7 @@ export function zombieDiceScoreByMark(game) {
 function normalizeZombieDiceGame(game) {
   game.game_id = ZOMBIE_DICE_GAME_ID;
   game.target_brains = ZOMBIE_DICE_TARGET_BRAINS;
+  game.lives = Number.isInteger(game.lives) ? clampInteger(game.lives, 0, 9, 3) : null;
   game.status = game.status === "complete" ? "complete" : "playing";
   game.round = clampInteger(game.round, 1, 999999, 1);
   game.round_pending_advance = Boolean(game.round_pending_advance);
@@ -261,6 +268,19 @@ export function makeZombieDiceMove(game, mark, action) {
     shotguns: moved.shotguns,
     turn_brains: busted ? 0 : moved.turn_brains,
   };
+  // Survival mode: a bust costs a life; the last life is defeat — the game
+  // completes with no winner, skipping the barrier (nothing left to advance).
+  if (busted && Number.isInteger(game.lives)) {
+    game.lives -= 1;
+    if (game.lives <= 0) {
+      game.lives = 0;
+      game.status = "complete";
+      game.winner = null;
+      game.seat_order.forEach((other) => { game.players[other].phase = "done"; });
+      game.last_move = { type: "defeat", mark, round: game.round, move_count: game.move_count };
+      return;
+    }
+  }
   maybeAdvanceZombieDiceRound(game);
 }
 

@@ -312,6 +312,66 @@ test("bots-only tiebreaker that never breaks resolves deterministically, no soft
   assert.equal(g.last_move.type, "complete");
 });
 
+// ---- solo survival mode ---------------------------------------------------------
+
+function soloGame() {
+  const g = newZombieDiceGame();
+  initZombieDiceSeats(g, [human("P1", "A")]);
+  return g;
+}
+
+test("survival: a one-seat room gets 3 lives, a multi-seat room gets none", () => {
+  assert.equal(soloGame().lives, 3);
+  assert.equal(twoHumans().lives, null);
+  assert.equal(zombieDiceGameToDict(soloGame()).lives, 3, "lives ride the projection");
+});
+
+test("survival: a bust costs a life; banked brains survive; the round advances", () => {
+  const g = soloGame();
+  rig([0, 0, 0, 0.1, 0.1, 0.1]); // 3 brains
+  makeZombieDiceMove(g, "P1", { type: "roll" });
+  makeZombieDiceMove(g, "P1", { type: "bank" });
+  assert.equal(g.lives, 3, "banking never costs a life");
+  rig([0, 0, 0, 0.99, 0.99, 0.99]); // instant bust opens round 2
+  makeZombieDiceMove(g, "P1", { type: "roll" });
+  assert.equal(g.lives, 2);
+  assert.equal(g.status, "playing");
+  assert.equal(g.players.P1.score, 3, "the banked score is untouched by a life loss");
+  assert.equal(g.round_pending_advance, true, "the next round is still reachable");
+});
+
+test("survival: the third bust is defeat — complete, no winner", () => {
+  const g = soloGame();
+  for (let bust = 0; bust < 3; bust += 1) {
+    rig([0, 0, 0, 0.99, 0.99, 0.99]);
+    makeZombieDiceMove(g, "P1", { type: "roll" });
+  }
+  assert.equal(g.lives, 0);
+  assert.equal(g.status, "complete");
+  assert.equal(g.winner, null);
+  assert.equal(g.last_move.type, "defeat");
+  assert.throws(() => makeZombieDiceMove(g, "P1", { type: "roll" }), /complete/);
+});
+
+test("survival: banking to 13 wins with lives to spare", () => {
+  const g = soloGame();
+  g.players.P1.turn_brains = 13;
+  g.players.P1.phase = "rolled";
+  makeZombieDiceMove(g, "P1", { type: "bank" });
+  assert.equal(g.status, "complete");
+  assert.equal(g.winner, "P1");
+  assert.equal(g.lives, 3);
+});
+
+test("survival: rooms started before the mode existed stay unloseable", () => {
+  const g = soloGame();
+  delete g.lives; // a pre-variant persisted blob has no lives field
+  rig([0, 0, 0, 0.99, 0.99, 0.99]);
+  makeZombieDiceMove(g, "P1", { type: "roll" });
+  assert.equal(g.lives, null, "no lives are invented for an old room");
+  assert.equal(g.status, "playing");
+});
+
 // ---- bots ---------------------------------------------------------------------
 
 test("bots resolve their whole turn at round start via the human rules path", () => {
@@ -353,7 +413,7 @@ test("projection: toDict emits every field the client reads, per seat and game",
   makeZombieDiceMove(g, "P1", { type: "roll" });
   const dict = zombieDiceGameToDict(g);
   assert.equal(dict.game_id, ZOMBIE_DICE_GAME_ID);
-  ["target_brains", "round", "round_pending_advance", "tiebreaker", "active_marks",
+  ["target_brains", "lives", "round", "round_pending_advance", "tiebreaker", "active_marks",
     "status", "winner", "move_count", "last_move", "players"].forEach((key) => {
     assert.ok(key in dict, `game field ${key} missing from projection`);
   });
