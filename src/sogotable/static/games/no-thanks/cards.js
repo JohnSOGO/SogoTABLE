@@ -27,26 +27,29 @@ function cardTier(value) {
 // One card face: corner indices + a big center value, tinted by danger tier.
 // opts.size: "big" (the face-up table card) | "hand" (your cards) | "mini"
 // (other players' cards). opts.flip replays the deal-in animation.
+// opts.zIndex stacks overlapping run cards (flex items honor z-index).
 export function noThanksCardHtml(value, opts = {}) {
   const size = opts.size || "hand";
   const classes = ["nt-card", `nt-card-${size}`, `nt-tier-${cardTier(value)}`];
   if (opts.flip) classes.push("nt-flip-in");
   if (opts.extraClass) classes.push(opts.extraClass);
-  return `<span class="${classes.join(" ")}" role="img" aria-label="card ${value}">
+  return `<span class="${classes.join(" ")}"${Number.isInteger(opts.zIndex) ? ` style="z-index:${opts.zIndex}"` : ""} role="img" aria-label="card ${value}">
     <span class="nt-corner nt-corner-tl">${value}</span>
     <span class="nt-value">${value}</span>
     <span class="nt-corner nt-corner-br">${value}</span>
   </span>`;
 }
 
-// A player's cards as fanned runs; the lowest card of each run (the one that
-// counts) sits fully visible in front, the rest tuck behind it.
+// A player's cards as fanned runs. The LOWEST card of a run is the group's
+// score (the rest count nothing), so it sits ON TOP of the stack, fully
+// visible, with the higher cards tucked behind it — descending z-index,
+// since DOM paint order alone would bury the card that matters.
 export function noThanksRunsHtml(cards, opts = {}) {
   const size = opts.size || "hand";
   const runs = groupNoThanksRuns(cards);
   if (!runs.length) return `<span class="nt-no-cards">no cards</span>`;
   return runs.map((run) => `<span class="nt-run">${run.map((card, index) =>
-    noThanksCardHtml(card, { size, extraClass: index === 0 ? "nt-run-head" : "nt-run-tail" })).join("")}</span>`).join("");
+    noThanksCardHtml(card, { size, extraClass: index === 0 ? "nt-run-head" : "nt-run-tail", zIndex: run.length - index })).join("")}</span>`).join("");
 }
 
 // A chip stack: token glyphs for small stacks, token + count beyond that.
