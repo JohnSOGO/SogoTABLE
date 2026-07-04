@@ -22,6 +22,10 @@ const TAKE_ANIM_MS = 2000; // a take animates for 2s before anyone (AI or player
 let stylesInjected = false;
 // Event replay cursor: how far into game.events the display has advanced.
 let pace = { key: "", shown: 0, timer: null };
+// Tip-strip pagination: the strip is a FIXED one-liner (wrapping would grow
+// it and jump the controls below). Text that doesn't fit splits into pages;
+// tapping the strip advances. Keyed by the full text so a new tip resets.
+let tipPages = { text: "", page: 0, pages: [] };
 // The take being animated: the card flies from the table to the taker's
 // panel; `flown` guards the overlay against re-paints mid-flight.
 let takeAnim = { key: "", moveCount: 0, until: 0, flown: false };
@@ -149,7 +153,10 @@ function renderNoThanksPlay(host, ctx) {
     }, 900);
   }
 
-  const flip = table.card !== null && table.card !== lastCardShown;
+  // The table card only ever changes on a take, and the take's own glide-down
+  // is the animation — a flip UNDER the flying card is noise (MojoSOGO
+  // 2026-07-04). The flip-in stays for the opening deal only.
+  const flip = table.card !== null && lastCardShown === null;
   lastCardShown = table.card;
   const myChips = displayLocal ? Number(displayLocal.chips || 0) : -1;
   if (lastChips.key !== paceKey) lastChips = { key: paceKey, pot: table.pot, mine: myChips }; // fresh table: no flash
@@ -177,6 +184,7 @@ function renderNoThanksPlay(host, ctx) {
       ${othersHtml(displaySeats, room, game, displayLocal, { caughtUp, complete, ghostMark, ghostCard })}
     </div>`;
   wireNoThanks(host, ctx, myTurn);
+  paginateTip(host);
   if (animatingTake && !takeAnim.flown) {
     takeAnim.flown = true;
     flyTakenCard(host, lastVisible.mark, lastVisible.card);
@@ -204,19 +212,19 @@ function flyTakenCard(host, takerMark, cardValue) {
   holder.innerHTML = noThanksCardHtml(cardValue, { size: "big" });
   const clone = holder.firstElementChild;
   clone.classList.add("nt-fly");
-  clone.style.cssText += `;position:fixed;left:${from.left}px;top:${from.top}px;width:${from.width}px;height:${from.height}px;margin:0;transform-origin:top left;`;
-  // Inside the root so the scoped card styles dress the clone; the 2s
-  // re-render replaces the root's innerHTML, which also sweeps both the
-  // clone and the visibility:hidden below away.
+  // Positioned ABSOLUTE inside the root (not fixed — a transformed ancestor
+  // silently rebases fixed elements and the flight lands nowhere visible),
+  // so the scoped card styles dress it and the 2s re-render sweeps it away.
+  const rootRect = root.getBoundingClientRect();
+  clone.style.cssText += `;position:absolute;left:${from.left - rootRect.left}px;top:${from.top - rootRect.top}px;width:${from.width}px;height:${from.height}px;margin:0;transform-origin:top left;`;
   root.appendChild(clone);
+  clone.getBoundingClientRect(); // flush layout so the transition below actually animates
   // The destination is the ghost slot (rendered invisible) — the clone IS
   // the card until the post-anim repaint swaps the real one in.
-  requestAnimationFrame(() => {
-    clone.style.transform = destCard
-      ? `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})`
-      : `translate(${to.left + to.width / 2 - (from.left + from.width / 2)}px, ${to.top + Math.min(to.height / 2, 44) - (from.top + from.height / 2)}px) scale(.32) rotate(6deg)`;
-    if (!destCard) clone.style.opacity = "0.2";
-  });
+  clone.style.transform = destCard
+    ? `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})`
+    : `translate(${to.left + to.width / 2 - (from.left + from.width / 2)}px, ${to.top + Math.min(to.height / 2, 44) - (from.top + from.height / 2)}px) scale(.32) rotate(6deg)`;
+  if (!destCard) clone.style.opacity = "0.2";
   setTimeout(() => clone.remove(), TAKE_ANIM_MS);
 }
 
@@ -253,7 +261,49 @@ function tipHtml(game, room, localSeat, view) {
   } else {
     tip = "…";
   }
-  return `<p class="nt-tip${view.myTurn ? " nt-your-turn" : ""}">${tip}</p>`;
+  return `<p class="nt-tip${view.myTurn ? " nt-your-turn" : ""}" data-nt-tip>
+    <span class="nt-tip-text">${tip}</span><span class="nt-tip-page" hidden></span>
+  </p>`;
+}
+
+// Fit the tip to its single line. If it overflows, greedily split the words
+// into pages that fit beside the n/m badge, show the current page, and let a
+// tap on the strip flip to the next. Pure display — measured on live rects,
+// so it adapts to every device width.
+function paginateTip(host) {
+  const strip = host.querySelector("[data-nt-tip]");
+  if (!strip) return;
+  const textEl = strip.querySelector(".nt-tip-text");
+  const badge = strip.querySelector(".nt-tip-page");
+  const full = textEl.textContent.replace(/\s+/g, " ").trim();
+  if (tipPages.text !== full) tipPages = { text: full, page: 0, pages: [] };
+  textEl.textContent = full;
+  badge.hidden = true;
+  if (textEl.scrollWidth <= textEl.clientWidth + 1) return; // fits — one page, no badge
+  badge.hidden = false;
+  badge.textContent = "9/9"; // worst-case badge width while measuring
+  const fits = (candidate) => {
+    textEl.textContent = candidate;
+    return textEl.scrollWidth <= textEl.clientWidth + 1;
+  };
+  const pages = [];
+  let current = "";
+  for (const word of full.split(" ")) {
+    const attempt = current ? `${current} ${word}` : word;
+    if (fits(attempt)) current = attempt;
+    else { if (current) pages.push(current); current = word; }
+  }
+  if (current) pages.push(current);
+  tipPages.pages = pages.length ? pages : [full];
+  const show = () => {
+    const total = tipPages.pages.length;
+    tipPages.page %= total;
+    textEl.textContent = tipPages.pages[tipPages.page];
+    badge.textContent = `${tipPages.page + 1}/${total}`;
+  };
+  show();
+  strip.classList.add("nt-tip-paged");
+  strip.addEventListener("click", () => { tipPages.page += 1; show(); });
 }
 
 // The table: deck + face-up card on the left, the turn list on the right —

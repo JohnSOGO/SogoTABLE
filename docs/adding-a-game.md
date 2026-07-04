@@ -327,7 +327,11 @@ game hits (all learned on Yahtzee):
   tap lands on the wrong target. Reserve hiding for whole-screen transitions
   (lobby → play → results). Bake this into the first generated draft rather
   than retrofitting it (No Thanks shipped with `${myTurn ? actions : ""}` and
-  had to be reworked). Also a hard rule below.
+  had to be reworked). Same rule for text: a tip/status strip is a FIXED
+  one-liner — wrapping grows it and jumps everything below. If the text can
+  overflow, paginate it (an `n/m` badge, tap the strip to flip pages — No
+  Thanks `paginateTip` is the worked example) instead of letting it wrap.
+  Also a hard rule below.
 - **The client wiring is more than the one-liner.** The "one `GAME_HANDLERS` row"
   is the *worker* side. A host-start / Game-Locked game also adds, in `app.js` (all
   additive, beside the existing games — never replacing them): an import, a

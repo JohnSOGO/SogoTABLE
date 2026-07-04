@@ -9,7 +9,7 @@
 // glance. This file is the card-look pilot — expect heavy iteration here.
 export const NT_CSS = `
 #macroBoard:has(.no-thanks-root){display:block;aspect-ratio:auto;background:none;border:none;}
-.no-thanks-root{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;
+.no-thanks-root{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;
  width:100%;box-sizing:border-box;padding:16px 10px 22px;border-radius:18px;
  background:var(--bg);
  --nt-panel:var(--panel);--nt-ink:var(--ink);--nt-muted:var(--muted);--nt-line:var(--line);
@@ -19,10 +19,17 @@ export const NT_CSS = `
 .no-thanks-root .nt-panel{width:100%;max-width:440px;background:var(--nt-panel);border:1px solid var(--nt-line);
  border-radius:14px;padding:10px 12px;box-sizing:border-box;}
 .no-thanks-root .nt-banner{margin:0;text-align:center;font-weight:700;font-size:1.12rem;}
-/* Tip strip: the one home for long guidance/verdict text. */
+/* Tip strip: the one home for long guidance/verdict text. ALWAYS one line —
+   wrapping would grow the strip and jump the controls below (the no-jump
+   rule). Overflow paginates: an n/m badge appears and a tap flips pages. */
 .no-thanks-root .nt-tip{width:100%;max-width:440px;box-sizing:border-box;margin:0;
  padding:9px 12px;border-radius:12px;background:var(--nt-panel);border:1px solid var(--nt-line);
- font-size:.9rem;text-align:center;color:var(--nt-ink);min-height:38px;}
+ font-size:.9rem;color:var(--nt-ink);height:38px;display:flex;align-items:center;gap:6px;
+ white-space:nowrap;overflow:hidden;}
+.no-thanks-root .nt-tip .nt-tip-text{flex:1;min-width:0;overflow:hidden;text-align:center;}
+.no-thanks-root .nt-tip .nt-tip-page{flex:0 0 auto;font-size:.7rem;color:var(--nt-muted);
+ border:1px solid var(--nt-line);border-radius:8px;padding:1px 6px;}
+.no-thanks-root .nt-tip.nt-tip-paged{cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .no-thanks-root .nt-tip.nt-your-turn{border-color:var(--nt-gold);animation:nt-turn-pulse 1.2s ease-in-out 3;}
 @keyframes nt-turn-pulse{50%{background:rgba(231,194,86,.16);box-shadow:0 0 0 3px rgba(231,194,86,.18);}}
 /* ---- the card (cards.js primitives): paper face in every theme ---- */
