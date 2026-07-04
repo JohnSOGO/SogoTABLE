@@ -79,6 +79,7 @@ import { renderTenThousandGame } from "./games/ten-thousand/render.js";
 import { wireTenThousandFarkleAck, maybeAutoAckTenThousandFarkle } from "./games/ten-thousand/farkle-ack.js";
 import { renderZombieDiceGame } from "./games/zombie-dice/render.js";
 import { renderLiarsDiceGame } from "./games/liars-dice/render.js";
+import { renderNoThanksGame } from "./games/no-thanks/render.js";
 import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { renderRttaGame } from "./games/rtta/render.js";
@@ -113,7 +114,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -1796,10 +1797,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
@@ -1961,7 +1962,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }

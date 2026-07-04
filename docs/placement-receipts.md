@@ -473,3 +473,43 @@ PLACEMENT RECEIPT
 - New owner row: | workers/games/skip-vote.js | Unanimous barrier-skip vote protocol
                 (toggle / prune-ineligible / unanimity / clear) — eligibility predicate
                 injected per game | workers/sogotable-api.js |
+
+## 2026-07-04 — No Thanks! (first card game; card-UI pilot quarantined in its game dir)
+Commit: (feature/no-thanks) feat(no-thanks): the classic card auction, first card game
+
+PLACEMENT RECEIPT
+- Ask:          Place the new "No Thanks" card game — pure rules + hidden-chip
+                sanitizer, worker room integration, game-owned card UI (tap/drag
+                pilot) + per-game CSS.
+- Verdict:      workers/games/no-thanks/{rules,ai}.js +
+                src/sogotable/static/games/no-thanks/{manifest,render,cards,styles}.js
+                [EXISTING directory-pattern owners; registration lines in
+                workers/sogotable-api.js, workers/stats.js, app.js,
+                games/registry.js, games/game-kinds.js, review-export.js]
+- Flow stage:   validate + apply + record own rules.js (incl. per-viewer sanitize
+                at broadcast); render owns the games/no-thanks/ client subtree;
+                orchestrate gets dispatch rows only.
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js (live
+                CEILINGS), workers/sogotable-api.js (liars-dice integration points),
+                src/sogotable/static/app.js, game subtree listings for
+                liars-dice/zombie-dice/rtta.
+- Considerations:
+    - Live ceilings: workers/sogotable-api.js 1557/1580 pre-change (~9-line
+      integration fits; flag: near-exhausted — extract GAME_HANDLERS before the
+      NEXT game); app.js 2448/2497 (fits); styles-games.css 1648/1700 (avoided
+      entirely — CSS lives in games/no-thanks/styles.js, uncapped).
+    - Alternatives rejected: CSS in styles-games.css (near-full capped file);
+      card tap/drag primitives in the shell or a shared games/ helper now
+      (premature — first card game; extract a shared helper only when a second
+      card game needs it, never game-to-game imports); chip-hiding in
+      workers/projections.js (hidden-info sanitizers live beside the game's
+      rules per the Liar's Dice precedent).
+    - Stability threat avoided: no rules logic in render.js (chip legality +
+      run scoring are rules-stage), no new weight on the two god-files beyond
+      dispatch rows, and the card-UI pilot is quarantined in cards.js inside
+      the game's own subtree instead of becoming shell code.
+- New owner row: none (both directories covered by existing pattern rows).
+
+Standing flag: workers/sogotable-api.js will not absorb many more ~9-line game
+registrations; schedule a reorganizer pass to extract the GAME_HANDLERS table
+before the next game lands.
