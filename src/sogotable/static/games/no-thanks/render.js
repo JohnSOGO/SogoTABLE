@@ -266,10 +266,25 @@ function tipHtml(game, room, localSeat, view) {
   </p>`;
 }
 
-// Fit the tip to its single line. If it overflows, greedily split the words
-// into pages that fit beside the n/m badge, show the current page, and let a
-// tap on the strip flip to the next. Pure display — measured on live rects,
-// so it adapts to every device width.
+// A tip broken into complete ideas: a chunk ends after sentence punctuation
+// or a comma, so page breaks land BETWEEN thoughts ("Take the card (and
+// every chip on it)," | "or pay 1 chip to say No Thanks."), never mid-idea.
+function ideaChunks(text) {
+  const chunks = [];
+  let buffer = "";
+  for (const word of text.split(" ")) {
+    buffer = buffer ? `${buffer} ${word}` : word;
+    if (/[.!?;:,]$/.test(word)) { chunks.push(buffer); buffer = ""; }
+  }
+  if (buffer) chunks.push(buffer);
+  return chunks;
+}
+
+// Fit the tip to its single line. If it overflows, pack whole IDEAS into
+// pages that fit beside the n/m badge (word-splitting only an idea that is
+// alone too long), show the current page, and let a tap on the strip flip to
+// the next. Pure display — measured on live rects, so it adapts to every
+// device width.
 function paginateTip(host) {
   const strip = host.querySelector("[data-nt-tip]");
   if (!strip) return;
@@ -288,12 +303,19 @@ function paginateTip(host) {
   };
   const pages = [];
   let current = "";
-  for (const word of full.split(" ")) {
-    const attempt = current ? `${current} ${word}` : word;
-    if (fits(attempt)) current = attempt;
-    else { if (current) pages.push(current); current = word; }
+  const push = () => { if (current) { pages.push(current); current = ""; } };
+  for (const idea of ideaChunks(full)) {
+    const attempt = current ? `${current} ${idea}` : idea;
+    if (fits(attempt)) { current = attempt; continue; }
+    push();
+    if (fits(idea)) { current = idea; continue; }
+    for (const word of idea.split(" ")) { // an idea alone too long: last resort, split it
+      const wordAttempt = current ? `${current} ${word}` : word;
+      if (fits(wordAttempt)) current = wordAttempt;
+      else { push(); current = word; }
+    }
   }
-  if (current) pages.push(current);
+  push();
   tipPages.pages = pages.length ? pages : [full];
   const show = () => {
     const total = tipPages.pages.length;
