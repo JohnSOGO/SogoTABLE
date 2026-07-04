@@ -189,18 +189,21 @@ function othersHtml(seats, room, game, localSeat, view) {
   }).join("");
 }
 
+// Table layout per MojoSOGO's global table style (2026-07-04): player name
+// left-justified, a single-emoji status column right beside it, stat columns
+// centered, and no row numbering.
 function resultsHtml(game, room) {
-  const rows = (Array.isArray(game.results) ? game.results : []).map((row, index) => `
+  const rows = (Array.isArray(game.results) ? game.results : []).map((row) => `
     <tr class="${row.mark === game.winner ? "nt-winner-row" : ""}">
-      <td>${index + 1}.</td>
-      <td>${seatEmoji(room, row.mark)} ${escapeName(seatName(room, row.mark))}</td>
+      <td class="nt-name">${seatEmoji(room, row.mark)} ${escapeName(seatName(room, row.mark))}</td>
+      <td class="nt-status">${row.mark === game.winner ? "\u{1F3C6}" : ""}</td>
       <td class="nt-num">${fmt(row.card_score)}</td>
       <td class="nt-num">−${fmt(row.chips)}</td>
       <td class="nt-num nt-total">${fmt(row.total)}</td>
     </tr>`).join("");
   return `<section class="nt-panel" aria-label="Final scores">
     <table class="nt-results-table">
-      <thead><tr><th></th><th>Player</th><th>Cards</th><th>\u{1FA99}</th><th>Total</th></tr></thead>
+      <thead><tr><th class="nt-name">Player</th><th class="nt-status"></th><th>Cards</th><th>\u{1FA99}</th><th>Total</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </section>`;

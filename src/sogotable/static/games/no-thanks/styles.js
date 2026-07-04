@@ -93,14 +93,21 @@ export const NT_CSS = `
 .no-thanks-root .nt-score-tag{font-size:.78rem;color:var(--nt-muted);white-space:nowrap;}
 .no-thanks-root .nt-msg{margin:0;font-size:.9rem;color:var(--nt-muted);text-align:center;}
 .no-thanks-root .nt-msg.nt-error{color:var(--nt-danger);}
-/* ---- final results ---- */
+/* ---- final results ----
+   House table style (MojoSOGO 2026-07-04, global): player name left, a
+   single-emoji status column beside it, stat columns centered, no row
+   numbers. */
 .no-thanks-root .nt-results-table{width:100%;border-collapse:collapse;}
 .no-thanks-root .nt-results-table th{font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;
- color:var(--nt-muted);padding:3px 5px;text-align:left;border-bottom:1px solid var(--nt-line);}
+ color:var(--nt-muted);padding:3px 5px;text-align:center;border-bottom:1px solid var(--nt-line);}
 .no-thanks-root .nt-results-table td{padding:6px 5px;font-size:.88rem;border-bottom:1px solid var(--nt-line);
- color:var(--nt-ink);}
+ color:var(--nt-ink);text-align:center;}
 .no-thanks-root .nt-results-table tr:last-child td{border-bottom:none;}
-.no-thanks-root .nt-results-table td.nt-num{text-align:right;font-variant-numeric:tabular-nums;}
+.no-thanks-root .nt-results-table th.nt-name,.no-thanks-root .nt-results-table td.nt-name{text-align:left;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.no-thanks-root .nt-results-table th.nt-status,.no-thanks-root .nt-results-table td.nt-status{width:28px;
+ padding-left:0;padding-right:0;}
+.no-thanks-root .nt-results-table td.nt-num{font-variant-numeric:tabular-nums;}
 .no-thanks-root .nt-results-table td.nt-total{font-weight:800;}
 .no-thanks-root .nt-results-table tr.nt-winner-row td{background:rgba(231,194,86,.14);}
 `;
