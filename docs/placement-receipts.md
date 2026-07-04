@@ -436,7 +436,7 @@ PLACEMENT RECEIPT
                 rows in docs/module-ownership.md.
 
 ## 2026-07-04 — Unanimous barrier-skip votes (new shared owner: skip-vote.js)
-Commit: pending
+Commit: 85cb000 feat(platform): barrier skips are unanimous votes (skip-vote.js)
 
 PLACEMENT RECEIPT
 - Ask:          Make SKIP_PLAYER a unanimous vote (propose / toggle / prune /
