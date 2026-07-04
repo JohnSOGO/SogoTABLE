@@ -21,6 +21,7 @@ export const GAME_IDS = {
   rtta: "7a1c3e9f5b28",
   zombieDice: "3f9b7d2e8a41",
   liarsDice: "b6e4a2d91f57",
+  noThanks: "c5d9e1f3a627",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -29,6 +30,7 @@ export const GAME_CATEGORIES = [
   { id: "paper", label: "Pen and Paper Games" },
   { id: "dice", label: "Dice Games" },
   { id: "board", label: "Board Games" },
+  { id: "card", label: "Card Games" },
 ];
 
 export const GAME_REGISTRY = [
@@ -164,5 +166,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["rtta", "roll_through_the_ages", "bronze_age"],
+  },
+  {
+    id: GAME_IDS.noThanks,
+    lobbyMode: "hostStart",
+    name: "🃏 No Thanks!",
+    summary: "Press-your-luck card auction: pay a chip to dodge the card or take it with every chip riding on it — lowest score wins.",
+    players: "3-7 players",
+    player_count: null,
+    host_start: true,
+    category: "card",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["no_thanks", "no-thanks", "nothanks", "no_merci"],
   },
 ];
