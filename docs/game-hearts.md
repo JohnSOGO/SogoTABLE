@@ -60,7 +60,10 @@ reset by `carryOptionsOnReset`.
   the human's remaining cards auto-play too ("no points left — playing out
   the hand"). Below the standings table a 0 → target progress line carries
   each player's emoji; a standings row pulses soft yellow at 80% of the
-  target and soft red at 90%. Selection works even OFF-turn (pre-select, so
+  target and soft red at 90%. Standings rows sit in TABLE order — you at the
+  top, then clockwise play order — so the turn pointer walks down the list
+  and wraps, never skipping around a score sort (the progress line shows the
+  race instead). Selection works even OFF-turn (pre-select, so
   Commit is one tap when the turn arrives; on-turn taps are limited to legal
   cards). The three received pass cards arrive already raised + highlighted;
   selecting any card for play lowers the rest (a received card tapped for play

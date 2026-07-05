@@ -313,7 +313,7 @@ function renderHeartsPlay(host, ctx) {
         ${actionButtonHtml(game, { caughtUp, complete, myTurn, passing, myPassPending, movePending, localSeat, raisedCount: raised.cards.size, playReady, queuedCard })}
       </div>
       <div class="hx-hand${dealing ? " hx-dealing" : ""}">${handHtml(myHand, localSeat, legal, game, myTurn)}</div>
-      ${standingsHtml(displaySeats, room, game, actorMark, complete && caughtUp)}
+      ${standingsHtml(displaySeats, room, game, actorMark, complete && caughtUp, localMark)}
       <p class="hx-msg" data-hx-note></p>
     </div>`;
   wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending, preselect, offTurnPlaying: preselect && !myTurn, arrow: DIRECTION_ARROWS[game.pass_direction] || "" });
@@ -582,9 +582,15 @@ function seatScore(game, mark) {
 // The standing score table — ALWAYS below the cards region (MojoSOGO
 // 2026-07-04). House table style: name left, single-emoji status column,
 // stat columns centered, no row numbers. Lowest score leads the sort.
-function standingsHtml(displaySeats, room, game, actorMark, finished) {
+function standingsHtml(displaySeats, room, game, actorMark, finished, localMark) {
   const target = Number(game.options && game.options.target_score) || 100;
-  const seats = displaySeats.slice().sort((a, b) => a.score - b.score);
+  // Rows sit in TABLE order — you at the top, then clockwise (play order) —
+  // so the 👉 walks straight down the list and wraps bottom to top instead
+  // of skipping around a score sort (MojoSOGO 2026-07-04).
+  const order = Array.isArray(game.seat_order) && game.seat_order.length
+    ? game.seat_order : displaySeats.map((seat) => seat.mark);
+  const anchor = localMark && order.includes(localMark) ? order.indexOf(localMark) : 0;
+  const seats = order.map((_, i) => seatByMark(displaySeats, order[(anchor + i) % order.length])).filter(Boolean);
   const rows = seats.map((seat) => {
     const flag = finished && game.winner === seat.mark ? "🏆" : actorMark === seat.mark ? "👉" : "";
     // Danger pulses scale to the target (at the default 100: the 80s pulse
