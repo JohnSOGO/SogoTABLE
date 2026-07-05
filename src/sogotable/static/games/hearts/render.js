@@ -169,6 +169,10 @@ function renderHeartsPlay(host, ctx) {
   const myHand = localSeat
     ? sortPlayingCards((localSeat.hand || []).filter((card) => typeof card === "string").concat(myFuture))
     : [];
+  // A committed card stays raised until it actually leaves the hand — clearing
+  // it early made an auto-play look like unselect → reselect → play
+  // (MojoSOGO 2026-07-04). The raise set simply never outlives the hand.
+  if (raised.cards.size) raised.cards = new Set([...raised.cards].filter((card) => myHand.includes(card)));
 
   // The trick on the felt at the shown moment. Mid-replay (and during the
   // final event's dwell) it derives from the visible events so each play
@@ -217,8 +221,9 @@ function renderHeartsPlay(host, ctx) {
     const commitKey = `${paceKey}:${target}`;
     if (Array.isArray(legal) && legal.includes(queued) && autoCommitted !== commitKey) {
       autoCommitted = commitKey;
-      raised.cards.clear();
-      ctx.makeMove({ type: "play", card: queued }); // reply snapshot repaints
+      // The card stays raised while the play is in flight — the reply snapshot
+      // removes it from the hand and the raise set follows.
+      ctx.makeMove({ type: "play", card: queued });
     }
   }
   const playReady = myTurn && raised.cards.size === 1 && Array.isArray(legal) && legal.includes([...raised.cards][0]);
@@ -555,7 +560,8 @@ function wireHearts(host, ctx, view) {
     }
   };
   const commitPlay = (card) => {
-    raised.cards.clear();
+    // No raised.clear() here: the card stays up until the reply snapshot takes
+    // it out of the hand — lowering it first reads as a spurious unselect.
     send({ type: "play", card });
   };
   host.querySelectorAll(".hx-hand .pc-card[data-card]").forEach((cardEl) => {
