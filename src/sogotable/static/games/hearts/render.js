@@ -37,6 +37,7 @@ let pace = { key: "", shown: 0, nextAt: 0, timer: null };
 let sounded = 0;        // move_count of the last event given its sound
 let dealAnimRound = 0;  // the round whose deal-in the hand has already fanned
 let raised = { key: "", cards: new Set() }; // tap-to-raise state (pass picks / the play candidate)
+let receivedSeed = "";  // round whose received trio has been auto-raised once
 
 export function renderHeartsGame(ctx) {
   const { host, game } = ctx;
@@ -183,9 +184,21 @@ function renderHeartsPlay(host, ctx) {
     : visible.some((event) => event.type === "play" && Number(event.move_count) > dealCountBefore(visible) && cardSuit(event.card) === "H");
   const myTurn = settled && !movePending && !complete && game.phase === "playing"
     && Boolean(localSeat && game.current_player === localMark);
+  // Pre-selection: a card may be raised at ANY time you hold cards in the
+  // playing phase — even mid-replay, even off-turn — so Commit is one tap
+  // away when the turn arrives (MojoSOGO 2026-07-04).
+  const preselect = Boolean(localSeat) && !complete && game.phase === "playing";
+  // The three received cards arrive already raised (and gold-outlined) once
+  // per round; selecting any card for play lowers the others.
+  const seedKey = `${paceKey}:r${Number(game.round) || 0}`;
+  if (preselect && game.first_trick && localSeat && Array.isArray(localSeat.received) && receivedSeed !== seedKey) {
+    receivedSeed = seedKey;
+    raised.cards = new Set(localSeat.received.filter((card) => (localSeat.hand || []).includes(card)));
+  }
   const passing = settled && !complete && game.phase === "passing";
   const myPassPending = passing && Boolean(localSeat) && !seatByMark(seats, localMark).has_passed;
   const legal = myTurn && Array.isArray(game.legal_plays) ? game.legal_plays : null;
+  const playReady = myTurn && raised.cards.size === 1 && Array.isArray(legal) && legal.includes([...raised.cards][0]);
   const showResults = settled && (complete || game.phase === "round_end");
   const actorMark = settled ? game.current_player
     : (lastVisible && lastVisible.type === "play" ? lastVisible.next : null);
@@ -211,13 +224,13 @@ function renderHeartsPlay(host, ctx) {
       </div>
       <div class="hx-actionrow">
         ${meMark ? seatBoxHtml(displaySeats, room, game, meMark, actorMark, passing, caughtUp) : `<div class="hx-seatbox"><span class="hx-nm">Watching</span></div>`}
-        ${actionButtonHtml(game, { caughtUp, complete, myTurn, passing, myPassPending, movePending, localSeat, raisedCount: raised.cards.size })}
+        ${actionButtonHtml(game, { caughtUp, complete, myTurn, passing, myPassPending, movePending, localSeat, raisedCount: raised.cards.size, playReady })}
       </div>
       <div class="hx-hand${dealing ? " hx-dealing" : ""}">${handHtml(myHand, localSeat, legal, game, myTurn)}</div>
       ${standingsHtml(displaySeats, room, game, actorMark, complete && caughtUp)}
       <p class="hx-msg" data-hx-note></p>
     </div>`;
-  wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending });
+  wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending, preselect });
 
   // The trick-collect glide: after the dwell's read time, the four cards get
   // their direction class and slide to the winner.
@@ -319,7 +332,7 @@ function actionButtonHtml(game, view) {
     return `<button class="hx-action" type="button" data-hx-action="next_round" ${view.movePending ? "disabled" : ""}>Commit</button>`;
   }
   if (view.myTurn) {
-    return `<button class="hx-action" type="button" data-hx-action="play" ${view.raisedCount === 1 ? "" : "disabled"}>Commit</button>`;
+    return `<button class="hx-action" type="button" data-hx-action="play" ${view.playReady ? "" : "disabled"}>Commit</button>`;
   }
   return `<button class="hx-action" type="button" data-hx-action disabled>Waiting…</button>`;
 }
@@ -448,9 +461,14 @@ function wireHearts(host, ctx, view) {
         rerender();
         return;
       }
-      if (view.myTurn && view.legal && view.legal.includes(card)) {
-        if (raised.cards.has(card)) raised.cards.delete(card); // tap again = unselect
-        else { raised.cards.clear(); raised.cards.add(card); } // tap = select (one at a time)
+      // Playing phase: selection works even off-turn (pre-select, MojoSOGO
+      // 2026-07-04); on-turn it is limited to legal cards. Selecting a card
+      // lowers everything else — including the auto-raised received trio —
+      // and if the tapped card was already among the raised, it simply stays
+      // as THE selection. Tapping the lone selected card unselects it.
+      if (view.preselect && (!view.myTurn || (view.legal && view.legal.includes(card)))) {
+        if (raised.cards.has(card) && raised.cards.size === 1) raised.cards.delete(card);
+        else { raised.cards.clear(); raised.cards.add(card); }
         playClick();
         rerender();
       }

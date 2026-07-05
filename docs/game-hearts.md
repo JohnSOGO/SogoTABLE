@@ -43,11 +43,15 @@ reset by `carryOptionsOnReset`.
   resolves whole bot chains in one snapshot; the client replays events one at
   a time (animated deal, plays slide in from each seat, finished tricks glide
   to the winner). Interactions unlock only after the replay settles.
-  Tap a card to select it (tap again to unselect — never a double-tap commit);
-  commit with the always-labeled **Commit** button or an up-swipe toward the
-  felt. The same button commits the 3-card pass and the next deal. A standing
-  score table (name left, emoji status, centered stats) always sits below the
-  cards region; seat boxes carry names + turn markers only.
+  Tap a card to select it (tap the lone selection again to unselect — never a
+  double-tap commit); commit with the always-labeled **Commit** button or an
+  up-swipe toward the felt. Selection works even OFF-turn (pre-select, so
+  Commit is one tap when the turn arrives; on-turn taps are limited to legal
+  cards). The three received pass cards arrive already raised + highlighted;
+  selecting any card for play lowers the rest (a received card tapped for play
+  stays up alone). The same button commits the 3-card pass and the next deal.
+  A standing score table (name left, emoji status, centered stats) always sits
+  below the cards region; seat boxes carry names + turn markers only.
 - `src/sogotable/static/games/playing-cards.js` — shared 52-card face/back
   builders + canonical sort (new owner row; future deck games import from here,
   never game-to-game).
