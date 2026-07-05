@@ -1,6 +1,3 @@
-// Game metadata is shared with the browser app from one registry module so the
-// two can't drift. esbuild bundles this relative import into the Worker.
-import { GAME_IDS } from "../src/sogotable/static/games/registry.js";
 // Platform + persistence helpers (extracted so the Worker entry owns routing, not
 // HTTP/CORS/rate-limit/storage plumbing).
 import { json, readJson, corsHeadersFor } from "./platform/http.js";
@@ -23,36 +20,17 @@ import { loadState, saveState, withStateRetry } from "./persistence/state.js";
 import {
   recordCompletedRoomStats, refreshPlayerStats, publicStatsForGame, publicPlayerStats, clearPlayerStats,
 } from "./stats.js";
-// Per-game rules modules (Phase 2). The Worker keeps the dispatch predicates and
-// routing; each game's server-authoritative rules live in its own module.
+import { BOT_DEFINITIONS, isBotSeat } from "./games/bots.js";
+// Per-game dispatch layer (table + game-agnostic dispatchers). Each game's
+// server-authoritative rules live in its own module; games/handlers.js owns the
+// one table that binds them. The Worker entry only routes.
 import {
-  isBoxesGame,
-  newBoxesGame,
-  boxesGameToDict,
-  boxesLegalMoves,
-  makeBoxesMove,
-  chooseBoxesBotMove,
-} from "./games/boxes/rules.js";
-import { OVERLORD_BOT_ID, BOT_DEFINITIONS, isBotSeat } from "./games/bots.js";
+  moveHandlerFor, newGame, gameToDict, gameToDictForViewer, legalMoves, chooseBotMove, makeMove,
+  initGameSeats, applyGameStartOptions, resetRoomGame, ensureBattleshipBotFleets,
+} from "./games/handlers.js";
+// 10,000 bot internals re-exported on __test only (workers/tests/helpers.js
+// exercises them through the Worker's test surface).
 import {
-  BATTLESHIP_FLEET,
-  newBattleshipGame,
-  ensureBattleshipState,
-  battleshipGameToDict,
-  makeBattleshipMove,
-  placeBattleshipFleet,
-  battleshipLegalMoves,
-  chooseBattleshipBotFleet,
-  chooseBattleshipBotMove,
-  battleshipGameToDictForViewer,
-} from "./games/battleship/rules.js";
-import { clampInteger } from "./games/util.js";
-import {
-  newTenThousandGame,
-  initTenThousandSeats,
-  setTenThousandOpeningBase,
-  tenThousandGameToDict,
-  makeTenThousandMove,
   tenThousandBotKeep,
   tenThousandBotShouldBank,
   tenThousandBotErrorRate,
@@ -63,48 +41,7 @@ import {
   overlordKeepPlan,
   tenThousandScoreValues,
   tenThousandHasAnyScoringSet,
-  isTenThousandGame,
 } from "./games/ten-thousand/rules.js";
-import {
-  newYahtzeeGame, initYahtzeeSeats, makeYahtzeeMove, yahtzeeGameToDict, yahtzeeScoreByMark, isYahtzeeGame,
-} from "./games/yahtzee/rules.js";
-import {
-  newQuoridorGame,
-  quoridorGameToDict,
-  makeQuoridorMove,
-  quoridorLegalMoves,
-  chooseQuoridorBotMove,
-} from "./games/quoridor/rules.js";
-import {
-  TACTICAL_PICKUP_CONFIG,
-  isTacticalGame,
-  legalBoards,
-  boardAvailable,
-  makeClassicMove,
-  makeTacticalMove,
-  smallBoardResult,
-  macroWinnerFor,
-  ensureTacticalState,
-  pickupAt,
-  tacticalBoardFilledWinner,
-  tacticalLineWinner,
-} from "./games/super-tic-tac-toe/rules.js";
-import { chooseScoredBotMove } from "./games/super-tic-tac-toe/bot.js";
-import {
-  MAZEWRIGHT_GAME_ID, isMazewrightGame, newMazewrightGame, initMazewrightSeats, makeMazewrightMove, mazewrightGameToDict, mazewrightScoreByMark,
-} from "./games/mazewright/rules.js";
-import {
-  RTTA_GAME_ID, isRttaGame, newRttaGame, initRttaSeats, makeRttaMove, rttaGameToDict, rttaScoreByMark,
-} from "./games/rtta/rules.js";
-import {
-  ZOMBIE_DICE_GAME_ID, isZombieDiceGame, newZombieDiceGame, initZombieDiceSeats, makeZombieDiceMove, zombieDiceGameToDict,
-} from "./games/zombie-dice/rules.js";
-import {
-  LIARS_DICE_GAME_ID, isLiarsDiceGame, newLiarsDiceGame, initLiarsDiceSeats, makeLiarsDiceMove, liarsDiceGameToDict, liarsDiceGameToDictForViewer,
-} from "./games/liars-dice/rules.js";
-import {
-  NO_THANKS_GAME_ID, isNoThanksGame, newNoThanksGame, initNoThanksSeats, makeNoThanksMove, noThanksGameToDict, noThanksGameToDictForViewer,
-} from "./games/no-thanks/rules.js";
 
 const LOBBY_VIEWER_TTL_SECONDS = 45;
 const ROOM_SEAT_COLORS = [
@@ -126,12 +63,6 @@ const ROOM_SEAT_COLORS = [
   "#334155",
 ];
 const COLOR_SIMILARITY_THRESHOLD = 110;
-const TACTICAL_GAME_ID = GAME_IDS.tactical;
-const BOXES_GAME_ID = GAME_IDS.boxes;
-const BATTLESHIP_GAME_ID = GAME_IDS.battleship;
-const QUORIDOR_GAME_ID = GAME_IDS.quoridor;
-const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
-const YAHTZEE_GAME_ID = GAME_IDS.yahtzee;
 const BOT_MOVE_DELAY_MS = 700;
 
 // Per-route side effects, declared not inferred. GET is read-only; any other
@@ -720,11 +651,9 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (hostId !== room.host_id) throw new Error("Only the host can start the game.");
       if (room.started) throw new Error("Game already started.");
       if (!room.players.length) throw new Error("Add at least one player.");
-      // 10,000 host option: the opening "get on the board" bar, chosen in the
-      // lobby. Clamp defensively; normalize re-derives the round-aware minimum.
-      if (isTenThousandGame(room.game) && payload.opening_minimum !== undefined && payload.opening_minimum !== null) {
-        setTenThousandOpeningBase(room.game, payload.opening_minimum);
-      }
+      // Host lobby options (e.g. 10,000's opening minimum) — per-game, owned by
+      // the dispatch table's applyStartOptions field.
+      applyGameStartOptions(room.game, payload);
       startRoom(room);
       bumpRoomRevision(room);
       return { ok: true, room: roomToDict(data, room) };
@@ -760,7 +689,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (Number.isFinite(stampedEpoch) && stampedEpoch !== room.game_epoch) {
         throw new Error("This move is from a previous game of this table — refresh to catch up.");
       }
-      const moveHandler = GAME_HANDLERS.find((entry) => entry.applyAction && entry.is(room.game));
+      const moveHandler = moveHandlerFor(room.game);
       if (moveHandler) {
         if (moveHandler.preMove) moveHandler.preMove(room);
         if (moveHandler.enforcesTurnOrder && mark !== room.game.current_player) throw new Error(`It is ${room.game.current_player}'s turn.`);
@@ -1162,13 +1091,6 @@ function roomToDictForViewer(data, room, viewerPlayerId = "") {
   return base;
 }
 
-function gameToDictForViewer(game, viewerMark, roomStatusValue) {
-  if (isBattleshipGame(game)) return battleshipGameToDictForViewer(game, viewerMark, roomStatusValue);
-  if (isLiarsDiceGame(game)) return liarsDiceGameToDictForViewer(game, viewerMark, roomStatusValue);
-  if (isNoThanksGame(game)) return noThanksGameToDictForViewer(game, viewerMark, roomStatusValue);
-  return game;
-}
-
 function responseForViewer(response, viewerPlayerId = "") {
   if (!response || response.ok === false) return response;
   const projected = { ...response };
@@ -1289,17 +1211,12 @@ function activateRoomIfReady(room) {
 }
 
 // Explicit start for host-start games. Seats already carry P1..PN marks from
-// addPlayerToRoom; this flips the room live and initialises per-seat game state.
+// addPlayerToRoom; this flips the room live and initialises per-seat game state
+// via the dispatch table's initSeats field.
 function startRoom(room) {
   if (room.started) return;
   room.started = true;
-  if (isTenThousandGame(room.game)) initTenThousandSeats(room.game, room.players);
-  if (isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
-  if (isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
-  if (isRttaGame(room.game)) initRttaSeats(room.game, room.players);
-  if (isZombieDiceGame(room.game)) initZombieDiceSeats(room.game, room.players);
-  if (isLiarsDiceGame(room.game)) initLiarsDiceSeats(room.game, room.players);
-  if (isNoThanksGame(room.game)) initNoThanksSeats(room.game, room.players);
+  initGameSeats(room.game, room.players);
 }
 
 function playerMark(room, playerId) {
@@ -1321,7 +1238,7 @@ function runBotTurns(data, room) {
     if (!bot) break;
     const move = chooseBotMove(room.game, bot);
     if (!move) break;
-    const moveHandler = GAME_HANDLERS.find((entry) => entry.applyAction && entry.is(room.game));
+    const moveHandler = moveHandlerFor(room.game);
     if (moveHandler) moveHandler.applyAction(room.game, bot.mark, move);
     else makeMove(room.game, move.board, move.cell, move.line_id);
     bumpRoomRevision(room);
@@ -1329,29 +1246,6 @@ function runBotTurns(data, room) {
     moves += 1;
   }
   return moves ? { ok: true, room: roomToDict(data, room), bot_moves: moves } : null;
-}
-
-function chooseBotMove(game, bot = null) {
-  const moves = legalMoves(game);
-  if (!moves.length) return null;
-  const handler = GAME_HANDLERS.find((entry) => entry.bot && entry.is(game));
-  if (handler) return handler.bot(game, bot, moves);
-  if (bot && bot.strategy === "smart") return chooseScoredBotMove(game, bot, moves);
-  return moves[Math.floor(Math.random() * moves.length)];
-}
-
-
-function legalMoves(game) {
-  const handler = GAME_HANDLERS.find((entry) => entry.is(game));
-  if (handler) return handler.legalMoves(game);
-  if (!game || game.status !== "playing") return [];
-  const moves = [];
-  legalBoards(game).forEach((boardIndex) => {
-    game.boards[boardIndex].forEach((value, cellIndex) => {
-      if (value === null) moves.push({ board: boardIndex, cell: cellIndex });
-    });
-  });
-  return moves;
 }
 
 function handleResetVote(room, requesterId, approve) {
@@ -1365,23 +1259,9 @@ function handleResetVote(room, requesterId, approve) {
   });
   if (room.players.length > 1 && room.reset_votes.length < room.players.length) return "pending";
   room.reset_votes = [];
-  // Carry the host's 10,000 opening-bar choice into the fresh game so a reset
-  // keeps the table's chosen rules instead of snapping back to the default.
-  const prevOpeningBase = isTenThousandGame(room.game) ? room.game.opening_base : undefined;
-  room.game = newGame(room.game_id);
-  // Host-start games seed per-seat state at startRoom; a reset must re-seed it
-  // too, otherwise the room stays started with an empty game (e.g. Ten Thousand
-  // ends up with no seats and a dead board).
-  if (room.started && isTenThousandGame(room.game)) {
-    if (prevOpeningBase !== undefined) room.game.opening_base = prevOpeningBase;
-    initTenThousandSeats(room.game, room.players);
-  }
-  if (room.started && isYahtzeeGame(room.game)) initYahtzeeSeats(room.game, room.players);
-  if (room.started && isMazewrightGame(room.game)) initMazewrightSeats(room.game, room.players);
-  if (room.started && isRttaGame(room.game)) initRttaSeats(room.game, room.players);
-  if (room.started && isZombieDiceGame(room.game)) initZombieDiceSeats(room.game, room.players);
-  if (room.started && isLiarsDiceGame(room.game)) initLiarsDiceSeats(room.game, room.players);
-  if (room.started && isNoThanksGame(room.game)) initNoThanksSeats(room.game, room.players);
+  // Fresh game, carrying per-game host options and re-seeding per-seat state for
+  // started host-start games — dispatch-table owned (carryOptionsOnReset/initSeats).
+  resetRoomGame(room);
   bumpRoomRevision(room, { newGame: true });
   room.stats_recorded = false;
   return null;
@@ -1400,105 +1280,6 @@ function pruneLobbyViewers(data) {
   Object.entries(data.lobbyViewers).forEach(([playerId, viewer]) => {
     if (viewer.updated_at < cutoff) delete data.lobbyViewers[playerId];
   });
-}
-
-// Per-game dispatch table. Now that every game's rules live in a module, the
-// newGame/gameToDict/legalMoves/chooseBotMove dispatchers route through this one
-// table instead of parallel if/else chains — adding a game is one row here (plus
-// its rules module and `is<Game>Game` predicate). Super-Tic-Tac-Toe and Tactical
-// are the inline default fallthrough (they share board creation and the macro
-// `legal_boards` projection), so they have no row. `bot` is absent where a game
-// resolves bots through its own engine (10,000) or has no entry.
-// applyAction(game, mark, payload) normalises the heterogeneous per-game move
-// signatures so /api/room/move and bot turns dispatch through this table too.
-// Flags capture each game's real differences: enforcesTurnOrder (shell rejects
-// out-of-turn moves vs rules validating internally), preMove (setup before the
-// move, e.g. lazy bot fleets), resolvesBotsInternally (game runs its own bot
-// turns, so the shell skips runBotTurns). Classic/Tactical stay the default.
-const GAME_HANDLERS = [
-  { id: TEN_THOUSAND_GAME_ID, is: isTenThousandGame, create: newTenThousandGame, toDict: tenThousandGameToDict, legalMoves: () => [],
-    applyAction: (game, mark, payload) => makeTenThousandMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
-  { id: YAHTZEE_GAME_ID, is: isYahtzeeGame, create: newYahtzeeGame, toDict: yahtzeeGameToDict, legalMoves: () => [],
-    applyAction: (game, mark, payload) => makeYahtzeeMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
-  { id: MAZEWRIGHT_GAME_ID, is: isMazewrightGame, create: newMazewrightGame, toDict: mazewrightGameToDict, legalMoves: () => [],
-    applyAction: (game, mark, payload) => makeMazewrightMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
-  { id: RTTA_GAME_ID, is: isRttaGame, create: newRttaGame, toDict: rttaGameToDict, legalMoves: () => [],
-    applyAction: (game, mark, payload) => makeRttaMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
-  { id: ZOMBIE_DICE_GAME_ID, is: isZombieDiceGame, create: newZombieDiceGame, toDict: zombieDiceGameToDict, legalMoves: () => [],
-    applyAction: (game, mark, payload) => makeZombieDiceMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
-  { id: LIARS_DICE_GAME_ID, is: isLiarsDiceGame, create: newLiarsDiceGame, toDict: liarsDiceGameToDict, legalMoves: () => [],
-    applyAction: (game, mark, payload) => makeLiarsDiceMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
-  { id: NO_THANKS_GAME_ID, is: isNoThanksGame, create: newNoThanksGame, toDict: noThanksGameToDict, legalMoves: () => [],
-    applyAction: (game, mark, payload) => makeNoThanksMove(game, mark, payload.action || payload), resolvesBotsInternally: true },
-  { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
-    applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
-  { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
-    applyAction: (game, mark, payload) => makeQuoridorMove(game, mark, payload.action || payload) },
-  { id: BOXES_GAME_ID, is: isBoxesGame, create: newBoxesGame, toDict: boxesGameToDict, legalMoves: boxesLegalMoves, bot: (game, bot, moves) => chooseBoxesBotMove(game, moves),
-    applyAction: (game, mark, payload) => makeBoxesMove(game, payload.line_id), enforcesTurnOrder: true },
-];
-
-function newGame(gameId = DEFAULT_GAME_ID) {
-  const canonicalGameId = cleanGameId(gameId);
-  const handler = GAME_HANDLERS.find((entry) => entry.id === canonicalGameId);
-  if (handler) return handler.create();
-  const game = {
-    game_id: canonicalGameId,
-    boards: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null)),
-    small_winners: Array.from({ length: 9 }, () => null),
-    current_player: "X",
-    next_board: null,
-    status: "playing",
-    winner: null,
-    line_winner: null,
-    move_count: 0,
-  };
-  if (canonicalGameId === TACTICAL_GAME_ID) {
-    game.pickups = [];
-    game.scores = { X: 0, O: 0 };
-    game.captures = {
-      X: { coin: 0, treasureChest: 0 },
-      O: { coin: 0, treasureChest: 0 },
-    };
-    game.events = [];
-    game.last_event = null;
-  }
-  return game;
-}
-
-function gameToDict(game) {
-  const handler = GAME_HANDLERS.find((entry) => entry.is(game));
-  if (handler) return handler.toDict(game);
-  return { ...game, game_id: cleanGameId(game.game_id), legal_boards: legalBoards(game) };
-}
-
-function isBattleshipGame(game) {
-  return Boolean(game && (cleanGameId(game.game_id) === BATTLESHIP_GAME_ID || game.phase === "setup" && game.players && game.fleet));
-}
-
-function ensureBattleshipBotFleets(room) {
-  if (!room || !isBattleshipGame(room.game) || !room.started) return false;
-  ensureBattleshipState(room.game);
-  let changed = false;
-  room.players.filter(isBotSeat).forEach((bot) => {
-    if (!bot.mark || !room.game.players[bot.mark]) return;
-    const state = room.game.players[bot.mark];
-    const hasCompleteFleet = state.ready && Array.isArray(state.ships) && state.ships.length === BATTLESHIP_FLEET.length;
-    if (hasCompleteFleet) return;
-    placeBattleshipFleet(room.game, bot.mark, chooseBattleshipBotFleet(bot));
-    changed = true;
-  });
-  return changed;
-}
-
-function isQuoridorGame(game) {
-  return Boolean(game && (cleanGameId(game.game_id) === QUORIDOR_GAME_ID || game.pawns && game.walls_remaining && Array.isArray(game.walls)));
-}
-
-function makeMove(game, boardIndex, cellIndex, lineId = "") {
-  if (isBoxesGame(game)) return makeBoxesMove(game, lineId);
-  if (isTacticalGame(game)) return makeTacticalMove(game, boardIndex, cellIndex);
-  return makeClassicMove(game, boardIndex, cellIndex);
 }
 
 function ensureRoomSeatColors(room) {

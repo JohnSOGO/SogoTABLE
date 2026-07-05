@@ -62,6 +62,7 @@ concern), then implement.
 | `workers/games/bots.js` | Shared bot helpers | — |
 | `workers/games/util.js` | Shared game utilities | — |
 | `workers/games/skip-vote.js` | Unanimous barrier-skip vote protocol (toggle / prune-ineligible / unanimity / clear) — eligibility predicate injected per game | — |
+| `workers/games/handlers.js` | Per-game dispatch table + game-agnostic dispatchers (create / toDict / viewer projection / legalMoves / bot / initSeats / start-options) | `workers/sogotable-api.js` |
 
 ## Owned directory patterns
 

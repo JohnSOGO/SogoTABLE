@@ -513,3 +513,48 @@ PLACEMENT RECEIPT
 Standing flag: workers/sogotable-api.js will not absorb many more ~9-line game
 registrations; schedule a reorganizer pass to extract the GAME_HANDLERS table
 before the next game lands.
+
+## 2026-07-04 — Worker per-game dispatch layer extracted (prep for Hearts)
+
+REORG RECEIPT
+- Trigger:      Hearts placement flagged the Worker entry as full: workers/sogotable-api.js
+                sat at 1566 vs its 1580 ceiling (~14 lines headroom) against a ~12-15 line
+                registration — the standing 2026-07-04 flag named GAME_HANDLERS as the seam.
+- Seam moved:   Per-game dispatch layer — the GAME_HANDLERS table, all per-game rules
+                imports, and the game-agnostic dispatchers newGame / gameToDict /
+                gameToDictForViewer / legalMoves / chooseBotMove / makeMove /
+                moveHandlerFor / ensureBattleshipBotFleets — from `workers/sogotable-api.js`
+                to `workers/games/handlers.js` [NEW owner row]. The startRoom and
+                handleResetVote per-game if/else chains folded into the table as
+                initSeats + carryOptionsOnReset fields (initGameSeats / resetRoomGame),
+                and the /api/room/start 10,000 opening_minimum special case became the
+                table's applyStartOptions field (applyGameStartOptions).
+- Room opened:  workers/sogotable-api.js: 1566 -> 1347 lines; ceiling 1580 -> 1370
+                (post-extraction actual + ~23 slack — covers Hearts' ~12-15 line
+                registration). handlers.js is 257 lines under the 800 GLOBAL_FILE_CAP
+                (per convention, no per-file CEILINGS entry for non-god files).
+- Behavior:     PRESERVED — verified via `npm test` (281/281 green). All dispatch logic
+                moved verbatim (same table rows, same find predicates, same fallthrough
+                order); startRoom/reset/start-options folds are mechanically equivalent
+                (same started/undefined guards, same seat-init order, same opening_base
+                carry gating); same room dicts, viewer projections, and D1 state shapes.
+                Dead imports dropped from the entry (OVERLORD_BOT_ID, clampInteger,
+                8 unused super-tic-tac-toe symbols, 3 unused scoreByMark symbols —
+                repo-grep confirmed no call sites); __test surface unchanged (10,000 bot
+                internals now imported directly from ten-thousand/rules.js).
+                architecture.test.js registry guard repointed: the dispatch layer (not
+                the entry) now owns the Worker-side registry import; hardcoded-id scan
+                extended to handlers.js.
+- Sources read: docs/module-ownership.md; docs/modularity.md; docs/wu-wei-method.md;
+                workers/tests/architecture.test.js (live CEILINGS + all guards);
+                workers/sogotable-api.js (full); workers/games/util.js;
+                src/sogotable/static/review-export.js (allowlist + import closure);
+                docs/placement-receipts.md; workers/tests/helpers.js (__test consumer);
+                package.json (test command).
+- Restraint:    One seam only — did NOT split bot-turn orchestration (runBotTurns /
+                botSeatForCurrentTurn stay in the entry: room orchestration), room-dict
+                projections, seat-color helpers, or route handlers; did NOT pre-add any
+                Hearts code, row, or import; did NOT touch any rules module's logic.
+- New owner row: | `workers/games/handlers.js` | Per-game dispatch table + game-agnostic
+                dispatchers (create / toDict / viewer projection / legalMoves / bot /
+                initSeats / start-options) | `workers/sogotable-api.js` |

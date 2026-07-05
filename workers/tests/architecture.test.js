@@ -45,7 +45,7 @@ function gameDirOf(rel) {
 
 const CEILINGS = {
   "src/sogotable/static/app.js": 2497,
-  "workers/sogotable-api.js": 1580,
+  "workers/sogotable-api.js": 1370,
   "src/sogotable/static/styles.css": 375,
   "src/sogotable/static/styles-games.css": 1700,
 };
@@ -79,14 +79,18 @@ test(`architecture: app.js keeps <= ${APP_TOP_LEVEL_LET_CAP} top-level let decla
 // its own inline game-definition literals again (the split-brain we just killed).
 test("architecture: game definitions live only in the shared registry", () => {
   const worker = readFileSync(join(root, "workers/sogotable-api.js"), "utf8");
+  const handlers = readFileSync(join(root, "workers/games/handlers.js"), "utf8");
   const app = readFileSync(join(root, "src/sogotable/static/app.js"), "utf8");
-  assert.ok(worker.includes('from "../src/sogotable/static/games/registry.js"'), "Worker must import the shared registry");
+  // The Worker's game-facing module (the dispatch layer) must read game ids from
+  // the shared registry; the entry itself no longer touches game ids at all.
+  assert.ok(handlers.includes('from "../../src/sogotable/static/games/registry.js"'), "Worker dispatch layer must import the shared registry");
   assert.ok(app.includes('from "./games/registry.js"'), "App must import the shared registry");
   // The opaque ids belong to the registry; they should not be re-hardcoded as
-  // string literals in either god-file.
+  // string literals in the god-files or the dispatch layer.
   const ids = ["a3f19c6e42b8", "d7e4a91f0c23", "4b7e2d9a6c10", "9c2f7a81d4e6", "8f5d2c7a1b90", "6d10f4a2c8b3"];
   for (const id of ids) {
     assert.ok(!worker.includes(`"${id}"`), `Worker hardcodes game id ${id}; use GAME_IDS from the registry`);
+    assert.ok(!handlers.includes(`"${id}"`), `Worker dispatch layer hardcodes game id ${id}; use GAME_IDS from the registry`);
     assert.ok(!app.includes(`"${id}"`), `App hardcodes game id ${id}; use GAME_IDS from the registry`);
   }
 });
