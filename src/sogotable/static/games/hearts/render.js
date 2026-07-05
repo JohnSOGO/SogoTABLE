@@ -283,8 +283,10 @@ function renderHeartsPlay(host, ctx) {
   const playReady = myTurn && raised.cards.size === 1 && Array.isArray(legal) && legal.includes([...raised.cards][0]);
   const queuedCard = !myTurn && preselect && raised.preset && raised.cards.size === 1 ? [...raised.cards][0] : null;
   const showResults = settled && (complete || game.phase === "round_end");
+  // The 👉 stays on the player whose action is being ANIMATED — not the next
+  // actor — and hides once a finished trick takes over (MojoSOGO 2026-07-04).
   const actorMark = settled ? game.current_player
-    : (lastVisible && lastVisible.type === "play" ? lastVisible.next : null);
+    : (lastVisible && lastVisible.type === "play" ? lastVisible.mark : null);
 
   // ---- html ----
   const dealing = Boolean(lastVisible && lastVisible.type === "deal") && Number(game.round) !== dealAnimRound;
