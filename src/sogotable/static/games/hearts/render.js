@@ -306,6 +306,7 @@ function renderHeartsPlay(host, ctx) {
         ${showResults
           ? resultsHtml(game, room, complete)
           : `${trickShown.map((play) => slotHtml(play, positionOf, collecting, pace.shown)).join("")}
+             ${order.map((mark) => feltBadgesHtml(displaySeats, mark, positionOf[mark])).join("")}
              <div class="hx-felt-status">${feltStatus(game, room, { caughtUp, lastVisible, myTurn, collecting })}</div>`}
         <span class="hx-felt-corner hx-corner-bl">${heartsBrokenShown ? "♥ broken" : ""}</span>
         <span class="hx-felt-corner hx-corner-br">round ${Number(game.round) || 1} · ${DIRECTION_ARROWS[game.pass_direction] || ""} ${game.pass_direction || ""}</span>
@@ -398,16 +399,27 @@ function soundFor(event, visible, game, localMark) {
 // ---------- html builders ----------
 
 // Name + turn marker only — scores and tricks live in the standings table
-// below the hand (MojoSOGO 2026-07-04). The one exception: suit badges — a ♥
-// if the seat has taken ANY heart this round, a ♠ if the queen landed on them.
+// below the hand (MojoSOGO 2026-07-04); the taken-points suit badges sit on
+// the felt at each seat's compass position, not in the boxes.
 function seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtUp) {
   const seat = seatByMark(displaySeats, mark);
   if (!seat) return "";
   const waitingPass = passing && !seat.has_passed;
   const turnMark = actorMark === mark ? "👉" : waitingPass ? "🔀" : "";
-  const badges = `${seat.took_hearts ? '<span class="hx-badge-h">♥</span>' : ""}${seat.took_queen ? '<span class="hx-badge-s">♠</span>' : ""}`;
   return `<div class="hx-seatbox${actorMark === mark ? " hx-turn" : ""}">
-    <span class="hx-nm"><span class="hx-mark">${turnMark}</span><span class="hx-nm-text">${seatEmoji(room, mark)} ${escapeName(seatName(room, mark))}</span><span class="hx-badges">${badges}</span></span>
+    <span class="hx-nm"><span class="hx-mark">${turnMark}</span><span class="hx-nm-text">${seatEmoji(room, mark)} ${escapeName(seatName(room, mark))}</span></span>
+  </div>`;
+}
+
+// The taken-points badges on the green: a ♥ once the seat has taken any
+// heart this round, a ♠ once the queen landed on them. Side by side at
+// north/south, stacked over-under at east/west (MojoSOGO 2026-07-04).
+function feltBadgesHtml(displaySeats, mark, pos) {
+  const seat = seatByMark(displaySeats, mark);
+  if (!seat || (!seat.took_hearts && !seat.took_queen)) return "";
+  return `<div class="hx-fbadge hx-fbadge-${pos || "t"}">
+    ${seat.took_hearts ? '<span class="hx-badge-h">♥</span>' : ""}
+    ${seat.took_queen ? '<span class="hx-badge-s">♠</span>' : ""}
   </div>`;
 }
 

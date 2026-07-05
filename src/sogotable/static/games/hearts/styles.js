@@ -40,10 +40,17 @@ export const HEARTS_CSS = `
 .hearts-root .hx-seatbox .hx-nm .hx-nm-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;
  text-overflow:ellipsis;}
 .hearts-root .hx-seatbox .hx-nm .hx-mark{flex:none;display:inline-block;width:1.15em;}
-/* Taken-points badges: ♥ = took hearts this round, ♠ = took the queen. */
-.hearts-root .hx-seatbox .hx-badges{flex:none;font-size:.82rem;line-height:1;display:inline-flex;gap:1px;}
-.hearts-root .hx-badge-h{color:#c22335;}
-.hearts-root .hx-badge-s{color:var(--hx-ink);}
+/* Taken-points badges live ON the felt at each seat's compass position:
+   ♥ = took hearts this round, ♠ = took the queen. Side by side at N/S,
+   stacked over-under at E/W. */
+.hearts-root .hx-fbadge{position:absolute;display:flex;gap:3px;font-size:1.05rem;line-height:1;
+ pointer-events:none;}
+.hearts-root .hx-fbadge-t{left:calc(50% + 36px);top:9%;flex-direction:row;}
+.hearts-root .hx-fbadge-b{left:calc(50% + 36px);bottom:9%;flex-direction:row;}
+.hearts-root .hx-fbadge-l{left:2.5%;top:50%;transform:translateY(-50%);flex-direction:column;gap:5px;}
+.hearts-root .hx-fbadge-r{right:2.5%;top:50%;transform:translateY(-50%);flex-direction:column;gap:5px;}
+.hearts-root .hx-fbadge .hx-badge-h{color:#ff5f5f;text-shadow:0 1px 2px rgba(0,0,0,.45);}
+.hearts-root .hx-fbadge .hx-badge-s{color:#17130f;text-shadow:0 0 3px rgba(255,255,255,.35);}
 /* ---- the felt ---- */
 .hearts-root .hx-felt{position:relative;width:100%;max-width:480px;box-sizing:border-box;
  height:clamp(210px,34dvh,290px);border-radius:16px;

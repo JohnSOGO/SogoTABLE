@@ -63,7 +63,9 @@ reset by `carryOptionsOnReset`.
   target and soft red at 90%. Standings rows sit in TABLE order — you at the
   top, then clockwise play order — so the turn pointer walks down the list
   and wraps, never skipping around a score sort (the progress line shows the
-  race instead). Selection works even OFF-turn (pre-select, so
+  race instead). Taken-points badges (♥ took hearts, ♠ took the queen) sit ON
+  the felt at each seat's compass position — side by side at north/south,
+  stacked over-under at east/west; seat boxes stay name + turn marker only. Selection works even OFF-turn (pre-select, so
   Commit is one tap when the turn arrives; on-turn taps are limited to legal
   cards). The three received pass cards arrive already raised + highlighted;
   selecting any card for play lowers the rest (a received card tapped for play
