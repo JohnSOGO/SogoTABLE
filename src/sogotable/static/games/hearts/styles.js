@@ -34,8 +34,6 @@ export const HEARTS_CSS = `
 .hearts-root .hx-seatbox .hx-nm{font-weight:700;font-size:.84rem;white-space:nowrap;overflow:hidden;
  text-overflow:ellipsis;}
 .hearts-root .hx-seatbox .hx-nm .hx-mark{display:inline-block;width:1.15em;}
-.hearts-root .hx-seatbox .hx-st{font-size:.72rem;color:var(--hx-muted);display:flex;gap:8px;white-space:nowrap;}
-.hearts-root .hx-seatbox .hx-st b{color:var(--hx-ink);font-variant-numeric:tabular-nums;}
 /* ---- the felt ---- */
 .hearts-root .hx-felt{position:relative;width:100%;max-width:480px;box-sizing:border-box;
  height:clamp(210px,34dvh,290px);border-radius:16px;
@@ -97,7 +95,10 @@ export const HEARTS_CSS = `
 /* ---- my hand: overlapping fan, tap to raise, tap again to commit ---- */
 .hearts-root .hx-hand{display:flex;justify-content:center;align-items:flex-end;width:100%;
  max-width:480px;padding-top:16px;min-height:82px;}
-.hearts-root .hx-hand .pc-card{pointer-events:auto;cursor:pointer;transition:transform .16s ease;}
+/* touch-action:none so an up-flick reaches pointerup as a commit gesture
+   instead of scrolling the page. */
+.hearts-root .hx-hand .pc-card{pointer-events:auto;cursor:pointer;transition:transform .16s ease;
+ touch-action:none;}
 .hearts-root .hx-hand .pc-card + .pc-card{margin-left:calc(var(--hx-ovl,24px) * -1);}
 .hearts-root .hx-hand .pc-card.hx-raised{transform:translateY(-15px);}
 .hearts-root .hx-hand .pc-card.hx-dim{filter:grayscale(.4) brightness(.8);cursor:default;}
@@ -106,6 +107,19 @@ export const HEARTS_CSS = `
 @keyframes hx-deal-in{from{transform:translateY(-70px) scale(.6);opacity:0;}}
 .hearts-root .hx-hand.hx-dealing .pc-card{animation:hx-deal-in .45s cubic-bezier(.25,.8,.35,1) both;
  animation-delay:calc(var(--hx-i,0) * 90ms);}
+/* ---- the standing score table: always below the cards region ---- */
+.hearts-root .hx-standings{width:100%;max-width:480px;box-sizing:border-box;background:var(--hx-panel);
+ border:1px solid var(--hx-line);border-radius:12px;padding:4px 8px 6px;}
+.hearts-root .hx-standings table{width:100%;border-collapse:collapse;}
+.hearts-root .hx-standings th{font-size:.64rem;text-transform:uppercase;letter-spacing:.4px;
+ color:var(--hx-muted);padding:5px 5px 3px;text-align:center;}
+.hearts-root .hx-standings td{padding:5px 6px;font-size:.86rem;border-top:1px solid var(--hx-line);
+ text-align:center;font-variant-numeric:tabular-nums;}
+.hearts-root .hx-standings td.hx-name,.hearts-root .hx-standings th.hx-name{text-align:left;
+ max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
+.hearts-root .hx-standings td.hx-status{width:26px;padding-left:0;padding-right:0;}
+.hearts-root .hx-standings td.hx-total{font-weight:800;}
+.hearts-root .hx-standings tr.hx-winner-row td{background:rgba(231,194,86,.14);}
 .hearts-root .hx-msg{margin:0;font-size:.88rem;color:var(--hx-muted);text-align:center;min-height:1.2em;}
 .hearts-root .hx-msg.hx-error{color:var(--hx-danger);}
 /* ---- host lobby options (rendered via renderHostStartLobby extraHtml) ---- */

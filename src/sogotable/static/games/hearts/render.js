@@ -214,6 +214,7 @@ function renderHeartsPlay(host, ctx) {
         ${actionButtonHtml(game, { caughtUp, complete, myTurn, passing, myPassPending, movePending, localSeat, raisedCount: raised.cards.size })}
       </div>
       <div class="hx-hand${dealing ? " hx-dealing" : ""}">${handHtml(myHand, localSeat, legal, game, myTurn)}</div>
+      ${standingsHtml(displaySeats, room, game, actorMark, complete && caughtUp)}
       <p class="hx-msg" data-hx-note></p>
     </div>`;
   wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending });
@@ -271,6 +272,8 @@ function soundFor(event, visible, game, localMark) {
 
 // ---------- html builders ----------
 
+// Name + turn marker only — scores and tricks live in the standings table
+// below the hand (MojoSOGO 2026-07-04), not in the seat boxes.
 function seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtUp) {
   const seat = seatByMark(displaySeats, mark);
   if (!seat) return "";
@@ -278,7 +281,6 @@ function seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtU
   const turnMark = actorMark === mark ? "👉" : waitingPass ? "🔀" : "";
   return `<div class="hx-seatbox${actorMark === mark ? " hx-turn" : ""}">
     <span class="hx-nm"><span class="hx-mark">${turnMark}</span>${seatEmoji(room, mark)} ${escapeName(seatName(room, mark))}</span>
-    <span class="hx-st"><span>score <b>${seat.score}</b></span><span>tricks <b>${Math.max(0, seat.tricks)}</b></span><span>♥ <b>${Math.max(0, seat.round_points)}</b></span></span>
   </div>`;
 }
 
@@ -302,19 +304,23 @@ function handHtml(myHand, localSeat, legal, game, myTurn) {
   }).join("");
 }
 
+// ONE button, always labeled Commit when it can act (MojoSOGO 2026-07-04):
+// it commits the 3-card pass, the selected card, and the next deal.
 function actionButtonHtml(game, view) {
   const arrow = DIRECTION_ARROWS[game.pass_direction] || "";
   if (view.complete) return `<button class="hx-action" type="button" data-hx-action disabled>Game over 🏆</button>`;
   if (!view.localSeat) return `<button class="hx-action" type="button" data-hx-action disabled>Watching</button>`;
   if (view.passing && view.myPassPending) {
     const ready = view.raisedCount === 3 && !view.movePending && view.caughtUp;
-    return `<button class="hx-action" type="button" data-hx-action="pass" ${ready ? "" : "disabled"}>Pass 3 ${arrow}</button>`;
+    return `<button class="hx-action" type="button" data-hx-action="pass" ${ready ? "" : "disabled"}>Commit ${view.raisedCount}/3 ${arrow}</button>`;
   }
   if (view.passing) return `<button class="hx-action" type="button" data-hx-action disabled>Passed ✓</button>`;
   if (view.caughtUp && game.phase === "round_end") {
-    return `<button class="hx-action" type="button" data-hx-action="next_round" ${view.movePending ? "disabled" : ""}>Next round</button>`;
+    return `<button class="hx-action" type="button" data-hx-action="next_round" ${view.movePending ? "disabled" : ""}>Commit</button>`;
   }
-  if (view.myTurn) return `<button class="hx-action" type="button" data-hx-action disabled>Your turn</button>`;
+  if (view.myTurn) {
+    return `<button class="hx-action" type="button" data-hx-action="play" ${view.raisedCount === 1 ? "" : "disabled"}>Commit</button>`;
+  }
   return `<button class="hx-action" type="button" data-hx-action disabled>Waiting…</button>`;
 }
 
@@ -343,7 +349,7 @@ function tipHtml(game, room, view) {
     const waiting = (view.seats || []).filter((seat) => !seat.has_passed).map((seat) => escapeName(seatName(room, seat.mark)));
     return waiting.length ? `Waiting on ${waiting.join(", ")}…` : "…";
   }
-  if (view.myTurn) return "Your turn — tap a card, tap it again to play.";
+  if (view.myTurn) return "Your turn — pick a card, then Commit (or flick it to the table).";
   if (view.caughtUp && game.phase === "round_end") return "Round scored — ready for the next deal.";
   if (game.current_player) return `${escapeName(seatName(room, game.current_player))} is thinking…`;
   return "…";
@@ -384,7 +390,35 @@ function seatScore(game, mark) {
   return seat ? Number(seat.score || 0) : 0;
 }
 
+// The standing score table — ALWAYS below the cards region (MojoSOGO
+// 2026-07-04). House table style: name left, single-emoji status column,
+// stat columns centered, no row numbers. Lowest score leads the sort.
+function standingsHtml(displaySeats, room, game, actorMark, finished) {
+  const seats = displaySeats.slice().sort((a, b) => a.score - b.score);
+  const rows = seats.map((seat) => {
+    const flag = finished && game.winner === seat.mark ? "🏆" : actorMark === seat.mark ? "👉" : "";
+    return `<tr class="${finished && game.winner === seat.mark ? "hx-winner-row" : ""}">
+      <td class="hx-name">${seatEmoji(room, seat.mark)} ${escapeName(seatName(room, seat.mark))}</td>
+      <td class="hx-status">${flag}</td>
+      <td>${Math.max(0, seat.round_points)}</td>
+      <td>${Math.max(0, seat.tricks)}</td>
+      <td class="hx-total">${seat.score}</td>
+    </tr>`;
+  }).join("");
+  return `<section class="hx-standings" aria-label="Scores">
+    <table><thead><tr><th class="hx-name">Player</th><th></th><th>♥ round</th><th>Tricks</th><th>Score</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+  </section>`;
+}
+
 // ---------- wiring ----------
+
+// Interaction model (MojoSOGO 2026-07-04): tap selects, tapping the SAME card
+// unselects (never a double-tap commit). Committing is explicit — the Commit
+// button, or an up-swipe from the card toward the felt.
+const SWIPE_UP_PX = 48;    // how far up a flick must travel to commit
+const SWIPE_DRIFT_PX = 70; // sideways tolerance before it stops being "up"
+let swipeGuardAt = 0;      // a swipe's trailing click must not re-toggle selection
 
 function wireHearts(host, ctx, view) {
   const note = host.querySelector("[data-hx-note]");
@@ -398,9 +432,14 @@ function wireHearts(host, ctx, view) {
   const rerender = () => {
     if (host.isConnected && host.querySelector(".hearts-root")) renderHeartsPlay(host, ctx);
   };
+  const commitPlay = (card) => {
+    raised.cards.clear();
+    send({ type: "play", card });
+  };
   host.querySelectorAll(".hx-hand .pc-card[data-card]").forEach((cardEl) => {
+    const card = cardEl.getAttribute("data-card");
     cardEl.addEventListener("click", () => {
-      const card = cardEl.getAttribute("data-card");
+      if (Date.now() - swipeGuardAt < 400) return; // this tap already committed as a swipe
       if (view.myPassPending) {
         if (raised.cards.has(card)) raised.cards.delete(card);
         else if (raised.cards.size < 3) raised.cards.add(card);
@@ -410,16 +449,31 @@ function wireHearts(host, ctx, view) {
         return;
       }
       if (view.myTurn && view.legal && view.legal.includes(card)) {
-        if (raised.cards.has(card)) {           // the second tap commits the play
-          raised.cards.clear();
-          send({ type: "play", card });
-        } else {                                 // the first tap raises it for a look
-          raised.cards.clear();
-          raised.cards.add(card);
-          playClick();
-          rerender();
-        }
+        if (raised.cards.has(card)) raised.cards.delete(card); // tap again = unselect
+        else { raised.cards.clear(); raised.cards.add(card); } // tap = select (one at a time)
+        playClick();
+        rerender();
       }
+    });
+    // Up-swipe from the hand toward the felt commits the card directly.
+    cardEl.addEventListener("pointerdown", (start) => {
+      if (!view.myTurn || !view.legal || !view.legal.includes(card)) return;
+      try { cardEl.setPointerCapture(start.pointerId); } catch {}
+      const onUp = (end) => {
+        cleanup();
+        const rose = start.clientY - end.clientY;
+        const drift = Math.abs(end.clientX - start.clientX);
+        if (rose >= SWIPE_UP_PX && drift <= SWIPE_DRIFT_PX) {
+          swipeGuardAt = Date.now();
+          commitPlay(card);
+        }
+      };
+      const cleanup = () => {
+        cardEl.removeEventListener("pointerup", onUp);
+        cardEl.removeEventListener("pointercancel", cleanup);
+      };
+      cardEl.addEventListener("pointerup", onUp);
+      cardEl.addEventListener("pointercancel", cleanup);
     });
   });
   const action = host.querySelector("[data-hx-action]");
@@ -430,6 +484,8 @@ function wireHearts(host, ctx, view) {
         const cards = [...raised.cards];
         raised.cards.clear();
         send({ type: "pass", cards });
+      } else if (kind === "play" && raised.cards.size === 1) {
+        commitPlay([...raised.cards][0]);
       } else if (kind === "next_round") {
         send({ type: "next_round" });
       }
