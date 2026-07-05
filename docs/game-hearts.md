@@ -45,7 +45,10 @@ reset by `carryOptionsOnReset`.
   to the winner). Interactions unlock only after the replay settles.
   Tap a card to select it (tap the lone selection again to unselect — never a
   double-tap commit); commit with the always-labeled **Commit** button or an
-  up-swipe toward the felt. Selection works even OFF-turn (pre-select, so
+  up-swipe that may start anywhere in the hand strip (blank edges included —
+  off a card it commits that card, off blank space the lone selection).
+  Selection changes patch the DOM in place so mid-dwell felt animations never
+  restart. Selection works even OFF-turn (pre-select, so
   Commit is one tap when the turn arrives; on-turn taps are limited to legal
   cards). The three received pass cards arrive already raised + highlighted;
   selecting any card for play lowers the rest (a received card tapped for play

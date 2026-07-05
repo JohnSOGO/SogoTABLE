@@ -230,7 +230,7 @@ function renderHeartsPlay(host, ctx) {
       ${standingsHtml(displaySeats, room, game, actorMark, complete && caughtUp)}
       <p class="hx-msg" data-hx-note></p>
     </div>`;
-  wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending, preselect });
+  wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending, preselect, arrow: DIRECTION_ARROWS[game.pass_direction] || "" });
 
   // The trick-collect glide: after the dwell's read time, the four cards get
   // their direction class and slide to the winner.
@@ -428,10 +428,29 @@ function standingsHtml(displaySeats, room, game, actorMark, finished) {
 
 // Interaction model (MojoSOGO 2026-07-04): tap selects, tapping the SAME card
 // unselects (never a double-tap commit). Committing is explicit — the Commit
-// button, or an up-swipe from the card toward the felt.
-const SWIPE_UP_PX = 48;    // how far up a flick must travel to commit
-const SWIPE_DRIFT_PX = 70; // sideways tolerance before it stops being "up"
-let swipeGuardAt = 0;      // a swipe's trailing click must not re-toggle selection
+// button, or an up-swipe that may start ANYWHERE in the hand strip (the blank
+// space beside the cards included): a swipe off a card commits that card, a
+// swipe off blank space commits the lone selection.
+const SWIPE_UP_PX = 48; // how far up a flick must travel to commit (and more up than sideways)
+let swipeGuardAt = 0;   // a swipe's trailing click must not re-toggle selection
+
+// Selection changes patch the DOM in place — a full re-render mid-dwell would
+// restart the felt's play/collect animations (MojoSOGO 2026-07-04).
+function applySelection(host, view) {
+  host.querySelectorAll(".hx-hand .pc-card[data-card]").forEach((el) => {
+    el.classList.toggle("hx-raised", raised.cards.has(el.getAttribute("data-card")));
+  });
+  const action = host.querySelector("[data-hx-action]");
+  if (!action) return;
+  const kind = action.getAttribute("data-hx-action");
+  if (kind === "pass") {
+    action.disabled = raised.cards.size !== 3 || Boolean(view.movePending);
+    action.textContent = `Commit ${raised.cards.size}/3 ${view.arrow}`;
+  } else if (kind === "play") {
+    const [card] = [...raised.cards];
+    action.disabled = !(raised.cards.size === 1 && view.legal && view.legal.includes(card));
+  }
+}
 
 function wireHearts(host, ctx, view) {
   const note = host.querySelector("[data-hx-note]");
@@ -441,9 +460,6 @@ function wireHearts(host, ctx, view) {
       note.textContent = error;
       note.classList.add("hx-error");
     }
-  };
-  const rerender = () => {
-    if (host.isConnected && host.querySelector(".hearts-root")) renderHeartsPlay(host, ctx);
   };
   const commitPlay = (card) => {
     raised.cards.clear();
@@ -458,7 +474,7 @@ function wireHearts(host, ctx, view) {
         else if (raised.cards.size < 3) raised.cards.add(card);
         else return;
         playClick();
-        rerender();
+        applySelection(host, view);
         return;
       }
       // Playing phase: selection works even off-turn (pre-select, MojoSOGO
@@ -470,33 +486,46 @@ function wireHearts(host, ctx, view) {
         if (raised.cards.has(card) && raised.cards.size === 1) raised.cards.delete(card);
         else { raised.cards.clear(); raised.cards.add(card); }
         playClick();
-        rerender();
+        applySelection(host, view);
       }
     });
-    // Up-swipe from the hand toward the felt commits the card directly.
-    cardEl.addEventListener("pointerdown", (start) => {
-      if (!view.myTurn || !view.legal || !view.legal.includes(card)) return;
-      try { cardEl.setPointerCapture(start.pointerId); } catch {}
+  });
+  // Up-swipe to commit, starting ANYWHERE in the hand strip (blank edges
+  // included). Off a card: commit that card; off blank space: commit the lone
+  // selection. Pointer capture keeps the gesture even when the finger leaves.
+  const hand = host.querySelector(".hx-hand");
+  if (hand && view.myTurn && view.legal) {
+    hand.addEventListener("pointerdown", (start) => {
+      const startCardEl = start.target && start.target.closest ? start.target.closest("[data-card]") : null;
+      const startCard = startCardEl ? startCardEl.getAttribute("data-card") : null;
+      try { hand.setPointerCapture(start.pointerId); } catch {}
       const onUp = (end) => {
         cleanup();
         const rose = start.clientY - end.clientY;
         const drift = Math.abs(end.clientX - start.clientX);
-        if (rose >= SWIPE_UP_PX && drift <= SWIPE_DRIFT_PX) {
+        if (rose < SWIPE_UP_PX || drift > rose) return; // must travel up, more up than sideways
+        const card = startCard && view.legal.includes(startCard)
+          ? startCard
+          : (raised.cards.size === 1 && view.legal.includes([...raised.cards][0]) ? [...raised.cards][0] : null);
+        if (card) {
           swipeGuardAt = Date.now();
           commitPlay(card);
         }
       };
       const cleanup = () => {
-        cardEl.removeEventListener("pointerup", onUp);
-        cardEl.removeEventListener("pointercancel", cleanup);
+        hand.removeEventListener("pointerup", onUp);
+        hand.removeEventListener("pointercancel", cleanup);
       };
-      cardEl.addEventListener("pointerup", onUp);
-      cardEl.addEventListener("pointercancel", cleanup);
+      hand.addEventListener("pointerup", onUp);
+      hand.addEventListener("pointercancel", cleanup);
     });
-  });
+  }
+  // The listener attaches whether or not the button is currently enabled —
+  // applySelection() flips `disabled` live without a re-wire.
   const action = host.querySelector("[data-hx-action]");
-  if (action && !action.disabled) {
+  if (action) {
     action.addEventListener("click", () => {
+      if (action.disabled) return;
       const kind = action.getAttribute("data-hx-action");
       if (kind === "pass" && raised.cards.size === 3) {
         const cards = [...raised.cards];

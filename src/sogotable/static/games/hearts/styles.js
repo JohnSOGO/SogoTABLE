@@ -93,8 +93,10 @@ export const HEARTS_CSS = `
 .hearts-root .hx-action:disabled{opacity:.42;box-shadow:none;transform:none;cursor:default;
  background:var(--hx-panel);color:var(--hx-muted);border:1px solid var(--hx-line);}
 /* ---- my hand: overlapping fan, tap to raise, tap again to commit ---- */
+/* touch-action:none across the WHOLE strip: an up-swipe to commit may start
+   anywhere in it, blank edges included, so no part of it may pan the page. */
 .hearts-root .hx-hand{display:flex;justify-content:center;align-items:flex-end;width:100%;
- max-width:480px;padding-top:16px;min-height:82px;}
+ max-width:480px;padding-top:16px;min-height:82px;touch-action:none;}
 /* touch-action:none so an up-flick reaches pointerup as a commit gesture
    instead of scrolling the page. */
 .hearts-root .hx-hand .pc-card{pointer-events:auto;cursor:pointer;transition:transform .16s ease;
