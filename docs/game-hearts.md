@@ -55,7 +55,12 @@ reset by `carryOptionsOnReset`.
   the card again cancels. An ON-turn selection arms a 1-second shot clock —
   the Commit button pulses softly (no numeric countdown) and the card
   auto-plays when it expires; unselecting or switching cards resets it, a
-  manual Commit or swipe beats it. Selection works even OFF-turn (pre-select, so
+  manual Commit or swipe beats it. Once every point card is off the hands the
+  round is decided: the tail replays at quarter speed (~0.25s per move) and
+  the human's remaining cards auto-play too ("no points left — playing out
+  the hand"). Below the standings table a 0 → target progress line carries
+  each player's emoji; a standings row pulses soft yellow at 80% of the
+  target and soft red at 90%. Selection works even OFF-turn (pre-select, so
   Commit is one tap when the turn arrives; on-turn taps are limited to legal
   cards). The three received pass cards arrive already raised + highlighted;
   selecting any card for play lowers the rest (a received card tapped for play

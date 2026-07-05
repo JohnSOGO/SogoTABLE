@@ -26,6 +26,9 @@ const PLAY_STEP_MS = 700;        // consecutive plays inside a bot chain
 const PLAY_SOLO_MS = 1200;       // a play with the table's attention on it
 const TRICK_DWELL_MS = 2150;     // read the full trick, then the collect glide
 const COLLECT_MS = 1150;         // the glide itself (matches styles.js transition)
+const FAST_PLAY_MS = 250;        // once every point is off the hands: keep it moving
+const FAST_TRICK_MS = 650;
+const FAST_COLLECT_MS = 300;     // matches the .hx-fast transition in styles.js
 const DEAL_DWELL_MS = 2200;
 const PASS_DWELL_MS = 1500;
 const POSITIONS = ["b", "l", "t", "r"]; // you, left, across, right
@@ -161,10 +164,15 @@ function renderHeartsPlay(host, ctx) {
     dealAnimRound = 0;
   }
   if (raised.key !== paceKey) raised = { key: paceKey, cards: new Set(), preset: false };
+  // The dead tail: once EVERY point card is off the hands (live state), the
+  // round is decided — events after the last point-bearing one replay at
+  // quarter speed and the human's own cards auto-play (MojoSOGO 2026-07-04).
+  const exhausted = heartsPointsExhausted(game);
+  const fastFrom = exhausted ? lastPointEventCount(events, game.options) : Infinity;
   if (pace.shown < target && now >= (pace.nextAt || 0)) {
     const next = events.find((event) => Number(event.move_count) > pace.shown);
     pace.shown = next ? Number(next.move_count) : target;
-    pace.nextAt = now + (next ? dwellFor(next, events) : 0);
+    pace.nextAt = now + (next ? dwellFor(next, events, Number(next.move_count) > fastFrom) : 0);
   }
   if (pace.shown > target) pace.shown = target;
   const caughtUp = pace.shown >= target;
@@ -262,6 +270,16 @@ function renderHeartsPlay(host, ctx) {
       ctx.makeMove({ type: "play", card: queued });
     }
   }
+  // Dead-tail auto-play: no points remain, so the human's cards go by
+  // themselves too (any legal card — nothing can change the score).
+  const autoPlaying = exhausted && !complete && game.phase === "playing";
+  if (myTurn && autoPlaying && Array.isArray(legal) && legal.length) {
+    const commitKey = `${paceKey}:${target}`;
+    if (autoCommitted !== commitKey) {
+      autoCommitted = commitKey;
+      ctx.makeMove({ type: "play", card: raised.cards.size === 1 && legal.includes([...raised.cards][0]) ? [...raised.cards][0] : legal[0] });
+    }
+  }
   const playReady = myTurn && raised.cards.size === 1 && Array.isArray(legal) && legal.includes([...raised.cards][0]);
   const queuedCard = !myTurn && preselect && raised.preset && raised.cards.size === 1 ? [...raised.cards][0] : null;
   const showResults = settled && (complete || game.phase === "round_end");
@@ -274,11 +292,12 @@ function renderHeartsPlay(host, ctx) {
   // Opponent boxes render in grid order: left, across, right.
   const oppOrder = ["l", "t", "r"].map((pos) => order.find((mark) => positionOf[mark] === pos)).filter(Boolean);
   const meMark = order.find((mark) => positionOf[mark] === "b");
+  const fastShown = Boolean(lastVisible && Number(lastVisible.move_count) > fastFrom);
   host.innerHTML = `
-    <div class="hearts-root">
+    <div class="hearts-root${fastShown ? " hx-fast" : ""}">
       ${showResults && complete && game.winner ? `<p class="hx-banner">🏆 ${escapeName(seatName(room, game.winner))} wins Hearts!</p>` : ""}
       <p class="hx-tip${myTurn || myPassPending ? " hx-your-turn" : ""}" data-hx-tip>
-        <span class="hx-tip-text">${tipHtml(game, room, { caughtUp, lastVisible, myTurn, myPassPending, passing, complete, localSeat, seats, movePending, queuedCard })}</span><span class="hx-tip-page" hidden></span>
+        <span class="hx-tip-text">${tipHtml(game, room, { caughtUp, lastVisible, myTurn, myPassPending, passing, complete, localSeat, seats, movePending, queuedCard, autoPlaying })}</span><span class="hx-tip-page" hidden></span>
       </p>
       <div class="hx-opps">${oppOrder.map((mark) => seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtUp)).join("")}</div>
       <div class="hx-felt">
@@ -304,7 +323,7 @@ function renderHeartsPlay(host, ctx) {
   // their direction class and slide to the winner.
   if (collecting) {
     const winnerPos = positionOf[lastVisible.winner] || "t";
-    const collectAt = Math.max(0, (pace.nextAt || now) - COLLECT_MS - now);
+    const collectAt = Math.max(0, (pace.nextAt || now) - (fastShown ? FAST_COLLECT_MS : COLLECT_MS) - now);
     setTimeout(() => {
       if (!host.isConnected) return;
       host.querySelectorAll(".hx-slot").forEach((slot) => slot.classList.add(`hx-collect-${winnerPos}`));
@@ -317,12 +336,13 @@ function dealCountBefore(visible) {
   return deal ? Number(deal.move_count) : 0;
 }
 
-function dwellFor(event, events) {
+function dwellFor(event, events, fast) {
   if (event.type === "deal") return DEAL_DWELL_MS;
   if (event.type === "passed") return 400;
   if (event.type === "pass_complete") return PASS_DWELL_MS;
-  if (event.type === "trick") return TRICK_DWELL_MS;
+  if (event.type === "trick") return fast ? FAST_TRICK_MS : TRICK_DWELL_MS;
   if (event.type === "play") {
+    if (fast) return FAST_PLAY_MS; // the round is decided — keep it moving
     // Consecutive plays chain quickly; a play that OPENS a trick gets the
     // table's full attention (1.5s-class dwell).
     const previous = events.filter((other) => Number(other.move_count) < Number(event.move_count)).pop();
@@ -330,6 +350,28 @@ function dwellFor(event, events) {
     return opensTrick ? PLAY_SOLO_MS : PLAY_STEP_MS;
   }
   return 250; // round_end / complete: the score sheet is its own moment
+}
+
+// All 26 points (plus the J♦ under that option) already sit in someone's
+// points_taken: nothing left in the hands can change a score.
+function heartsPointsExhausted(game) {
+  const taken = (Array.isArray(game.players) ? game.players : [])
+    .flatMap((seat) => (Array.isArray(seat.points_taken) ? seat.points_taken : []));
+  if (taken.filter((card) => cardSuit(card) === "H").length < 13) return false;
+  if (!taken.includes("QS")) return false;
+  if (game.options && game.options.jack_of_diamonds && !taken.includes("JD")) return false;
+  return true;
+}
+
+// The last event that still carried a point — everything after it is the
+// dead tail. 0 when the events window has already scrolled past them all.
+function lastPointEventCount(events, options) {
+  const jd = Boolean(options && options.jack_of_diamonds);
+  const pointCard = (card) => cardSuit(card) === "H" || card === "QS" || (jd && card === "JD");
+  return events.reduce((last, event) => (
+    (event.type === "play" && pointCard(event.card)) || (event.type === "trick" && Number(event.points || 0) !== 0)
+      ? Number(event.move_count) : last
+  ), 0);
 }
 
 function soundFor(event, visible, game, localMark) {
@@ -432,6 +474,7 @@ function tipHtml(game, room, view) {
     const waiting = (view.seats || []).filter((seat) => !seat.has_passed).map((seat) => escapeName(seatName(room, seat.mark)));
     return waiting.length ? `Waiting on ${waiting.join(", ")}…` : "…";
   }
+  if (view.autoPlaying) return "No points left — playing out the hand…";
   if (view.myTurn) return "Your turn — pick a card, then Commit (or flick it to the table).";
   if (view.caughtUp && game.phase === "round_end") return "Round scored — ready for the next deal.";
   if (view.queuedCard) return `${cardLabel(view.queuedCard)} queued — it plays when your turn comes.`;
@@ -540,10 +583,15 @@ function seatScore(game, mark) {
 // 2026-07-04). House table style: name left, single-emoji status column,
 // stat columns centered, no row numbers. Lowest score leads the sort.
 function standingsHtml(displaySeats, room, game, actorMark, finished) {
+  const target = Number(game.options && game.options.target_score) || 100;
   const seats = displaySeats.slice().sort((a, b) => a.score - b.score);
   const rows = seats.map((seat) => {
     const flag = finished && game.winner === seat.mark ? "🏆" : actorMark === seat.mark ? "👉" : "";
-    return `<tr class="${finished && game.winner === seat.mark ? "hx-winner-row" : ""}">
+    // Danger pulses scale to the target (at the default 100: the 80s pulse
+    // yellow, the 90s red).
+    const pct = (Number(seat.score) / target) * 100;
+    const heat = finished ? "" : pct >= 90 ? " hx-hot90" : pct >= 80 ? " hx-hot80" : "";
+    return `<tr class="${finished && game.winner === seat.mark ? "hx-winner-row" : ""}${heat}">
       <td class="hx-name">${seatEmoji(room, seat.mark)} ${escapeName(seatName(room, seat.mark))}</td>
       <td class="hx-status">${flag}</td>
       <td>${Math.max(0, seat.round_points)}</td>
@@ -551,9 +599,15 @@ function standingsHtml(displaySeats, room, game, actorMark, finished) {
       <td class="hx-total">${seat.score}</td>
     </tr>`;
   }).join("");
+  // The march to the target: every player's emoji rides the 0 → target line.
+  const chips = displaySeats.map((seat) => {
+    const pct = Math.max(0, Math.min(100, (Number(seat.score) / target) * 100));
+    return `<span class="hx-prog-chip" style="left:${pct}%" aria-label="${escapeName(seatName(room, seat.mark))}: ${seat.score} of ${target}">${seatEmoji(room, seat.mark)}</span>`;
+  }).join("");
   return `<section class="hx-standings" aria-label="Scores">
     <table><thead><tr><th class="hx-name">Player</th><th></th><th>♥ round</th><th>Tricks</th><th>Score</th></tr></thead>
     <tbody>${rows}</tbody></table>
+    <div class="hx-progress"><span class="hx-prog-track"></span>${chips}</div>
   </section>`;
 }
 

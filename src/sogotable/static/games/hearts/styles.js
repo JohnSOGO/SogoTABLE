@@ -72,6 +72,9 @@ export const HEARTS_CSS = `
 .hearts-root .hx-play-r{animation:hx-from-r .5s cubic-bezier(.25,.8,.35,1);}
 /* Trick collect: the four cards glide to the winner's edge and fade. */
 .hearts-root .hx-slot .pc-card{transition:transform 1.1s cubic-bezier(.45,.05,.35,1),opacity 1.1s ease;}
+/* Dead tail (all points already taken): quarter-speed everything. */
+.hearts-root.hx-fast [class*="hx-play-"]{animation-duration:.25s;}
+.hearts-root.hx-fast .hx-slot .pc-card{transition-duration:.3s;}
 .hearts-root .hx-collect-b .pc-card{transform:translateY(150px) scale(.5);opacity:0;}
 .hearts-root .hx-collect-l .pc-card{transform:translateX(-190px) scale(.5);opacity:0;}
 .hearts-root .hx-collect-t .pc-card{transform:translateY(-150px) scale(.5);opacity:0;}
@@ -135,6 +138,18 @@ export const HEARTS_CSS = `
 .hearts-root .hx-standings td.hx-status{width:26px;padding-left:0;padding-right:0;}
 .hearts-root .hx-standings td.hx-total{font-weight:800;}
 .hearts-root .hx-standings tr.hx-winner-row td{background:rgba(231,194,86,.14);}
+/* Danger heat: a soft pulse as a player closes on the target (80% yellow,
+   90% red — the 80s and 90s at the default play-to-100). */
+.hearts-root .hx-standings tr.hx-hot80 td{animation:hx-hot80 1.8s ease-in-out infinite;}
+.hearts-root .hx-standings tr.hx-hot90 td{animation:hx-hot90 1.4s ease-in-out infinite;}
+@keyframes hx-hot80{50%{background:rgba(231,194,86,.22);}}
+@keyframes hx-hot90{50%{background:rgba(214,75,62,.20);}}
+/* The march to the target: emojis ride a 0 -> target line below the table. */
+.hearts-root .hx-progress{position:relative;height:26px;margin:7px 12px 3px;}
+.hearts-root .hx-prog-track{position:absolute;left:0;right:0;top:50%;height:4px;
+ transform:translateY(-50%);border-radius:2px;background:var(--hx-line);}
+.hearts-root .hx-prog-chip{position:absolute;top:50%;transform:translate(-50%,-50%);
+ font-size:1rem;line-height:1;transition:left 1s ease;}
 .hearts-root .hx-msg{margin:0;font-size:.88rem;color:var(--hx-muted);text-align:center;min-height:1.2em;}
 .hearts-root .hx-msg.hx-error{color:var(--hx-danger);}
 /* ---- host lobby options (rendered via renderHostStartLobby extraHtml) ---- */
