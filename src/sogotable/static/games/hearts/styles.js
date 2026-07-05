@@ -20,10 +20,15 @@ export const HEARTS_CSS = `
 .hearts-root .hx-banner{width:100%;max-width:480px;box-sizing:border-box;margin:0;text-align:center;
  font-weight:700;font-size:1.1rem;background:var(--hx-panel);border:1px solid var(--hx-line);
  border-radius:12px;padding:9px 12px;}
-/* Status strip: ALWAYS one fixed-height line (the no-jump rule). */
+/* Status strip: ALWAYS one fixed-height line (the no-jump rule). Overflow
+   paginates: an n/m badge appears and a tap flips pages (the NT pattern). */
 .hearts-root .hx-tip{width:100%;max-width:480px;box-sizing:border-box;margin:0;padding:8px 12px;
  border-radius:12px;background:var(--hx-panel);border:1px solid var(--hx-line);font-size:.88rem;
- height:36px;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;}
+ height:36px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;}
+.hearts-root .hx-tip .hx-tip-text{flex:1;min-width:0;overflow:hidden;text-align:center;}
+.hearts-root .hx-tip .hx-tip-page{flex:0 0 auto;font-size:.7rem;color:var(--hx-muted);
+ border:1px solid var(--hx-line);border-radius:8px;padding:1px 6px;}
+.hearts-root .hx-tip.hx-tip-paged{cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .hearts-root .hx-tip.hx-your-turn{border-color:var(--hx-gold);animation:hx-pulse 1.2s ease-in-out 3;}
 @keyframes hx-pulse{50%{background:rgba(231,194,86,.16);box-shadow:0 0 0 3px rgba(231,194,86,.18);}}
 /* ---- seat boxes: the turn list lives around the felt (3 up top, you below) ---- */
@@ -31,9 +36,14 @@ export const HEARTS_CSS = `
 .hearts-root .hx-seatbox{background:var(--hx-panel);border:1px solid var(--hx-line);border-radius:12px;
  padding:6px 9px;min-width:0;display:flex;flex-direction:column;gap:2px;box-sizing:border-box;}
 .hearts-root .hx-seatbox.hx-turn{border-color:var(--hx-gold);box-shadow:0 0 0 2px rgba(231,194,86,.25);}
-.hearts-root .hx-seatbox .hx-nm{font-weight:700;font-size:.84rem;white-space:nowrap;overflow:hidden;
+.hearts-root .hx-seatbox .hx-nm{font-weight:700;font-size:.84rem;display:flex;align-items:center;gap:2px;}
+.hearts-root .hx-seatbox .hx-nm .hx-nm-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;
  text-overflow:ellipsis;}
-.hearts-root .hx-seatbox .hx-nm .hx-mark{display:inline-block;width:1.15em;}
+.hearts-root .hx-seatbox .hx-nm .hx-mark{flex:none;display:inline-block;width:1.15em;}
+/* Taken-points badges: ♥ = took hearts this round, ♠ = took the queen. */
+.hearts-root .hx-seatbox .hx-badges{flex:none;font-size:.82rem;line-height:1;display:inline-flex;gap:1px;}
+.hearts-root .hx-badge-h{color:#c22335;}
+.hearts-root .hx-badge-s{color:var(--hx-ink);}
 /* ---- the felt ---- */
 .hearts-root .hx-felt{position:relative;width:100%;max-width:480px;box-sizing:border-box;
  height:clamp(210px,34dvh,290px);border-radius:16px;

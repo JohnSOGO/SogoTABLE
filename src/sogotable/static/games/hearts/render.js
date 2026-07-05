@@ -38,6 +38,9 @@ let sounded = 0;        // move_count of the last event given its sound
 let dealAnimRound = 0;  // the round whose deal-in the hand has already fanned
 let raised = { key: "", cards: new Set() }; // tap-to-raise state (pass picks / the play candidate)
 let receivedSeed = "";  // round whose received trio has been auto-raised once
+// Tip-strip pagination (the No Thanks pattern): the strip is a FIXED one-liner;
+// overflow splits into pages with an n/m badge and a tap flips them.
+let tipPages = { text: "", page: 0, pages: [] };
 
 export function renderHeartsGame(ctx) {
   const { host, game } = ctx;
@@ -150,11 +153,16 @@ function renderHeartsPlay(host, ctx) {
   const myFuture = futurePlays.filter((event) => event.mark === localMark).map((event) => event.card);
   const displaySeats = seats.map((seat) => {
     const tricksBack = futureTricks.filter((event) => event.winner === seat.mark);
+    // Point cards from not-yet-shown tricks don't badge the seat box early.
+    const futureCards = new Set(tricksBack.flatMap((event) => (event.plays || []).map((play) => play.card)));
+    const takenShown = (Array.isArray(seat.points_taken) ? seat.points_taken : []).filter((card) => !futureCards.has(card));
     return {
       ...seat,
       tricks: Number(seat.tricks || 0) - tricksBack.length,
       round_points: Number(seat.round_points || 0) - tricksBack.reduce((sum, event) => sum + Number(event.points || 0), 0),
       hand_count: (Array.isArray(seat.hand) ? seat.hand.length : 0) + futurePlays.filter((event) => event.mark === seat.mark).length,
+      took_hearts: takenShown.some((card) => cardSuit(card) === "H"),
+      took_queen: takenShown.includes("QS"),
     };
   });
   const myHand = localSeat
@@ -212,7 +220,9 @@ function renderHeartsPlay(host, ctx) {
   host.innerHTML = `
     <div class="hearts-root">
       ${showResults && complete && game.winner ? `<p class="hx-banner">🏆 ${escapeName(seatName(room, game.winner))} wins Hearts!</p>` : ""}
-      <p class="hx-tip${myTurn || myPassPending ? " hx-your-turn" : ""}">${tipHtml(game, room, { caughtUp, lastVisible, myTurn, myPassPending, passing, complete, localSeat, seats, movePending })}</p>
+      <p class="hx-tip${myTurn || myPassPending ? " hx-your-turn" : ""}" data-hx-tip>
+        <span class="hx-tip-text">${tipHtml(game, room, { caughtUp, lastVisible, myTurn, myPassPending, passing, complete, localSeat, seats, movePending })}</span><span class="hx-tip-page" hidden></span>
+      </p>
       <div class="hx-opps">${oppOrder.map((mark) => seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtUp)).join("")}</div>
       <div class="hx-felt">
         ${showResults
@@ -231,6 +241,7 @@ function renderHeartsPlay(host, ctx) {
       <p class="hx-msg" data-hx-note></p>
     </div>`;
   wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending, preselect, arrow: DIRECTION_ARROWS[game.pass_direction] || "" });
+  paginateTip(host);
 
   // The trick-collect glide: after the dwell's read time, the four cards get
   // their direction class and slide to the winner.
@@ -286,14 +297,16 @@ function soundFor(event, visible, game, localMark) {
 // ---------- html builders ----------
 
 // Name + turn marker only — scores and tricks live in the standings table
-// below the hand (MojoSOGO 2026-07-04), not in the seat boxes.
+// below the hand (MojoSOGO 2026-07-04). The one exception: suit badges — a ♥
+// if the seat has taken ANY heart this round, a ♠ if the queen landed on them.
 function seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtUp) {
   const seat = seatByMark(displaySeats, mark);
   if (!seat) return "";
   const waitingPass = passing && !seat.has_passed;
   const turnMark = actorMark === mark ? "👉" : waitingPass ? "🔀" : "";
+  const badges = `${seat.took_hearts ? '<span class="hx-badge-h">♥</span>' : ""}${seat.took_queen ? '<span class="hx-badge-s">♠</span>' : ""}`;
   return `<div class="hx-seatbox${actorMark === mark ? " hx-turn" : ""}">
-    <span class="hx-nm"><span class="hx-mark">${turnMark}</span>${seatEmoji(room, mark)} ${escapeName(seatName(room, mark))}</span>
+    <span class="hx-nm"><span class="hx-mark">${turnMark}</span><span class="hx-nm-text">${seatEmoji(room, mark)} ${escapeName(seatName(room, mark))}</span><span class="hx-badges">${badges}</span></span>
   </div>`;
 }
 
@@ -366,6 +379,68 @@ function tipHtml(game, room, view) {
   if (view.caughtUp && game.phase === "round_end") return "Round scored — ready for the next deal.";
   if (game.current_player) return `${escapeName(seatName(room, game.current_player))} is thinking…`;
   return "…";
+}
+
+// A tip broken into complete ideas: a chunk ends after sentence punctuation
+// or a comma, so page breaks land BETWEEN thoughts, never mid-idea.
+// (Duplicated from no-thanks/render.js — games must not import game-to-game;
+// a shared games/tip-strip.js is the extraction candidate when a third game
+// wants it.)
+function ideaChunks(text) {
+  const chunks = [];
+  let buffer = "";
+  for (const word of text.split(" ")) {
+    buffer = buffer ? `${buffer} ${word}` : word;
+    if (/[.!?;:,]$/.test(word)) { chunks.push(buffer); buffer = ""; }
+  }
+  if (buffer) chunks.push(buffer);
+  return chunks;
+}
+
+// Fit the tip to its single line. If it overflows, pack whole ideas into
+// pages that fit beside the n/m badge, show the current page, and let a tap
+// on the strip flip to the next. Pure display — measured on live rects.
+function paginateTip(host) {
+  const strip = host.querySelector("[data-hx-tip]");
+  if (!strip) return;
+  const textEl = strip.querySelector(".hx-tip-text");
+  const badge = strip.querySelector(".hx-tip-page");
+  const full = textEl.textContent.replace(/\s+/g, " ").trim();
+  if (tipPages.text !== full) tipPages = { text: full, page: 0, pages: [] };
+  textEl.textContent = full;
+  badge.hidden = true;
+  if (textEl.scrollWidth <= textEl.clientWidth + 1) return; // fits — one page, no badge
+  badge.hidden = false;
+  badge.textContent = "9/9"; // worst-case badge width while measuring
+  const fits = (candidate) => {
+    textEl.textContent = candidate;
+    return textEl.scrollWidth <= textEl.clientWidth + 1;
+  };
+  const pages = [];
+  let current = "";
+  const push = () => { if (current) { pages.push(current); current = ""; } };
+  for (const idea of ideaChunks(full)) {
+    const attempt = current ? `${current} ${idea}` : idea;
+    if (fits(attempt)) { current = attempt; continue; }
+    push();
+    if (fits(idea)) { current = idea; continue; }
+    for (const word of idea.split(" ")) { // an idea alone too long: last resort, split it
+      const wordAttempt = current ? `${current} ${word}` : word;
+      if (fits(wordAttempt)) current = wordAttempt;
+      else { push(); current = word; }
+    }
+  }
+  push();
+  tipPages.pages = pages.length ? pages : [full];
+  const show = () => {
+    const total = tipPages.pages.length;
+    tipPages.page %= total;
+    textEl.textContent = tipPages.pages[tipPages.page];
+    badge.textContent = `${tipPages.page + 1}/${total}`;
+  };
+  show();
+  strip.classList.add("hx-tip-paged");
+  strip.addEventListener("click", () => { tipPages.page += 1; show(); });
 }
 
 function feltStatus(game, room, view) {
