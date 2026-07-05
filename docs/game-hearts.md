@@ -49,7 +49,10 @@ reset by `carryOptionsOnReset`.
   The swipe commits ONLY the already-selected card — selection is a separate
   prior action, so a swipe brushing some other card can never play it.
   Selection changes patch the DOM in place so mid-dwell felt animations never
-  restart. Selection works even OFF-turn (pre-select, so
+  restart. An OFF-turn pick is a queued commit (a premove): it plays itself
+  the moment the turn arrives if legal (an illegal premove stays raised for a
+  fresh pick and never auto-fires); the button shows "Queued ✓" and tapping
+  the card again cancels. Selection works even OFF-turn (pre-select, so
   Commit is one tap when the turn arrives; on-turn taps are limited to legal
   cards). The three received pass cards arrive already raised + highlighted;
   selecting any card for play lowers the rest (a received card tapped for play

@@ -36,7 +36,8 @@ let stylesInjected = false;
 let pace = { key: "", shown: 0, nextAt: 0, timer: null };
 let sounded = 0;        // move_count of the last event given its sound
 let dealAnimRound = 0;  // the round whose deal-in the hand has already fanned
-let raised = { key: "", cards: new Set() }; // tap-to-raise state (pass picks / the play candidate)
+let raised = { key: "", cards: new Set(), preset: false }; // tap-to-raise state; preset = picked off-turn (a queued commit)
+let autoCommitted = ""; // paceKey:move_count the premove already fired for
 let receivedSeed = "";  // round whose received trio has been auto-raised once
 // Tip-strip pagination (the No Thanks pattern): the strip is a FIXED one-liner;
 // overflow splits into pages with an n/m badge and a tap flips them.
@@ -123,7 +124,7 @@ function renderHeartsPlay(host, ctx) {
     sounded = target;
     dealAnimRound = 0;
   }
-  if (raised.key !== paceKey) raised = { key: paceKey, cards: new Set() };
+  if (raised.key !== paceKey) raised = { key: paceKey, cards: new Set(), preset: false };
   if (pace.shown < target && now >= (pace.nextAt || 0)) {
     const next = events.find((event) => Number(event.move_count) > pace.shown);
     pace.shown = next ? Number(next.move_count) : target;
@@ -202,11 +203,26 @@ function renderHeartsPlay(host, ctx) {
   if (preselect && game.first_trick && localSeat && Array.isArray(localSeat.received) && receivedSeed !== seedKey) {
     receivedSeed = seedKey;
     raised.cards = new Set(localSeat.received.filter((card) => (localSeat.hand || []).includes(card)));
+    raised.preset = false; // the auto-raised trio is a highlight, not a queued play
   }
   const passing = settled && !complete && game.phase === "passing";
   const myPassPending = passing && Boolean(localSeat) && !seatByMark(seats, localMark).has_passed;
   const legal = myTurn && Array.isArray(game.legal_plays) ? game.legal_plays : null;
+  // A pre-selection IS a commit (MojoSOGO 2026-07-04): a card picked off-turn
+  // plays itself the moment the turn arrives — if it's legal. An illegal
+  // premove stays raised (dimmed) for a fresh pick and never auto-fires.
+  if (myTurn && raised.preset && raised.cards.size === 1) {
+    const queued = [...raised.cards][0];
+    raised.preset = false;
+    const commitKey = `${paceKey}:${target}`;
+    if (Array.isArray(legal) && legal.includes(queued) && autoCommitted !== commitKey) {
+      autoCommitted = commitKey;
+      raised.cards.clear();
+      ctx.makeMove({ type: "play", card: queued }); // reply snapshot repaints
+    }
+  }
   const playReady = myTurn && raised.cards.size === 1 && Array.isArray(legal) && legal.includes([...raised.cards][0]);
+  const queuedCard = !myTurn && preselect && raised.preset && raised.cards.size === 1 ? [...raised.cards][0] : null;
   const showResults = settled && (complete || game.phase === "round_end");
   const actorMark = settled ? game.current_player
     : (lastVisible && lastVisible.type === "play" ? lastVisible.next : null);
@@ -221,7 +237,7 @@ function renderHeartsPlay(host, ctx) {
     <div class="hearts-root">
       ${showResults && complete && game.winner ? `<p class="hx-banner">🏆 ${escapeName(seatName(room, game.winner))} wins Hearts!</p>` : ""}
       <p class="hx-tip${myTurn || myPassPending ? " hx-your-turn" : ""}" data-hx-tip>
-        <span class="hx-tip-text">${tipHtml(game, room, { caughtUp, lastVisible, myTurn, myPassPending, passing, complete, localSeat, seats, movePending })}</span><span class="hx-tip-page" hidden></span>
+        <span class="hx-tip-text">${tipHtml(game, room, { caughtUp, lastVisible, myTurn, myPassPending, passing, complete, localSeat, seats, movePending, queuedCard })}</span><span class="hx-tip-page" hidden></span>
       </p>
       <div class="hx-opps">${oppOrder.map((mark) => seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtUp)).join("")}</div>
       <div class="hx-felt">
@@ -234,13 +250,13 @@ function renderHeartsPlay(host, ctx) {
       </div>
       <div class="hx-actionrow">
         ${meMark ? seatBoxHtml(displaySeats, room, game, meMark, actorMark, passing, caughtUp) : `<div class="hx-seatbox"><span class="hx-nm">Watching</span></div>`}
-        ${actionButtonHtml(game, { caughtUp, complete, myTurn, passing, myPassPending, movePending, localSeat, raisedCount: raised.cards.size, playReady })}
+        ${actionButtonHtml(game, { caughtUp, complete, myTurn, passing, myPassPending, movePending, localSeat, raisedCount: raised.cards.size, playReady, queuedCard })}
       </div>
       <div class="hx-hand${dealing ? " hx-dealing" : ""}">${handHtml(myHand, localSeat, legal, game, myTurn)}</div>
       ${standingsHtml(displaySeats, room, game, actorMark, complete && caughtUp)}
       <p class="hx-msg" data-hx-note></p>
     </div>`;
-  wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending, preselect, arrow: DIRECTION_ARROWS[game.pass_direction] || "" });
+  wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending, preselect, offTurnPlaying: preselect && !myTurn, arrow: DIRECTION_ARROWS[game.pass_direction] || "" });
   paginateTip(host);
 
   // The trick-collect glide: after the dwell's read time, the four cards get
@@ -347,7 +363,7 @@ function actionButtonHtml(game, view) {
   if (view.myTurn) {
     return `<button class="hx-action" type="button" data-hx-action="play" ${view.playReady ? "" : "disabled"}>Commit</button>`;
   }
-  return `<button class="hx-action" type="button" data-hx-action disabled>Waiting…</button>`;
+  return `<button class="hx-action" type="button" data-hx-action disabled>${view.queuedCard ? "Queued ✓" : "Waiting…"}</button>`;
 }
 
 function tipHtml(game, room, view) {
@@ -377,6 +393,7 @@ function tipHtml(game, room, view) {
   }
   if (view.myTurn) return "Your turn — pick a card, then Commit (or flick it to the table).";
   if (view.caughtUp && game.phase === "round_end") return "Round scored — ready for the next deal.";
+  if (view.queuedCard) return `${cardLabel(view.queuedCard)} queued — it plays when your turn comes.`;
   if (game.current_player) return `${escapeName(seatName(room, game.current_player))} is thinking…`;
   return "…";
 }
@@ -523,6 +540,8 @@ function applySelection(host, view) {
   } else if (kind === "play") {
     const [card] = [...raised.cards];
     action.disabled = !(raised.cards.size === 1 && view.legal && view.legal.includes(card));
+  } else if (!kind && view.offTurnPlaying) {
+    action.textContent = raised.preset && raised.cards.size === 1 ? "Queued ✓" : "Waiting…";
   }
 }
 
@@ -557,8 +576,14 @@ function wireHearts(host, ctx, view) {
       // and if the tapped card was already among the raised, it simply stays
       // as THE selection. Tapping the lone selected card unselects it.
       if (view.preselect && (!view.myTurn || (view.legal && view.legal.includes(card)))) {
-        if (raised.cards.has(card) && raised.cards.size === 1) raised.cards.delete(card);
-        else { raised.cards.clear(); raised.cards.add(card); }
+        if (raised.cards.has(card) && raised.cards.size === 1) {
+          raised.cards.delete(card);
+          raised.preset = false;
+        } else {
+          raised.cards.clear();
+          raised.cards.add(card);
+          raised.preset = !view.myTurn; // an off-turn pick is a queued commit
+        }
         playClick();
         applySelection(host, view);
       }
