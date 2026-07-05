@@ -1,0 +1,467 @@
+// Hearts — in-game UI adapter. Renders the prepared server projection and
+// captures intent; it computes NO rule outcomes (legality arrives as
+// game.legal_plays for the current player only, other hands arrive masked to
+// null by the worker's viewer sanitizer, and every score is server-decided).
+// The shell hands the same ctx bag as the other host-start games; the
+// pre-game screen is the shared renderHostStartLobby template, carrying the
+// host's optional-rules picker (Jack of Diamonds, first-trick blood, moon
+// style, target score) into ctx.startGame(options). Card faces come from the
+// shared games/playing-cards.js; all wiring is addEventListener — no inline
+// onclick, no imports from app.js.
+//
+// Pacing: the server resolves a whole bot chain inside one snapshot, so this
+// renderer replays the new events one at a time — plays slide in from their
+// seat's direction (~1.5s of room for a lone play, faster when consecutive
+// plays chain), a finished trick dwells, then glides to its winner. Nothing
+// interactive unlocks until the replay catches up.
+import { renderHostStartLobby } from "../lobby.js";
+import { playingCardHtml, sortPlayingCards, cardRankLabel, CARD_SUIT_GLYPHS, cardSuit, PLAYING_CARD_CSS } from "../playing-cards.js";
+import { HEARTS_CSS } from "./styles.js";
+import {
+  playClick, playWin, playLose, playBank, playCardDeal, playCardPlay,
+  playTrickTake, playHeartsBroken, playQueenSpades, playMoonShot,
+} from "../../sound.js";
+
+const PLAY_STEP_MS = 700;        // consecutive plays inside a bot chain
+const PLAY_SOLO_MS = 1200;       // a play with the table's attention on it
+const TRICK_DWELL_MS = 2150;     // read the full trick, then the collect glide
+const COLLECT_MS = 1150;         // the glide itself (matches styles.js transition)
+const DEAL_DWELL_MS = 2200;
+const PASS_DWELL_MS = 1500;
+const POSITIONS = ["b", "l", "t", "r"]; // you, left, across, right
+const DIRECTION_ARROWS = { left: "⬅️", right: "➡️", across: "⬆️", hold: "✋" };
+
+let stylesInjected = false;
+// Event replay cursor: how far into game.events the display has advanced.
+let pace = { key: "", shown: 0, nextAt: 0, timer: null };
+let sounded = 0;        // move_count of the last event given its sound
+let dealAnimRound = 0;  // the round whose deal-in the hand has already fanned
+let raised = { key: "", cards: new Set() }; // tap-to-raise state (pass picks / the play candidate)
+
+export function renderHeartsGame(ctx) {
+  const { host, game } = ctx;
+  if (!host || !game) return;
+  if (!stylesInjected) {
+    const style = document.createElement("style");
+    style.textContent = PLAYING_CARD_CSS + HEARTS_CSS;
+    document.head.appendChild(style);
+    stylesInjected = true;
+  }
+  host.className = "macro-board hearts-table";
+  if (!ctx.started) {
+    renderHeartsLobby(host, ctx);
+    return;
+  }
+  renderHeartsPlay(host, ctx);
+}
+
+// ---------- pre-game lobby: the optional rules live here ----------
+
+function renderHeartsLobby(host, ctx) {
+  const seatCount = Array.isArray(ctx.room && ctx.room.players) ? ctx.room.players.length : 0;
+  renderHostStartLobby(host, ctx, {
+    wrap: "hearts-root",
+    heading: "Players",
+    blurb: seatCount === 4
+      ? "Four seats filled — deal them in."
+      : `Hearts seats exactly four (${seatCount}/4) — invite players or bots to fill the table.`,
+    extraHtml: `
+      <div class="hx-options">
+        <div class="hx-opt"><div class="hx-opt-label"><b>Jack of Diamonds</b><span>taking the J♦ scores −10</span></div>
+          <div class="hx-seg" data-hx-opt="jack_of_diamonds"><button type="button" data-v="false" class="hx-on">Off</button><button type="button" data-v="true">On</button></div></div>
+        <div class="hx-opt"><div class="hx-opt-label"><b>No blood on trick one</b><span>no hearts or Q♠ on the first trick</span></div>
+          <div class="hx-seg" data-hx-opt="no_blood_first_trick"><button type="button" data-v="true" class="hx-on">On</button><button type="button" data-v="false">Off</button></div></div>
+        <div class="hx-opt"><div class="hx-opt-label"><b>Shooting the moon</b><span>old: others +26 · new: shooter −26</span></div>
+          <div class="hx-seg" data-hx-opt="moon_style"><button type="button" data-v="old" class="hx-on">Old</button><button type="button" data-v="new">New</button></div></div>
+        <div class="hx-opt"><div class="hx-opt-label"><b>Play to</b><span>lowest score wins at the line</span></div>
+          <div class="hx-seg" data-hx-opt="target_score"><button type="button" data-v="50">50</button><button type="button" data-v="75">75</button><button type="button" data-v="100" class="hx-on">100</button></div></div>
+      </div>`,
+    getStartArg: (lobbyHost) => {
+      const options = {};
+      lobbyHost.querySelectorAll("[data-hx-opt]").forEach((seg) => {
+        const on = seg.querySelector(".hx-on");
+        const value = on ? on.getAttribute("data-v") : null;
+        if (value === null) return;
+        options[seg.getAttribute("data-hx-opt")] = value === "true" ? true : value === "false" ? false : (/^\d+$/.test(value) ? Number(value) : value);
+      });
+      return options;
+    },
+    onMount: (lobbyHost) => {
+      lobbyHost.querySelectorAll("[data-hx-opt] button").forEach((button) => {
+        button.addEventListener("click", () => {
+          button.parentElement.querySelectorAll("button").forEach((other) => other.classList.remove("hx-on"));
+          button.classList.add("hx-on");
+          playClick();
+        });
+      });
+    },
+  });
+}
+
+// ---------- in-game ----------
+
+function renderHeartsPlay(host, ctx) {
+  const { room, game } = ctx;
+  const movePending = typeof ctx.isMovePending === "function" ? ctx.isMovePending() : Boolean(ctx.pendingMove);
+  const seats = Array.isArray(game.players) ? game.players : [];
+  const localMark = markForPlayer(room, ctx.localPlayerId);
+  const localSeat = seats.find((seat) => seat.mark === localMark) || null;
+  const complete = game.status === "complete";
+
+  // ---- replay cursor (time-gated; see no-thanks/render.js for the why) ----
+  clearTimeout(pace.timer);
+  const paceKey = `${room.code}:${room.game_epoch}`;
+  const target = Number(game.move_count || 0);
+  const events = Array.isArray(game.events) ? game.events : [];
+  const now = Date.now();
+  if (pace.key !== paceKey) {
+    pace = { key: paceKey, shown: target, nextAt: 0, timer: null }; // a fresh join never replays history
+    sounded = target;
+    dealAnimRound = 0;
+  }
+  if (raised.key !== paceKey) raised = { key: paceKey, cards: new Set() };
+  if (pace.shown < target && now >= (pace.nextAt || 0)) {
+    const next = events.find((event) => Number(event.move_count) > pace.shown);
+    pace.shown = next ? Number(next.move_count) : target;
+    pace.nextAt = now + (next ? dwellFor(next, events) : 0);
+  }
+  if (pace.shown > target) pace.shown = target;
+  const caughtUp = pace.shown >= target;
+  const inDwell = now < (pace.nextAt || 0); // the just-shown event's animation is still playing
+  const settled = caughtUp && !inDwell;     // nothing interactive unlocks before this
+  const visible = events.filter((event) => Number(event.move_count) <= pace.shown);
+  const lastVisible = visible[visible.length - 1] || null;
+  const rerender = () => {
+    if (host.isConnected && host.querySelector(".hearts-root")) renderHeartsPlay(host, ctx);
+  };
+  if (!caughtUp || inDwell) pace.timer = setTimeout(rerender, Math.max(60, (pace.nextAt || 0) - now));
+  else if (movePending && !complete) pace.timer = setTimeout(rerender, 900); // never wedge on the latch
+
+  // ---- one sound per newly shown event ----
+  if (lastVisible && Number(lastVisible.move_count) > sounded) {
+    sounded = Number(lastVisible.move_count);
+    soundFor(lastVisible, visible, game, localMark);
+  }
+
+  // ---- rewind the end-state snapshot to the shown moment ----
+  const futurePlays = events.filter((event) => event.type === "play" && Number(event.move_count) > pace.shown);
+  const futureTricks = events.filter((event) => event.type === "trick" && Number(event.move_count) > pace.shown);
+  const myFuture = futurePlays.filter((event) => event.mark === localMark).map((event) => event.card);
+  const displaySeats = seats.map((seat) => {
+    const tricksBack = futureTricks.filter((event) => event.winner === seat.mark);
+    return {
+      ...seat,
+      tricks: Number(seat.tricks || 0) - tricksBack.length,
+      round_points: Number(seat.round_points || 0) - tricksBack.reduce((sum, event) => sum + Number(event.points || 0), 0),
+      hand_count: (Array.isArray(seat.hand) ? seat.hand.length : 0) + futurePlays.filter((event) => event.mark === seat.mark).length,
+    };
+  });
+  const myHand = localSeat
+    ? sortPlayingCards((localSeat.hand || []).filter((card) => typeof card === "string").concat(myFuture))
+    : [];
+
+  // The trick on the felt at the shown moment. Mid-replay (and during the
+  // final event's dwell) it derives from the visible events so each play
+  // carries its move_count for the slide-in; settled, the live state rules.
+  const lastBoundary = [...visible].reverse().find((event) => ["trick", "deal", "pass_complete"].includes(event.type));
+  const boundaryCount = lastBoundary ? Number(lastBoundary.move_count) : 0;
+  const collecting = Boolean(lastVisible && lastVisible.type === "trick" && inDwell);
+  const trickShown = collecting
+    ? lastVisible.plays
+    : settled
+      ? (Array.isArray(game.trick) ? game.trick : [])
+      : visible.filter((event) => event.type === "play" && Number(event.move_count) > boundaryCount)
+        .map((event) => ({ mark: event.mark, card: event.card, move_count: Number(event.move_count) }));
+
+  // Seat -> table position, rotated so the local player sits at the bottom.
+  const order = Array.isArray(game.seat_order) ? game.seat_order : seats.map((seat) => seat.mark);
+  const anchor = localMark && order.includes(localMark) ? order.indexOf(localMark) : 0;
+  const positionOf = {};
+  order.forEach((mark, index) => { positionOf[mark] = POSITIONS[(index - anchor + 4) % 4]; });
+
+  const heartsBrokenShown = caughtUp ? Boolean(game.hearts_broken)
+    : visible.some((event) => event.type === "play" && Number(event.move_count) > dealCountBefore(visible) && cardSuit(event.card) === "H");
+  const myTurn = settled && !movePending && !complete && game.phase === "playing"
+    && Boolean(localSeat && game.current_player === localMark);
+  const passing = settled && !complete && game.phase === "passing";
+  const myPassPending = passing && Boolean(localSeat) && !seatByMark(seats, localMark).has_passed;
+  const legal = myTurn && Array.isArray(game.legal_plays) ? game.legal_plays : null;
+  const showResults = settled && (complete || game.phase === "round_end");
+  const actorMark = settled ? game.current_player
+    : (lastVisible && lastVisible.type === "play" ? lastVisible.next : null);
+
+  // ---- html ----
+  const dealing = Boolean(lastVisible && lastVisible.type === "deal") && Number(game.round) !== dealAnimRound;
+  if (dealing) dealAnimRound = Number(game.round);
+  // Opponent boxes render in grid order: left, across, right.
+  const oppOrder = ["l", "t", "r"].map((pos) => order.find((mark) => positionOf[mark] === pos)).filter(Boolean);
+  const meMark = order.find((mark) => positionOf[mark] === "b");
+  host.innerHTML = `
+    <div class="hearts-root">
+      ${showResults && complete && game.winner ? `<p class="hx-banner">🏆 ${escapeName(seatName(room, game.winner))} wins Hearts!</p>` : ""}
+      <p class="hx-tip${myTurn || myPassPending ? " hx-your-turn" : ""}">${tipHtml(game, room, { caughtUp, lastVisible, myTurn, myPassPending, passing, complete, localSeat, seats, movePending })}</p>
+      <div class="hx-opps">${oppOrder.map((mark) => seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtUp)).join("")}</div>
+      <div class="hx-felt">
+        ${showResults
+          ? resultsHtml(game, room, complete)
+          : `${trickShown.map((play) => slotHtml(play, positionOf, collecting, pace.shown)).join("")}
+             <div class="hx-felt-status">${feltStatus(game, room, { caughtUp, lastVisible, myTurn, collecting })}</div>`}
+        <span class="hx-felt-corner hx-corner-bl">${heartsBrokenShown ? "♥ broken" : ""}</span>
+        <span class="hx-felt-corner hx-corner-br">round ${Number(game.round) || 1} · ${DIRECTION_ARROWS[game.pass_direction] || ""} ${game.pass_direction || ""}</span>
+      </div>
+      <div class="hx-actionrow">
+        ${meMark ? seatBoxHtml(displaySeats, room, game, meMark, actorMark, passing, caughtUp) : `<div class="hx-seatbox"><span class="hx-nm">Watching</span></div>`}
+        ${actionButtonHtml(game, { caughtUp, complete, myTurn, passing, myPassPending, movePending, localSeat, raisedCount: raised.cards.size })}
+      </div>
+      <div class="hx-hand${dealing ? " hx-dealing" : ""}">${handHtml(myHand, localSeat, legal, game, myTurn)}</div>
+      <p class="hx-msg" data-hx-note></p>
+    </div>`;
+  wireHearts(host, ctx, { myTurn, myPassPending, legal, movePending });
+
+  // The trick-collect glide: after the dwell's read time, the four cards get
+  // their direction class and slide to the winner.
+  if (collecting) {
+    const winnerPos = positionOf[lastVisible.winner] || "t";
+    const collectAt = Math.max(0, (pace.nextAt || now) - COLLECT_MS - now);
+    setTimeout(() => {
+      if (!host.isConnected) return;
+      host.querySelectorAll(".hx-slot").forEach((slot) => slot.classList.add(`hx-collect-${winnerPos}`));
+    }, collectAt);
+  }
+}
+
+function dealCountBefore(visible) {
+  const deal = [...visible].reverse().find((event) => event.type === "deal");
+  return deal ? Number(deal.move_count) : 0;
+}
+
+function dwellFor(event, events) {
+  if (event.type === "deal") return DEAL_DWELL_MS;
+  if (event.type === "passed") return 400;
+  if (event.type === "pass_complete") return PASS_DWELL_MS;
+  if (event.type === "trick") return TRICK_DWELL_MS;
+  if (event.type === "play") {
+    // Consecutive plays chain quickly; a play that OPENS a trick gets the
+    // table's full attention (1.5s-class dwell).
+    const previous = events.filter((other) => Number(other.move_count) < Number(event.move_count)).pop();
+    const opensTrick = !previous || previous.type !== "play";
+    return opensTrick ? PLAY_SOLO_MS : PLAY_STEP_MS;
+  }
+  return 250; // round_end / complete: the score sheet is its own moment
+}
+
+function soundFor(event, visible, game, localMark) {
+  if (event.type === "deal") { playCardDeal(); return; }
+  if (event.type === "pass_complete") { playCardDeal(); return; }
+  if (event.type === "trick") { playTrickTake(); return; }
+  if (event.type === "play") {
+    playCardPlay();
+    if (event.card === "QS") playQueenSpades();
+    else if (cardSuit(event.card) === "H") {
+      const dealAt = dealCountBefore(visible);
+      const earlierHeart = visible.some((other) => other.type === "play" && cardSuit(other.card) === "H"
+        && Number(other.move_count) > dealAt && Number(other.move_count) < Number(event.move_count));
+      if (!earlierHeart) playHeartsBroken();
+    }
+    return;
+  }
+  if (event.type === "round_end") { if (event.moon_shooter) playMoonShot(); else playBank(); return; }
+  if (event.type === "complete") { (event.winner === localMark ? playWin : playLose)(); }
+}
+
+// ---------- html builders ----------
+
+function seatBoxHtml(displaySeats, room, game, mark, actorMark, passing, caughtUp) {
+  const seat = seatByMark(displaySeats, mark);
+  if (!seat) return "";
+  const waitingPass = passing && !seat.has_passed;
+  const turnMark = actorMark === mark ? "👉" : waitingPass ? "🔀" : "";
+  return `<div class="hx-seatbox${actorMark === mark ? " hx-turn" : ""}">
+    <span class="hx-nm"><span class="hx-mark">${turnMark}</span>${seatEmoji(room, mark)} ${escapeName(seatName(room, mark))}</span>
+    <span class="hx-st"><span>score <b>${seat.score}</b></span><span>tricks <b>${Math.max(0, seat.tricks)}</b></span><span>♥ <b>${Math.max(0, seat.round_points)}</b></span></span>
+  </div>`;
+}
+
+function slotHtml(play, positionOf, collecting, shownCount) {
+  const pos = positionOf[play.mark] || "t";
+  const fresh = !collecting && Number(play.move_count || 0) === shownCount;
+  return `<div class="hx-slot hx-slot-${pos}">${playingCardHtml(play.card, { size: "table", extraClass: fresh ? `hx-play-${pos}` : "" })}</div>`;
+}
+
+function handHtml(myHand, localSeat, legal, game, myTurn) {
+  if (!localSeat) return "";
+  const received = game.first_trick && Array.isArray(localSeat.received) ? new Set(localSeat.received) : new Set();
+  const overlap = myHand.length > 9 ? 26 : 20;
+  return myHand.map((card, index) => {
+    const classes = [];
+    if (raised.cards.has(card)) classes.push("hx-raised");
+    if (received.has(card)) classes.push("hx-new");
+    if (myTurn && legal && !legal.includes(card)) classes.push("hx-dim");
+    return playingCardHtml(card, { size: "hand", extraClass: classes.join(" "), zIndex: index + 1 })
+      .replace('class="pc-card', `style="--hx-i:${index};--hx-ovl:${overlap}px" class="pc-card`);
+  }).join("");
+}
+
+function actionButtonHtml(game, view) {
+  const arrow = DIRECTION_ARROWS[game.pass_direction] || "";
+  if (view.complete) return `<button class="hx-action" type="button" data-hx-action disabled>Game over 🏆</button>`;
+  if (!view.localSeat) return `<button class="hx-action" type="button" data-hx-action disabled>Watching</button>`;
+  if (view.passing && view.myPassPending) {
+    const ready = view.raisedCount === 3 && !view.movePending && view.caughtUp;
+    return `<button class="hx-action" type="button" data-hx-action="pass" ${ready ? "" : "disabled"}>Pass 3 ${arrow}</button>`;
+  }
+  if (view.passing) return `<button class="hx-action" type="button" data-hx-action disabled>Passed ✓</button>`;
+  if (view.caughtUp && game.phase === "round_end") {
+    return `<button class="hx-action" type="button" data-hx-action="next_round" ${view.movePending ? "disabled" : ""}>Next round</button>`;
+  }
+  if (view.myTurn) return `<button class="hx-action" type="button" data-hx-action disabled>Your turn</button>`;
+  return `<button class="hx-action" type="button" data-hx-action disabled>Waiting…</button>`;
+}
+
+function tipHtml(game, room, view) {
+  if (view.complete && view.caughtUp && game.winner) {
+    return `Game over — ${escapeName(seatName(room, game.winner))} wins with the lowest score.`;
+  }
+  if (!view.caughtUp && view.lastVisible) {
+    const event = view.lastVisible;
+    if (event.type === "play") return `${escapeName(seatName(room, event.mark))} plays ${cardLabel(event.card)}`;
+    if (event.type === "trick") return `${escapeName(seatName(room, event.winner))} takes the trick${event.points ? ` (+${event.points})` : ""}`;
+    if (event.type === "deal") return `Round ${event.round} — dealing…`;
+    if (event.type === "passed") return `${escapeName(seatName(room, event.mark))} passed three cards`;
+    if (event.type === "pass_complete") return "The cards slide across the table…";
+    if (event.type === "round_end") return event.moon_shooter ? `${escapeName(seatName(room, event.moon_shooter))} shot the moon! 🌙` : "The round is scored.";
+    return "…";
+  }
+  if (view.myPassPending) {
+    const offset = { left: 1, right: 3, across: 2 }[game.pass_direction] || 0;
+    const order = game.seat_order || [];
+    const meIndex = view.localSeat ? order.indexOf(view.localSeat.mark) : -1;
+    const receiver = meIndex >= 0 && offset ? seatName(room, order[(meIndex + offset) % 4]) : "";
+    return `Tap 3 cards to pass ${game.pass_direction}${receiver ? ` to ${escapeName(receiver)}` : ""}.`;
+  }
+  if (view.passing) {
+    const waiting = (view.seats || []).filter((seat) => !seat.has_passed).map((seat) => escapeName(seatName(room, seat.mark)));
+    return waiting.length ? `Waiting on ${waiting.join(", ")}…` : "…";
+  }
+  if (view.myTurn) return "Your turn — tap a card, tap it again to play.";
+  if (view.caughtUp && game.phase === "round_end") return "Round scored — ready for the next deal.";
+  if (game.current_player) return `${escapeName(seatName(room, game.current_player))} is thinking…`;
+  return "…";
+}
+
+function feltStatus(game, room, view) {
+  if (view.collecting || !view.caughtUp) return "";
+  if (game.phase === "playing" && game.first_trick && game.current_player && (game.trick || []).length === 0) {
+    return `${escapeName(seatName(room, game.current_player))} opens with the 2♣`;
+  }
+  return "";
+}
+
+// House table style: name left, single-emoji status column beside it, stat
+// columns centered, no row numbers.
+function resultsHtml(game, room, complete) {
+  const results = game.round_results || { final: {}, moon_shooter: null };
+  const order = (game.seat_order || []).slice().sort((a, b) => seatScore(game, a) - seatScore(game, b));
+  const rows = order.map((mark) => {
+    const delta = Number(results.final && results.final[mark] !== undefined ? results.final[mark] : 0);
+    const flag = complete && game.winner === mark ? "🏆" : results.moon_shooter === mark ? "🌙" : "";
+    return `<tr class="${complete && game.winner === mark ? "hx-winner-row" : ""}">
+      <td class="hx-name">${seatEmoji(room, mark)} ${escapeName(seatName(room, mark))}</td>
+      <td class="hx-status">${flag}</td>
+      <td>${delta > 0 ? `+${delta}` : delta}</td>
+      <td class="hx-total">${seatScore(game, mark)}</td>
+    </tr>`;
+  }).join("");
+  return `<div class="hx-results">
+    <table><thead><tr><th class="hx-name">${complete ? "Final" : `Round ${game.round}`}</th><th></th><th>Round</th><th>Total</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    ${results.moon_shooter ? `<span class="hx-moon-note">${escapeName(seatName(room, results.moon_shooter))} shot the moon! 🌙</span>` : ""}
+  </div>`;
+}
+
+function seatScore(game, mark) {
+  const seat = seatByMark(game.players || [], mark);
+  return seat ? Number(seat.score || 0) : 0;
+}
+
+// ---------- wiring ----------
+
+function wireHearts(host, ctx, view) {
+  const note = host.querySelector("[data-hx-note]");
+  const send = async (action) => {
+    const error = await ctx.makeMove(action);
+    if (error && note) {
+      note.textContent = error;
+      note.classList.add("hx-error");
+    }
+  };
+  const rerender = () => {
+    if (host.isConnected && host.querySelector(".hearts-root")) renderHeartsPlay(host, ctx);
+  };
+  host.querySelectorAll(".hx-hand .pc-card[data-card]").forEach((cardEl) => {
+    cardEl.addEventListener("click", () => {
+      const card = cardEl.getAttribute("data-card");
+      if (view.myPassPending) {
+        if (raised.cards.has(card)) raised.cards.delete(card);
+        else if (raised.cards.size < 3) raised.cards.add(card);
+        else return;
+        playClick();
+        rerender();
+        return;
+      }
+      if (view.myTurn && view.legal && view.legal.includes(card)) {
+        if (raised.cards.has(card)) {           // the second tap commits the play
+          raised.cards.clear();
+          send({ type: "play", card });
+        } else {                                 // the first tap raises it for a look
+          raised.cards.clear();
+          raised.cards.add(card);
+          playClick();
+          rerender();
+        }
+      }
+    });
+  });
+  const action = host.querySelector("[data-hx-action]");
+  if (action && !action.disabled) {
+    action.addEventListener("click", () => {
+      const kind = action.getAttribute("data-hx-action");
+      if (kind === "pass" && raised.cards.size === 3) {
+        const cards = [...raised.cards];
+        raised.cards.clear();
+        send({ type: "pass", cards });
+      } else if (kind === "next_round") {
+        send({ type: "next_round" });
+      }
+    });
+  }
+}
+
+// ---------- room helpers ----------
+
+function seatByMark(seats, mark) {
+  return (seats || []).find((seat) => seat.mark === mark) || null;
+}
+
+function markForPlayer(room, playerId) {
+  const seat = (room.players || []).find((player) => player.id === playerId);
+  return seat ? seat.mark : null;
+}
+
+function seatEmoji(room, mark) {
+  const seat = (room.players || []).find((player) => player.mark === mark);
+  return seat && seat.icon ? seat.icon : "🙂";
+}
+
+function seatName(room, mark) {
+  const seat = (room.players || []).find((player) => player.mark === mark);
+  return seat ? seat.name : mark;
+}
+
+function cardLabel(card) {
+  return `${cardRankLabel(card)}${CARD_SUIT_GLYPHS[cardSuit(card)] || ""}`;
+}
+
+function escapeName(value) {
+  return String(value || "").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
+}

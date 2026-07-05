@@ -16,6 +16,7 @@ import { isRttaGame, rttaScoreByMark } from "./games/rtta/rules.js";
 import { isZombieDiceGame, zombieDiceScoreByMark } from "./games/zombie-dice/rules.js";
 import { isLiarsDiceGame, liarsDiceScoreByMark } from "./games/liars-dice/rules.js";
 import { isNoThanksGame, noThanksScoreByMark } from "./games/no-thanks/rules.js";
+import { isHeartsGame, heartsScoreByMark } from "./games/hearts/rules.js";
 import { isBoxesGame } from "./games/boxes/rules.js";
 import { isTacticalGame } from "./games/super-tic-tac-toe/rules.js";
 
@@ -62,6 +63,7 @@ function scoreByMarkForRoom(room) {
   if (isZombieDiceGame(room.game)) return zombieDiceScoreByMark(room.game);
   if (isLiarsDiceGame(room.game)) return liarsDiceScoreByMark(room.game); // dice still held at game end
   if (isNoThanksGame(room.game)) return noThanksScoreByMark(room.game); // penalty points: LOWER is better here
+  if (isHeartsGame(room.game)) return heartsScoreByMark(room.game); // penalty points: LOWER is better here too
   if (isBoxesGame(room.game)) {
     return {
       X: Number(room.game.scores && room.game.scores.X || 0),

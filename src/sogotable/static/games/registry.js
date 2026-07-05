@@ -22,6 +22,7 @@ export const GAME_IDS = {
   zombieDice: "3f9b7d2e8a41",
   liarsDice: "b6e4a2d91f57",
   noThanks: "c5d9e1f3a627",
+  hearts: "f2a8d5c3b917",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -179,5 +180,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["no_thanks", "no-thanks", "nothanks", "no_merci"],
+  },
+  {
+    id: GAME_IDS.hearts,
+    lobbyMode: "hostStart",
+    name: "♥ Hearts",
+    summary: "The classic trick-taking chase: pass three cards, dodge every heart and the Queen of Spades — or shoot the moon and take them all. Always four seats; bots fill the table.",
+    players: "4 players",
+    player_count: null,
+    host_start: true,
+    category: "card",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["hearts", "black_lady", "black_maria"],
   },
 ];

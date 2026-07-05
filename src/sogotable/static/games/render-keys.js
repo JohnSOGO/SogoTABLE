@@ -80,6 +80,16 @@ export function buildRoomRenderKey(room, gameId) {
       last_reveal: room.game.last_reveal,
       total_dice: room.game.total_dice,
       raise_options: room.game.raise_options,
+      // hearts — hands/pass flags ride in `players_state`; the sanitizer masks
+      // other hands (and off-turn legal_plays) before this key builds.
+      options: room.game.options,
+      pass_direction: room.game.pass_direction,
+      trick: room.game.trick,
+      last_trick: room.game.last_trick,
+      hearts_broken: room.game.hearts_broken,
+      first_trick: room.game.first_trick,
+      legal_plays: room.game.legal_plays,
+      round_results: room.game.round_results,
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,

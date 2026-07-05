@@ -219,3 +219,52 @@ export function playFarkle() {
     { frequency: 170, duration: 0.16, type: "triangle", volume: 0.028, delay: 0.09, slideTo: 90 },
   ]);
 }
+
+// Card games (Hearts): a quick riffle of soft knocks as the hands fan out.
+export function playCardDeal() {
+  playSequence(Array.from({ length: 6 }, (_, i) => (
+    { frequency: 340 - i * 18, duration: 0.035, type: "triangle", volume: 0.02, delay: i * 0.07, slideTo: 240 - i * 12 }
+  )));
+}
+
+// A card landing on the table: one soft snap.
+export function playCardPlay() {
+  playSequence([
+    { frequency: 290, duration: 0.04, type: "triangle", volume: 0.026, slideTo: 200 },
+    { frequency: 170, duration: 0.05, type: "sine", volume: 0.022, delay: 0.03 },
+  ]);
+}
+
+// Sweeping a finished trick off the table.
+export function playTrickTake() {
+  playSequence([
+    { frequency: 420, duration: 0.09, type: "sine", volume: 0.024, slideTo: 240 },
+    { frequency: 196, duration: 0.11, type: "sine", volume: 0.026, delay: 0.09, slideTo: 150 },
+  ]);
+}
+
+// The first heart hits the table: a small minor turn.
+export function playHeartsBroken() {
+  playSequence([
+    { frequency: 392, duration: 0.12, type: "sine", volume: 0.028 },
+    { frequency: 311, duration: 0.17, type: "sine", volume: 0.028, delay: 0.1 },
+  ]);
+}
+
+// The Queen of Spades lands: a low, unmistakable growl.
+export function playQueenSpades() {
+  playSequence([
+    { frequency: 147, duration: 0.22, type: "sawtooth", volume: 0.026, slideTo: 110 },
+    { frequency: 98, duration: 0.28, type: "triangle", volume: 0.026, delay: 0.08, slideTo: 73 },
+  ]);
+}
+
+// Somebody shot the moon: a rising fanfare.
+export function playMoonShot() {
+  playSequence([
+    { frequency: 392, duration: 0.14, type: "triangle", volume: 0.032 },
+    { frequency: 494, duration: 0.14, type: "triangle", volume: 0.032, delay: 0.12 },
+    { frequency: 587, duration: 0.14, type: "triangle", volume: 0.034, delay: 0.24 },
+    { frequency: 784, duration: 0.22, type: "triangle", volume: 0.036, delay: 0.36 },
+  ]);
+}

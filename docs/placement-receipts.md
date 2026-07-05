@@ -558,3 +558,50 @@ REORG RECEIPT
 - New owner row: | `workers/games/handlers.js` | Per-game dispatch table + game-agnostic
                 dispatchers (create / toDict / viewer projection / legalMoves / bot /
                 initSeats / start-options) | `workers/sogotable-api.js` |
+
+## 2026-07-04 — Hearts (new game)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Place all new code for Hearts — 4-player trick-taking, hidden hands,
+                host options at table creation, bots, animated card UI, sounds,
+                server-authoritative worker integration.
+- Verdict:      workers/games/hearts/{rules.js,ai.js} [EXISTING dir pattern];
+                src/sogotable/static/games/hearts/{manifest.js,render.js,styles.js}
+                [EXISTING dir pattern];
+                src/sogotable/static/games/playing-cards.js [NEW owner row — shared
+                52-card face/back builders + canonical sort; No Thanks!''s tier-tinted
+                number cards are a different visual system and stay in
+                no-thanks/cards.js];
+                workers/games/handlers.js: one import + one GAME_HANDLERS row
+                (initSeats / applyStartOptions / carryOptionsOnReset /
+                gameToDictForViewer dispatch) — zero net lines in
+                workers/sogotable-api.js;
+                minimal wiring: games/registry.js (GAME_IDS.hearts + entry),
+                games/game-kinds.js, games/render-keys.js, app.js (~8 lines incl.
+                generalizing the shared host-start poster to carry an options
+                payload), workers/stats.js (scoreByMark row), sound.js (6 card cues),
+                review-export.js allowlist, docs/game-hearts.md.
+- Flow stage:   validate + apply = workers/games/hearts/rules.js (2♣ opener, follow
+                suit, hearts-broken, first-trick blood, pass rotation, moon old/new,
+                J♦ option, target score); broadcast = heartsGameToDictForViewer in
+                that same module (other hands → nulls, pass selections secret,
+                legal_plays masked off-turn), dispatched via handlers.js; render =
+                games/hearts/render.js + games/playing-cards.js + injected styles.js
+                (event-replay pacing: animated deal, plays slide from seats, tricks
+                glide to the winner; interactions unlock only when settled);
+                orchestrate = worker dispatch table only; record = workers/stats.js.
+- Preparatory:  REORG RECEIPT above (2c67993) — GAME_HANDLERS extraction opened the
+                seam first; Hearts landed as the table row it predicted.
+- Tests:        workers/tests/hearts-rules.test.js — 19 cases incl. a scripted
+                moon-shot round (both styles), sanitizer leak checks, option clamps,
+                20-seed bots-only games to completion. Prototype twin (gitignored):
+                AI/hearts/ (rules+bot+preview.html, 2,000-game headless smoke).
+- Siblings:     public vs private view (sanitizer, tested); bot vs human (same
+                makeHeartsMove path); reconnect (fresh join renders live state, no
+                history replay); hot-seat EXCLUDED for a hidden-hand game (Liar''s
+                Dice v1 precedent) — documented in docs/game-hearts.md.
+- New owner row: | `src/sogotable/static/games/playing-cards.js` | Shared
+                standard-deck (52-card) card-face + hand HTML primitives — pure
+                builders, no rules, no per-game logic | `src/sogotable/static/app.js` |
+```

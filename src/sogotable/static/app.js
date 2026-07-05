@@ -80,6 +80,7 @@ import { wireTenThousandFarkleAck, maybeAutoAckTenThousandFarkle } from "./games
 import { renderZombieDiceGame } from "./games/zombie-dice/render.js";
 import { renderLiarsDiceGame } from "./games/liars-dice/render.js";
 import { renderNoThanksGame } from "./games/no-thanks/render.js";
+import { renderHeartsGame } from "./games/hearts/render.js";
 import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { renderRttaGame } from "./games/rtta/render.js";
@@ -114,7 +115,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -1496,13 +1497,17 @@ async function postRoomAction(action) {
   }
 }
 
-async function startYahtzeeGame() {
+// Shared host-start poster. `options`, when the game's lobby collects any
+// (Hearts' rules picker), spreads into the start payload for the dispatch
+// table's applyStartOptions field.
+async function startYahtzeeGame(options) {
   if (!currentRoom || currentRoom.started) return;
   try {
     const response = await api("/api/room/start", {
       code: currentRoom.code,
       host_id: currentRoom.host_id,
       owner_token: await ensureOwnerToken(currentRoom.host_id),
+      ...(options && typeof options === "object" ? options : {}),
     });
     setRoom(response.room);
     playConfirm();
@@ -1797,10 +1802,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
@@ -1962,7 +1967,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }
