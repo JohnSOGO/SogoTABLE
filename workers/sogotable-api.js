@@ -644,6 +644,21 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (autoBotMoves) runBotTurns(data, room);
       return { ok: true, room: roomToDict(data, room), bot };
     }
+    if (method === "POST" && url.pathname === "/api/room/remove-bot") {
+      const room = roomFromPayload(data, payload);
+      const hostId = String(payload.host_id || "").trim();
+      await assertPlayerOwner(data, hostId, payload.owner_token, options);
+      if (hostId !== room.host_id) throw new Error("Only the host can remove a bot.");
+      if (room.started) throw new Error("The game already started — reset the table instead.");
+      const seatIndex = room.players.findIndex((seat) => seat.id === String(payload.bot_id || "") && isBotSeat(seat));
+      if (seatIndex < 0) throw new Error("That bot is not at this table.");
+      room.players.splice(seatIndex, 1);
+      // Host-start marks are assigned as P<count+1>; re-pack so the next
+      // joiner can't collide with a surviving higher mark.
+      if (gameUsesHostStart(room.game_id)) room.players.forEach((seat, index) => { seat.mark = `P${index + 1}`; });
+      bumpRoomRevision(room);
+      return { ok: true, room: roomToDict(data, room) };
+    }
     if (method === "POST" && url.pathname === "/api/room/start") {
       const room = roomFromPayload(data, payload);
       const hostId = String(payload.host_id || "").trim();
@@ -809,6 +824,7 @@ function directRoomAuthorityAllowed(env) {
 function roomAuthorityPath(pathname) {
   return [
     "/api/room/join-bot",
+    "/api/room/remove-bot",
     "/api/room/join",
     "/api/room/leave",
     "/api/room/close",

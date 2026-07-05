@@ -35,12 +35,17 @@ import { avatarHtml, escapeHtml } from "../html-utils.js";
 export function renderHostStartLobby(host, ctx, opts = {}) {
   const esc = ctx.escapeHtml || ((s) => s);
   const seats = Array.isArray(ctx.room && ctx.room.players) ? ctx.room.players : [];
+  // A seated bot gets a host-only ✕ so it can be uninvited before the start
+  // (global request, MojoSOGO 2026-07-04) — wired to ctx.removeBot below.
   const roster = seats.length
     ? seats.map((seat) => `
-      <li class="tt-lobby-player">
+      <li class="tt-lobby-player${ctx.isHost && ctx.removeBot && seat.kind === "bot" ? " tt-lobby-removable" : ""}">
         <div class="tt-lobby-player-body">
           <strong>${seat.icon ? esc(seat.icon) + " " : ""}${esc(seat.name)}</strong>
         </div>
+        ${ctx.isHost && ctx.removeBot && seat.kind === "bot"
+          ? `<button class="tt-lobby-remove" type="button" data-lobby-remove="${esc(seat.id)}" aria-label="Remove ${esc(seat.name)}">✕</button>`
+          : ""}
       </li>`).join("")
     : `<li class="tt-lobby-empty">No players yet.</li>`;
   const hostControls = ctx.isHost
@@ -66,6 +71,11 @@ export function renderHostStartLobby(host, ctx, opts = {}) {
   wire("invite", ctx.invitePlayer);
   wire("bot", ctx.addBot);
   wire("start", () => ctx.startGame(opts.getStartArg ? opts.getStartArg(host) : undefined));
+  if (ctx.removeBot) {
+    host.querySelectorAll("[data-lobby-remove]").forEach((button) => {
+      button.addEventListener("click", () => ctx.removeBot(button.getAttribute("data-lobby-remove")));
+    });
+  }
   if (opts.onMount) opts.onMount(host);
 }
 

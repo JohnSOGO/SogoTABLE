@@ -1303,6 +1303,21 @@
   white-space: nowrap;
 }
 
+.tt-lobby-player.tt-lobby-removable {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.tt-lobby-remove {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
 .tt-lobby-empty {
   list-style: none;
   padding: 8px 10px;

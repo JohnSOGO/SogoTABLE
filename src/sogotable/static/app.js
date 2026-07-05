@@ -1497,6 +1497,25 @@ async function postRoomAction(action) {
   }
 }
 
+// Host-only: uninvite a seated bot from a not-yet-started room (the lobby's
+// per-bot ✕). The worker re-packs host-start marks so the next joiner can't
+// collide with a surviving higher mark.
+async function removeBotFromRoom(botId) {
+  if (!currentRoom || currentRoom.started) return;
+  try {
+    const response = await api("/api/room/remove-bot", {
+      code: currentRoom.code,
+      host_id: currentRoom.host_id,
+      owner_token: await ensureOwnerToken(currentRoom.host_id),
+      bot_id: botId,
+    });
+    setRoom(response.room);
+    playConfirm();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 // Shared host-start poster. `options`, when the game's lobby collects any
 // (Hearts' rules picker), spreads into the start payload for the dispatch
 // table's applyStartOptions field.
@@ -1796,6 +1815,7 @@ function renderGame() {
       makeMove: makeTenThousandAction,
       startGame: startTenThousandGame,
       addBot: openBotOpponentModal,
+      removeBot: removeBotFromRoom,
       invitePlayer: openInvitePlayerModal,
       escapeHtml,
       actionLabels: actionLabelStyle(),
@@ -1817,6 +1837,7 @@ function renderGame() {
       makeMove: postRoomAction,
       startGame: startYahtzeeGame,
       addBot: openBotOpponentModal,
+      removeBot: removeBotFromRoom,
       invitePlayer: openInvitePlayerModal,
       escapeHtml,
     });
