@@ -504,8 +504,7 @@ function standingsHtml(displaySeats, room, game, actorMark, finished) {
 // Interaction model (MojoSOGO 2026-07-04): tap selects, tapping the SAME card
 // unselects (never a double-tap commit). Committing is explicit — the Commit
 // button, or an up-swipe that may start ANYWHERE in the hand strip (the blank
-// space beside the cards included): a swipe off a card commits that card, a
-// swipe off blank space commits the lone selection.
+// space beside the cards included) and commits ONLY the selected card.
 const SWIPE_UP_PX = 48; // how far up a flick must travel to commit (and more up than sideways)
 let swipeGuardAt = 0;   // a swipe's trailing click must not re-toggle selection
 
@@ -566,25 +565,23 @@ function wireHearts(host, ctx, view) {
     });
   });
   // Up-swipe to commit, starting ANYWHERE in the hand strip (blank edges
-  // included). Off a card: commit that card; off blank space: commit the lone
-  // selection. Pointer capture keeps the gesture even when the finger leaves.
+  // included). It commits ONLY the already-selected card — selection is a
+  // separate prior tap, so a swipe that happens to begin over some other card
+  // can never play that card (MojoSOGO 2026-07-04). Pointer capture keeps the
+  // gesture even when the finger leaves the strip.
   const hand = host.querySelector(".hx-hand");
   if (hand && view.myTurn && view.legal) {
     hand.addEventListener("pointerdown", (start) => {
-      const startCardEl = start.target && start.target.closest ? start.target.closest("[data-card]") : null;
-      const startCard = startCardEl ? startCardEl.getAttribute("data-card") : null;
       try { hand.setPointerCapture(start.pointerId); } catch {}
       const onUp = (end) => {
         cleanup();
         const rose = start.clientY - end.clientY;
         const drift = Math.abs(end.clientX - start.clientX);
         if (rose < SWIPE_UP_PX || drift > rose) return; // must travel up, more up than sideways
-        const card = startCard && view.legal.includes(startCard)
-          ? startCard
-          : (raised.cards.size === 1 && view.legal.includes([...raised.cards][0]) ? [...raised.cards][0] : null);
-        if (card) {
+        const selected = raised.cards.size === 1 ? [...raised.cards][0] : null;
+        if (selected && view.legal.includes(selected)) {
           swipeGuardAt = Date.now();
-          commitPlay(card);
+          commitPlay(selected);
         }
       };
       const cleanup = () => {

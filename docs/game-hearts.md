@@ -45,8 +45,9 @@ reset by `carryOptionsOnReset`.
   to the winner). Interactions unlock only after the replay settles.
   Tap a card to select it (tap the lone selection again to unselect — never a
   double-tap commit); commit with the always-labeled **Commit** button or an
-  up-swipe that may start anywhere in the hand strip (blank edges included —
-  off a card it commits that card, off blank space the lone selection).
+  up-swipe that may start anywhere in the hand strip (blank edges included).
+  The swipe commits ONLY the already-selected card — selection is a separate
+  prior action, so a swipe brushing some other card can never play it.
   Selection changes patch the DOM in place so mid-dwell felt animations never
   restart. Selection works even OFF-turn (pre-select, so
   Commit is one tap when the turn arrives; on-turn taps are limited to legal
