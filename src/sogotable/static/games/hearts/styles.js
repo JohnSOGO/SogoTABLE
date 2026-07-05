@@ -102,6 +102,9 @@ export const HEARTS_CSS = `
 .hearts-root .hx-action:active{transform:translateY(2px);box-shadow:0 1px 3px rgba(0,0,0,.35);}
 .hearts-root .hx-action:disabled{opacity:.42;box-shadow:none;transform:none;cursor:default;
  background:var(--hx-panel);color:var(--hx-muted);border:1px solid var(--hx-line);}
+/* Shot clock armed: a soft pulse while the selection auto-commits. */
+.hearts-root .hx-action.hx-committing{animation:hx-commit-pulse .5s ease-in-out infinite;}
+@keyframes hx-commit-pulse{50%{box-shadow:0 0 0 7px rgba(231,194,86,.28);transform:scale(1.03);}}
 /* ---- my hand: overlapping fan, tap to raise, tap again to commit ---- */
 /* touch-action:none across the WHOLE strip: an up-swipe to commit may start
    anywhere in it, blank edges included, so no part of it may pan the page. */

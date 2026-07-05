@@ -52,10 +52,10 @@ reset by `carryOptionsOnReset`.
   restart. An OFF-turn pick is a queued commit (a premove): it plays itself
   the moment the turn arrives if legal (an illegal premove stays raised for a
   fresh pick and never auto-fires); the button shows "Queued ✓" and tapping
-  the card again cancels. An ON-turn selection arms a 2-second shot clock —
-  the Commit button counts down in tenths (Commit 2.0 → 0.1) and the card
-  auto-plays at zero; unselecting or switching cards resets it, a manual
-  Commit or swipe beats it. Selection works even OFF-turn (pre-select, so
+  the card again cancels. An ON-turn selection arms a 1-second shot clock —
+  the Commit button pulses softly (no numeric countdown) and the card
+  auto-plays when it expires; unselecting or switching cards resets it, a
+  manual Commit or swipe beats it. Selection works even OFF-turn (pre-select, so
   Commit is one tap when the turn arrives; on-turn taps are limited to legal
   cards). The three received pass cards arrive already raised + highlighted;
   selecting any card for play lowers the rest (a received card tapped for play
