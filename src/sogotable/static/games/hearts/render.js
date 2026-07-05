@@ -39,6 +39,36 @@ let dealAnimRound = 0;  // the round whose deal-in the hand has already fanned
 let raised = { key: "", cards: new Set(), preset: false }; // tap-to-raise state; preset = picked off-turn (a queued commit)
 let autoCommitted = ""; // paceKey:move_count the premove already fired for
 let receivedSeed = "";  // round whose received trio has been auto-raised once
+// The commit shot clock: an ON-turn selection auto-commits after 2s, counting
+// down in tenths on the Commit button (MojoSOGO 2026-07-04). Unselecting or
+// switching cards resets it; a manual commit (button/swipe) beats it.
+const COMMIT_COUNTDOWN_MS = 2000;
+let countdown = { timer: null, card: "" };
+
+function cancelCountdown() {
+  if (countdown.timer) clearInterval(countdown.timer);
+  countdown = { timer: null, card: "" };
+}
+
+function startCountdown(host, commitPlay, card) {
+  cancelCountdown();
+  const until = Date.now() + COMMIT_COUNTDOWN_MS;
+  countdown.card = card;
+  countdown.timer = setInterval(() => {
+    const stillMine = raised.cards.size === 1 && raised.cards.has(card);
+    if (!host.isConnected || !stillMine) { cancelCountdown(); return; }
+    const remaining = until - Date.now();
+    if (remaining <= 0) {
+      cancelCountdown();
+      commitPlay(card);
+      return;
+    }
+    const button = host.querySelector("[data-hx-action]"); // re-query: repaints replace the node
+    if (button && button.getAttribute("data-hx-action") === "play") {
+      button.textContent = `Commit ${(remaining / 1000).toFixed(1)}`;
+    }
+  }, 100);
+}
 // Tip-strip pagination (the No Thanks pattern): the strip is a FIXED one-liner;
 // overflow splits into pages with an n/m badge and a tap flips them.
 let tipPages = { text: "", page: 0, pages: [] };
@@ -560,6 +590,7 @@ function wireHearts(host, ctx, view) {
     }
   };
   const commitPlay = (card) => {
+    cancelCountdown();
     // No raised.clear() here: the card stays up until the reply snapshot takes
     // it out of the hand — lowering it first reads as a spurious unselect.
     send({ type: "play", card });
@@ -585,10 +616,14 @@ function wireHearts(host, ctx, view) {
         if (raised.cards.has(card) && raised.cards.size === 1) {
           raised.cards.delete(card);
           raised.preset = false;
+          cancelCountdown();
         } else {
           raised.cards.clear();
           raised.cards.add(card);
           raised.preset = !view.myTurn; // an off-turn pick is a queued commit
+          // On-turn, the selection arms the 2s shot clock; switching cards
+          // restarts it at 2.0.
+          if (view.myTurn) startCountdown(host, commitPlay, card);
         }
         playClick();
         applySelection(host, view);
