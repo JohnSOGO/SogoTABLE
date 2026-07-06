@@ -31,6 +31,8 @@ export function createGameKinds(canonicalGameId) {
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.noThanks);
   const isHeartsGameState = (game) =>
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.hearts);
+  const isPotionLabGameState = (game) =>
+    Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.potionLab);
   return {
     isTacticalGameState,
     isBoxesGameState,
@@ -44,5 +46,6 @@ export function createGameKinds(canonicalGameId) {
     isLiarsDiceGameState,
     isNoThanksGameState,
     isHeartsGameState,
+    isPotionLabGameState,
   };
 }

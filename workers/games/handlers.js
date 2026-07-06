@@ -72,6 +72,9 @@ import {
 import {
   HEARTS_GAME_ID, isHeartsGame, newHeartsGame, initHeartsSeats, setHeartsOptions, makeHeartsMove, heartsGameToDict, heartsGameToDictForViewer,
 } from "./hearts/rules.js";
+import {
+  POTION_LAB_GAME_ID, isPotionLabGame, newPotionLabGame, initPotionLabSeats, makePotionLabMove, potionLabGameToDict, potionLabGameToDictForViewer,
+} from "./potion-lab/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -131,6 +134,8 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isHeartsGame(prevGame) && prevGame.options) setHeartsOptions(nextGame, prevGame.options);
     } },
+  { id: POTION_LAB_GAME_ID, is: isPotionLabGame, create: newPotionLabGame, toDict: potionLabGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makePotionLabMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initPotionLabSeats },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -184,6 +189,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isLiarsDiceGame(game)) return liarsDiceGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isNoThanksGame(game)) return noThanksGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isHeartsGame(game)) return heartsGameToDictForViewer(game, viewerMark);
+  if (isPotionLabGame(game)) return potionLabGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }
 

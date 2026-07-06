@@ -23,6 +23,7 @@ export const GAME_IDS = {
   liarsDice: "b6e4a2d91f57",
   noThanks: "c5d9e1f3a627",
   hearts: "f2a8d5c3b917",
+  potionLab: "e7c1a4b9d206",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -193,5 +194,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["hearts", "black_lady", "black_maria"],
+  },
+  {
+    id: GAME_IDS.potionLab,
+    lobbyMode: "hostStart",
+    name: "🧪 Potion Lab",
+    summary: "Simultaneous potion-card drafting over three rounds — keep one ingredient, pass the rest, and brew the best-scoring shelf. Two or more alchemists; bots fill the bench.",
+    players: "2+ players",
+    player_count: null,
+    host_start: true,
+    category: "card",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["potion_lab", "potion-lab", "potionlab", "sushi_go", "sushi-go"],
   },
 ];

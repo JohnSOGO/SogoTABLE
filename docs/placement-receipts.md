@@ -605,3 +605,36 @@ PLACEMENT RECEIPT
                 standard-deck (52-card) card-face + hand HTML primitives — pure
                 builders, no rules, no per-game logic | `src/sogotable/static/app.js` |
 ```
+
+## 2026-07-05 — Potion Lab (Sushi Go! re-theme)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Port a NEW game "Potion Lab" (Sushi Go! re-theme) into SogoTable —
+                simultaneous N-player (min 2, no max, bots fill) card drafting, hidden
+                hands, 3 rounds, host-start lobby, round-locked (liveRound) sync.
+- Verdict:      EXISTING owners — no new owner row. New files land under the covered
+                directory patterns workers/games/potion-lab/** and
+                src/sogotable/static/games/potion-lab/**; registered via in-place edits
+                to registry.js, workers/games/handlers.js, games/game-kinds.js, app.js,
+                and review-export.js. workers/sogotable-api.js is NOT touched.
+- Flow stage:   Spans the flow; NEW code is distributed by stage — validate + apply +
+                round-barrier resolution + scoring + record in workers/games/potion-lab/
+                rules.js (server authority); broadcast/per-viewer hand sanitization via
+                potionLabGameToDictForViewer + handlers.js dispatch; render + capture
+                intent in games/potion-lab/render.js. Normalize/persist/orchestrate reuse
+                the platform unchanged.
+- Considerations:
+    - app.js at 2475/2497 (22 lines free) was the only near-ceiling target; Potion Lab
+      joined the shared live-round render branch reusing postRoomAction + startYahtzeeGame,
+      so net growth was 1 import line — no reorganizer needed. Confirmed 2475 lines after.
+    - workers/sogotable-api.js (1363/1370) was NOT edited — the entry reaches games via
+      generic dispatchers from handlers.js.
+    - Hidden hands: rules.js owns potionLabGameToDictForViewer (masks every other hand
+      to null; deck stripped for everyone in toDict); rules.js stays DOM/transport/
+      storage-pure (architecture test green).
+- New owner row: none.
+- Verification:  workers/tests/potion-lab.test.js (barrier, scoring, sanitizer, stale
+                 commits) + full suite 310/310 green. Prototype heavily verified in
+                 AI/potion-lab/ before the port. Commit: pending (this change).
+```
