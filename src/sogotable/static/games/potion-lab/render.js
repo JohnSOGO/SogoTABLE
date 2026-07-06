@@ -73,6 +73,11 @@ function cardScore(list) {
     HERB_TIERS[Math.min(countType(list, "herb"), 5)] + potionScore(list);
 }
 function moonTotal(list) { return list.reduce((s, c) => s + (c.type === "moondust" ? c.icons : 0), 0); }
+// Running total: confirmed rounds plus THIS round's live estimate — but only
+// while drafting (in review/complete the round is already folded into score).
+function liveTotal(game, s) {
+  return (game.status !== "complete" && game.phase === "playing") ? s.score + (s.round_estimate || 0) : s.score;
+}
 
 function tok(card) {
   if (card.type === "potion") return `<span class="pl-tok pl-moontok">${"<i>🧪</i>".repeat(card.val)}</span>`;
@@ -149,15 +154,14 @@ function renderPlay(host, ctx) {
 function standingsHtml(game, room, localMark) {
   const seats = game.players;
   const over = game.status === "complete";
-  const liveTotal = (s) => (over ? s.score : s.score + (s.round_estimate || 0));
   const iceVals = seats.map((s) => s.ice);
   const maxIce = Math.max(...iceVals), minIce = Math.min(...iceVals);
-  const ranked = seats.slice().sort((a, b) => liveTotal(b) - liveTotal(a));
+  const ranked = seats.slice().sort((a, b) => liveTotal(game, b) - liveTotal(game, a));
   const rows = ranked.map((s) => {
     const status = over ? "" : (s.has_committed ? "✅" : "…");
     const iceCls = maxIce !== minIce ? (s.ice === maxIce ? "pl-hi" : s.ice === minIce ? "pl-lo" : "") : "";
     const thisRound = over ? "" : `+${s.round_estimate || 0}`;
-    return `<tr class="${s.mark === localMark ? "pl-me" : ""}"><td class="pl-name">${seatEmoji(room, s.mark)} ${esc(seatName(room, s.mark))}</td><td>${status}</td><td>${thisRound}</td><td class="${iceCls}">${s.ice}</td><td class="pl-total">${liveTotal(s)}</td></tr>`;
+    return `<tr class="${s.mark === localMark ? "pl-me" : ""}"><td class="pl-name">${seatEmoji(room, s.mark)} ${esc(seatName(room, s.mark))}</td><td>${status}</td><td>${thisRound}</td><td class="${iceCls}">${s.ice}</td><td class="pl-total">${liveTotal(game, s)}</td></tr>`;
   }).join("");
   return `<div class="pl-panel${collapsed.has("stand") ? " collapsed" : ""}" data-pl-panel="stand"><h2>Standings</h2>
     <table class="pl-stand"><tr><th>Alchemist</th><th></th><th>This round</th><th>❄️</th><th>Total</th></tr>${rows}</table></div>`;
@@ -176,7 +180,7 @@ function cauldronsHtml(game, room, localMark) {
         <div class="pl-rs">${s.hand_count} left${s.wizards ? " " + "🧙".repeat(Math.min(s.wizards, 4)) : ""}</div></div>
       <div class="pl-coll">${groupColl(s.collected)}</div>
       <div class="pl-mooncol">${moonTallyChip(s.collected)}</div>
-      <div class="pl-sc">${s.score}</div>
+      <div class="pl-sc">${liveTotal(game, s)}</div>
     </div>`).join("");
   return `<div class="pl-panel${collapsed.has("cauldrons") ? " collapsed" : ""}" data-pl-panel="cauldrons"><h2>Cauldrons</h2><div class="pl-seats">${rows}</div></div>`;
 }
