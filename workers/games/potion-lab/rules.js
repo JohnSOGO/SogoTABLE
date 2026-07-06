@@ -60,6 +60,14 @@ export function setPotionLabRandom(fn) {
   potionLabRandom = typeof fn === "function" ? fn : Math.random;
 }
 
+// Bot strength tier (Sprout 1 / Buddy 2 / Cipher 3 / Overlord 4), carried on the
+// game seat so ./ai.js can branch. Non-bots are 0; unknown bots default to Buddy.
+function potionLabBotLevel(seat) {
+  if (!seat || (seat.kind !== "bot" && seat.is_bot !== true)) return 0;
+  const level = Number(seat.bot_level !== undefined ? seat.bot_level : seat.level);
+  return Number.isInteger(level) && level >= 1 && level <= 4 ? level : 2;
+}
+
 // More players -> shorter hands so rounds stay a sane length. 2p:10 … 7p+:5
 export function potionLabHandSize(playerCount) {
   return Math.max(5, Math.min(10, 12 - playerCount));
@@ -120,6 +128,7 @@ export function initPotionLabSeats(game, seats) {
     game.seat_order.push(mark);
     game.players[mark] = {
       is_bot: Boolean(seat && seat.kind === "bot"),
+      level: potionLabBotLevel(seat),
       hand: [],
       collected: [],
       committed: null, // this pick's choice: { cards: [ids], useWizard } — PRIVATE
@@ -452,6 +461,7 @@ function normalizePotionLabGame(game) {
     const seat = game.players[mark] || {};
     game.players[mark] = {
       is_bot: Boolean(seat.is_bot),
+      level: clampInt(seat.level, 0, 4, seat.is_bot ? 2 : 0),
       hand: Array.isArray(seat.hand) ? seat.hand : [],
       collected: Array.isArray(seat.collected) ? seat.collected : [],
       committed: seat.committed && Array.isArray(seat.committed.cards)

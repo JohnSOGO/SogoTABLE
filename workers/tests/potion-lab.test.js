@@ -10,6 +10,7 @@ import {
 
 const human = (mark, name) => ({ mark, name, kind: "human" });
 const bot = (mark, name) => ({ mark, name, kind: "bot" });
+const leveledBot = (mark, name, bot_level) => ({ mark, name, kind: "bot", bot_level });
 
 function seeded(seed) {
   let s = seed >>> 0;
@@ -77,6 +78,28 @@ test("full game completes over 3 rounds for various tables", () => {
     const byMark = potionLabScoreByMark(g);
     assert.equal(byMark[g.winner], Math.max(...Object.values(byMark)));
   }
+});
+
+test("bot levels store on seats and default to Buddy", () => {
+  setPotionLabRandom(seeded(5));
+  const g = newPotionLabGame();
+  initPotionLabSeats(g, [human("P1", "Me"), leveledBot("P2", "Over", 4), bot("P3", "Def")]);
+  assert.equal(g.players.P2.level, 4, "explicit level stored");
+  assert.equal(g.players.P3.level, 2, "unspecified bot defaults to Buddy");
+  assert.equal(g.players.P1.level, 0, "humans are level 0");
+});
+
+test("Overlord out-scores Sprout over many all-bot games", () => {
+  let overlordWins = 0, games = 40;
+  for (let s = 0; s < games; s += 1) {
+    setPotionLabRandom(seeded(1000 + s));
+    const g = newPotionLabGame();
+    // seat an Overlord against three Sprouts
+    initPotionLabSeats(g, [leveledBot("P1", "Overlord", 4), leveledBot("P2", "S", 1), leveledBot("P3", "S", 1), leveledBot("P4", "S", 1)]);
+    if (g.winner === "P1") overlordWins += 1;
+  }
+  // random winner would be ~25%; a working ladder should clear well past half.
+  assert.ok(overlordWins / games > 0.5, `Overlord won ${overlordWins}/${games} (expected > 50%)`);
 });
 
 test("all-bot table resolves straight through on init", () => {
