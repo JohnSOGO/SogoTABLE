@@ -14,8 +14,10 @@ let stylesInjected = false;
 let selection = { key: "", ids: [], wizard: false };
 let lastTap = { id: null, t: 0 };
 // Which panels the player has collapsed. Persisted here (not on the DOM) so a
-// re-render — e.g. tapping a card — doesn't reopen them.
+// re-render — e.g. tapping a card — doesn't reopen them. Reset per game (epoch).
 const collapsed = new Set();
+let panelEpoch = "";
+let autoCollapsedKey = "";
 
 const CARD_META = {
   potion: { emoji: "🧪", name: "Potion" },
@@ -133,21 +135,28 @@ function renderPlay(host, ctx) {
   const localMark = markForPlayer(room, ctx.localPlayerId);
   const me = seats.find((s) => s.mark === localMark) || null;
   const complete = game.status === "complete";
-  const key = `${room.code}:${room.game_epoch}:${game.round}:${game.pick}:${game.phase}`;
+  const gameKey = `${room.code}:${room.game_epoch}`;
+  if (panelEpoch !== gameKey) { collapsed.clear(); autoCollapsedKey = ""; panelEpoch = gameKey; } // fresh game: all open
+  const key = `${gameKey}:${game.round}:${game.pick}:${game.phase}`;
   if (selection.key !== key) selection = { key, ids: [], wizard: false };
 
-  let body;
-  if (complete) body = gameOverHtml(game, room, me);
-  else if (game.phase === "review") body = reviewHtml(game, room, me);
-  else body = playingHtml(game, room, me);
-
-  host.innerHTML = `<div class="potion-lab-root">
-    <p class="pl-round">Round ${game.round} / 3 · Pick ${Math.min(game.pick + 1, game.hand_size)} / ${game.hand_size}${complete ? " · complete" : ""}</p>
-    ${standingsHtml(game, room, localMark)}
-    ${cauldronsHtml(game, room, localMark)}
-    ${body}
-    ${scoringKeyHtml(me)}
-  </div>`;
+  let inner;
+  if (complete) {
+    // Once, at game end: fold the rest away so the result leads. The user can
+    // still reopen Cauldrons / How-cards-score; those toggles then persist.
+    if (autoCollapsedKey !== gameKey) { collapsed.add("cauldrons"); collapsed.add("key"); autoCollapsedKey = gameKey; }
+    inner = `${gameOverHtml(game, room, me)}
+      ${cauldronsHtml(game, room, localMark)}
+      ${scoringKeyHtml(me)}`;
+  } else {
+    const body = game.phase === "review" ? reviewHtml(game, room, me) : playingHtml(game, room, me);
+    inner = `<p class="pl-round">Round ${game.round} / 3 · Pick ${Math.min(game.pick + 1, game.hand_size)} / ${game.hand_size}</p>
+      ${standingsHtml(game, room, localMark)}
+      ${cauldronsHtml(game, room, localMark)}
+      ${body}
+      ${scoringKeyHtml(me)}`;
+  }
+  host.innerHTML = `<div class="potion-lab-root">${inner}</div>`;
   wire(host, ctx, game, me);
 }
 
