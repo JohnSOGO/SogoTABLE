@@ -173,7 +173,7 @@ function cauldronsHtml(game, room, localMark) {
   const rows = order.map((s) => `
     <div class="pl-seat ${s.mark === localMark ? "pl-me" : ""}">
       <div class="pl-who"><div class="pl-nm">${seatEmoji(room, s.mark)} ${esc(seatName(room, s.mark))}</div>
-        <div class="pl-rs">${s.hand_count} in hand${s.wizards ? ` · 🧙×${s.wizards}` : ""}</div></div>
+        <div class="pl-rs">${s.hand_count} left${s.wizards ? " " + "🧙".repeat(Math.min(s.wizards, 4)) : ""}</div></div>
       <div class="pl-coll">${groupColl(s.collected)}</div>
       <div class="pl-mooncol">${moonTallyChip(s.collected)}</div>
       <div class="pl-sc">${s.score}</div>
