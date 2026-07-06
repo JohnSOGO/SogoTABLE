@@ -13,6 +13,9 @@ let stylesInjected = false;
 // (or round) advances. Not authoritative — the server re-validates on commit.
 let selection = { key: "", ids: [], wizard: false };
 let lastTap = { id: null, t: 0 };
+// Which panels the player has collapsed. Persisted here (not on the DOM) so a
+// re-render — e.g. tapping a card — doesn't reopen them.
+const collapsed = new Set();
 
 const CARD_META = {
   potion: { emoji: "🧪", name: "Potion" },
@@ -156,7 +159,7 @@ function standingsHtml(game, room, localMark) {
     const thisRound = over ? "" : `+${s.round_estimate || 0}`;
     return `<tr class="${s.mark === localMark ? "pl-me" : ""}"><td class="pl-name">${seatEmoji(room, s.mark)} ${esc(seatName(room, s.mark))}</td><td>${status}</td><td>${thisRound}</td><td class="${iceCls}">${s.ice}</td><td class="pl-total">${liveTotal(s)}</td></tr>`;
   }).join("");
-  return `<div class="pl-panel" data-pl-panel="stand"><h2>Standings</h2>
+  return `<div class="pl-panel${collapsed.has("stand") ? " collapsed" : ""}" data-pl-panel="stand"><h2>Standings</h2>
     <table class="pl-stand"><tr><th>Alchemist</th><th></th><th>This round</th><th>❄️</th><th>Total</th></tr>${rows}</table></div>`;
 }
 
@@ -175,7 +178,7 @@ function cauldronsHtml(game, room, localMark) {
       <div class="pl-mooncol">${moonTallyChip(s.collected)}</div>
       <div class="pl-sc">${s.score}</div>
     </div>`).join("");
-  return `<div class="pl-panel" data-pl-panel="cauldrons"><h2>Cauldrons</h2><div class="pl-seats">${rows}</div></div>`;
+  return `<div class="pl-panel${collapsed.has("cauldrons") ? " collapsed" : ""}" data-pl-panel="cauldrons"><h2>Cauldrons</h2><div class="pl-seats">${rows}</div></div>`;
 }
 
 function scoringKeyHtml(me) {
@@ -191,7 +194,7 @@ function scoringKeyHtml(me) {
     const k = KEY[t];
     return `<tr data-pl-help="${t}"><td class="pl-em">${CARD_META[t].emoji.repeat(k.need)}</td><td class="pl-kn">${CARD_META[t].name}</td><td class="pl-kd">${k.desc}</td><td class="pl-mine">${tally[t]}</td></tr>`;
   }).join("");
-  return `<div class="pl-panel" data-pl-panel="key"><h2>How cards score <span>(tap a row for details)</span></h2>
+  return `<div class="pl-panel${collapsed.has("key") ? " collapsed" : ""}" data-pl-panel="key"><h2>How cards score <span>(tap a row for details)</span></h2>
     <table class="pl-key"><tr><th></th><th>Ingredient</th><th>How it scores</th><th class="pl-r">You</th></tr>${rows}</table></div>`;
 }
 
@@ -281,9 +284,13 @@ function requiredPick(me) {
 function wire(host, ctx, game, me) {
   const root = host.querySelector(".potion-lab-root");
   if (!root) return;
-  // collapse panels
+  // collapse panels — persist the state so a re-render (e.g. a card tap) keeps it
   root.querySelectorAll(".pl-panel[data-pl-panel] > h2").forEach((h) => {
-    h.addEventListener("click", () => h.parentElement.classList.toggle("collapsed"));
+    h.addEventListener("click", () => {
+      const panel = h.parentElement;
+      const isCollapsed = panel.classList.toggle("collapsed");
+      if (isCollapsed) collapsed.add(panel.dataset.plPanel); else collapsed.delete(panel.dataset.plPanel);
+    });
   });
   // scoring detail popups
   const keyTable = root.querySelector(".pl-key");
