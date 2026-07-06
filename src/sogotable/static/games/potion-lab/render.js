@@ -136,7 +136,8 @@ function renderPlay(host, ctx) {
   const me = seats.find((s) => s.mark === localMark) || null;
   const complete = game.status === "complete";
   const gameKey = `${room.code}:${room.game_epoch}`;
-  if (panelEpoch !== gameKey) { collapsed.clear(); autoCollapsedKey = ""; panelEpoch = gameKey; } // fresh game: all open
+  // fresh game: Standings + Cauldrons open, How-cards-score closed by default
+  if (panelEpoch !== gameKey) { collapsed.clear(); collapsed.add("key"); autoCollapsedKey = ""; panelEpoch = gameKey; }
   const key = `${gameKey}:${game.round}:${game.pick}:${game.phase}`;
   if (selection.key !== key) selection = { key, ids: [], wizard: false };
 
