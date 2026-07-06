@@ -145,8 +145,8 @@ function renderPlay(host, ctx) {
     <p class="pl-round">Round ${game.round} / 3 · Pick ${Math.min(game.pick + 1, game.hand_size)} / ${game.hand_size}${complete ? " · complete" : ""}</p>
     ${standingsHtml(game, room, localMark)}
     ${cauldronsHtml(game, room, localMark)}
-    ${scoringKeyHtml(me)}
     ${body}
+    ${scoringKeyHtml(me)}
   </div>`;
   wire(host, ctx, game, me);
 }
@@ -221,7 +221,6 @@ function playingHtml(game, room, me) {
       ${canWizard ? `<label class="pl-wiz"><input type="checkbox" data-pl-wiz ${selection.wizard ? "checked" : ""}> 🧙 Cast Wizard — draft 2</label>` : ""}
       <button class="pl-commit" data-pl-commit ${selection.ids.length === need ? "" : "disabled"}>${selection.wizard && canWizard ? "Commit 2 🧙" : "Commit"}</button>
     </div>
-    <p class="pl-hint">${selection.wizard && canWizard ? `Pick 2 ingredients (${selection.ids.length}/2), then Commit.` : "Tap to keep · double-tap to keep + commit."}</p>
   </div>`;
 }
 
