@@ -95,7 +95,7 @@ export const MYSTIC_WOOD_CSS = `
 /* encounter / dice card — a compact popup centred in the VIEWPORT (consistent on every screen size) */
 .mystic-wood-root.mw-portal{position:fixed;inset:0;z-index:70;display:block;width:auto;background:none;pointer-events:none}
 .mw-portal .overlay{position:fixed;inset:0;background:#000b;display:grid;place-items:center;pointer-events:auto;padding:16px;box-sizing:border-box}
-.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:12px 13px;width:fit-content;max-width:min(340px,92vw);box-shadow:0 12px 36px #000c;max-height:86vh;overflow-y:auto}
+.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:12px 13px;width:fit-content;max-width:min(340px,calc(100vw - 32px));box-shadow:0 12px 36px #000c;max-height:86vh;overflow-y:auto;overflow-x:hidden}
 .mw-portal .modal h2{font-size:18px;color:var(--gold2);margin:2px 0 4px}
 .mw-portal .modal p{font-size:13px;margin:5px 0}
 .mw-portal .modal .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center}
@@ -103,8 +103,8 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .result.mw-result-big{font-size:16px;font-weight:700;margin:4px 0 9px}
 .mw-portal .result.mw-result-big .g{color:#8fd08a} .mw-portal .result.mw-result-big .r{color:var(--crimson)}
 .mw-portal .r{color:var(--crimson)} .mw-portal .g{color:#8fd08a} .mw-portal .a{color:var(--azure)}
-.mw-portal .dicerow{display:flex;align-items:center;gap:7px;justify-content:center;flex-wrap:nowrap;white-space:nowrap;margin:7px 0}
-.mw-portal .drlabel{font-size:12px;color:var(--muted);min-width:46px;text-align:right}
+.mw-portal .dicerow{display:flex;align-items:center;gap:7px;justify-content:center;flex-wrap:wrap;margin:7px 0;max-width:100%}
+.mw-portal .drlabel{font-size:12px;color:var(--muted);min-width:0;text-align:right}
 .mw-portal .die{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;font-family:var(--mono);font-size:20px;font-weight:700;border:2px solid}
 .mw-portal .die.white{background:#f2eede;color:#222;border-color:#fff}
 .mw-portal .die.red{background:#7a2b26;color:#fff;border-color:#c9564c}
