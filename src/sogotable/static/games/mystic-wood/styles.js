@@ -2,7 +2,7 @@
 // selector is scoped under `.mystic-wood-root` (which also wraps body-appended modals/peeks) so nothing
 // collides with or leaks into the shell. Injected once by render.js. Dark default + light remap.
 export const MYSTIC_WOOD_CSS = `
-#macroBoard:has(.mystic-wood-root){display:block;aspect-ratio:auto;background:none;border:none;padding:0;}
+#macroBoard:has(.mystic-wood-root){display:block;aspect-ratio:auto;background:none;border:none;box-shadow:none;padding:0;width:100%;gap:0;}
 .mystic-wood-root{
   --bg:#141a0f; --panel:#1c2413; --panel2:#232d18; --ink:#ece5d0; --muted:#9aa07e;
   --rule:#3a4526; --gold:#c9a24a; --gold2:#e0bd63; --gold-bright:#e0bd63; --crimson:#c9564c; --azure:#7d9dce;
@@ -35,7 +35,7 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-boardwrap{position:relative;overflow:hidden;width:100%;aspect-ratio:7/6.6;background:#0f1409;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
 :root[data-theme="light"] .mystic-wood-root .mw-boardwrap{background:#c9d0b4}
 .mystic-wood-root .board{--cell:96px;position:absolute;top:0;left:0;transform-origin:0 0;display:grid;grid-template-columns:repeat(7,var(--cell));grid-auto-rows:calc(var(--cell)*0.72);gap:3px;padding:8px}
-.mystic-wood-root .cell{position:relative;border-radius:5px;overflow:hidden;outline:2px solid transparent;transition:outline-color .1s;background:none;border:none;margin:0}
+.mystic-wood-root .cell{position:relative;display:block;aspect-ratio:auto;border-radius:5px;overflow:hidden;outline:2px solid transparent;transition:outline-color .1s;background:none;border:none;box-shadow:none;margin:0;padding:0;min-width:0;min-height:0;font-size:inherit;font-weight:inherit}
 .mystic-wood-root .cell svg{display:block;width:100%;height:100%}
 .mystic-wood-root .cell.reachable{outline-color:var(--gold);cursor:pointer}
 .mystic-wood-root .cell.reachable:hover{outline-color:var(--gold2)}
