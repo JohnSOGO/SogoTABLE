@@ -515,7 +515,7 @@ function applyZoom() {
   const vw = wrap.clientWidth, vh = wrap.clientHeight; if (!vw || !vh) return;
   const N = ZOOM_WIDTHS[view.zoom || 0] || 7;
   let scale = vw / (N * cw);
-  if ((view.zoom || 0) === 0) scale = Math.min(scale, vh / bh);   // full view: fit the whole board in the window (both dims)
+  if ((view.zoom || 0) === 0) scale = Math.min(vw / bw, vh / bh);   // full view: fit the WHOLE board (real bw/bh incl. padding) so it centres
   const seat = game.players.find((p) => p.mark === me);
   const f = view.focus || (seat ? { r: seat.r, c: seat.c } : { r: 4, c: 3 });
   const fx = pad + (f.c + 0.5) * cw - gap / 2, fy = pad + (f.r + 0.5) * ch - gap / 2;
