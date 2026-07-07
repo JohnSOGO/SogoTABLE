@@ -507,6 +507,11 @@ function applyZoom() {
   if (!wrap || !board) return;
   const CELL = 96, gap = 3, cw = CELL + gap, ch = CELL * 0.72 + gap, pad = 8;
   const bw = 7 * cw - gap + pad * 2, bh = 9 * ch - gap + pad * 2;
+  // MAX VERTICAL: stretch the board window to fill the space down to the viewport bottom
+  const kids = [...root.children], wi = kids.indexOf(wrap);
+  const belowH = kids.slice(wi + 1).reduce((a, c) => a + c.offsetHeight, 0);
+  const avail = Math.floor(window.innerHeight - wrap.getBoundingClientRect().top - belowH - 6);
+  if (avail > 200) wrap.style.height = avail + "px";
   const vw = wrap.clientWidth, vh = wrap.clientHeight; if (!vw || !vh) return;
   const N = ZOOM_WIDTHS[view.zoom || 0] || 7;
   let scale = vw / (N * cw);
