@@ -7,8 +7,14 @@ import { MYSTIC_WOOD_CSS } from "./styles.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, DEN_EMOJI, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
+const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + gap 3)
 let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0, uiRoot = null;
 let view = { gameKey: null, zoom: 0, focus: null, panel: null };
+let prevPos = {};      // mark -> {r,c}, for gliding tokens between tiles
+let pulseCell = null;  // "r,c" of the legend/map badge currently highlighted
+let clickTimer = null; // single- vs double-tap discrimination
+
+function roomMeta(ctx) { const m = {}; ((ctx.room && ctx.room.players) || []).forEach((p) => { m[p.mark] = { icon: p.icon || "", color: p.color }; }); return m; }
 
 function injectStyles() {
   if (styled || document.getElementById("mystic-wood-styles")) { styled = true; return; }
@@ -31,18 +37,22 @@ export function renderMysticWoodGame(ctx) {
   }
   const game = ctx.game || {};
   const gameKey = `${(ctx.room && ctx.room.code) || "?"}`;
-  if (view.gameKey !== gameKey) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; }
+  if (view.gameKey !== gameKey) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
   const me = localMark(ctx);
   let root = host.querySelector(".mystic-wood-root");
   if (!root) { host.innerHTML = ""; root = document.createElement("div"); root.className = "mystic-wood-root"; host.appendChild(root); }
 
   if (game.status === "complete") { root.innerHTML = endHtml(ctx, game); wireTop(root, ctx, game, me); return; }
+  // if my knight moved while zoomed & following me, keep the view centred on me (prevPos still holds the old spot)
+  const lp = (game.players || []).find((p) => p.mark === me);
+  if (lp && prevPos[me] && (prevPos[me].r !== lp.r || prevPos[me].c !== lp.c) && (view.zoom || 0) > 0) view.focus = null;
   root.innerHTML = boardScreenHtml(ctx, game, me);
   uiRoot = root;
   wireTop(root, ctx, game, me);
   wireBoard(root, ctx, game, me);
   zoomCtx = { root, game, me }; applyZoom(); requestAnimationFrame(() => applyZoom());
+  animateTokens(root, game);
   // overlays
   if (game.last_roll && game.last_roll.mark === me && game.last_roll.seq > seenRoll) { seenRoll = game.last_roll.seq; showDice(ctx, game.last_roll); }
   else if (game.pending && game.pending.mark === me) showEncounter(ctx, game);
@@ -61,6 +71,7 @@ function boardScreenHtml(ctx, game, me) {
     </div>
     <div class="mw-status">${stripHtml(ctx, game, me)}</div>
     <div class="mw-boardwrap"><div class="board">${cellsHtml(ctx, game, me)}</div></div>
+    <div class="mw-legend">${legendHtml(ctx, game)}</div>
     <div class="mw-log">${logRows(game, 6)}</div>
     <div class="mw-actions">${actionsHtml(ctx, game, me)}</div>
   `;
@@ -159,22 +170,53 @@ function cellsHtml(ctx, game, me) {
   const meSeat = game.players.find((p) => p.mark === me);
   const myTurn = game.current_player === me && game.status === "playing" && meSeat && !meSeat.tower && !meSeat.captured && !game.pending;
   const reach = myTurn ? reachableSet(game, meSeat) : new Set();
+  const meta = roomMeta(ctx);
   let h = "";
   for (let r = 0; r < 9; r += 1) for (let c = 0; c < 7; c += 1) {
-    const t = game.board[r * 7 + c], idx = r * 7 + c;
+    const t = game.board[r * 7 + c], idx = r * 7 + c, pc = `${r},${c}`;
     const cls = ["cell"];
     if (meSeat && meSeat.r === r && meSeat.c === c) cls.push("current");
     if (reach.has(idx)) cls.push("reachable");
-    h += `<div class="${cls.join(" ")}" data-cell="${r},${c}">`;
+    h += `<div class="${cls.join(" ")}" data-cell="${pc}">`;
     if (t.revealed) {
       h += tileSvg(t, idx + 1);
-      if (t.name && AREA_NAMES[t.name]) h += `<div class="infomark holdable" data-peek="area:${r},${c}">ⓘ</div>`;
-      if (t.card) h += `<div class="cardmark holdable" data-peek="card:${r},${c}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</div>`;
+      if (t.name && AREA_NAMES[t.name]) h += `<div class="infomark holdable" data-peek="area:${pc}">ⓘ</div>`;
+      if (t.card) h += `<div class="cardmark holdable${pulseCell === pc ? " mw-pulse" : ""}" data-peek="card:${pc}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</div>`;
     } else { h += `<div class="facedown"></div>`; }
-    game.players.forEach((p, i) => { if (p.r === r && p.c === c && !p.won) h += `<div class="tok holdable" data-peek="tok:${p.mark}" style="background:${E(p.color)};left:${6 + i * 20}px;top:6px">${E((p.name || "?")[0])}</div>`; });
+    game.players.forEach((p, i) => {
+      if (p.r === r && p.c === c && !p.won) {
+        const md = meta[p.mark] || {};
+        const face = md.icon || (p.name || "?")[0];
+        h += `<div class="tok holdable" data-peek="tok:${p.mark}" data-mark="${p.mark}" style="background:${E(md.color || p.color)};left:${6 + i * 20}px;top:6px">${E(face)}</div>`;
+      }
+    });
     h += `</div>`;
   }
   return h;
+}
+function legendHtml(ctx, game) {
+  const badges = [];
+  game.board.forEach((t) => { if (t.revealed && t.card) badges.push(t); });
+  if (!badges.length) return `<span class="mw-leg-empty">No denizens revealed yet.</span>`;
+  return badges.map((t) => {
+    const pc = `${t.r},${t.c}`;
+    return `<span class="mw-legbadge${pulseCell === pc ? " mw-pulse" : ""}" data-legend="${pc}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</span>`;
+  }).join("");
+}
+// Glide any token whose tile changed from its previous render position.
+function animateTokens(root, game) {
+  (game.players || []).forEach((p) => {
+    if (p.won) { prevPos[p.mark] = { r: p.r, c: p.c }; return; }
+    const tok = root.querySelector(`.tok[data-mark="${p.mark}"]`);
+    const prev = prevPos[p.mark];
+    if (tok && prev && (prev.r !== p.r || prev.c !== p.c)) {
+      const dx = (prev.c - p.c) * CW, dy = (prev.r - p.r) * CH;
+      tok.style.transition = "none";
+      tok.style.transform = `translate(${dx}px,${dy}px)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => { tok.style.transition = "transform .45s ease"; tok.style.transform = "translate(0,0)"; }));
+    }
+    prevPos[p.mark] = { r: p.r, c: p.c };
+  });
 }
 // Faithful tile art: terrain, roads to open edges (over a darker lining), closed-edge semicircle,
 // grass tufts, named-glade backdrop + emblem, and the gold north triangle.
@@ -394,12 +436,25 @@ function wireBoard(root, ctx, game, me) {
   }));
   root.querySelectorAll(".cell").forEach((cell) => {
     cell.addEventListener("click", (ev) => {
-      if (ev.target.closest(".holdable")) return; // a peek tap, not a move
+      if (ev.target.closest(".holdable")) return; // a peek tap, not a move/zoom
       const [r, c] = cell.getAttribute("data-cell").split(",").map(Number);
-      if (cell.classList.contains("reachable")) { if (!(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "move", r, c }); }
-      else { view.focus = { r, c }; view.zoom = ((view.zoom || 0) + 1) % ZOOM_WIDTHS.length; applyZoom(); }
+      if (clickTimer) {                                   // double tap → zoom in on this tile
+        clearTimeout(clickTimer); clickTimer = null;
+        view.focus = { r, c }; view.zoom = Math.min(ZOOM_WIDTHS.length - 1, (view.zoom || 0) + 1); applyZoom();
+        return;
+      }
+      clickTimer = setTimeout(() => {                     // single tap → move (if reachable)
+        clickTimer = null;
+        if (cell.classList.contains("reachable") && !(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "move", r, c });
+      }, 250);
     });
   });
+  // legend badges: tap to pulse the badge and its tile on the map
+  root.querySelectorAll("[data-legend]").forEach((b) => b.addEventListener("click", () => {
+    const pc = b.getAttribute("data-legend");
+    pulseCell = pulseCell === pc ? null : pc;
+    renderMysticWoodGame(ctx);
+  }));
   // press-and-hold peeks
   root.querySelectorAll("[data-peek]").forEach((el) => {
     const show = (ev) => { ev.preventDefault(); ev.stopPropagation(); const pt = ev.touches ? ev.touches[0] : ev; const c = peekContent(game, el.getAttribute("data-peek")); if (c) showPop(pt.clientX, pt.clientY, c.title, c.body); };

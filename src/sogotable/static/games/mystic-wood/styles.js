@@ -35,16 +35,23 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-boardwrap{position:relative;overflow:hidden;width:100%;aspect-ratio:7/6.6;background:#0f1409;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
 :root[data-theme="light"] .mystic-wood-root .mw-boardwrap{background:#c9d0b4}
 .mystic-wood-root .board{--cell:96px;position:absolute;top:0;left:0;transform-origin:0 0;display:grid;grid-template-columns:repeat(7,var(--cell));grid-auto-rows:calc(var(--cell)*0.72);gap:3px;padding:8px}
-.mystic-wood-root .cell{position:relative;display:block;aspect-ratio:auto;border-radius:5px;overflow:hidden;outline:2px solid transparent;transition:outline-color .1s;background:none;border:none;box-shadow:none;margin:0;padding:0;min-width:0;min-height:0;font-size:inherit;font-weight:inherit}
+.mystic-wood-root .cell{position:relative;display:block;aspect-ratio:auto;border-radius:5px;overflow:hidden;outline:2px solid transparent;transition:outline-color .1s;background:none;border:none;box-shadow:none;margin:0;padding:0;min-width:0;min-height:0;font-size:inherit;font-weight:inherit;touch-action:manipulation}
 .mystic-wood-root .cell svg{display:block;width:100%;height:100%}
 .mystic-wood-root .cell.reachable{outline-color:var(--gold);cursor:pointer}
 .mystic-wood-root .cell.reachable:hover{outline-color:var(--gold2)}
 .mystic-wood-root .cell.current{outline-color:var(--crimson)}
-.mystic-wood-root .tok{position:absolute;width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px #000a;display:grid;place-items:center;font-family:var(--serif);font-weight:700;font-size:13px;color:#fff;z-index:3}
+.mystic-wood-root .tok{position:absolute;width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px #000a;display:grid;place-items:center;font-family:var(--serif);font-weight:700;font-size:15px;color:#fff;z-index:3;will-change:transform}
 .mystic-wood-root .cardmark{position:absolute;right:3px;bottom:3px;background:#0009;border:1px solid var(--gold);border-radius:4px;font-size:9px;padding:1px 4px;color:var(--gold2);z-index:2;max-width:88%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .mystic-wood-root .infomark{position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#000a;border:1px solid var(--gold);color:var(--gold2);font-size:10px;display:grid;place-items:center;z-index:3;line-height:1;cursor:help}
 .mystic-wood-root .facedown{position:absolute;inset:0;background:repeating-linear-gradient(45deg,#463b23,#463b23 6px,#3d3320 6px,#3d3320 12px);display:grid;place-items:center}
 .mystic-wood-root .facedown::after{content:"";width:34%;height:48%;border:2px solid #7d653399;border-radius:50% 50% 50% 50%/60% 60% 40% 40%}
+.mystic-wood-root .mw-legend{display:flex;gap:5px;overflow-x:auto;flex-wrap:nowrap;padding:5px 8px;background:var(--panel);border-top:1px solid var(--rule)}
+.mystic-wood-root .mw-legend::-webkit-scrollbar{height:0}
+.mystic-wood-root .mw-legbadge{flex:none;white-space:nowrap;font-size:11px;background:var(--panel2);border:1px solid var(--rule);border-radius:99px;padding:2px 9px;color:var(--gold2);cursor:pointer}
+.mystic-wood-root .mw-leg-empty{font-size:11px;color:var(--muted)}
+.mystic-wood-root .mw-pulse{animation:mw-pulse .9s ease-in-out infinite;border-color:#7be07b}
+@keyframes mw-pulse{0%,100%{box-shadow:0 0 0 0 rgba(123,224,123,0)}50%{box-shadow:0 0 0 5px rgba(123,224,123,.5)}}
+.mystic-wood-root .cardmark.mw-pulse{outline:2px solid #7be07b}
 .mystic-wood-root .mw-log{height:84px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
 .mystic-wood-root .mw-actions{display:flex;justify-content:center;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-top:1px solid var(--rule);overflow-x:auto;flex-wrap:nowrap;border-radius:0 0 10px 10px}
 .mystic-wood-root .mw-actions button{font-size:12px;padding:8px 11px;white-space:nowrap;flex:0 0 auto;width:auto;height:auto}
