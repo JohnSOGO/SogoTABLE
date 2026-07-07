@@ -235,6 +235,24 @@ function useSage(game, seat) {
 function usePrince(game, seat) {
   if (seat.companions.includes("prince") && seat._princeAiding) { seat._princeAiding = false; seat._princeUsed = true; logEvent(game, "The Prince has lent his arm; he fights no more, but travels on.", "a"); }
 }
+// The "6 vs 4" preview shown to the player before a challenge (same bonuses as the fight, minus the dice).
+export function combatPreview(seat, tile) {
+  const den = DEN[tile.card];
+  if (!den) return null;
+  let mine = 0, foe = 0;
+  if (den.cls === "beast" || den.cls === "warrior") mine += totalS(seat);
+  if (den.cls === "magic" || den.cls === "warrior") mine += totalP(seat) - princessVsKing(seat, den);
+  if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mine += 2;
+  if (princeAids(seat, den)) {
+    if (den.cls === "beast" || den.cls === "warrior") mine += DEN.prince.S;
+    if (den.cls === "magic" || den.cls === "warrior") mine += DEN.prince.P;
+  }
+  foe += (den.S || 0) + (den.P || 0);
+  if (tile.name === "castle" && den.S) foe += 2;
+  if (tile.name === "grove" && den.P) foe += 1;
+  const label = den.cls === "beast" ? "Strength" : den.cls === "magic" ? "Prowess" : "Strength + Prowess";
+  return { label, mine, foe };
+}
 // Resolve a Challenge. Returns { result: 'win'|'lose'|'captured', endTurn:true }.
 export function resolveChallenge(game, seat, tile) {
   const den = DEN[tile.card];

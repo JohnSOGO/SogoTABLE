@@ -140,8 +140,8 @@ export const GAME_REGISTRY = [
     player_count: null,
     host_start: true,
     category: "board",
-    status: "In development",
-    availability: "coming_soon",
+    status: "Ready",
+    availability: "ready",
     aliases: ["mystic_wood", "mystic-wood", "the_mystic_wood"],
   },
   {

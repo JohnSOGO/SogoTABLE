@@ -11,7 +11,7 @@ import {
 import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
   resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
-  relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie,
+  relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -224,15 +224,31 @@ export function makeMysticWoodMove(game, mark, action) {
 
 /* ----------------------------- projection ------------------------------- */
 function seatToDict(s) {
+  const k = KNIGHTS[s.knight];
   return {
-    mark: s.mark, name: s.name, is_bot: s.is_bot, knight: s.knight,
+    mark: s.mark, name: s.name, is_bot: s.is_bot, knight: s.knight, color: k.color, quest: k.quest,
     r: s.r, c: s.c,
-    things: s.things.slice(), prowess: s.prowess.map((x) => x.name), companions: s.companions.slice(),
+    things: s.things.map((t) => ({ id: t, name: THINGS[t].name })),
+    prowess: s.prowess.map((x) => x.name),
+    companions: s.companions.map((cid) => ({ id: cid, name: DEN[cid].name })),
     horse: !!s.horse, tower: !!s.tower, captured: !!s.captured,
     questDone: !!s.questDone, isKing: !!s.isKing, atGate: !!s.atGate, won: !!s.won,
     caveTurns: s.caveTurns || 0,
     totalP: totalP(s), totalS: totalS(s),
   };
+}
+// Enrich the pending encounter with display data + the combat preview so the client renders it without
+// re-implementing any rules math.
+function pendingToDict(game) {
+  const p = game.pending;
+  if (!p) return null;
+  const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat };
+  const den = DEN[p.card];
+  if (den) {
+    out.denName = den.name; out.denClass = den.cls; out.denS = den.S || 0; out.denP = den.P || 0;
+    if (p.combat) { const tile = cellAt(game.board, p.r, p.c); out.preview = combatPreview(game.players[p.mark], tile); }
+  }
+  return out;
 }
 function tileToDict(t) {
   if (!t.revealed) return { r: t.r, c: t.c, half: t.half, revealed: false };
@@ -250,7 +266,7 @@ export function mysticWoodGameToDict(game) {
     players: game.seat_order.map((m) => seatToDict(game.players[m])),
     board: game.board.map(tileToDict),
     deck_count: game.deck.length, discard_count: game.discard.length,
-    pending: game.pending ? { ...game.pending } : null,
+    pending: pendingToDict(game),
     scry_reveal: game.scry_reveal || null,
     log: (game.log || []).slice(-40),
   };

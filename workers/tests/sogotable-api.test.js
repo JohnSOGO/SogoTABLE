@@ -339,7 +339,7 @@ test("lists ready games from the hosted game registry", async () => {
 
   assert.equal(listed.ok, true);
   assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID, MYSTIC_WOOD_GAME_ID, ZOMBIE_DICE_GAME_ID, LIARS_DICE_GAME_ID, RTTA_GAME_ID, NO_THANKS_GAME_ID, HEARTS_GAME_ID, POTION_LAB_GAME_ID]);
-  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "coming_soon", "ready", "ready", "ready", "ready", "ready", "ready"]);
+  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready"]);
   assert.equal(listed.games[0].name, "Super Tic Tac Toe");
   assert.equal(listed.games[1].name, "Super Tic Tactical Toe");
   assert.equal(listed.games[2].name, "Dots and Boxes");

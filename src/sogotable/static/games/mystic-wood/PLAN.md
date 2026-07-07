@@ -5,10 +5,11 @@
 > Phase 1 survey + the durable decision record the Verification Gates check against.
 > **Nothing here is a bug if it's listed as an intended deviation.**
 
-Status: **server slice done** (branch `feature/mystic-wood-port`). Pure rules engine lifted,
-seeded, and tested (full worker suite green, 323 tests); registered as `coming_soon` so it is
-NOT launchable until the client (`render.js` + lobby/app wiring) lands. Do not flip `availability`
-to `ready` until the client + all four Verification Gates are green.
+Status: **vertical slice complete** (branch `feature/mystic-wood-port`). Server rules + client
+(`render.js`/`styles.js`/`manifest.js`) + minimal app.js wiring done; **`availability:"ready"`**.
+Full worker suite green (323, incl. app.js let-cap/ceiling, manifest reconcile, review-export).
+**Remaining before ship:** in-browser verification (MojoSOGO) + the four fresh-session Verification
+Gates. The client is coded against the platform contract but **not yet browser-verified**.
 
 ---
 
@@ -157,12 +158,20 @@ All concerns → **existing owners**; **no new owner row** for the default path.
       makeMysticWoodMove, mysticWoodGameToDict, setMysticWoodRandom`. All ≤800 lines, purity-clean.
 - [x] `workers/tests/mystic-wood-rules.test.js` — 11 browser-free tests (stats, combat win/loss,
       Sage/Princess audit fixes, contract, min/max, seeded full-game integration).
-- [ ] `src/sogotable/static/games/mystic-wood/{render,manifest,index,styles}.js`  ← **NEXT (client slice)**
-- [x] `games/registry.js` — `GAME_IDS.mysticWood` + `GAME_REGISTRY` row (`coming_soon`).
-- [ ] `games/game-kinds.js` — `isMysticWoodGameState` (with client slice).
+- [x] `src/sogotable/static/games/mystic-wood/{render,manifest,styles}.js` — 7×9 board, 3-level
+      zoom, seat list, encounter Greet/Challenge, power buttons, end screen; scoped themed CSS.
+      (No `index.js` — no game module has one.) render.js reads `toDict`, posts via `ctx.makeMove`.
+- [x] `games/registry.js` — `GAME_IDS.mysticWood` + `GAME_REGISTRY` row, **`availability:"ready"`**.
+- [x] `games/game-kinds.js` — `isMysticWoodGameState`.
 - [x] `workers/games/handlers.js` — one import + one dispatch row.
-- [ ] `app.js` — minimal-additive shared-branch wiring (with client slice).
-- [x] `review-export.js` — allowlisted the four server files.
+- [x] `app.js` — minimal-additive: 1 import + 4 in-place identifier insertions on the shared
+      host-start branch. No new top-level `let`; within the 2497-line ceiling.
+- [x] `review-export.js` — allowlisted the four server + three client files.
+- **Projection enrichment:** `toDict` emits inventory *names* + an encounter `preview` (`combatPreview`
+      in engine) so the client renders "Prowess — 6 vs 4" without re-implementing any rules math.
+- **v1 knight assignment:** random distinct at seat-init (no lobby start-arg). Per-seat interactive
+      picking remains the documented fast-follow (needs a shared-lobby capability + an `applyStartOptions`
+      row).
 
 ### Turn model + termination fixes (found by the seeded integration test)
 - **One move per turn**, then the turn ends (encounter → Greet/Challenge choice → ends; empty → ends).
