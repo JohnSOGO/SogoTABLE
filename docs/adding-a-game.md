@@ -43,6 +43,19 @@ to pay off instead of becoming a rewrite, follow these constraints:
 - **The standalone's rules core IS the future `rules.js`** — pure, no DOM, no
   timers. Lift it at integration; never reimplement it. (match-three's `Match3`
   core is built exactly this way.)
+- **The standalone's UI IS the future client — LIFT IT VERBATIM.** ⚠️ **Hard rule
+  (a recurring, costly failure).** At integration, **port the developed UI as-is**:
+  lift the prototype's **CSS** into `styles.js` (rescope under `.<game>-root`, add
+  the `#macroBoard` neutralizer + theme tokens) and lift its **render functions**
+  (tile/board drawing, layout, popups, modals, badges, zoom) into `render.js`
+  **unchanged visually**. Rewire only the two seams — the **data source** (local
+  state → the `ctx.game` projection) and **intent capture** (local action fns →
+  `ctx.makeMove`). **Do NOT regenerate a fresh, "cleaner", or simplified UI** — the
+  polished prototype look and feel *is the deliverable* and was iterated over many
+  sessions. If the server model lacks data the UI shows (dice breakdown, combat
+  preview, etc.), **enrich the projection** to carry it rather than dropping the UI
+  feature. Diff the ported client against the prototype before calling it done;
+  "looks like a different game" means it is not done.
 - **Plan the hooks up front**, from the Phase 1B actionable-events list: the
   **action-emit seam** (the points that will call the server / `applyAction`) and
   the **state-injection seam** (the ctx bag the shell will provide). Don't
@@ -358,6 +371,11 @@ game hits (all learned on Yahtzee):
 
 ## The hard rules
 
+- **Port the developed UI verbatim; never regenerate it.** If a standalone
+  prototype exists, the shipped client's look and feel MUST be that prototype's —
+  lift its CSS and render code, rewiring only data-source and intent-capture. A
+  fresh/simplified re-implementation of the UI at integration is a defect, not a
+  choice. (See Phase 0's hard rule. This has shipped wrong-UI ports more than once.)
 - **No interdependence between games.** A game module must **not** import another
   game. Shared logic goes in `workers/games/{bots,util}.js` or a platform module
   — never game-to-game. Each game must be independently removable.

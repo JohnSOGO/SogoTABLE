@@ -1,295 +1,453 @@
-// The Mystic Wood — browser client. Renders the 7×9 explorable board (with 3-level zoom), the seat
-// list, encounter prompts, and power actions from the server projection (ctx.game), and posts intents
-// via ctx.makeMove. Idempotent snapshot rendering: everything is re-derived from ctx.game each call;
-// only transient view state (zoom lens, focus, log toggle) is kept in module scope, reset per game.
-// The shell hands us #macroBoard and hides its tic-tac-toe chrome; we own the whole board + turn UI.
+// The Mystic Wood — browser client. The UI is LIFTED from the AI/Mystic_Wood prototype (tiles with
+// road/emblem art, the topbar + knight-strip + board + log + actions layout, slide-over Knights/
+// Chronicle panels, press-and-hold peeks, the encounter card, and the dice-reveal modal). Only the two
+// seams are rewired: data source (the ctx.game projection) and intent (ctx.makeMove). Snapshot render.
 import { renderHostStartLobby } from "../lobby.js";
 import { MYSTIC_WOOD_CSS } from "./styles.js";
+import { KNIGHTS, THINGS, DEN, DEN_CLASS, DEN_EMOJI, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 
-const AREA_EMOJI = { xgate: "✨", egate: "🚪", tower: "🗼", grove: "🌳", palace: "🏛️", island: "🏝️", altar: "⛩️", cave: "🕳️", chapel: "⛪", castle: "🏰", fountain: "⛲" };
-const AREA_LABEL = { xgate: "Enchanted Gate", egate: "Earthly Gate", tower: "Tower", grove: "Grove", palace: "Palace", island: "Isle", altar: "Altar", cave: "Cave", chapel: "Chapel", castle: "Castle", fountain: "Font" };
-const DEN_EMOJI = { dragon: "🐉", ox: "🐂", boar: "🐗", troll: "👹", giant: "🗿", orc: "👺", saracen: "⚔️", king: "👑", wizard: "🧙", illusion: "🌀", enchantress: "🧝‍♀️", horse: "🐎", rogue: "🗡️", witch: "🧙‍♀️", druid: "🌿", elf: "🏹", merlin: "🔮", hermit: "🧓", bishop: "⛪", archmage: "✨", magician: "🌩️", sage: "📜", princess: "👸", prince: "🤴", grail: "🏆", dwarf: "⛏️", queen: "👸", nymph: "💧", fog: "🌫️", horn: "📯", wind: "🌬️" };
 const ZOOM_WIDTHS = [7, 5, 3, 2];
-
-let styled = false;
-let view = { gameKey: null, zoom: 0, focus: null, showLog: false };
-let zoomCtx = null;
-let resizeHooked = false;
+let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0;
+let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 
 function injectStyles() {
   if (styled || document.getElementById("mystic-wood-styles")) { styled = true; return; }
   styled = true;
-  const el = document.createElement("style");
-  el.id = "mystic-wood-styles";
-  el.textContent = MYSTIC_WOOD_CSS;
+  const el = document.createElement("style"); el.id = "mystic-wood-styles"; el.textContent = MYSTIC_WOOD_CSS;
   document.head.appendChild(el);
 }
-function localMark(ctx) {
-  const seat = ((ctx.room && ctx.room.players) || []).find((p) => p.id === ctx.localPlayerId);
-  return seat ? seat.mark : null;
-}
-const esc = (ctx, s) => (ctx.escapeHtml ? ctx.escapeHtml(String(s == null ? "" : s)) : String(s == null ? "" : s));
+function localMark(ctx) { const s = ((ctx.room && ctx.room.players) || []).find((p) => p.id === ctx.localPlayerId); return s ? s.mark : null; }
+const E = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+const denEmoji = (id) => DEN_EMOJI[id] || (DEN[id] ? { beast: "🐾", warrior: "⚔️", magic: "✨", greet: "❓", companion: "🤝", special: "❓" }[DEN[id].cls] : "❓");
 
+/* ------------------------------- entry ---------------------------------- */
 export function renderMysticWoodGame(ctx) {
   injectStyles();
-  const host = ctx.host;
-  if (!host) return;
+  const host = ctx.host; if (!host) return;
   if (!ctx.started) {
-    renderHostStartLobby(host, ctx, {
-      wrap: "mystic-wood-root",
-      heading: "Knights",
-      blurb: "Each knight has a unique quest. Invite players or bots (3–5 seats, bots fill), then start — knights are dealt at random.",
-    });
+    renderHostStartLobby(host, ctx, { wrap: "mystic-wood-root", heading: "Knights",
+      blurb: "Each knight has a unique quest. Invite players or bots (3–5 seats, bots fill), then start — knights are dealt at random." });
     return;
   }
   const game = ctx.game || {};
   const gameKey = `${(ctx.room && ctx.room.code) || "?"}`;
-  if (view.gameKey !== gameKey) view = { gameKey, zoom: 0, focus: null, showLog: false };
+  if (view.gameKey !== gameKey) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
-
+  const me = localMark(ctx);
   let root = host.querySelector(".mystic-wood-root");
   if (!root) { host.innerHTML = ""; root = document.createElement("div"); root.className = "mystic-wood-root"; host.appendChild(root); }
-  const me = localMark(ctx);
 
-  if (game.status === "complete") { root.innerHTML = endHtml(ctx, game); wire(root, ctx, game, me); return; }
-  root.innerHTML = boardHtml(ctx, game, me);
-  wire(root, ctx, game, me);
-  zoomCtx = { root, game, me };
-  applyZoom();
-  requestAnimationFrame(() => applyZoom());   // re-apply once the board window has its laid-out width
+  if (game.status === "complete") { root.innerHTML = endHtml(ctx, game); wireTop(root, ctx, game, me); return; }
+  root.innerHTML = boardScreenHtml(ctx, game, me);
+  wireTop(root, ctx, game, me);
+  wireBoard(root, ctx, game, me);
+  zoomCtx = { root, game, me }; applyZoom(); requestAnimationFrame(() => applyZoom());
+  // overlays
+  if (game.last_roll && game.last_roll.mark === me && game.last_roll.seq > seenRoll) { seenRoll = game.last_roll.seq; showDice(ctx, game.last_roll); }
+  else if (game.pending && game.pending.mark === me) showEncounter(ctx, game);
 }
 
-/* ------------------------------- board ---------------------------------- */
+/* ------------------------------- layout --------------------------------- */
+function boardScreenHtml(ctx, game, me) {
+  const cur = game.players.find((p) => p.mark === game.current_player);
+  const turn = cur ? (cur.mark === me ? "Your turn" : `${E(cur.name)}'s turn`) : "—";
+  return `
+    <div class="mw-topbar">
+      <button data-top="knights">≡ Knights</button>
+      <span class="mw-tb-turn">${turn}</span>
+      <button data-top="zoom">🔍</button>
+      <button data-top="chron">📜</button>
+    </div>
+    <div class="mw-status">${stripHtml(ctx, game, me)}</div>
+    <div class="mw-boardwrap"><div class="board">${cellsHtml(ctx, game, me)}</div></div>
+    <div class="mw-log">${logRows(game, 6)}</div>
+    <div class="mw-actions">${actionsHtml(ctx, game, me)}</div>
+  `;
+}
+function stripHtml(ctx, game, me) {
+  const seat = game.players.find((p) => p.mark === me) || game.players.find((p) => p.mark === game.current_player);
+  if (!seat) return "";
+  return `<div class="pstrip">
+    <div class="pstrip-r1">
+      <span class="crest" style="width:24px;height:24px;font-size:12px;background:${E(seat.color)}">${E((seat.name || "?")[0])}</span>
+      <span class="pstrip-name" style="color:${E(seat.color)}">${E(seat.name)}</span>
+      ${statsHtml(seat)}
+      <span class="pstrip-quest">${seat.questDone ? "✓ " : ""}${E(seat.quest || "")}</span>
+    </div>
+    <div class="pstrip-badges">${invHtml(seat)}</div>
+  </div>`;
+}
+function statsHtml(seat) {
+  const cap = (seat.totalP + seat.totalS) >= 10 ? ` <span style="color:var(--muted)">(cap 10)</span>` : "";
+  return `<span class="stats" data-peek="stats:${seat.mark}"><span class="pP">P ${seat.totalP}</span><span class="pS">S ${seat.totalS}</span>${cap}</span>`;
+}
+function invHtml(seat) {
+  let h = "";
+  if (seat.isKing) h += `<span class="chip">👑 King</span>`;
+  (seat.things || []).forEach((t) => { h += `<span class="chip holdable" data-peek="thing:${t.id}">${E(t.name)}</span>`; });
+  (seat.prowess || []).forEach((n) => { h += `<span class="chip holdable" data-peek="prowess:0">${E(n)}</span>`; });
+  (seat.companions || []).forEach((c) => { h += `<span class="chip comp holdable" data-peek="comp:${c.id}">${E(c.name)}</span>`; });
+  if (seat.horse) h += `<span class="chip holdable" data-peek="horse:0">Horse</span>`;
+  if (seat.tower) h += `<span class="badge holdable" data-peek="tower:0">⛓ Tower</span>`;
+  if (seat.captured) h += `<span class="badge holdable" data-peek="captured:0">✦ Captured</span>`;
+  return h;
+}
+function actionsHtml(ctx, game, me) {
+  const cur = game.players.find((p) => p.mark === game.current_player);
+  const meSeat = game.players.find((p) => p.mark === me);
+  const mine = game.current_player === me;
+  let btns = "";
+  if (mine && meSeat && !meSeat.tower && !meSeat.captured && !game.pending) {
+    const tile = tileAt(game, meSeat.r, meSeat.c);
+    const has = (id) => (meSeat.things || []).some((t) => t.id === id);
+    const comp = (id) => (meSeat.companions || []).some((c) => c.id === id);
+    if (tile && tile.name === "fountain") btns += `<button data-act="drink">⛲ Drink</button>`;
+    if (has("crystal")) btns += `<button data-act="scry">🔮 Scry</button>`;
+    if (has("wand")) btns += `<button data-act="rotate">🔄 Rotate</button>`;
+    if (comp("archmage")) btns += `<button data-act="transport">✨ Transport</button>`;
+    btns += `<button class="primary" data-act="end">End turn</button>`;
+    if (game.scry_reveal) btns += `<button disabled>🔮 Next: ${denEmoji(game.scry_reveal)} ${E((DEN[game.scry_reveal] || {}).name || game.scry_reveal)}</button>`;
+  } else if (mine && meSeat && (meSeat.tower || meSeat.captured)) {
+    btns += `<button disabled>${meSeat.captured ? "Captured — roll to break free" : "Imprisoned — roll to escape"}</button>`;
+  } else {
+    btns += `<button disabled>Waiting for ${cur ? E(cur.name) : "…"}…</button>`;
+  }
+  return btns;
+}
+function endHtml(ctx, game) {
+  const w = game.players.find((p) => p.mark === game.winner);
+  const reason = game.end_reason && game.end_reason.reason === "castle" ? "holds the Castle as King" : "escaped the Wood, quest fulfilled";
+  return `<div class="mw-topbar"><span class="mw-tb-turn">Victory</span><button data-top="chron">📜</button></div>
+    <div class="card" style="text-align:center;margin:14px;padding:22px">
+      <div class="tag">Victory</div>
+      <h2 style="font-size:26px;color:${w ? E(w.color) : "var(--gold2)"};margin:8px 0">${w ? E(w.name) : "Someone"} wins!</h2>
+      <p style="color:var(--muted)">${w ? E(w.name) : "The victor"} ${reason} and rules the Mystic Wood.</p>
+    </div>`;
+}
+function logRows(game, n) {
+  const rows = (game.log || []).slice(-n).reverse();
+  if (!rows.length) return `<div class="le muted">The chronicle is empty.</div>`;
+  return rows.map((e) => `<div class="le"><span class="${E(e.cls || "")}">${sanitizeLog(e.text)}</span></div>`).join("");
+}
+// log text may contain the game's own <b>/<span class='g'>… markup — allow a safe subset.
+function sanitizeLog(t) {
+  return String(t == null ? "" : t).replace(/<(?!\/?(b|br|small|span)( class='(g|r|a|muted)')?\s*\/?>)/g, "&lt;");
+}
+
+/* -------------------------------- board --------------------------------- */
 function tileAt(game, r, c) { return (r >= 0 && r < 9 && c >= 0 && c < 7) ? game.board[r * 7 + c] : null; }
 function edgeBetween(from, to) {
   if (to.r === from.r - 1) return ["N", "S"]; if (to.r === from.r + 1) return ["S", "N"];
   if (to.c === from.c + 1) return ["E", "W"]; if (to.c === from.c - 1) return ["W", "E"]; return null;
 }
 function reachableSet(game, seat) {
-  const set = new Set();
-  if (!seat) return set;
-  const from = tileAt(game, seat.r, seat.c);
-  if (!from || !from.open) return set;
-  const hasBough = (seat.things || []).some((t) => t.id === "golden_bough");
+  const set = new Set(); if (!seat) return set;
+  const from = tileAt(game, seat.r, seat.c); if (!from || !from.open) return set;
+  const bough = (seat.things || []).some((t) => t.id === "golden_bough");
   [[from.r - 1, from.c], [from.r + 1, from.c], [from.r, from.c - 1], [from.r, from.c + 1]].forEach(([r, c]) => {
     const n = tileAt(game, r, c); if (!n) return;
     const e = edgeBetween(from, n); if (!e) return;
     if (!from.open[e[0]]) return;
     if (n.revealed && !(n.open && n.open[e[1]])) return;
-    if (n.revealed && n.name === "cave" && !hasBough) return;
+    if (n.revealed && n.name === "cave" && !bough) return;
     set.add(r * 7 + c);
   });
   return set;
 }
-function tileSvg(t) {
-  const half = t.half === "ench" ? "ench" : "earth";
-  const H2 = `var(--${half}-h2)`, H3 = `var(--${half}-h3)`, RD = `var(--${half}-road)`;
-  const ends = { N: [50, 0], E: [100, 36], S: [50, 72], W: [0, 36] };
-  const open = t.open || { N: 1, E: 1, S: 1, W: 1 };
-  const ok = ["N", "E", "S", "W"].filter((k) => open[k]);
-  let s = `<svg viewBox="0 0 100 72"><rect width="100" height="72" fill="${H2}"/>`;
-  ok.forEach((k) => { const [x, y] = ends[k]; s += `<line x1="50" y1="36" x2="${x}" y2="${y}" stroke="${H3}" stroke-width="22" stroke-linecap="round" opacity="0.8"/>`; });
-  ok.forEach((k) => { const [x, y] = ends[k]; s += `<line x1="50" y1="36" x2="${x}" y2="${y}" stroke="${RD}" stroke-width="15" stroke-linecap="round"/>`; });
-  if (ok.length) s += `<circle cx="50" cy="36" r="9" fill="${RD}"/>`;
-  if (ok.length) {
-    const R = 8;
-    ["N", "E", "S", "W"].filter((k) => !open[k]).forEach((k) => {
-      let d;
-      if (k === "N") d = `M${50 - R} 0 Q 50 ${R * 1.4} ${50 + R} 0 Z`;
-      else if (k === "S") d = `M${50 - R} 72 Q 50 ${72 - R * 1.4} ${50 + R} 72 Z`;
-      else if (k === "E") d = `M100 ${36 - R} Q ${100 - R * 1.4} 36 100 ${36 + R} Z`;
-      else d = `M0 ${36 - R} Q ${R * 1.4} 36 0 ${36 + R} Z`;
-      s += `<path d="${d}" fill="${RD}" opacity="0.85"/>`;
-    });
-  }
-  if (t.name) s += `<ellipse cx="50" cy="36" rx="23" ry="16" fill="${RD}" opacity="0.9"/>`;
-  s += `<path d="M9 4 l3 5 h-6 Z" fill="var(--mw-gold)" opacity="0.85"/></svg>`;
-  return s;
-}
-function cellsHtml(ctx, game, me, reach, myTurn) {
+function cellsHtml(ctx, game, me) {
+  const meSeat = game.players.find((p) => p.mark === me);
+  const myTurn = game.current_player === me && game.status === "playing" && meSeat && !meSeat.tower && !meSeat.captured && !game.pending;
+  const reach = myTurn ? reachableSet(game, meSeat) : new Set();
   let h = "";
-  for (let r = 0; r < 9; r += 1) {
-    for (let c = 0; c < 7; c += 1) {
-      const t = game.board[r * 7 + c];
-      const cls = ["mw-cell"];
-      const idx = r * 7 + c;
-      const meSeat = game.players.find((p) => p.mark === me);
-      if (meSeat && meSeat.r === r && meSeat.c === c) cls.push("mw-current");
-      if (myTurn && reach.has(idx)) cls.push("mw-reachable");
-      h += `<div class="${cls.join(" ")}" data-r="${r}" data-c="${c}">`;
-      if (t.revealed) {
-        h += tileSvg(t);
-        if (t.name) h += `<span class="mw-place">${AREA_EMOJI[t.name] || "◆"} ${esc(ctx, AREA_LABEL[t.name] || "")}</span>`;
-        if (t.card) h += `<span class="mw-card">${DEN_EMOJI[t.card] || "❓"}</span>`;
-      } else {
-        h += `<div class="mw-facedown"></div>`;
-      }
-      game.players.forEach((p, i) => {
-        if (p.r === r && p.c === c && !p.won) {
-          h += `<span class="mw-tok" style="background:${esc(ctx, p.color || "#999")};left:${8 + i * 18}%">${esc(ctx, (p.name || "?")[0])}</span>`;
-        }
-      });
-      h += `</div>`;
-    }
+  for (let r = 0; r < 9; r += 1) for (let c = 0; c < 7; c += 1) {
+    const t = game.board[r * 7 + c], idx = r * 7 + c;
+    const cls = ["cell"];
+    if (meSeat && meSeat.r === r && meSeat.c === c) cls.push("current");
+    if (reach.has(idx)) cls.push("reachable");
+    h += `<div class="${cls.join(" ")}" data-cell="${r},${c}">`;
+    if (t.revealed) {
+      h += tileSvg(t, idx + 1);
+      if (t.name && AREA_NAMES[t.name]) h += `<div class="infomark holdable" data-peek="area:${r},${c}">ⓘ</div>`;
+      if (t.card) h += `<div class="cardmark holdable" data-peek="card:${r},${c}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</div>`;
+    } else { h += `<div class="facedown"></div>`; }
+    game.players.forEach((p, i) => { if (p.r === r && p.c === c && !p.won) h += `<div class="tok holdable" data-peek="tok:${p.mark}" style="background:${E(p.color)};left:${6 + i * 20}px;top:6px">${E((p.name || "?")[0])}</div>`; });
+    h += `</div>`;
   }
   return h;
 }
-function boardHtml(ctx, game, me) {
-  const cur = game.players.find((p) => p.mark === game.current_player);
-  const isMine = game.current_player === me;
-  const myTurn = isMine && game.status === "playing";
-  const meSeat = game.players.find((p) => p.mark === me);
-  const reach = (myTurn && !game.pending && meSeat && !meSeat.tower && !meSeat.captured) ? reachableSet(game, meSeat) : new Set();
-  const turnLabel = cur ? (isMine ? "Your turn" : `${esc(ctx, cur.name)}'s turn`) : "—";
-  return `
-    <div class="mw-hud">
-      <div class="mw-turn"><span class="mw-dot" style="background:${cur ? esc(ctx, cur.color) : "#666"}"></span><span class="mw-serif">${turnLabel}</span></div>
-      <button class="mw-btn" data-act="zoom" title="Reset zoom">🔍</button>
-      <button class="mw-btn" data-act="log" title="Chronicle">📜</button>
-    </div>
-    <div class="mw-boardwrap"><div class="mw-board">${cellsHtml(ctx, game, me, reach, myTurn)}</div></div>
-    ${seatsHtml(ctx, game)}
-    ${game.pending && game.pending.mark === me ? encounterHtml(ctx, game) : actionsHtml(ctx, game, me, meSeat, isMine)}
-    ${view.showLog ? logHtml(ctx, game) : ""}
-  `;
+// Faithful tile art: terrain, roads to open edges (over a darker lining), closed-edge semicircle,
+// grass tufts, named-glade backdrop + emblem, and the gold north triangle.
+function tileSvg(t, seed) {
+  const half = t.half === "ench" ? "ench" : "earth";
+  const H1 = `var(--${half}-h1)`, H2 = `var(--${half}-h2)`, H3 = `var(--${half}-h3)`, PP = `var(--${half}-road)`, LF = `var(--${half}-leaf)`;
+  let s = seed || 1; const rr = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+  const ends = { N: [50, 0], E: [100, 36], S: [50, 72], W: [0, 36] };
+  const open = t.open || { N: 1, E: 1, S: 1, W: 1 };
+  const ok = ["N", "E", "S", "W"].filter((k) => open[k]);
+  let g = `<svg viewBox="0 0 100 72"><rect x="0" y="0" width="100" height="72" fill="${H2}"/>`;
+  for (let i = 0; i < 3; i += 1) g += `<ellipse cx="${(10 + rr() * 80).toFixed(1)}" cy="${(8 + rr() * 56).toFixed(1)}" rx="${(12 + rr() * 16).toFixed(1)}" ry="${(8 + rr() * 10).toFixed(1)}" fill="${H1}" opacity="${(0.14 + rr() * 0.14).toFixed(2)}"/>`;
+  ok.forEach((k) => { const [x, y] = ends[k]; g += `<line x1="50" y1="36" x2="${x}" y2="${y}" stroke="${H3}" stroke-width="22" stroke-linecap="round" opacity="0.8"/>`; });
+  ok.forEach((k) => { const [x, y] = ends[k]; g += `<line x1="50" y1="36" x2="${x}" y2="${y}" stroke="${PP}" stroke-width="15" stroke-linecap="round"/>`; });
+  if (ok.length) g += `<circle cx="50" cy="36" r="9" fill="${PP}"/>`;
+  if (ok.length) { const R = 8; ["N", "E", "S", "W"].filter((k) => !open[k]).forEach((k) => {
+    let d; if (k === "N") d = `M${50 - R} 0 Q 50 ${R * 1.4} ${50 + R} 0 Z`;
+    else if (k === "S") d = `M${50 - R} 72 Q 50 ${72 - R * 1.4} ${50 + R} 72 Z`;
+    else if (k === "E") d = `M100 ${36 - R} Q ${100 - R * 1.4} 36 100 ${36 + R} Z`;
+    else d = `M0 ${36 - R} Q ${R * 1.4} 36 0 ${36 + R} Z`;
+    g += `<path d="${d}" fill="${PP}" opacity="0.85"/>`; }); }
+  for (let i = 0; i < 10; i += 1) { const x = 4 + rr() * 92, y = 4 + rr() * 64; if (Math.abs(x - 50) < 13 || Math.abs(y - 36) < 11) continue; const hh = 3 + rr() * 3;
+    g += `<path d="M${x.toFixed(1)} ${y.toFixed(1)} l -1.4 ${(-hh * 0.8).toFixed(1)} M${x.toFixed(1)} ${y.toFixed(1)} l 0 ${(-hh).toFixed(1)} M${x.toFixed(1)} ${y.toFixed(1)} l 1.4 ${(-hh * 0.8).toFixed(1)}" fill="none" stroke="${rr() < 0.5 ? LF : H1}" stroke-width="0.9" stroke-linecap="round" opacity="0.9"/>`; }
+  if (t.name) { g += `<ellipse cx="50" cy="36" rx="23" ry="16" fill="${PP}" opacity="0.9"/>` + drawIcon(t.name)
+    + `<rect x="26" y="2" width="48" height="11" rx="3" fill="#0007"/><text x="50" y="10" text-anchor="middle" font-family="var(--serif)" font-size="8" fill="var(--gold2)">${E(t.label || t.name)}</text>`; }
+  g += `<path d="M9 4 l3 5 h-6 Z" fill="var(--gold)" opacity="0.85"/></svg>`;
+  return g;
 }
-function seatsHtml(ctx, game) {
-  return `<div class="mw-seats">${game.players.map((p) => {
-    const turn = p.mark === game.current_player ? "▶ " : "";
-    const badges = [];
-    if (p.isKing) badges.push("👑 King");
-    if (p.tower) badges.push("⛓ Tower");
-    if (p.captured) badges.push("✦ Captured");
-    if (p.horse) badges.push("🐎 Horse");
-    (p.things || []).forEach((t) => badges.push(esc(ctx, t.name)));
-    (p.companions || []).forEach((c) => badges.push(esc(ctx, c.name)));
-    (p.prowess || []).forEach((n) => badges.push(esc(ctx, n)));
-    return `<div class="mw-seat${p.mark === game.current_player ? " mw-active" : ""}">
-      <div class="mw-seat-r1"><span class="mw-dot" style="background:${esc(ctx, p.color || "#999")}"></span><span class="mw-seat-name mw-serif">${turn}${esc(ctx, p.name)}${p.is_bot ? " 🤖" : ""}</span></div>
-      <div class="mw-seat-stats"><span class="mw-p">P${p.totalP}</span> · <span class="mw-s">S${p.totalS}</span></div>
-      <div class="mw-seat-quest">${p.questDone ? "✓ " : ""}${esc(ctx, p.quest || "")}</div>
-      ${badges.length ? `<div class="mw-badges">${badges.map((b) => `<span class="mw-badge">${b}</span>`).join("")}</div>` : ""}
-    </div>`;
-  }).join("")}</div>`;
+function drawIcon(name) {
+  const G = "var(--gold)", Gf = "color-mix(in srgb,var(--gold) 26%,transparent)";
+  const P = (d) => `<path d="${d}" fill="none" stroke="${G}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const F = (d, f) => `<path d="${d}" fill="${f || G}" stroke="${G}" stroke-width="1.6"/>`;
+  const C = (cx, cy, r, f, sw) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${f || "none"}"${sw ? ` stroke="${G}" stroke-width="${sw}"` : ""}/>`;
+  const map = {
+    tower: () => F("M42 48 v-22 h4 v-4 h3 v4 h2 v-4 h3 v4 h4 v22 z", Gf),
+    egate: () => F("M36 48 v-13 a14 14 0 0 1 28 0 v13 z", Gf) + P("M50 22 l5 5 l-5 5 l-5 -5 z"),
+    xgate: () => F("M36 48 v-13 a14 14 0 0 1 28 0 v13 z", Gf) + P("M50 20 l6 6 l-6 6 l-6 -6 z") + C(50, 32, 3, "var(--gold2)"),
+    cave: () => F("M33 47 q4 -21 17 -21 q13 0 17 21 z", "#1a1a10") + F("M44 47 q2 -10 6 -10 q4 0 6 10 z", "#000"),
+    chapel: () => F("M50 18 l13 13 v16 h-26 v-16 z", Gf) + C(50, 33, 4, "none", 2),
+    castle: () => F("M33 30 h5 v-4 h4 v4 h4 v-4 h4 v4 h4 v-4 h4 v4 h5 v17 h-39 z", Gf),
+    fountain: () => P("M37 46 h26 l-3 -8 h-20 z") + P("M50 38 v-8") + C(50, 24, 3, G),
+    grove: () => P("M50 48 v-12") + F("M50 18 q13 4 11 15 q-11 6 -22 0 q-2 -11 11 -15 z", Gf),
+    island: () => P("M31 44 q19 7 38 0") + F("M40 40 q10 -12 20 0 z", Gf),
+    palace: () => F("M50 14 l4 8 h-8 z", G) + F("M39 47 v-17 l11 -8 l11 8 v17 z", Gf),
+    altar: () => F("M41 47 h18 v-4 h-18 z", G) + F("M44 43 v-13 h12 v13", Gf),
+  };
+  return (map[name] || map.grove)();
 }
-function actionsHtml(ctx, game, me, meSeat, isMine) {
-  if (!isMine || game.status !== "playing") {
-    const cur = game.players.find((p) => p.mark === game.current_player);
-    return `<div class="mw-actions"><button class="mw-btn" disabled>Waiting for ${cur ? esc(ctx, cur.name) : "…"}…</button></div>`;
-  }
-  if (meSeat && (meSeat.tower || meSeat.captured)) {
-    return `<div class="mw-actions"><button class="mw-btn" disabled>${meSeat.captured ? "Captured — roll to break free" : "Imprisoned — roll to escape"}</button></div>`;
-  }
-  const tile = tileAt(game, meSeat.r, meSeat.c);
-  const has = (id) => (meSeat.things || []).some((t) => t.id === id);
-  const comp = (id) => (meSeat.companions || []).some((c) => c.id === id);
-  let btns = "";
-  if (tile && tile.name === "fountain") btns += `<button class="mw-btn" data-act="drink">⛲ Drink</button>`;
-  if (has("crystal")) btns += `<button class="mw-btn" data-act="scry">🔮 Scry</button>`;
-  if (has("wand")) btns += `<button class="mw-btn" data-act="rotate">🔄 Rotate</button>`;
-  if (comp("archmage")) btns += `<button class="mw-btn" data-act="transport">✨ Transport</button>`;
-  btns += `<button class="mw-btn mw-primary" data-act="end">End turn</button>`;
-  const scry = game.scry_reveal ? `<button class="mw-btn" disabled>🔮 Next: ${DEN_EMOJI[game.scry_reveal] || ""} ${esc(ctx, game.scry_reveal)}</button>` : "";
-  return `<div class="mw-actions">${btns}${scry}</div>`;
+
+/* -------------------------------- peeks --------------------------------- */
+let popEl = null, popAt = 0, popTimer = null;
+function hidePop() { if (popTimer) { clearTimeout(popTimer); popTimer = null; } if (popEl) { popEl.remove(); popEl = null; } }
+function requestHide() { if (!popEl) return; const MIN = 1500, el = Date.now() - popAt; if (el >= MIN) hidePop(); else { if (popTimer) clearTimeout(popTimer); popTimer = setTimeout(hidePop, MIN - el); } }
+function showPop(x, y, title, body) {
+  hidePop();
+  popEl = document.createElement("div"); popEl.className = "mystic-wood-root mw-pop";
+  popEl.innerHTML = `<b>${title}</b><div class="popbody">${body}</div>`;
+  document.body.appendChild(popEl); popAt = Date.now();
+  const r = popEl.getBoundingClientRect();
+  popEl.style.left = Math.max(8, Math.min(window.innerWidth - r.width - 8, x - r.width / 2)) + "px";
+  popEl.style.top = Math.max(8, y - r.height - 12) + "px";
 }
-function encounterHtml(ctx, game) {
-  const p = game.pending;
-  const emoji = DEN_EMOJI[p.card] || "❓";
-  let line = "";
+function peekContent(game, spec) {
+  const [type, arg] = spec.split(":");
+  if (type === "area") { const [r, c] = arg.split(",").map(Number); const t = tileAt(game, r, c); const half = t.half === "ench" ? "Enchanted" : "Earthly"; return { title: AREA_NAMES[t.name], body: `${AREA_FX[t.name] || "A place in the wood."}<br><span style="color:var(--muted)">${half} Wood · tile (${r},${c})</span>` }; }
+  if (type === "card") { const [r, c] = arg.split(",").map(Number); const t = tileAt(game, r, c); return { title: `${denEmoji(t.card)} ${(DEN[t.card] || {}).name || "?"}`, body: denizenSummary(t.card) }; }
+  if (type === "tok" || type === "stats") { const seat = game.players.find((p) => p.mark === arg); return { title: seat ? E(seat.name) : "Knight", body: playerPeek(seat) }; }
+  if (type === "thing") return { title: (THINGS[arg] || {}).name || arg, body: THING_DESC[arg] || "A magical Thing." };
+  if (type === "comp") return { title: (DEN[arg] || {}).name || arg, body: COMP_DESC[arg] || "A companion travelling with you." };
+  if (type === "prowess") return { title: "Prowess card", body: "+1 Prowess — won by slaying a beast. Adds to your Prowess in every contest." };
+  if (type === "horse") return { title: "Horse", body: "+2 Strength. Not a companion; another knight can win it in a joust." };
+  if (type === "tower") return { title: "Imprisoned in the Tower", body: "Each turn roll a die — escape on 5–6, or freed on the 4th turn. The Key frees you at once." };
+  if (type === "captured") return { title: "Captured by the Enchantress", body: "Each turn, roll — escape on a 6." };
+  return null;
+}
+function denizenSummary(id) {
+  const den = DEN[id]; if (!den) return "Unknown.";
+  const lines = []; const stats = []; if (den.S) stats.push(`Strength ${den.S}`); if (den.P) stats.push(`Prowess ${den.P}`);
+  lines.push(`<b>${DEN_CLASS[den.cls] || "Denizen"}</b>${stats.length ? " · " + stats.join(" · ") : ""}`);
+  lines.push(den.cls === "beast" ? "Challenge with your Strength." : den.cls === "magic" ? "Challenge with your Prowess." : den.cls === "warrior" ? "Challenge with Strength + Prowess." : "Greet — roll a die.");
+  if (den.slay) lines.push(`Vanquish → ${den.slay} (+1 Prowess).`);
+  if (id === "wizard") lines.push("Vanquish → Lance (+1 Strength).");
+  else if (den.gives) lines.push(`Vanquish → ${THINGS[den.gives].name}.`);
+  if (den.dragon) lines.push("Only George can slay it.");
+  if (den.king) lines.push("Vanquish → become King.");
+  if (den.captures) lines.push("If it wins, it captures you (escape on a 6).");
+  const rr = tblRows(den.tbl);
+  if (rr) { if (rr.length === 1) lines.push(`Greet → ${rr[0].effect}.`); else lines.push("Reactions: " + rr.map((r) => `${r.range} ${r.effect}`).join(" · ")); }
+  return lines.join("<br>");
+}
+function playerPeek(seat) {
+  if (!seat) return "";
+  const list = (a) => a && a.length ? a.join(", ") : "none";
+  const lines = [
+    `<b style="color:var(--azure)">Prowess ${seat.totalP}</b> · <b style="color:var(--crimson)">Strength ${seat.totalS}</b>`,
+    `Quest: ${E(seat.quest || "")}${seat.questDone ? " ✓" : ""}`,
+    `Things: ${list((seat.things || []).map((t) => t.name))}`,
+    `Prowess: ${list(seat.prowess || [])}`,
+    `Companions: ${list((seat.companions || []).map((c) => c.name))}`,
+  ];
+  if (seat.horse) lines.push("Horse: +2 Strength");
+  if (seat.isKing) lines.push("👑 King");
+  if (seat.tower) lines.push("⛓ In the Tower");
+  if (seat.captured) lines.push("✦ Captured");
+  return lines.join("<br>");
+}
+const ACT_LABEL = (a) => a === "remains" ? "remains / ignores you" : a === "transport" ? "vanishes to the far wood" : a === "transportYou" ? "transports you away" : a === "befriend" ? "befriends you" : a === "tower" ? "betrays you → Tower" : a && a.startsWith("give:") ? "gives " + THINGS[a.slice(5)].name : a && a.startsWith("run") ? "the Horse runs off" : (a || "remains");
+function tblRows(tbl) {
+  if (!tbl) return null;
+  const a = []; for (let i = 1; i <= 6; i += 1) a.push(tbl[i] || "remains");
+  const res = []; let i = 0;
+  while (i < 6) { let j = i; while (j + 1 < 6 && a[j + 1] === a[i]) j++; res.push({ range: (i === j ? `${i + 1}` : `${i + 1}–${j + 1}`), effect: ACT_LABEL(a[i]) }); i = j + 1; }
+  return res;
+}
+
+/* ------------------------------ encounter ------------------------------- */
+function portal() { const p = document.createElement("div"); p.className = "mystic-wood-root mw-portal"; document.body.appendChild(p); return p; }
+function closePortals() { document.querySelectorAll(".mw-portal").forEach((n) => n.remove()); }
+function showEncounter(ctx, game) {
+  closePortals();
+  const p = game.pending, den = DEN[p.card], tile = tileAt(game, p.r, p.c);
+  const host = portal();
+  host.innerHTML = `<div class="overlay"><div class="modal">
+    <div class="tag">An encounter</div>
+    ${tileHeaderHtml(tile)}
+    <h2>${denEmoji(p.card)} ${E(p.denName || (den && den.name) || "")}</h2>
+    ${denboxHtml(p, den, tile)}
+    <div class="row">${p.combat ? `<button class="primary" data-enc="challenge">Challenge</button>` : `<button class="primary" data-enc="greet">Greet</button>`}</div>
+  </div></div>`;
+  host.querySelectorAll("[data-enc]").forEach((b) => b.addEventListener("click", () => {
+    if (ctx.isMovePending && ctx.isMovePending()) return;
+    closePortals(); ctx.makeMove({ type: "encounter", choice: b.getAttribute("data-enc") });
+  }));
+}
+function tileHeaderHtml(t) {
+  if (!t) return "";
+  const half = t.half === "ench" ? "Enchanted Wood" : "Earthly Wood";
+  const name = t.name ? (AREA_NAMES[t.name] || "Glade") : "Forest path";
+  let info = `<b>${name}</b> · <span style="color:var(--muted)">${half} · tile (${t.r},${t.c})</span>`;
+  if (t.name && AREA_FX[t.name]) info += `<br><span style="color:var(--muted);font-size:12px">${AREA_FX[t.name]}</span>`;
+  return `<div class="tilehdr2"><div class="tilethumb">${tileSvg(t, t.r * 7 + t.c + 1)}</div><div class="tileinfo">${info}</div></div>`;
+}
+function denboxHtml(p, den, tile) {
+  let h = `<div class="denbox">`;
+  const stats = []; if (den.S) stats.push(`<span class="pS">Strength ${den.S}</span>`); if (den.P) stats.push(`<span class="pP">Prowess ${den.P}</span>`);
+  h += `<div class="denrow"><b>${DEN_CLASS[den.cls] || "Denizen"}</b>${stats.length ? " · " + stats.join(" · ") : ""}</div>`;
   if (p.combat && p.preview) {
-    const diff = p.preview.mine - p.preview.foe;
-    const cls = diff > 0 ? "mw-good" : diff < 0 ? "mw-bad" : "";
-    line = `<div class="mw-enc-line ${cls}"><b>${esc(ctx, p.preview.label)}</b> — <span class="mw-num">${p.preview.mine}</span> vs <span class="mw-num">${p.preview.foe}</span> <b>(${diff >= 0 ? "+" : "−"}${Math.abs(diff)})</b></div>`;
+    const diff = p.preview.mine - p.preview.foe, cls = diff > 0 ? "good" : diff < 0 ? "bad" : "muted";
+    h += `<div class="denrow denvs"><b>${E(p.preview.label)}</b> — <span class="num">${p.preview.mine}</span> vs <span class="num">${p.preview.foe}</span> <span class="${cls}" style="font-weight:700">(${diff >= 0 ? "+" : "−"}${Math.abs(diff)})</span></div>`;
+    if (den.dragon) h += `<div class="denrow">Only <b>George</b> can slay the Dragon.</div>`;
+    if (den.captures) h += `<div class="denrow bad">If it wins, it <b>captures</b> you (escape on a 6).</div>`;
+    if (tile && tile.name === "chapel") h += `<div class="denrow good">Chapel +2 Prowess to you — included.</div>`;
+    if (tile && tile.name === "castle" && den.S) h += `<div class="denrow bad">Castle +2 to the foe — included.</div>`;
+    if (tile && tile.name === "grove" && den.P) h += `<div class="denrow bad">Sacred Grove +1 to the foe — included.</div>`;
   } else {
-    line = `<div class="mw-enc-line">Greet this denizen and roll for its reaction.</div>`;
+    if (den.grail) h += `<div class="denrow">Add your Prowess to the die: <b>9+</b> takes the Grail.</div>`;
+    else if (p.card === "princess") h += `<div class="denrow">Add your Prowess to the die: <b>9+</b> she befriends you.</div>`;
+    else if (p.card === "prince") h += `<div class="denrow">Add your Prowess to the die: <b>8+</b> he befriends you.</div>`;
+    const rr = tblRows(den.tbl);
+    if (rr && rr.length === 1) h += `<div class="denrow">Greet → ${rr[0].effect}.</div>`;
+    else if (rr) { h += `<div class="denrow"><b>Reactions</b> — greet, then roll a die:</div><table class="rtbl">${rr.map((r) => `<tr><td class="rroll">${r.range}</td><td>${r.effect}</td></tr>`).join("")}</table>`; }
   }
-  const choice = p.combat ? "challenge" : "greet";
-  const label = p.combat ? "⚔️ Challenge" : "🤝 Greet";
-  return `<div class="mw-panel-card">
-    <div class="mw-enc-title">${emoji} ${esc(ctx, p.denName || "An encounter")}</div>
-    ${line}
-    <div class="mw-enc-actions"><button class="mw-btn mw-primary" data-act="enc" data-choice="${choice}">${label}</button></div>
-  </div>`;
+  h += `</div>`;
+  return h;
 }
-function logHtml(ctx, game) {
-  const rows = (game.log || []).slice(-14).reverse().map((e) => `<div class="mw-le"><span class="${esc(ctx, e.cls || "")}">${esc(ctx, e.text).replace(/&lt;br&gt;/g, "<br>")}</span></div>`).join("");
-  return `<div class="mw-log">${rows || "<div class='mw-le muted'>The chronicle is empty.</div>"}</div>`;
+
+/* -------------------------------- dice ---------------------------------- */
+function diceRow(label, cls, die, parts, total) {
+  let h = `<div class="dicerow"><span class="drlabel">${label}</span><div class="die ${cls}">${die}</div>`;
+  (parts || []).forEach((pt) => { h += `<span class="drop">+</span><span class="drbon">${E(pt.l)} ${pt.v}</span>`; });
+  if (total != null) h += `<span class="drtot">= ${total}</span>`;
+  return h + `</div>`;
 }
-function endHtml(ctx, game) {
-  const w = game.players.find((p) => p.mark === game.winner);
-  const reason = game.end_reason && game.end_reason.reason === "castle" ? "holds the Castle as King" : "escaped the wood, quest fulfilled";
-  return `<div class="mw-panel-card mw-end">
-    <div class="mw-serif" style="color:var(--mw-gold2)">Victory</div>
-    <h2 style="color:${w ? esc(ctx, w.color) : "var(--mw-gold)"}">${w ? esc(ctx, w.name) : "Someone"} wins!</h2>
-    <p>${w ? esc(ctx, w.name) : "The victor"} ${reason} and rules the Mystic Wood.</p>
-  </div>${logHtml(ctx, game)}`;
+function showDice(ctx, roll) {
+  closePortals();
+  const res = roll.outcome === "win" ? `<span class="g" style="font-weight:700">⚔️✨ Victory — ${roll.mine} vs ${roll.foe}</span>`
+    : roll.outcome === "captured" ? `<span class="r" style="font-weight:700">✦ Captured by the Enchantress! — ${roll.mine} vs ${roll.foe}</span>`
+    : `<span class="r" style="font-weight:700">💀 Defeated — ${roll.mine} vs ${roll.foe}<br>⛓️ To the Tower — companions lost.</span>`;
+  const host = portal();
+  host.innerHTML = `<div class="overlay"><div class="modal">
+    <div class="tag">The dice fall</div>
+    ${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}
+    ${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}
+    <div class="hint">white = you · red = foe · higher total wins</div>
+    <div class="result">${res}</div>
+    <div class="row"><button class="primary" data-close="1">Continue</button></div>
+  </div></div>`;
+  const close = host.querySelector("[data-close]");
+  if (close) close.addEventListener("click", () => closePortals());
 }
 
 /* ------------------------------- wiring --------------------------------- */
-function wire(root, ctx, game, me) {
-  root.querySelectorAll("[data-act]").forEach((el) => {
-    el.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      const act = el.getAttribute("data-act");
-      if (act === "zoom") { view.zoom = 0; view.focus = null; applyZoom(); return; }
-      if (act === "log") { view.showLog = !view.showLog; renderMysticWoodGame(ctx); return; }
-      if (ctx.isMovePending && ctx.isMovePending()) return;
-      if (act === "end") ctx.makeMove({ type: "end-turn" });
-      else if (act === "scry") ctx.makeMove({ type: "scry" });
-      else if (act === "rotate") ctx.makeMove({ type: "rotate" });
-      else if (act === "drink") ctx.makeMove({ type: "drink" });
-      else if (act === "transport") openTransport(root, ctx, game, me);
-      else if (act === "enc") ctx.makeMove({ type: "encounter", choice: el.getAttribute("data-choice") });
+function wireTop(root, ctx, game, me) {
+  root.querySelectorAll("[data-top]").forEach((b) => b.addEventListener("click", () => {
+    const w = b.getAttribute("data-top");
+    if (w === "zoom") { view.zoom = 0; view.focus = null; applyZoom(); }
+    else if (w === "knights") openPanel(root, ctx, game, me, "knights");
+    else if (w === "chron") openPanel(root, ctx, game, me, "chron");
+  }));
+}
+function wireBoard(root, ctx, game, me) {
+  root.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => {
+    if (ctx.isMovePending && ctx.isMovePending()) return;
+    const a = b.getAttribute("data-act");
+    if (a === "end") ctx.makeMove({ type: "end-turn" });
+    else if (a === "scry") ctx.makeMove({ type: "scry" });
+    else if (a === "rotate") ctx.makeMove({ type: "rotate" });
+    else if (a === "drink") ctx.makeMove({ type: "drink" });
+    else if (a === "transport") openTransport(root, ctx, game, me);
+  }));
+  root.querySelectorAll(".cell").forEach((cell) => {
+    cell.addEventListener("click", (ev) => {
+      if (ev.target.closest(".holdable")) return; // a peek tap, not a move
+      const [r, c] = cell.getAttribute("data-cell").split(",").map(Number);
+      if (cell.classList.contains("reachable")) { if (!(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "move", r, c }); }
+      else { view.focus = { r, c }; view.zoom = ((view.zoom || 0) + 1) % ZOOM_WIDTHS.length; applyZoom(); }
     });
   });
-  root.querySelectorAll(".mw-cell").forEach((cell) => {
-    cell.addEventListener("click", () => {
-      const r = Number(cell.getAttribute("data-r")), c = Number(cell.getAttribute("data-c"));
-      if (cell.classList.contains("mw-reachable")) {
-        if (ctx.isMovePending && ctx.isMovePending()) return;
-        ctx.makeMove({ type: "move", r, c });
-      } else {
-        view.focus = { r, c };
-        view.zoom = ((view.zoom || 0) + 1) % ZOOM_WIDTHS.length;
-        applyZoom();
-      }
-    });
+  // press-and-hold peeks
+  root.querySelectorAll("[data-peek]").forEach((el) => {
+    const show = (ev) => { ev.preventDefault(); ev.stopPropagation(); const pt = ev.touches ? ev.touches[0] : ev; const c = peekContent(game, el.getAttribute("data-peek")); if (c) showPop(pt.clientX, pt.clientY, c.title, c.body); };
+    el.addEventListener("mousedown", show); el.addEventListener("touchstart", show, { passive: false });
+    el.addEventListener("mouseleave", requestHide); el.addEventListener("click", (e) => e.stopPropagation());
   });
 }
-// Arch-Mage: pick any revealed named place to be sent to.
+document.addEventListener("mouseup", requestHide);
+document.addEventListener("touchend", requestHide);
+
+function openPanel(root, ctx, game, me, which) {
+  closePanel();
+  const back = document.createElement("div"); back.className = "mw-backdrop"; back.addEventListener("click", closePanel); document.body.appendChild(back);
+  const panel = document.createElement("div"); panel.className = "mystic-wood-root mw-panelover " + (which === "knights" ? "mw-knights" : "mw-chronicle");
+  if (which === "knights") panel.innerHTML = `<h2 style="font-size:22px;margin-bottom:10px">Knights</h2>${game.players.map((p) => knightCard(p, p.mark === game.current_player)).join("")}`;
+  else panel.innerHTML = `<h2 style="font-size:22px;margin-bottom:10px">Chronicle</h2><div>${logRows(game, 60)}</div>`;
+  document.body.appendChild(panel);
+  requestAnimationFrame(() => panel.classList.add("open"));
+  panel.querySelectorAll("[data-peek]").forEach((el) => { const show = (ev) => { ev.stopPropagation(); const pt = ev.touches ? ev.touches[0] : ev; const c = peekContent(game, el.getAttribute("data-peek")); if (c) showPop(pt.clientX, pt.clientY, c.title, c.body); }; el.addEventListener("mousedown", show); el.addEventListener("touchstart", show, { passive: false }); });
+}
+function closePanel() { document.querySelectorAll(".mw-panelover,.mw-backdrop").forEach((n) => n.remove()); }
+function knightCard(p, active) {
+  return `<div class="card pl${active ? " active" : ""}">
+    <div class="plhead"><span class="crest" style="background:${E(p.color)}">${E((p.name || "?")[0])}</span>
+      <span class="plname" style="color:${E(p.color)}">${E(p.name)}${p.is_bot ? " 🤖" : ""}</span>${p.isKing ? `<span class="chip">👑 King</span>` : ""}</div>
+    ${statsHtml(p)}
+    <div class="quest">${p.questDone ? "✓ " : ""}${E(p.quest || "")}</div>
+    <div class="inv">${invHtml(p)}</div>
+  </div>`;
+}
 function openTransport(root, ctx, game, me) {
   const seat = game.players.find((p) => p.mark === me);
-  const dests = game.board.filter((t) => t.revealed && t.name && !(t.r === seat.r && t.c === seat.c)
-    && !game.players.some((q) => q.mark !== me && !q.won && q.r === t.r && q.c === t.c));
-  const bar = root.querySelector(".mw-actions");
-  if (!bar) return;
-  if (!dests.length) { bar.innerHTML = `<button class="mw-btn" disabled>No open place to transport to yet</button>`; return; }
-  bar.innerHTML = dests.map((t) => `<button class="mw-btn" data-tp="${t.r},${t.c}">${AREA_EMOJI[t.name] || "◆"} ${esc(ctx, AREA_LABEL[t.name] || t.name)}</button>`).join("")
-    + `<button class="mw-btn" data-tp="cancel">Cancel</button>`;
+  const dests = game.board.filter((t) => t.revealed && t.name && !(t.r === seat.r && t.c === seat.c) && !game.players.some((q) => q.mark !== me && !q.won && q.r === t.r && q.c === t.c));
+  const bar = root.querySelector(".mw-actions"); if (!bar) return;
+  if (!dests.length) { bar.innerHTML = `<button disabled>No open place to transport to yet</button>`; return; }
+  bar.innerHTML = dests.map((t) => `<button data-tp="${t.r},${t.c}">${E(AREA_NAMES[t.name] || t.name)}</button>`).join("") + `<button data-tp="cancel">Cancel</button>`;
   bar.querySelectorAll("[data-tp]").forEach((b) => b.addEventListener("click", () => {
-    const v = b.getAttribute("data-tp");
-    if (v === "cancel") { renderMysticWoodGame(ctx); return; }
-    const [r, c] = v.split(",").map(Number);
-    ctx.makeMove({ type: "transport", r, c });
+    const v = b.getAttribute("data-tp"); if (v === "cancel") { renderMysticWoodGame(ctx); return; }
+    const [r, c] = v.split(",").map(Number); ctx.makeMove({ type: "transport", r, c });
   }));
 }
 
-/* ------------------------------- zoom ----------------------------------- */
+/* -------------------------------- zoom ---------------------------------- */
 function applyZoom() {
   if (!zoomCtx) return;
   const { root, game, me } = zoomCtx;
-  const wrap = root.querySelector(".mw-boardwrap");
-  const board = root.querySelector(".mw-board");
+  const wrap = root.querySelector(".mw-boardwrap"), board = root.querySelector(".board");
   if (!wrap || !board) return;
-  const CELL = 100, cw = CELL, ch = CELL * 0.72;
-  const bw = 7 * cw, bh = 9 * ch;
-  const vw = wrap.clientWidth, vh = wrap.clientHeight;
-  if (!vw || !vh) return;
+  const CELL = 96, gap = 3, cw = CELL + gap, ch = CELL * 0.72 + gap, pad = 8;
+  const bw = 7 * cw - gap + pad * 2, bh = 9 * ch - gap + pad * 2;
+  const vw = wrap.clientWidth, vh = wrap.clientHeight; if (!vw || !vh) return;
   const N = ZOOM_WIDTHS[view.zoom || 0] || 7;
   const scale = vw / (N * cw);
   const seat = game.players.find((p) => p.mark === me);
   const f = view.focus || (seat ? { r: seat.r, c: seat.c } : { r: 4, c: 3 });
-  const fx = (f.c + 0.5) * cw, fy = (f.r + 0.5) * ch;
+  const fx = pad + (f.c + 0.5) * cw - gap / 2, fy = pad + (f.r + 0.5) * ch - gap / 2;
   let tx = vw / 2 - fx * scale, ty = vh / 2 - fy * scale;
   const sw = bw * scale, sh = bh * scale;
   tx = sw > vw ? Math.min(0, Math.max(vw - sw, tx)) : (vw - sw) / 2;

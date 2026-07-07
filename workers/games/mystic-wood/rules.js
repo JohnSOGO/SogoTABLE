@@ -28,8 +28,8 @@ export function newMysticWoodGame() {
     game_id: MYSTIC_WOOD_GAME_ID,
     status: "playing", winner: null, end_reason: null,
     seat_order: [], players: {}, current_player: null,
-    board: [], deck: [], discard: [], log: [], pending: null, scry_reveal: null,
-    turn_seq: 0, round: 1, knight_setup: "auto",
+    board: [], deck: [], discard: [], log: [], pending: null, scry_reveal: null, last_roll: null,
+    turn_seq: 0, round: 1, roll_seq: 0, knight_setup: "auto",
   };
 }
 
@@ -56,7 +56,7 @@ export function initMysticWoodSeats(game, players) {
   if (seats.length > MAX_PLAYERS) throw new Error(`The Mystic Wood seats at most ${MAX_PLAYERS} knights (one per knight).`);
   game.status = "playing"; game.winner = null; game.end_reason = null;
   game.seat_order = []; game.players = {}; game.log = []; game.pending = null; game.scry_reveal = null;
-  game.turn_seq = 0; game.round = 1;
+  game.last_roll = null; game.turn_seq = 0; game.round = 1; game.roll_seq = 0;
   game.board = buildBoard();
   game.deck = shuffle(DECK_IDS.slice()); game.discard = [];
   const pool = shuffle(KNIGHT_ORDER.slice());   // distinct knights, randomly assigned (v1 — see PLAN.md)
@@ -268,6 +268,7 @@ export function mysticWoodGameToDict(game) {
     deck_count: game.deck.length, discard_count: game.discard.length,
     pending: pendingToDict(game),
     scry_reveal: game.scry_reveal || null,
+    last_roll: game.last_roll || null,
     log: (game.log || []).slice(-40),
   };
 }

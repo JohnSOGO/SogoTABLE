@@ -258,22 +258,27 @@ export function resolveChallenge(game, seat, tile) {
   const den = DEN[tile.card];
   const id = tile.card;
   const k = knightOf(seat);
-  let mineBonus = 0, foeBonus = 0;
-  if (den.cls === "beast" || den.cls === "warrior") mineBonus += totalS(seat);
-  if (den.cls === "magic" || den.cls === "warrior") mineBonus += totalP(seat) - princessVsKing(seat, den);
-  if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mineBonus += 2; // +2 Prowess only
+  const mineParts = [], foeParts = [];
+  if (den.cls === "beast" || den.cls === "warrior") mineParts.push({ l: "Strength", v: totalS(seat) });
+  if (den.cls === "magic" || den.cls === "warrior") mineParts.push({ l: "Prowess", v: totalP(seat) - princessVsKing(seat, den) });
+  if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mineParts.push({ l: "Chapel", v: 2 }); // +2 Prowess only
   if (princeAids(seat, den)) {
     seat._princeAiding = true;
-    if (den.cls === "beast" || den.cls === "warrior") mineBonus += DEN.prince.S;
-    if (den.cls === "magic" || den.cls === "warrior") mineBonus += DEN.prince.P;
+    if (den.cls === "beast" || den.cls === "warrior") mineParts.push({ l: "Prince", v: DEN.prince.S });
+    if (den.cls === "magic" || den.cls === "warrior") mineParts.push({ l: "Prince", v: DEN.prince.P });
     logEvent(game, "The Prince lends his arm to this fight.", "a");
   }
-  foeBonus += (den.S || 0) + (den.P || 0);
-  if (tile.name === "castle" && den.S) foeBonus += 2;
-  if (tile.name === "grove" && den.P) foeBonus += 1;
+  if (den.S) foeParts.push({ l: "Strength", v: den.S });
+  if (den.P) foeParts.push({ l: "Prowess", v: den.P });
+  if (tile.name === "castle" && den.S) foeParts.push({ l: "Castle", v: 2 });
+  if (tile.name === "grove" && den.P) foeParts.push({ l: "Grove", v: 1 });
+  const mineBonus = mineParts.reduce((a, x) => a + x.v, 0), foeBonus = foeParts.reduce((a, x) => a + x.v, 0);
 
   let white, red, mine, foe, guard = 0;
   do { white = d6(); red = d6(); mine = white + mineBonus; foe = red + foeBonus; } while (mine === foe && guard++ < 50);
+  // Record the decisive roll so the client can show the dice-reveal modal (persists until the next roll).
+  game.roll_seq = (game.roll_seq || 0) + 1;
+  game.last_roll = { seq: game.roll_seq, mark: seat.mark, white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome: mine > foe ? "win" : (den.captures ? "captured" : "lose") };
 
   if (mine > foe) {
     logEvent(game, `${k.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
