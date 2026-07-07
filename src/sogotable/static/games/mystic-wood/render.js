@@ -350,18 +350,25 @@ function diceRow(label, cls, die, parts, total) {
 }
 function showDice(ctx, roll) {
   closePortals();
-  const res = roll.outcome === "win" ? `<span class="g" style="font-weight:700">⚔️✨ Victory — ${roll.mine} vs ${roll.foe}</span>`
-    : roll.outcome === "captured" ? `<span class="r" style="font-weight:700">✦ Captured by the Enchantress! — ${roll.mine} vs ${roll.foe}</span>`
-    : `<span class="r" style="font-weight:700">💀 Defeated — ${roll.mine} vs ${roll.foe}<br>⛓️ To the Tower — companions lost.</span>`;
   const host = portal();
-  host.innerHTML = `<div class="overlay"><div class="modal">
-    <div class="tag">The dice fall</div>
-    ${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}
-    ${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}
-    <div class="hint">white = you · red = foe · higher total wins</div>
-    <div class="result">${res}</div>
-    <div class="row"><button class="primary" data-close="1">Continue</button></div>
-  </div></div>`;
+  let inner;
+  if (roll.greet) {
+    inner = `<div class="tag">You greet the ${E(roll.foeName)}</div>
+      ${diceRow("Roll", "white", roll.die, null, null)}
+      <div class="result">${sanitizeLog(roll.result || "The denizen reacts.")}</div>
+      <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
+  } else {
+    const res = roll.outcome === "win" ? `<span class="g" style="font-weight:700">⚔️✨ Victory — ${roll.mine} vs ${roll.foe}</span>`
+      : roll.outcome === "captured" ? `<span class="r" style="font-weight:700">✦ Captured by the Enchantress! — ${roll.mine} vs ${roll.foe}</span>`
+      : `<span class="r" style="font-weight:700">💀 Defeated — ${roll.mine} vs ${roll.foe}<br>⛓️ To the Tower — companions lost.</span>`;
+    inner = `<div class="tag">The dice fall</div>
+      ${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}
+      ${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}
+      <div class="hint">white = you · red = foe · higher total wins</div>
+      <div class="result">${res}</div>
+      <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
+  }
+  host.innerHTML = `<div class="overlay"><div class="modal">${inner}</div></div>`;
   const close = host.querySelector("[data-close]");
   if (close) close.addEventListener("click", () => closePortals());
 }

@@ -316,27 +316,33 @@ export function resolveGreet(game, seat, tile) {
   const den = DEN[tile.card];
   const id = tile.card;
   const k = knightOf(seat);
-  if (den.befriendAlways) { befriend(game, seat, tile, id); return { endTurn: true }; } // Sage
+  const before = game.log.length;      // capture the outcome lines for the result card
   const die = d6();
-  const guyon = seat.knight === "guyon" ? 1 : 0;
-  const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
-  if (isPComp) {
-    let total = die + totalP(seat) + guyon + (tile.name === "chapel" ? 2 : 0);
-    if (den.grail) {
-      if (total >= 9) takeGrail(game, seat, tile);
-      else { logEvent(game, "The Grail slips away."); clearCard(game, tile); }
-    } else if (id === "princess") {
-      if (total >= 9) befriend(game, seat, tile, id);
-      else { logEvent(game, "The Princess flees to the far Gate."); clearCard(game, tile); }
-    } else { // prince
-      if (total >= 8) befriend(game, seat, tile, id);
-      else logEvent(game, `The Prince rebuffs ${k.name}.`); // he remains to be met again
+  if (den.befriendAlways) { befriend(game, seat, tile, id); } // Sage
+  else {
+    const guyon = seat.knight === "guyon" ? 1 : 0;
+    const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
+    if (isPComp) {
+      const total = die + totalP(seat) + guyon + (tile.name === "chapel" ? 2 : 0);
+      if (den.grail) {
+        if (total >= 9) takeGrail(game, seat, tile);
+        else { logEvent(game, "The Grail slips away."); clearCard(game, tile); }
+      } else if (id === "princess") {
+        if (total >= 9) befriend(game, seat, tile, id);
+        else { logEvent(game, "The Princess flees to the far Gate."); clearCard(game, tile); }
+      } else { // prince
+        if (total >= 8) befriend(game, seat, tile, id);
+        else logEvent(game, `The Prince rebuffs ${k.name}.`); // he remains to be met again
+      }
+    } else {
+      const idx = Math.min(6, Math.max(1, die + guyon));
+      const act = (den.tbl && den.tbl[idx]) || "remains";
+      applyReaction(game, seat, tile, den, act);
     }
-    return { endTurn: true };
   }
-  const idx = Math.min(6, Math.max(1, die + guyon));
-  const act = (den.tbl && den.tbl[idx]) || "remains";
-  applyReaction(game, seat, tile, den, act);
+  game.roll_seq = (game.roll_seq || 0) + 1;
+  game.last_roll = { seq: game.roll_seq, mark: seat.mark, greet: true, die, foeName: den.name,
+    result: game.log.slice(before).map((e) => e.text).join("<br>") || `The ${den.name} reacts.` };
   return { endTurn: true };
 }
 
