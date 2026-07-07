@@ -52,7 +52,7 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-pulse{animation:mw-pulse .9s ease-in-out infinite;border-color:#7be07b}
 @keyframes mw-pulse{0%,100%{box-shadow:0 0 0 0 rgba(123,224,123,0)}50%{box-shadow:0 0 0 5px rgba(123,224,123,.5)}}
 .mystic-wood-root .cardmark.mw-pulse{outline:2px solid #7be07b}
-.mystic-wood-root .mw-log{height:84px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
+.mystic-wood-root .mw-log{height:62px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
 .mystic-wood-root .mw-actions{display:flex;justify-content:center;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-top:1px solid var(--rule);overflow-x:auto;flex-wrap:nowrap;border-radius:0 0 10px 10px}
 .mystic-wood-root .mw-actions button{font-size:12px;padding:8px 11px;white-space:nowrap;flex:0 0 auto;width:auto;height:auto}
 
@@ -100,6 +100,8 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .modal p{font-size:13px;margin:5px 0}
 .mw-portal .modal .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center}
 .mw-portal .result{margin:9px 0 2px;text-align:center;font-size:13.5px;line-height:1.45}
+.mw-portal .result.mw-result-big{font-size:16px;font-weight:700;margin:4px 0 9px}
+.mw-portal .result.mw-result-big .g{color:#8fd08a} .mw-portal .result.mw-result-big .r{color:var(--crimson)}
 .mw-portal .r{color:var(--crimson)} .mw-portal .g{color:#8fd08a} .mw-portal .a{color:var(--azure)}
 .mw-portal .dicerow{display:flex;align-items:center;gap:7px;justify-content:center;flex-wrap:nowrap;white-space:nowrap;margin:7px 0}
 .mw-portal .drlabel{font-size:12px;color:var(--muted);min-width:46px;text-align:right}

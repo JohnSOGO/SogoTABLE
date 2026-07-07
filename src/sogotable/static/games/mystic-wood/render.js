@@ -397,18 +397,19 @@ function showDice(ctx, roll) {
   let inner;
   if (roll.greet) {
     inner = `<div class="tag">You greet the ${E(roll.foeName)}</div>
+      <div class="result mw-result-big">${sanitizeLog(roll.result || "The denizen reacts.")}</div>
+      <div class="hint">the roll:</div>
       ${diceRow("Roll", "white", roll.die, null, null)}
-      <div class="result">${sanitizeLog(roll.result || "The denizen reacts.")}</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else {
-    const res = roll.outcome === "win" ? `<span class="g" style="font-weight:700">⚔️✨ Victory — ${roll.mine} vs ${roll.foe}</span>`
-      : roll.outcome === "captured" ? `<span class="r" style="font-weight:700">✦ Captured by the Enchantress! — ${roll.mine} vs ${roll.foe}</span>`
-      : `<span class="r" style="font-weight:700">💀 Defeated — ${roll.mine} vs ${roll.foe}<br>⛓️ To the Tower — companions lost.</span>`;
-    inner = `<div class="tag">The dice fall</div>
+    const res = roll.outcome === "win" ? `<span class="g">⚔️✨ Victory! — ${roll.mine} vs ${roll.foe}</span>`
+      : roll.outcome === "captured" ? `<span class="r">✦ Captured by the Enchantress! — ${roll.mine} vs ${roll.foe}</span>`
+      : `<span class="r">💀 Defeated — ${roll.mine} vs ${roll.foe}<br>⛓️ To the Tower — companions lost.</span>`;
+    inner = `<div class="tag">Encounter result</div>
+      <div class="result mw-result-big">${res}</div>
+      <div class="hint">the dice — white = you · red = foe:</div>
       ${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}
       ${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}
-      <div class="hint">white = you · red = foe · higher total wins</div>
-      <div class="result">${res}</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   }
   host.innerHTML = `<div class="overlay"><div class="modal">${inner}</div></div>`;
@@ -508,7 +509,8 @@ function applyZoom() {
   const bw = 7 * cw - gap + pad * 2, bh = 9 * ch - gap + pad * 2;
   const vw = wrap.clientWidth, vh = wrap.clientHeight; if (!vw || !vh) return;
   const N = ZOOM_WIDTHS[view.zoom || 0] || 7;
-  const scale = vw / (N * cw);
+  let scale = vw / (N * cw);
+  if ((view.zoom || 0) === 0) scale = Math.min(scale, vh / bh);   // full view: fit the whole board in the window (both dims)
   const seat = game.players.find((p) => p.mark === me);
   const f = view.focus || (seat ? { r: seat.r, c: seat.c } : { r: 4, c: 3 });
   const fx = pad + (f.c + 0.5) * cw - gap / 2, fy = pad + (f.r + 0.5) * ch - gap / 2;
