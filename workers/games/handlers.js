@@ -75,6 +75,9 @@ import {
 import {
   POTION_LAB_GAME_ID, isPotionLabGame, newPotionLabGame, initPotionLabSeats, makePotionLabMove, potionLabGameToDict, potionLabGameToDictForViewer,
 } from "./potion-lab/rules.js";
+import {
+  MYSTIC_WOOD_GAME_ID, isMysticWoodGame, newMysticWoodGame, initMysticWoodSeats, makeMysticWoodMove, mysticWoodGameToDict,
+} from "./mystic-wood/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -136,6 +139,8 @@ const GAME_HANDLERS = [
     } },
   { id: POTION_LAB_GAME_ID, is: isPotionLabGame, create: newPotionLabGame, toDict: potionLabGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makePotionLabMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initPotionLabSeats },
+  { id: MYSTIC_WOOD_GAME_ID, is: isMysticWoodGame, create: newMysticWoodGame, toDict: mysticWoodGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeMysticWoodMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initMysticWoodSeats },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),

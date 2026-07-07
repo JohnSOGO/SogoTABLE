@@ -1,0 +1,343 @@
+// The Mystic Wood — pure game mechanics (no DOM, no I/O, no timers).
+// Board generation, movement/adjacency, the denizen deck, derived stats, and the
+// synchronous resolution of encounters, spells, and powers. All randomness flows
+// through one swappable module seam so tests can inject a deterministic RNG.
+// The turn machine + platform contract live in rules.js; the bot in ai.js.
+import {
+  KNIGHTS, THINGS, DEN, DECK_IDS, COMP_P, ROWS, COLS, POWER_LIMIT,
+  NAMED_TILES,
+} from "./data.js";
+
+/* ------------------------------- RNG seam ------------------------------- */
+let mysticWoodRandom = Math.random;
+export function setMysticWoodRandom(fn) { mysticWoodRandom = typeof fn === "function" ? fn : Math.random; }
+export function rng() { return mysticWoodRandom(); }
+const rnd = (n) => Math.floor(rng() * n);
+const d6 = () => rnd(6) + 1;
+export function rollDie() { return d6(); }
+export function pickIndex(n) { return rnd(n); }
+export function shuffle(a) { for (let i = a.length - 1; i > 0; i -= 1) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+/* ------------------------------- logging -------------------------------- */
+const LOG_CAP = 80;
+export function logEvent(game, text, cls = "") {
+  if (!game.log) game.log = [];
+  game.log.push({ text, cls });
+  if (game.log.length > LOG_CAP) game.log.splice(0, game.log.length - LOG_CAP);
+}
+
+/* ------------------------------- board ---------------------------------- */
+export function cellAt(board, r, c) {
+  return (r >= 0 && r < ROWS && c >= 0 && c < COLS) ? board[r * COLS + c] : null;
+}
+export function buildBoard() {
+  const board = [];
+  let seed = 1;
+  for (let r = 0; r < ROWS; r += 1) {
+    for (let c = 0; c < COLS; c += 1) {
+      const half = r <= 3 ? "ench" : (r === 4 ? (c < 3 ? "ench" : "earth") : "earth");
+      const n = NAMED_TILES[`${r},${c}`];
+      board.push({
+        r, c, half: n ? n.half : half, seed: seed++,
+        open: n ? (n.open || { N: 1, E: 1, S: 1, W: 1 }) : { N: 1, E: 1, S: 1, W: 1 },
+        name: n ? n.name : null, label: n ? n.label : null, fixed: !!(n && n.fixed),
+        _openSet: !!n, revealed: !!(n && n.fixed), card: null, card2: null,
+      });
+    }
+  }
+  return board;
+}
+// Generic tiles are ONLY T-junctions (3 open edges) or crossroads (4). When reached by exploration
+// we keep the entry edge open (you "place the tile to connect"), so the maze never dead-ends.
+export function assignOpenings(tile, mustOpen) {
+  if (tile._openSet) return;
+  tile.open = { N: 1, E: 1, S: 1, W: 1 };
+  if (rng() < 0.7) {
+    const cand = ["N", "E", "S", "W"].filter((s) => s !== mustOpen);
+    tile.open[cand[rnd(cand.length)]] = 0;
+  }
+  tile._openSet = true;
+}
+export function revealTile(tile, mustOpen) { if (!tile) return; tile.revealed = true; assignOpenings(tile, mustOpen); }
+
+/* ----------------------------- adjacency -------------------------------- */
+export function edgeBetween(from, to) {
+  if (to.r === from.r - 1) return ["N", "S"];
+  if (to.r === from.r + 1) return ["S", "N"];
+  if (to.c === from.c + 1) return ["E", "W"];
+  if (to.c === from.c - 1) return ["W", "E"];
+  return null;
+}
+export function neighborsOf(board, t) {
+  return [cellAt(board, t.r - 1, t.c), cellAt(board, t.r + 1, t.c), cellAt(board, t.r, t.c - 1), cellAt(board, t.r, t.c + 1)].filter(Boolean);
+}
+export function reachableFrom(board, seat, tile) {
+  return neighborsOf(board, tile).filter((n) => {
+    const e = edgeBetween(tile, n);
+    if (!e) return false;
+    if (!tile.open[e[0]]) return false;
+    if (n.revealed && !n.open[e[1]]) return false;               // explored & no matching road
+    if (n.revealed && n.name === "cave" && !hasThing(seat, "golden_bough")) return false; // Cave needs the Golden Bough
+    return true;
+  });
+}
+
+/* ------------------------------- deck ----------------------------------- */
+export function refillDeck(game) {
+  if (!game.deck.length && game.discard.length) {
+    game.deck = shuffle(game.discard.slice());
+    game.discard = [];
+    logEvent(game, "The wood stirs — its denizens roam anew.", "muted");
+  }
+}
+// A denizen leaves a tile. recycle=true → it wanders back into the deck later (keeps encounters coming
+// on the ~60-tile board). Unique slain bosses (Dragon/King) don't recycle.
+export function clearCard(game, tile, recycle = true) {
+  if (tile.card) { if (recycle) game.discard.push(tile.card); tile.card = null; }
+  if (tile.card2) { if (recycle) game.discard.push(tile.card2); tile.card2 = null; }
+}
+export function drawCardFor(game, tile) {
+  if (tile.fixed) return;
+  const n = (tile.name === "palace" || tile.name === "altar") ? 2 : 1;
+  for (let i = 0; i < n; i += 1) {
+    refillDeck(game);
+    if (!game.deck.length) break;
+    const id = game.deck.pop();
+    if (DEN[id].cls === "spell") tile.pendingSpell = id;
+    else if (!tile.card) tile.card = id;
+    else tile.card2 = id;
+  }
+}
+
+/* --------------------------- derived stats ------------------------------ */
+export function knightOf(seat) { return KNIGHTS[seat.knight]; }
+export function hasThing(seat, thing) { return seat.things.includes(thing); }
+export function totalP(seat) {
+  const k = knightOf(seat);
+  return k.P
+    + seat.prowess.reduce((a, x) => a + (x.P || 1), 0)
+    + seat.things.reduce((a, t) => a + (THINGS[t] ? (THINGS[t].P || 0) : 0), 0)
+    + seat.companions.reduce((a, cid) => a + (COMP_P[cid] || 0), 0);
+}
+export function totalS(seat) {
+  const k = knightOf(seat);
+  return k.S
+    + seat.things.reduce((a, t) => a + (THINGS[t] ? (THINGS[t].S || 0) : 0), 0)
+    + (seat.horse ? 2 : 0)
+    + (seat.companions.includes("grail") ? 1 : 0);
+}
+// Power-limit total EXCLUDES the one-shot aids (Prince & Sage don't count toward 10).
+export function capTotal(seat) { return totalP(seat) + totalS(seat) - (seat.companions.includes("sage") ? 2 : 0); }
+// The Princess won't aid vs the King — her +1 Prowess is withheld in that fight only.
+export function princessVsKing(seat, den) { return (den && den.king && seat.companions.includes("princess")) ? 1 : 0; }
+export function enforcePower(game, seat) {
+  let guard = 0;
+  while (capTotal(seat) > POWER_LIMIT && guard++ < 12) {
+    if (seat.things.length) { const t = seat.things.pop(); logEvent(game, `${knightOf(seat).name} sheds the ${THINGS[t].name} (power limit).`); }
+    else if (seat.prowess.length) { seat.prowess.pop(); logEvent(game, `${knightOf(seat).name} sheds a prowess card (power limit).`); }
+    else break;
+  }
+}
+
+/* ----------------------------- relocation ------------------------------- */
+export function relocate(game, seat, r, c) {
+  const d = cellAt(game.board, r, c);
+  if (!d) return null;
+  revealTile(d);
+  seat.r = d.r; seat.c = d.c;
+  return d;
+}
+// Sent to the Tower. Losing a FIGHT costs you your companions — but they return to the wood (recycle
+// into the deck) so quest companions (Grail/Prince/Princess) can't be permanently locked away by the
+// wrong knight. Being sent by the Rogue/Queen keeps your companions (loseCompanions=false).
+export function toTower(game, seat, loseCompanions = true) {
+  seat.tower = true; seat.towerTries = 0; seat.r = 4; seat.c = 3;
+  if (loseCompanions && seat.companions.length) {
+    seat.companions.forEach((c) => game.discard.push(c));
+    seat.companions = [];
+  }
+}
+export function anyKing(game) { return game.seat_order.some((m) => game.players[m].isKing); }
+export function tileNameAt(game, seat) { const t = cellAt(game.board, seat.r, seat.c); return t ? t.name : null; }
+// Reveal (orient to the entry road) + draw a card on first exploration, and settle the mover onto the tile.
+export function applyMoveTo(game, seat, from, to) {
+  if (!to.revealed) { const e = edgeBetween(from, to); revealTile(to, e ? e[1] : undefined); drawCardFor(game, to); }
+  seat.r = to.r; seat.c = to.c; seat.moved = true;
+}
+
+/* ------------------------------- spells --------------------------------- */
+// Returns { endTurn } — Mystic Horn ends the drawer's turn.
+export function resolveSpell(game, seat, tile, spellId) {
+  const name = knightOf(seat).name;
+  if (spellId === "fog") { logEvent(game, "Mystic Fog rolls through — the wood shifts."); return {}; }
+  if (spellId === "wind") { logEvent(game, "Mystic Wind blows — loose Things are swept away."); return {}; }
+  if (spellId === "horn") {
+    logEvent(game, `Mystic Horn sounds — the knights are scattered!`, "a");
+    game.seat_order.forEach((m) => {
+      const q = game.players[m];
+      if (!q.tower && !q.captured) relocate(game, q, 8 - q.r, 6 - q.c);
+    });
+    return { endTurn: true };
+  }
+  return {};
+}
+
+/* ----------------------------- reactions -------------------------------- */
+// Apply a greeted denizen's reaction. Returns { endTurn, befriended }.
+export function applyReaction(game, seat, tile, den, act) {
+  const name = knightOf(seat).name;
+  if (act === "remains") { tile.remains = true; logEvent(game, `The ${den.name} remains, ignoring ${name}.`); return {}; }
+  if (act === "transport") { logEvent(game, `The ${den.name} transports away.`); clearCard(game, tile); return {}; }
+  if (act === "transportYou") { logEvent(game, `The Arch-Mage transports ${name}!`, "a"); relocate(game, seat, 8 - seat.r, 6 - seat.c); return {}; }
+  if (act === "befriend") return befriend(game, seat, tile, tile.card);
+  if (act === "tower") { logEvent(game, `The Rogue betrays ${name} — to the Tower!`, "r"); toTower(game, seat, false); return { endTurn: true }; } // Rogue: keep companions
+  if (act && act.startsWith("give:")) {
+    const th = act.slice(5);
+    seat.things.push(th);
+    logEvent(game, `${name} receives the ${THINGS[th].name}.`, "a");
+    clearCard(game, tile); enforcePower(game, seat);
+    return {};
+  }
+  if (act && act.startsWith("run")) {
+    const dir = act.slice(3);
+    const nb = { N: cellAt(game.board, tile.r - 1, tile.c), S: cellAt(game.board, tile.r + 1, tile.c), E: cellAt(game.board, tile.r, tile.c + 1), W: cellAt(game.board, tile.r, tile.c - 1) }[dir];
+    if (tile.open[dir] && nb) { logEvent(game, `The Horse gallops off.`); clearCard(game, tile); }
+    else { seat.horse = true; logEvent(game, `${name} catches the Horse! +2 Strength.`, "a"); clearCard(game, tile); }
+    return {};
+  }
+  return {};
+}
+export function befriend(game, seat, tile, id) {
+  seat.companions.push(id);
+  logEvent(game, `The ${DEN[id].name} befriends ${knightOf(seat).name}!`, "a");
+  const q = seat.q;
+  if ((q === "princess" && id === "princess") || (q === "prince" && id === "prince")) {
+    seat.questDone = true;
+    logEvent(game, `${knightOf(seat).name}'s quest companion is won — now leave by the Enchanted Gate!`, "g");
+  }
+  clearCard(game, tile, false); enforcePower(game, seat);
+  return { befriended: true };
+}
+export function takeGrail(game, seat, tile) {
+  seat.companions.push("grail");
+  logEvent(game, `${knightOf(seat).name} takes up the Holy Grail!`, "a");
+  if (seat.q === "grail") { seat.questDone = true; logEvent(game, `${knightOf(seat).name} bears the Grail — reach the Enchanted Gate to win!`, "g"); }
+  clearCard(game, tile, false);
+}
+
+/* ------------------------------- combat --------------------------------- */
+function princeAids(seat, den) {
+  return seat.companions.includes("prince") && !seat._princeUsed && !den.king && !(den.dragon && seat.q === "dragon");
+}
+function useSage(game, seat) {
+  if (seat.companions.includes("sage")) { seat.companions = seat.companions.filter((c) => c !== "sage"); logEvent(game, "The Sage's counsel is spent — he departs.", "a"); }
+}
+function usePrince(game, seat) {
+  if (seat.companions.includes("prince") && seat._princeAiding) { seat._princeAiding = false; seat._princeUsed = true; logEvent(game, "The Prince has lent his arm; he fights no more, but travels on.", "a"); }
+}
+// Resolve a Challenge. Returns { result: 'win'|'lose'|'captured', endTurn:true }.
+export function resolveChallenge(game, seat, tile) {
+  const den = DEN[tile.card];
+  const id = tile.card;
+  const k = knightOf(seat);
+  let mineBonus = 0, foeBonus = 0;
+  if (den.cls === "beast" || den.cls === "warrior") mineBonus += totalS(seat);
+  if (den.cls === "magic" || den.cls === "warrior") mineBonus += totalP(seat) - princessVsKing(seat, den);
+  if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mineBonus += 2; // +2 Prowess only
+  if (princeAids(seat, den)) {
+    seat._princeAiding = true;
+    if (den.cls === "beast" || den.cls === "warrior") mineBonus += DEN.prince.S;
+    if (den.cls === "magic" || den.cls === "warrior") mineBonus += DEN.prince.P;
+    logEvent(game, "The Prince lends his arm to this fight.", "a");
+  }
+  foeBonus += (den.S || 0) + (den.P || 0);
+  if (tile.name === "castle" && den.S) foeBonus += 2;
+  if (tile.name === "grove" && den.P) foeBonus += 1;
+
+  let white, red, mine, foe, guard = 0;
+  do { white = d6(); red = d6(); mine = white + mineBonus; foe = red + foeBonus; } while (mine === foe && guard++ < 50);
+
+  if (mine > foe) {
+    logEvent(game, `${k.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
+    applyWin(game, seat, tile, den, id);
+    useSage(game, seat); usePrince(game, seat); enforcePower(game, seat);
+    return { result: "win", endTurn: true };
+  }
+  useSage(game, seat); usePrince(game, seat);
+  if (den.captures) { logEvent(game, `The Enchantress captures ${k.name}! (escape on a 6) — ${mine} vs ${foe}`, "r"); seat.captured = true; return { result: "captured", endTurn: true }; }
+  logEvent(game, `${k.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
+  toTower(game, seat);   // fight loss → companions lost (they return to the wood)
+  return { result: "lose", endTurn: true };
+}
+function applyWin(game, seat, tile, den, id) {
+  const k = knightOf(seat);
+  if (den.dragon) {
+    if (seat.q === "dragon") { seat.questDone = true; logEvent(game, `The Dragon is SLAIN — ${k.name}'s quest is done! Reach the Enchanted Gate to win.`, "g"); clearCard(game, tile, false); }
+    else { logEvent(game, "The Dragon flees to the far wood."); clearCard(game, tile, true); } // stays in play so George's quest remains possible
+  } else if (den.slay) { seat.prowess.push({ name: den.slay, P: 1 }); logEvent(game, `${k.name} gains ${den.slay} (+1 Prowess).`, "g"); clearCard(game, tile); }
+  else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${k.name} takes the ${THINGS[den.gives].name}.`, "g"); clearCard(game, tile); }
+  else if (den.king) { becomeKing(game, seat); clearCard(game, tile, false); }
+  else if (id === "wizard") { seat.things.push("lance"); logEvent(game, `${k.name} takes the Lance (+1 Strength).`, "g"); clearCard(game, tile); }
+  else if (id === "illusion") { logEvent(game, "The Illusion does your bidding and fades away."); clearCard(game, tile); }
+  else clearCard(game, tile);
+}
+export function becomeKing(game, seat) {
+  if (seat.knight === "britomart") { logEvent(game, "Britomart will not seize the crown."); return; }
+  seat.isKing = true; seat.q = "king";
+  logEvent(game, `${knightOf(seat).name} strikes down the King and claims the crown!`, "g");
+}
+
+/* -------------------------------- greet --------------------------------- */
+// Resolve a Greet. Returns { endTurn:true } (a greeting always ends the turn, like the standalone).
+export function resolveGreet(game, seat, tile) {
+  const den = DEN[tile.card];
+  const id = tile.card;
+  const k = knightOf(seat);
+  if (den.befriendAlways) { befriend(game, seat, tile, id); return { endTurn: true }; } // Sage
+  const die = d6();
+  const guyon = seat.knight === "guyon" ? 1 : 0;
+  const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
+  if (isPComp) {
+    let total = die + totalP(seat) + guyon + (tile.name === "chapel" ? 2 : 0);
+    if (den.grail) {
+      if (total >= 9) takeGrail(game, seat, tile);
+      else { logEvent(game, "The Grail slips away."); clearCard(game, tile); }
+    } else if (id === "princess") {
+      if (total >= 9) befriend(game, seat, tile, id);
+      else { logEvent(game, "The Princess flees to the far Gate."); clearCard(game, tile); }
+    } else { // prince
+      if (total >= 8) befriend(game, seat, tile, id);
+      else logEvent(game, `The Prince rebuffs ${k.name}.`); // he remains to be met again
+    }
+    return { endTurn: true };
+  }
+  const idx = Math.min(6, Math.max(1, die + guyon));
+  const act = (den.tbl && den.tbl[idx]) || "remains";
+  applyReaction(game, seat, tile, den, act);
+  return { endTurn: true };
+}
+
+/* ------------------------------- powers --------------------------------- */
+export function powerScry(game, seat) {
+  refillDeck(game);
+  if (!game.deck.length) { logEvent(game, "The Crystal clouds over — the deck is empty.", "a"); return { next: null }; }
+  const id = game.deck[game.deck.length - 1];
+  logEvent(game, `${knightOf(seat).name} scries the Crystal — next card: ${DEN[id].name}.`, "a");
+  return { next: id };
+}
+export function powerRotate(game, seat) {
+  const t = cellAt(game.board, seat.r, seat.c);
+  const o = t.open;
+  t.open = { N: o.S, S: o.N, E: o.W, W: o.E };
+  logEvent(game, `${knightOf(seat).name} raises the Wand — the tile turns about.`, "a");
+}
+// Fountain: 1–2 Tower · 3–4 Earthly Gate · 5–6 Enchanted Gate. Ends the turn.
+export function powerDrink(game, seat, tile) {
+  tile._used = true;
+  const r = d6();
+  const dest = r <= 2 ? [4, 3] : r <= 4 ? [8, 3] : [0, 3];
+  const where = r <= 2 ? "the Tower" : r <= 4 ? "the Earthly Gate" : "the Enchanted Gate";
+  logEvent(game, `${knightOf(seat).name} drinks — the waters sweep them to ${where}. (rolled ${r})`, "a");
+  relocate(game, seat, dest[0], dest[1]);
+  return { endTurn: true };
+}

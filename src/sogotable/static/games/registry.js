@@ -24,6 +24,7 @@ export const GAME_IDS = {
   noThanks: "c5d9e1f3a627",
   hearts: "f2a8d5c3b917",
   potionLab: "e7c1a4b9d206",
+  mysticWood: "a9f2c7e14b83",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -129,6 +130,19 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["mazewright", "maze_wright", "dungeon_master"],
+  },
+  {
+    id: GAME_IDS.mysticWood,
+    lobbyMode: "hostStart",
+    name: "The Mystic Wood",
+    summary: "Explore an ever-shifting 7×9 wood, fight or greet its denizens, finish your knight's quest, and leave by the Enchanted Gate.",
+    players: "3-5 players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "In development",
+    availability: "coming_soon",
+    aliases: ["mystic_wood", "mystic-wood", "the_mystic_wood"],
   },
   {
     id: GAME_IDS.zombieDice,
