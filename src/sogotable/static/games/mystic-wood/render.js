@@ -7,7 +7,7 @@ import { MYSTIC_WOOD_CSS } from "./styles.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, DEN_EMOJI, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
-let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0;
+let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0, uiRoot = null;
 let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 
 function injectStyles() {
@@ -39,6 +39,7 @@ export function renderMysticWoodGame(ctx) {
 
   if (game.status === "complete") { root.innerHTML = endHtml(ctx, game); wireTop(root, ctx, game, me); return; }
   root.innerHTML = boardScreenHtml(ctx, game, me);
+  uiRoot = root;
   wireTop(root, ctx, game, me);
   wireBoard(root, ctx, game, me);
   zoomCtx = { root, game, me }; applyZoom(); requestAnimationFrame(() => applyZoom());
@@ -290,7 +291,7 @@ function tblRows(tbl) {
 }
 
 /* ------------------------------ encounter ------------------------------- */
-function portal() { const p = document.createElement("div"); p.className = "mystic-wood-root mw-portal"; document.body.appendChild(p); return p; }
+function portal() { const p = document.createElement("div"); p.className = "mystic-wood-root mw-portal"; (uiRoot || document.body).appendChild(p); return p; }
 function closePortals() { document.querySelectorAll(".mw-portal").forEach((n) => n.remove()); }
 function showEncounter(ctx, game) {
   closePortals();

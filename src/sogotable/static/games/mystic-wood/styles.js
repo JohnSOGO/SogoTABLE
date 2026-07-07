@@ -10,7 +10,7 @@ export const MYSTIC_WOOD_CSS = `
   --ench-h1:#379a80; --ench-h2:#1f5244; --ench-h3:#123528; --ench-road:#aeb8c6; --ench-leaf:#4fae91;
   --serif:"Hoefler Text","Iowan Old Style",Georgia,serif; --sans:system-ui,"Segoe UI",Roboto,sans-serif;
   --mono:ui-monospace,Menlo,Consolas,monospace;
-  color:var(--ink); font-family:var(--sans); display:flex; flex-direction:column; width:100%; box-sizing:border-box;
+  color:var(--ink); font-family:var(--sans); display:flex; flex-direction:column; width:100%; box-sizing:border-box; position:relative;
 }
 :root[data-theme="light"] .mystic-wood-root{
   --bg:#efe9d6; --panel:#f4efe1; --panel2:#e8e1cd; --ink:#2b2a22; --muted:#6f6a58; --rule:#d6cdb2;
@@ -85,10 +85,10 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .le{padding:3px 0;border-bottom:1px solid #ffffff08}
 .mystic-wood-root .le b{color:var(--gold2)} .mystic-wood-root .le .g{color:#8fd08a} .mystic-wood-root .le .r{color:var(--crimson)} .mystic-wood-root .le .a{color:var(--azure)} .mystic-wood-root .le .muted{color:var(--muted)}
 
-/* modals + peek popups (wrapper carries .mystic-wood-root for vars + scope) */
-.mystic-wood-root.mw-portal{position:fixed;inset:0;z-index:70;display:block;width:auto;background:none;pointer-events:none}
-.mw-portal .overlay{position:fixed;inset:0;background:#000a;display:grid;place-items:center;pointer-events:auto}
-.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:16px;padding:22px;max-width:520px;width:94%;box-shadow:0 20px 60px #000c;max-height:92vh;overflow-y:auto}
+/* encounter / dice card — floats over the GAME area (not the whole screen), like the prototype */
+.mystic-wood-root.mw-portal{position:absolute;inset:0;z-index:40;display:block;width:auto;background:none;pointer-events:none}
+.mw-portal .overlay{position:absolute;inset:0;background:#0007;display:grid;place-items:center;pointer-events:auto;padding:10px}
+.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:14px;padding:16px;width:auto;max-width:min(360px,96%);box-shadow:0 12px 36px #000c;max-height:calc(100% - 16px);overflow-y:auto}
 .mw-portal .modal h2{font-size:24px;color:var(--gold2);margin-bottom:6px}
 .mw-portal .modal p{font-size:14px;margin:6px 0}
 .mw-portal .modal .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
