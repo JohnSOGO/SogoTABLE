@@ -53,8 +53,9 @@ export function renderMysticWoodGame(ctx) {
   wireBoard(root, ctx, game, me);
   zoomCtx = { root, game, me }; applyZoom(); requestAnimationFrame(() => applyZoom());
   animateTokens(root, game);
-  // overlays
-  if (game.last_roll && game.last_roll.mark === me && game.last_roll.seq > seenRoll) { seenRoll = game.last_roll.seq; showDice(ctx, game.last_roll); }
+  // overlays: my own most-recent roll result (kept per-seat so bot turns can't clobber it), else a pending encounter
+  const myRoll = (game.results && me) ? game.results[me] : null;
+  if (myRoll && myRoll.seq > seenRoll) { seenRoll = myRoll.seq; showDice(ctx, myRoll); }
   else if (game.pending && game.pending.mark === me) showEncounter(ctx, game);
 }
 
@@ -333,7 +334,7 @@ function tblRows(tbl) {
 }
 
 /* ------------------------------ encounter ------------------------------- */
-function portal() { const p = document.createElement("div"); p.className = "mystic-wood-root mw-portal"; (uiRoot || document.body).appendChild(p); return p; }
+function portal() { const p = document.createElement("div"); p.className = "mystic-wood-root mw-portal"; document.body.appendChild(p); return p; }
 function closePortals() { document.querySelectorAll(".mw-portal").forEach((n) => n.remove()); }
 function showEncounter(ctx, game) {
   closePortals();

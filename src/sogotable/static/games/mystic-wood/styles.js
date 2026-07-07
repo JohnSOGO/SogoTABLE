@@ -92,10 +92,10 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .le{padding:3px 0;border-bottom:1px solid #ffffff08}
 .mystic-wood-root .le b{color:var(--gold2)} .mystic-wood-root .le .g{color:#8fd08a} .mystic-wood-root .le .r{color:var(--crimson)} .mystic-wood-root .le .a{color:var(--azure)} .mystic-wood-root .le .muted{color:var(--muted)}
 
-/* encounter / dice card — floats over the GAME area (not the whole screen), like the prototype */
-.mystic-wood-root.mw-portal{position:absolute;inset:0;z-index:40;display:block;width:auto;background:none;pointer-events:none}
-.mw-portal .overlay{position:absolute;inset:0;background:#0007;display:grid;place-items:center;pointer-events:auto;padding:10px}
-.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:12px 13px;width:fit-content;max-width:min(300px,94%);box-shadow:0 12px 36px #000c;max-height:calc(100% - 16px);overflow-y:auto}
+/* encounter / dice card — a compact popup centred in the VIEWPORT (consistent on every screen size) */
+.mystic-wood-root.mw-portal{position:fixed;inset:0;z-index:70;display:block;width:auto;background:none;pointer-events:none}
+.mw-portal .overlay{position:fixed;inset:0;background:#000b;display:grid;place-items:center;pointer-events:auto;padding:16px;box-sizing:border-box}
+.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:12px 13px;width:fit-content;max-width:min(340px,92vw);box-shadow:0 12px 36px #000c;max-height:86vh;overflow-y:auto}
 .mw-portal .modal h2{font-size:18px;color:var(--gold2);margin:2px 0 4px}
 .mw-portal .modal p{font-size:13px;margin:5px 0}
 .mw-portal .modal .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center}

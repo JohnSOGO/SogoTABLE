@@ -225,6 +225,14 @@ export function takeGrail(game, seat, tile) {
   clearCard(game, tile, false);
 }
 
+// Record a seat's most recent roll under its OWN mark, so a following bot turn (in the same makeMove
+// call) can't clobber the human's result before it reaches the client.
+function recordRoll(game, mark, data) {
+  game.roll_seq = (game.roll_seq || 0) + 1;
+  if (!game.results) game.results = {};
+  game.results[mark] = { seq: game.roll_seq, mark, ...data };
+}
+
 /* ------------------------------- combat --------------------------------- */
 function princeAids(seat, den) {
   return seat.companions.includes("prince") && !seat._princeUsed && !den.king && !(den.dragon && seat.q === "dragon");
@@ -276,9 +284,8 @@ export function resolveChallenge(game, seat, tile) {
 
   let white, red, mine, foe, guard = 0;
   do { white = d6(); red = d6(); mine = white + mineBonus; foe = red + foeBonus; } while (mine === foe && guard++ < 50);
-  // Record the decisive roll so the client can show the dice-reveal modal (persists until the next roll).
-  game.roll_seq = (game.roll_seq || 0) + 1;
-  game.last_roll = { seq: game.roll_seq, mark: seat.mark, white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome: mine > foe ? "win" : (den.captures ? "captured" : "lose") };
+  // Record the decisive roll so the client can show the dice-reveal modal.
+  recordRoll(game, seat.mark, { white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome: mine > foe ? "win" : (den.captures ? "captured" : "lose") });
 
   if (mine > foe) {
     logEvent(game, `${k.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
@@ -340,9 +347,8 @@ export function resolveGreet(game, seat, tile) {
       applyReaction(game, seat, tile, den, act);
     }
   }
-  game.roll_seq = (game.roll_seq || 0) + 1;
-  game.last_roll = { seq: game.roll_seq, mark: seat.mark, greet: true, die, foeName: den.name,
-    result: game.log.slice(before).map((e) => e.text).join("<br>") || `The ${den.name} reacts.` };
+  recordRoll(game, seat.mark, { greet: true, die, foeName: den.name,
+    result: game.log.slice(before).map((e) => e.text).join("<br>") || `The ${den.name} reacts.` });
   return { endTurn: true };
 }
 
