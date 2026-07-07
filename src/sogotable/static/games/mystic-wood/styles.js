@@ -88,11 +88,11 @@ export const MYSTIC_WOOD_CSS = `
 /* encounter / dice card — floats over the GAME area (not the whole screen), like the prototype */
 .mystic-wood-root.mw-portal{position:absolute;inset:0;z-index:40;display:block;width:auto;background:none;pointer-events:none}
 .mw-portal .overlay{position:absolute;inset:0;background:#0007;display:grid;place-items:center;pointer-events:auto;padding:10px}
-.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:14px;padding:16px;width:auto;max-width:min(360px,96%);box-shadow:0 12px 36px #000c;max-height:calc(100% - 16px);overflow-y:auto}
-.mw-portal .modal h2{font-size:24px;color:var(--gold2);margin-bottom:6px}
-.mw-portal .modal p{font-size:14px;margin:6px 0}
-.mw-portal .modal .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-.mw-portal .result{margin:11px 0 2px;text-align:center;font-size:14.5px;line-height:1.5}
+.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:12px 13px;width:fit-content;max-width:min(300px,94%);box-shadow:0 12px 36px #000c;max-height:calc(100% - 16px);overflow-y:auto}
+.mw-portal .modal h2{font-size:18px;color:var(--gold2);margin:2px 0 4px}
+.mw-portal .modal p{font-size:13px;margin:5px 0}
+.mw-portal .modal .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center}
+.mw-portal .result{margin:9px 0 2px;text-align:center;font-size:13.5px;line-height:1.45}
 .mw-portal .r{color:var(--crimson)} .mw-portal .g{color:#8fd08a} .mw-portal .a{color:var(--azure)}
 .mw-portal .dicerow{display:flex;align-items:center;gap:7px;justify-content:center;flex-wrap:nowrap;white-space:nowrap;margin:7px 0}
 .mw-portal .drlabel{font-size:12px;color:var(--muted);min-width:46px;text-align:right}
@@ -102,16 +102,16 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .drop{color:var(--muted);font-family:var(--mono)}
 .mw-portal .drbon{font-size:13px;color:var(--gold2);font-family:var(--mono)}
 .mw-portal .drtot{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--gold-bright);margin-left:2px}
-.mw-portal .denbox{background:var(--panel2);border:1px solid var(--rule);border-radius:10px;padding:10px 12px;margin:8px 0;display:flex;flex-direction:column;gap:4px;text-align:left}
-.mw-portal .denrow{font-size:13px;line-height:1.35}
+.mw-portal .denbox{background:var(--panel2);border:1px solid var(--rule);border-radius:9px;padding:8px 10px;margin:7px 0;display:flex;flex-direction:column;gap:3px;text-align:left}
+.mw-portal .denrow{font-size:12.5px;line-height:1.3}
 .mw-portal .denrow.good{color:#8fd08a} .mw-portal .denrow.bad{color:var(--crimson)} .mw-portal .denrow.muted{color:var(--muted);font-size:12px;margin-top:2px}
 .mw-portal .denvs{font-size:16px;margin:3px 0}
 .mw-portal .rtbl{width:100%;border-collapse:collapse;margin:3px 0 2px;font-size:12.5px}
 .mw-portal .rtbl td{padding:3px 8px;border-bottom:1px solid var(--rule);text-align:left}
 .mw-portal .rtbl tr:last-child td{border-bottom:none}
 .mw-portal .rtbl .rroll{font-family:var(--mono);color:var(--gold2);width:52px;text-align:center;font-weight:700}
-.mw-portal .tilehdr2{display:flex;gap:11px;align-items:center;margin:4px 0 9px;padding-bottom:9px;border-bottom:1px solid var(--rule)}
-.mw-portal .tilethumb{width:118px;flex:none;aspect-ratio:10/7;border-radius:6px;overflow:hidden;border:1px solid var(--rule)}
+.mw-portal .tilehdr2{display:flex;gap:9px;align-items:center;margin:2px 0 7px;padding-bottom:7px;border-bottom:1px solid var(--rule)}
+.mw-portal .tilethumb{width:78px;flex:none;aspect-ratio:10/7;border-radius:6px;overflow:hidden;border:1px solid var(--rule)}
 .mw-portal .tilethumb svg{width:100%;height:100%;display:block}
 .mw-portal .tileinfo{font-size:12.5px;line-height:1.4;text-align:left}
 .mw-portal .hint{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
