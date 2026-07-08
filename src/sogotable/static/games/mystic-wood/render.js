@@ -8,12 +8,14 @@ import { KNIGHTS, THINGS, DEN, DEN_CLASS, DEN_EMOJI, THING_DESC, COMP_DESC, AREA
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
 const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + gap 3)
+const GLIDE_MS = 450;        // token move glide duration; encounter reveal waits this out
 let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0, uiRoot = null;
 let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 let prevPos = {};      // mark -> {r,c}, for gliding tokens between tiles
 let pulseCell = null;  // "r,c" of the legend/map badge currently highlighted
 let clickTimer = null; // single- vs double-tap discrimination
 let chronFilter = null; // Chronicle: mark of the knight whose entries are shown (null = all)
+let encTimer = null;    // deferred encounter reveal (waits for the mover's token glide)
 
 function roomMeta(ctx) { const m = {}; ((ctx.room && ctx.room.players) || []).forEach((p) => { m[p.mark] = { icon: p.icon || "", color: p.color }; }); return m; }
 
@@ -48,7 +50,8 @@ export function renderMysticWoodGame(ctx) {
   if (game.status === "complete") { root.innerHTML = endHtml(ctx, game); wireTop(root, ctx, game, me); return; }
   // if my knight moved while zoomed & following me, keep the view centred on me (prevPos still holds the old spot)
   const lp = (game.players || []).find((p) => p.mark === me);
-  if (lp && prevPos[me] && (prevPos[me].r !== lp.r || prevPos[me].c !== lp.c) && (view.zoom || 0) > 0) view.focus = null;
+  const iMoved = !!(lp && prevPos[me] && (prevPos[me].r !== lp.r || prevPos[me].c !== lp.c)); // did my token glide this render?
+  if (iMoved && (view.zoom || 0) > 0) view.focus = null;
   root.innerHTML = boardScreenHtml(ctx, game, me);
   uiRoot = root;
   wireTop(root, ctx, game, me);
@@ -61,8 +64,14 @@ export function renderMysticWoodGame(ctx) {
   // hide a live pending encounter behind a stale modal and softlock the turn. Seed to the latest seq so only
   // genuinely NEW rolls pop; the pending encounter (if any) then shows normally.
   if (justInit) seenRoll = myRoll ? (myRoll.seq || 0) : 0;
+  if (encTimer) { clearTimeout(encTimer); encTimer = null; } // a newer render owns the encounter-reveal timing
   if (myRoll && myRoll.seq > seenRoll) { seenRoll = myRoll.seq; showDice(ctx, myRoll); }
-  else if (game.pending && game.pending.type === "encounter" && game.pending.mark === me) showEncounter(ctx, game);
+  else if (game.pending && game.pending.type === "encounter" && game.pending.mark === me) {
+    // Let the token finish gliding onto the tile BEFORE the encounter card covers it; on a fresh
+    // mount (no glide) reveal at once. A newer render clears this timer, so a stale card can't pop.
+    if (iMoved) encTimer = setTimeout(() => { encTimer = null; showEncounter(ctx, game); }, GLIDE_MS + 60);
+    else showEncounter(ctx, game);
+  }
 }
 
 /* ------------------------------- layout --------------------------------- */
@@ -243,7 +252,7 @@ function animateTokens(root, game) {
       const dx = (prev.c - p.c) * CW, dy = (prev.r - p.r) * CH;
       tok.style.transition = "none";
       tok.style.transform = `translate(${dx}px,${dy}px)`;
-      requestAnimationFrame(() => requestAnimationFrame(() => { tok.style.transition = "transform .45s ease"; tok.style.transform = "translate(0,0)"; }));
+      requestAnimationFrame(() => requestAnimationFrame(() => { tok.style.transition = `transform ${GLIDE_MS}ms ease`; tok.style.transform = "translate(0,0)"; }));
     }
     prevPos[p.mark] = { r: p.r, c: p.c };
   });
@@ -455,7 +464,7 @@ function showDice(ctx, roll) {
 function wireTop(root, ctx, game, me) {
   root.querySelectorAll("[data-top]").forEach((b) => b.addEventListener("click", () => {
     const w = b.getAttribute("data-top");
-    if (w === "zoom") { view.zoom = 0; view.focus = null; applyZoom(); }
+    if (w === "zoom") { view.zoom = 0; view.focus = null; applyZoom(true); }
     else if (w === "knights") openPanel(root, ctx, game, me, "knights");
     else if (w === "chron") openPanel(root, ctx, game, me, "chron");
   }));
@@ -482,7 +491,7 @@ function wireBoard(root, ctx, game, me) {
       const [r, c] = cell.getAttribute("data-cell").split(",").map(Number);
       if (clickTimer) {                                   // double tap → zoom in on this tile
         clearTimeout(clickTimer); clickTimer = null;
-        view.focus = { r, c }; view.zoom = Math.min(ZOOM_WIDTHS.length - 1, (view.zoom || 0) + 1); applyZoom();
+        view.focus = { r, c }; view.zoom = Math.min(ZOOM_WIDTHS.length - 1, (view.zoom || 0) + 1); applyZoom(true);
         return;
       }
       clickTimer = setTimeout(() => {                     // single tap → move (if reachable)
@@ -569,7 +578,9 @@ function openTransport(root, ctx, game, me) {
 }
 
 /* -------------------------------- zoom ---------------------------------- */
-function applyZoom() {
+// animate=true glides the board transform (used for user zoom in/out); render/resize calls stay instant
+// so the board never slides on a server update or window resize.
+function applyZoom(animate) {
   if (!zoomCtx) return;
   const { root, game, me } = zoomCtx;
   const wrap = root.querySelector(".mw-boardwrap"), board = root.querySelector(".board");
@@ -592,5 +603,7 @@ function applyZoom() {
   const sw = bw * scale, sh = bh * scale;
   tx = sw > vw ? Math.min(0, Math.max(vw - sw, tx)) : (vw - sw) / 2;
   ty = sh > vh ? Math.min(0, Math.max(vh - sh, ty)) : (vh - sh) / 2;
+  const RM = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  board.style.transition = (animate && !RM) ? "transform .3s ease" : "none";
   board.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${scale.toFixed(3)})`;
 }
