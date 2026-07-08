@@ -65,6 +65,48 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   selection is random at start; per-seat interactive picking is a planned fast-follow. Joust
   refinements (once-per-game Queen boon, player-chosen boon target, Castle defender +2) pending.
 
+## Open issues — AWAITING SOGO'S INPUT (do not close without it)
+
+These came from Sogo's in-app bug reports (room PM0T, 2026-07-08). Each is **blocked on a
+decision or detail only Sogo can give** — a future AI should surface these to Sogo, get the
+answer, then take the close-out path. Do **not** guess the rules; per doctrine, published
+rules win. (Report IDs are the in-app `bugreports` slugs.)
+
+1. **[mrc1f6xw] Combat: opposed roll, or roll-vs-fixed?** — Today `resolveChallenge`
+   (`engine.js`) rolls a d6 for **both** the knight and the denizen (yourP+die vs foeP+die).
+   Sogo questions whether the Enchantress fight should be opposed at all. **Ask:** does the
+   rulebook have the denizen use a **fixed** value you roll against, or does it also roll?
+   **Close-out (if fixed):** drop the foe's die in `resolveChallenge`, set `foe = foe stat
+   total` (no `red` die), update `combatPreview`, the dice-reveal card (`showDice`), and the
+   unit tests; `deploy:brain`. This affects **all** combat, not just the Enchantress.
+2. **[mrc1uwxb] Tower/capture escape roll is invisible.** — Rules are right (escape 5–6, or
+   freed on the 4th turn, Key frees at once), but the roll auto-resolves inside
+   `beginSeatTurn`/`beginAndAdvance` and only hits the chronicle. **Ask:** surface it as a
+   visible dice roll each turn? **Close-out:** `recordRoll(game, mark, …)` the escape attempt
+   so the client pops the dice modal; consider making escape **player-triggered** (a "roll to
+   escape" action) instead of auto in the bot loop. `deploy:brain`.
+3. **[mrbu91ij] "Horses running away doesn't work."** — The Horse greet vanishes the card
+   when it "runs" (`applyReaction` `run*` branch). **Ask:** should it instead **flee to an
+   adjacent tile** (move the card, so you can chase it)? **Close-out:** relocate `tile.card`
+   to the neighbour in the rolled direction rather than `clearCard`. `deploy:brain`.
+4. **[mrbty83d] Dwarf rolls but always gives Armour.** — Its whole reaction table is one
+   outcome, so the die is cosmetic. **Ask:** skip the roll for single-outcome denizens?
+   **Close-out:** detect a denizen whose `tbl` has one distinct effect and skip the die
+   display (client) / roll (server).
+5. **[mrbu6ls6] "Can't move to a tile that's my quest."** — Likely the **Cave** (Guyon needs
+   the Golden Bough to enter — by rules) or a named tile whose fixed roads don't connect.
+   **Ask:** which knight + which tile (r,c)? **Close-out:** if it's the Cave, it's by-design
+   (surface a "needs Golden Bough" hint); if a named tile's `open` doesn't align with the
+   approach road, fix orientation in `buildBoard`/`assignOpenings`.
+6. **[mrc21fpc] Intro-story popup at game start.** — A one-time modal where the absent knight
+   asks the player to fulfil his quest, before the first move. **Ask:** Sogo to provide the
+   copy, and whether it's one shared framing or per-knight. **Close-out:** one-time modal in
+   `render.js` (gate per `view.gameKey`), text in `content.js`.
+7. **[mrbtylnl / mrc24ovl] Double-tap zoom on phone — FIX SHIPPED, needs Sogo to verify.** —
+   Rewrote double-tap to timestamp detection (350ms, works on non-reachable tiles) + pan.
+   **Ask:** Sogo to confirm on iPhone. **Close-out:** if still broken, the click cascade isn't
+   firing — move tap/double-tap detection onto `pointerup` (guarding against the pan gesture).
+
 ## Status
 
 Code-complete and green on `feature/mystic-wood-port` (full worker suite, incl. architecture gates;
