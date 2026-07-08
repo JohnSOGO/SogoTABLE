@@ -87,6 +87,15 @@ concerns first within a section. Put the how-to in the topic doc and link it.
   when a non-George knight beats it, or deleting companions on a loss, made quests
   impossible → seeded games that never completed. Recycle into the deck instead. Found by
   a seeded full-game integration test — write one. (Mystic Wood.)
+- **A module-scoped "already-seen" flag reset on remount replays stale modals and can hide
+  live pending state → softlock.** Mystic Wood's `seenRoll` (suppresses re-popping a dice
+  result) reset to 0 on every fresh client mount; a mobile reload *while an encounter was
+  pending* replayed the last combat's dice (still in `results[me]`) instead of the live
+  encounter, and closing it didn't re-render — a dead "Waiting…" turn (room 6JCP). Fixes,
+  defence in depth: (1) seed the flag from current state on mount so nothing stale replays;
+  (2) re-render when a transient modal closes so pending state resurfaces; (3) keep a
+  resolve control in the persistent UI so a *pending server state can never be a UI dead
+  end*. Peeking was a red herring — it can't mutate server state. (Mystic Wood, 2026-07-07.)
 
 ## Deploy & verify
 
