@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SogoTable · Bug Reports</title>
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --panel: #fffdf8;
+    --panel-2: #f7f3ea;
+    --ink: #2a2620;
+    --muted: #7a7267;
+    --line: #e5ded1;
+    --accent: #c43d5d;
+    --accent-ink: #fff;
+    --open: #b7791f;
+    --open-bg: #fbf1dc;
+    --done: #1f7a5f;
+    --done-bg: #e2f2ec;
+    --danger: #c0392b;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.05);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17150f;
+      --panel: #211e17;
+      --panel-2: #1a1811;
+      --ink: #efe9dc;
+      --muted: #a59c8c;
+      --line: #332e24;
+      --accent: #e56a86;
+      --accent-ink: #1a1811;
+      --open: #e0b062;
+      --open-bg: #362c17;
+      --done: #6fd0ac;
+      --done-bg: #16302650;
+      --danger: #e57368;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 16px; }
+  .head-row { display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px; max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
+  .stats { margin-left: auto; display: flex; gap: 8px; }
+  .stat {
+    display: flex; flex-direction: column; align-items: center;
+    min-width: 54px; padding: 4px 10px; border-radius: 10px;
+    background: var(--panel); border: 1px solid var(--line);
+  }
+  .stat b { font-size: 17px; line-height: 1.1; }
+  .stat span { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .stat.open b { color: var(--open); }
+  .stat.done b { color: var(--done); }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; padding: 0 0 14px; flex-wrap: wrap; }
+  .segmented { display: inline-flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .segmented button {
+    border: 0; background: transparent; color: var(--muted);
+    font: inherit; font-weight: 600; font-size: 13px;
+    padding: 6px 14px; border-radius: 999px; cursor: pointer;
+  }
+  .segmented button.active { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
+  .search {
+    flex: 1; min-width: 160px;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); border-radius: 999px; padding: 9px 14px; font: inherit;
+  }
+  .search::placeholder { color: var(--muted); }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    font: inherit; font-weight: 600; font-size: 13px;
+    padding: 8px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  main { max-width: 780px; margin: 0 auto; padding: 18px 16px 120px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 14px 16px; margin-bottom: 12px;
+    display: grid; grid-template-columns: auto 1fr; gap: 12px;
+    transition: opacity .2s, transform .2s;
+  }
+  .card.done { opacity: .72; }
+  .card.busy { opacity: .4; pointer-events: none; }
+  .check { padding-top: 2px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+  .body { min-width: 0; }
+  .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .pill.open { background: var(--open-bg); color: var(--open); }
+  .pill.done { background: var(--done-bg); color: var(--done); }
+  .game { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--panel-2); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); }
+  .time { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .desc { font-size: 15px; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+  .meta { margin-top: 8px; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .meta .dot { opacity: .5; }
+  .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .act {
+    border: 1px solid var(--line); background: transparent; color: var(--ink);
+    font: inherit; font-weight: 600; font-size: 13px;
+    padding: 6px 12px; border-radius: 9px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center;
+  }
+  .act.primary { background: var(--done); color: #fff; border-color: var(--done); }
+  .act.reopen { }
+  .act.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
+  .act.danger.confirm { background: var(--danger); color: #fff; border-color: var(--danger); }
+  .act:hover { filter: brightness(1.04); }
+
+  .empty, .loading { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .empty .big { font-size: 40px; margin-bottom: 10px; }
+
+  /* Bulk action bar */
+  .bulk {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(120%);
+    background: var(--ink); color: var(--bg);
+    border-radius: 999px; padding: 8px 10px 8px 18px;
+    display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.3);
+    transition: transform .25s cubic-bezier(.2,.8,.2,1); z-index: 20;
+  }
+  .bulk.show { transform: translateX(-50%) translateY(0); }
+  .bulk b { font-size: 14px; }
+  .bulk .bbtn { border: 0; background: color-mix(in srgb, var(--bg) 18%, transparent); color: var(--bg); font: inherit; font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+  .bulk .bbtn.danger { background: var(--danger); color: #fff; }
+
+  /* Toasts */
+  #toasts { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .toast { background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.3); animation: pop .2s ease; }
+  @keyframes pop { from { opacity: 0; transform: translateY(-8px); } }
+
+  @media (max-width: 520px) {
+    .head-row { flex-wrap: wrap; }
+    .stats { margin-left: 0; width: 100%; }
+    .stat { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="head-row">
+    <h1>🐞 Bug Reports</h1>
+    <div class="stats">
+      <div class="stat open"><b id="s-open">–</b><span>Open</span></div>
+      <div class="stat done"><b id="s-done">–</b><span>Done</span></div>
+      <div class="stat"><b id="s-total">–</b><span>Total</span></div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="toolbar">
+      <div class="segmented" id="filters">
+        <button data-f="open" class="active">Open</button>
+        <button data-f="done">Done</button>
+        <button data-f="all">All</button>
+      </div>
+      <input id="search" class="search" type="search" placeholder="Search description, game, player…" />
+      <button class="btn" id="refresh">↻ Refresh</button>
+    </div>
+  </div>
+</header>
+
+<main id="list">
+  <div class="loading">Loading reports…</div>
+</main>
+
+<div class="bulk" id="bulk">
+  <b id="bulk-count">0 selected</b>
+  <button class="bbtn" data-bulk="done">✓ Mark done</button>
+  <button class="bbtn" data-bulk="open">↩ Reopen</button>
+  <button class="bbtn danger" data-bulk="delete">🗑 Delete</button>
+  <button class="bbtn" data-bulk="clear">Cancel</button>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+const state = { reports: [], filter: "open", search: "", selected: new Set(), busy: false };
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({ ok: false, error: "Bad response" }));
+  if (!data.ok) throw new Error(data.error || ("HTTP " + res.status));
+  return data;
+}
+
+function toast(msg) {
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = msg;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+function relTime(ms) {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return m + "m ago";
+  const h = Math.floor(m / 60); if (h < 24) return h + "h ago";
+  const d = Math.floor(h / 24); if (d < 7) return d + "d ago";
+  const w = Math.floor(d / 7); if (w < 5) return w + "w ago";
+  return new Date(ms).toLocaleDateString();
+}
+
+function isDone(r) { return r.status === "done"; }
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+async function load() {
+  try {
+    const data = await api("/api/bug-reports/list", {});
+    state.reports = (data.reports || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    state.selected.clear();
+    render();
+  } catch (e) {
+    document.getElementById("list").innerHTML = '<div class="empty"><div class="big">⚠️</div>' + escapeHtml(e.message) + "</div>";
+  }
+}
+
+function visibleReports() {
+  const q = state.search.trim().toLowerCase();
+  return state.reports.filter((r) => {
+    if (state.filter === "open" && isDone(r)) return false;
+    if (state.filter === "done" && !isDone(r)) return false;
+    if (q) {
+      const hay = [r.description, r.game, r.player_name, r.screen, r.room_code].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function render() {
+  // Stats
+  const open = state.reports.filter((r) => !isDone(r)).length;
+  document.getElementById("s-open").textContent = open;
+  document.getElementById("s-done").textContent = state.reports.length - open;
+  document.getElementById("s-total").textContent = state.reports.length;
+
+  const list = document.getElementById("list");
+  const rows = visibleReports();
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty"><div class="big">🎉</div>Nothing here. ' +
+      (state.filter === "open" ? "No open reports — inbox zero!" : "No reports match.") + "</div>";
+  } else {
+    list.innerHTML = rows.map(cardHtml).join("");
+  }
+  updateBulk();
+}
+
+function cardHtml(r) {
+  const done = isDone(r);
+  const who = escapeHtml(r.player_name || "Unknown");
+  const parts = [];
+  if (r.screen) parts.push(escapeHtml(r.screen));
+  if (r.room_code) parts.push("room " + escapeHtml(r.room_code));
+  const meta = [who].concat(parts).join(' <span class="dot">·</span> ');
+  const sel = state.selected.has(r.id);
+  return `
+  <div class="card ${done ? "done" : ""}" data-id="${escapeHtml(r.id)}">
+    <div class="check"><input type="checkbox" ${sel ? "checked" : ""} data-check="${escapeHtml(r.id)}" /></div>
+    <div class="body">
+      <div class="top">
+        <span class="pill ${done ? "done" : "open"}">${done ? "✓ Done" : "○ Open"}</span>
+        ${r.game ? `<span class="game">${escapeHtml(r.game)}</span>` : ""}
+        <span class="time" title="${escapeHtml(new Date(r.created_at || 0).toLocaleString())}">${relTime(r.created_at || 0)}</span>
+      </div>
+      <div class="desc">${escapeHtml(r.description)}</div>
+      <div class="meta">${meta}</div>
+      <div class="actions">
+        ${done
+          ? `<button class="act reopen" data-act="open" data-id="${escapeHtml(r.id)}">↩ Reopen</button>`
+          : `<button class="act primary" data-act="done" data-id="${escapeHtml(r.id)}">✓ Mark done</button>`}
+        <button class="act danger" data-act="delete" data-id="${escapeHtml(r.id)}">🗑 Delete</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function resolve(ids, opts, verb) {
+  if (state.busy || !ids.length) return;
+  state.busy = true;
+  ids.forEach((id) => { const c = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`); if (c) c.classList.add("busy"); });
+  try {
+    const data = await api("/api/bug-reports/resolve", { ids, ...opts });
+    toast(`${verb} ${data.affected} report${data.affected === 1 ? "" : "s"}`);
+    await load();
+  } catch (e) {
+    toast("⚠️ " + e.message);
+  } finally {
+    state.busy = false;
+  }
+}
+
+// ----- events -----
+document.getElementById("filters").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  state.filter = b.dataset.f;
+  [...e.currentTarget.children].forEach((c) => c.classList.toggle("active", c === b));
+  render();
+});
+document.getElementById("search").addEventListener("input", (e) => { state.search = e.target.value; render(); });
+document.getElementById("refresh").addEventListener("click", load);
+
+document.getElementById("list").addEventListener("click", (e) => {
+  const act = e.target.closest("[data-act]");
+  if (act) {
+    const id = act.dataset.id;
+    if (act.dataset.act === "done") return resolve([id], {}, "Marked done");
+    if (act.dataset.act === "open") return resolve([id], { reopen: true }, "Reopened");
+    if (act.dataset.act === "delete") {
+      if (act.classList.contains("confirm")) return resolve([id], { delete: true }, "Deleted");
+      act.classList.add("confirm");
+      act.textContent = "Really delete?";
+      setTimeout(() => { act.classList.remove("confirm"); act.textContent = "🗑 Delete"; }, 3000);
+    }
+  }
+});
+
+document.getElementById("list").addEventListener("change", (e) => {
+  const chk = e.target.closest("[data-check]"); if (!chk) return;
+  const id = chk.dataset.check;
+  if (chk.checked) state.selected.add(id); else state.selected.delete(id);
+  updateBulk();
+});
+
+function updateBulk() {
+  // Drop selections no longer visible/loaded.
+  const ids = new Set(state.reports.map((r) => r.id));
+  [...state.selected].forEach((id) => { if (!ids.has(id)) state.selected.delete(id); });
+  const n = state.selected.size;
+  document.getElementById("bulk-count").textContent = n + " selected";
+  document.getElementById("bulk").classList.toggle("show", n > 0);
+}
+
+document.getElementById("bulk").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-bulk]"); if (!b) return;
+  const ids = [...state.selected];
+  const kind = b.dataset.bulk;
+  if (kind === "clear") { state.selected.clear(); render(); return; }
+  if (kind === "done") return resolve(ids, {}, "Marked done");
+  if (kind === "open") return resolve(ids, { reopen: true }, "Reopened");
+  if (kind === "delete") {
+    if (b.dataset.armed) return resolve(ids, { delete: true }, "Deleted");
+    b.dataset.armed = "1"; b.textContent = `🗑 Delete ${ids.length}? Tap again`;
+    setTimeout(() => { delete b.dataset.armed; b.textContent = "🗑 Delete"; }, 3000);
+  }
+});
+
+load();
+</script>
+</body>
+</html>

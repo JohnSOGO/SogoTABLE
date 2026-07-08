@@ -3,4 +3,6 @@
 !.gitignore
 !export-bug-reports.bat
 !manage-bug-reports.bat
+!bug-manager.bat
+!manage.html
 !README.md

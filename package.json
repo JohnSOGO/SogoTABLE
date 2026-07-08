@@ -11,6 +11,7 @@
     "hooks": "git config core.hooksPath scripts/git-hooks",
     "bench:bots": "node scripts/bench-ten-thousand-bots.mjs",
     "bugreports": "node scripts/export-bug-reports.mjs",
+    "bugreports:ui": "node scripts/serve-bug-manager.mjs",
     "bugreports:manage": "node scripts/manage-bug-reports.mjs",
     "bugreports:clear": "node scripts/clear-bug-reports.mjs"
   },

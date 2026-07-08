@@ -8,17 +8,34 @@ gated by the Sogo superuser passcode.
 The exported `.txt` reports are git-ignored (local artifacts); only the helper
 scripts and this note are tracked — see `.gitignore`.
 
-## The three helpers
+## The friendly way: the web UI ⭐
+
+```
+npm run bugreports:ui <passcode>
+```
+
+Starts a tiny **localhost-only** server and opens `manage.html` in your browser —
+a nice point-and-click panel to browse, search, filter (Open / Done / All), mark
+done, reopen, and delete reports, with bulk-select for clearing many at once.
+Windows: double-click **`bug-manager.bat`**. Press Ctrl+C (or close the console)
+when done.
+
+Why a server and not just opening `manage.html`? The API's CORS only allows
+`http://localhost:<port>` (a `file://` page is rejected), and this keeps the
+passcode in the terminal — it's injected into proxied requests and never touches
+the browser page.
+
+## Command-line helpers
 
 | Command | What it does |
 | --- | --- |
 | `npm run bugreports <passcode>` | **Export** — pull every report into this folder, one `.txt` each (stable filename, safe to re-run). |
 | `npm run bugreports:manage -- <cmd> [--pass=<code>]` | **Manage** — list / mark done / reopen / delete / sync (below). |
-| `npm run bugreports:clear <passcode>` | **Nuke** — delete *all* reports from the server. Blunt; prefer `manage delete`. |
+| `npm run bugreports:clear <passcode>` | **Nuke** — delete *all* reports from the server. Blunt; prefer `manage delete` or the UI. |
 
 Passcode for any of them can instead come from the `SOGOTABLE_SUPERUSER_PASSCODE`
-env var. On Windows you can double-click `export-bug-reports.bat` or
-`manage-bug-reports.bat` (they prompt for the passcode).
+env var. On Windows you can double-click `bug-manager.bat`, `export-bug-reports.bat`,
+or `manage-bug-reports.bat` (they prompt for the passcode).
 
 ## Managing reports (`scripts/manage-bug-reports.mjs`)
 
@@ -62,9 +79,17 @@ use here.)
   the `READ_ONLY` side-effects list; only `/api/bug-reports/list` is.
 - Deploy worker changes with `npm run deploy:brain` (static deploy won't ship them).
 
+## Files here
+
+- `manage.html` — the web UI (self-contained; served by `serve-bug-manager.mjs`).
+- `bug-manager.bat` / `manage-bug-reports.bat` / `export-bug-reports.bat` —
+  double-click launchers (they prompt for the passcode).
+- Exported `*.txt` reports — git-ignored local artifacts.
+
 ## Ideas / follow-ups
 
-- No admin UI yet — this is script-only. A superuser web panel that lists reports
-  with done/delete buttons would call the same `/resolve` endpoint.
+- The UI is a **local** tool (runs on your machine, talks to the live API). If you
+  ever want it reachable from a phone without a laptop, it could become an in-app
+  superuser panel — it would call the same `/api/bug-reports/resolve` endpoint.
 - `status`/`resolved_at` now ride along on `list`; the export `.txt` could show a
   `Status:` line so exported files reflect server state at a glance.
