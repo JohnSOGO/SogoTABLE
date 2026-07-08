@@ -27,6 +27,16 @@ export function assertSogoSuperuser(data, playerId, passcode, configuredPasscode
   if (String(passcode || "") !== String(configuredPasscode)) throw new Error("Sogo passcode is incorrect.");
 }
 
+// Passcode-only Sogo gate: no seated-player context, just the shared superuser
+// passcode. Used by the admin bug-report endpoints (list/clear/resolve) and the
+// superuser branch of player reclaim, all of which are driven by local scripts
+// rather than a logged-in player.
+export function assertSogoPasscode(passcode, configuredPasscode) {
+  if (!String(configuredPasscode || "").trim() || String(passcode || "") !== String(configuredPasscode)) {
+    throw new Error("Sogo passcode is incorrect.");
+  }
+}
+
 export function isSogoSuperuser(data, playerId, configuredPlayerIds) {
   const id = String(playerId || "").trim();
   if (!id) return false;
