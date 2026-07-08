@@ -63,7 +63,7 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .pstrip-name{font-family:var(--serif);font-size:15px;font-weight:600;flex:none}
 .mystic-wood-root .pstrip-r1 .stats{flex:none;font-size:12px;gap:7px}
 .mystic-wood-root .pstrip-quest{flex:1;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mystic-wood-root .pstrip-badges{display:flex;align-items:center;gap:4px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:1px}
+.mystic-wood-root .pstrip-badges{display:flex;align-items:center;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;min-width:0;padding-bottom:1px}
 .mystic-wood-root .pstrip-badges::-webkit-scrollbar{height:0}
 .mystic-wood-root .pstrip-badges .chip,.mystic-wood-root .pstrip-badges .badge{flex:none;white-space:nowrap}
 
@@ -93,7 +93,9 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-cfrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--rule)}
 .mystic-wood-root .mw-cf{--cf:var(--gold);font-size:12px;line-height:1;padding:5px 9px;border-radius:99px;background:var(--panel2);border:1px solid var(--rule);color:var(--gold2);white-space:nowrap}
 .mystic-wood-root .mw-cf.on{background:var(--cf);border-color:var(--cf);color:#0d0d0d;font-weight:700}
-.mystic-wood-root .le{padding:3px 0;border-bottom:1px solid #ffffff08}
+.mystic-wood-root .le{display:flex;gap:6px;align-items:baseline;padding:3px 0;border-bottom:1px solid #ffffff08}
+.mystic-wood-root .le-emoji{flex:none;width:1.4em;text-align:center}
+.mystic-wood-root .le-text{min-width:0}
 .mystic-wood-root .le b{color:var(--gold2)} .mystic-wood-root .le .g{color:#8fd08a} .mystic-wood-root .le .r{color:var(--crimson)} .mystic-wood-root .le .a{color:var(--azure)} .mystic-wood-root .le .muted{color:var(--muted)}
 
 /* encounter / dice card — a compact popup centred in the VIEWPORT (consistent on every screen size) */

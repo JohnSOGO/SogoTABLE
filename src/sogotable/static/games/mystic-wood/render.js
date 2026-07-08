@@ -14,6 +14,7 @@ let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 let prevPos = {};      // mark -> {r,c}, for gliding tokens between tiles
 let pulseCell = null;  // "r,c" of the legend/map badge currently highlighted
 let clickTimer = null; // single- vs double-tap discrimination
+let lastTapAt = 0;      // timestamp of the previous cell tap, for touch-robust double-tap detection
 let panState = null;    // active drag-to-pan gesture (only when zoomed): {id,x,y,moved,f0,scale}
 let suppressTap = false; // a pan just happened → swallow the click it would otherwise fire
 let chronFilter = null; // Chronicle: mark of the knight whose entries are shown (null = all)
@@ -90,7 +91,7 @@ function boardScreenHtml(ctx, game, me) {
     <div class="mw-status">${stripHtml(ctx, game, me)}</div>
     <div class="mw-boardwrap"><div class="board">${cellsHtml(ctx, game, me)}${tokensHtml(ctx, game)}</div></div>
     <div class="mw-legend">${legendHtml(ctx, game)}</div>
-    <div class="mw-log">${logRows(game, 6)}</div>
+    <div class="mw-log">${logRows(game, 6, logEmojiMap(ctx, game))}</div>
     <div class="mw-actions">${actionsHtml(ctx, game, me)}</div>
   `;
 }
@@ -113,7 +114,7 @@ function statsHtml(seat) {
 }
 function invHtml(seat) {
   let h = "";
-  if (seat.isKing) h += `<span class="chip">👑 King</span>`;
+  if (seat.isKing) h += `<span class="chip holdable" data-peek="king:0">👑 King</span>`;
   (seat.things || []).forEach((t) => { h += `<span class="chip holdable" data-peek="thing:${t.id}">${E(t.name)}</span>`; });
   (seat.prowess || []).forEach((n) => { h += `<span class="chip holdable" data-peek="prowess:0">${E(n)}</span>`; });
   (seat.companions || []).forEach((c) => { h += `<span class="chip comp holdable" data-peek="comp:${c.id}">${E(c.name)}</span>`; });
@@ -170,10 +171,21 @@ function endHtml(ctx, game) {
       <p style="color:var(--muted)">${w ? E(w.name) : "The victor"} ${reason} and rules the Mystic Wood.</p>
     </div>`;
 }
-function logRows(game, n) {
+// name→emoji for the chronicle's leading column: match the canonical knight name the log always writes.
+function logEmojiMap(ctx, game) {
+  const meta = roomMeta(ctx);
+  return (game.players || []).map((p) => ({ name: (KNIGHTS[p.knight] || {}).name || p.name || "", emoji: (meta[p.mark] || {}).icon || "" }))
+    .filter((x) => x.name && x.emoji).sort((a, b) => b.name.length - a.name.length);
+}
+function logEmojiFor(text, map) {
+  const t = String(text || "");
+  for (let i = 0; i < (map || []).length; i += 1) if (t.includes(map[i].name)) return E(map[i].emoji);
+  return "";
+}
+function logRows(game, n, emojiMap) {
   const rows = (game.log || []).slice(-n).reverse();
   if (!rows.length) return `<div class="le muted">The chronicle is empty.</div>`;
-  return rows.map((e) => `<div class="le"><span class="${E(e.cls || "")}">${sanitizeLog(e.text)}</span></div>`).join("");
+  return rows.map((e) => `<div class="le"><span class="le-emoji">${emojiMap ? logEmojiFor(e.text, emojiMap) : ""}</span><span class="le-text ${E(e.cls || "")}">${sanitizeLog(e.text)}</span></div>`).join("");
 }
 // log text may contain the game's own <b>/<span class='g'>… markup — allow a safe subset.
 function sanitizeLog(t) {
@@ -331,6 +343,7 @@ function peekContent(game, spec) {
   if (type === "horse") return { title: "Horse", body: "+2 Strength. Not a companion; another knight can win it in a joust." };
   if (type === "tower") return { title: "Imprisoned in the Tower", body: "Each turn roll a die — escape on 5–6, or freed on the 4th turn. The Key frees you at once." };
   if (type === "captured") return { title: "Captured by the Enchantress", body: "Each turn, roll — escape on a 6." };
+  if (type === "king") return { title: "👑 King of the Wood", body: "You struck down the King and wear the crown. <b>Hold the Castle through a full turn to win as King.</b> (Britomart never takes the crown.)" };
   return null;
 }
 function denizenSummary(id) {
@@ -495,15 +508,21 @@ function wireBoard(root, ctx, game, me) {
       if (suppressTap) { suppressTap = false; return; }  // this click ends a pan, not a tap
       if (ev.target.closest(".holdable")) return; // a peek tap, not a move/zoom
       const [r, c] = cell.getAttribute("data-cell").split(",").map(Number);
-      if (clickTimer) {                                   // double tap → zoom in on this tile
-        clearTimeout(clickTimer); clickTimer = null;
+      const now = Date.now();
+      // Double-tap detection by timestamp (robust on touch — the 2nd tap may land a beat late, or on a
+      // non-reachable tile, and still zooms) instead of relying on the pending single-tap timer.
+      if (now - lastTapAt < 350) {                        // double tap → zoom in on this tile
+        lastTapAt = 0;
+        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
         view.focus = { r, c }; view.zoom = Math.min(ZOOM_WIDTHS.length - 1, (view.zoom || 0) + 1); applyZoom(true);
         return;
       }
+      lastTapAt = now;
+      if (clickTimer) clearTimeout(clickTimer);
       clickTimer = setTimeout(() => {                     // single tap → move (if reachable)
         clickTimer = null;
         if (cell.classList.contains("reachable") && !(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "move", r, c });
-      }, 250);
+      }, 350);
     });
   });
   // legend badges: tap to pulse the badge and its tile on the map
