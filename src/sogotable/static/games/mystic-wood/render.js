@@ -71,7 +71,7 @@ function boardScreenHtml(ctx, game, me) {
       <button data-top="chron">📜</button>
     </div>
     <div class="mw-status">${stripHtml(ctx, game, me)}</div>
-    <div class="mw-boardwrap"><div class="board">${cellsHtml(ctx, game, me)}</div></div>
+    <div class="mw-boardwrap"><div class="board">${cellsHtml(ctx, game, me)}${tokensHtml(ctx, game)}</div></div>
     <div class="mw-legend">${legendHtml(ctx, game)}</div>
     <div class="mw-log">${logRows(game, 6)}</div>
     <div class="mw-actions">${actionsHtml(ctx, game, me)}</div>
@@ -181,7 +181,6 @@ function cellsHtml(ctx, game, me) {
   const meSeat = game.players.find((p) => p.mark === me);
   const myTurn = game.current_player === me && game.status === "playing" && meSeat && !meSeat.tower && !meSeat.captured && !game.pending;
   const reach = myTurn ? reachableSet(game, meSeat) : new Set();
-  const meta = roomMeta(ctx);
   let h = "";
   for (let r = 0; r < 9; r += 1) for (let c = 0; c < 7; c += 1) {
     const t = game.board[r * 7 + c], idx = r * 7 + c, pc = `${r},${c}`;
@@ -194,16 +193,24 @@ function cellsHtml(ctx, game, me) {
       if (t.name && AREA_NAMES[t.name]) h += `<div class="infomark holdable" data-peek="area:${pc}">ⓘ</div>`;
       if (t.card) h += `<div class="cardmark holdable${pulseCell === pc ? " mw-pulse" : ""}" data-peek="card:${pc}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</div>`;
     } else { h += `<div class="facedown"></div>`; }
-    game.players.forEach((p, i) => {
-      if (p.r === r && p.c === c && !p.won) {
-        const md = meta[p.mark] || {};
-        const face = md.icon || (p.name || "?")[0];
-        h += `<div class="tok holdable" data-peek="tok:${p.mark}" data-mark="${p.mark}" style="background:${E(md.color || p.color)};left:${6 + i * 20}px;top:6px">${E(face)}</div>`;
-      }
-    });
     h += `</div>`;
   }
   return h;
+}
+// Tokens are BOARD children (not cell children) positioned at board coordinates, so they glide across
+// the whole board on a move without being clipped by any cell's overflow:hidden.
+const PAD = 8;
+function tokensHtml(ctx, game) {
+  const meta = roomMeta(ctx);
+  const stack = {};
+  return game.players.map((p) => {
+    if (p.won) return "";
+    const key = `${p.r},${p.c}`, i = stack[key] || 0; stack[key] = i + 1;
+    const md = meta[p.mark] || {};
+    const face = md.icon || (p.name || "?")[0];
+    const left = PAD + p.c * CW + 6 + i * 20, top = PAD + p.r * CH + 6;
+    return `<div class="tok holdable" data-peek="tok:${p.mark}" data-mark="${p.mark}" style="background:${E(md.color || p.color)};left:${left.toFixed(1)}px;top:${top.toFixed(1)}px">${E(face)}</div>`;
+  }).join("");
 }
 function legendHtml(ctx, game) {
   const badges = [];
