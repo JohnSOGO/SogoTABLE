@@ -33,6 +33,19 @@ concerns first within a section. Put the how-to in the topic doc and link it.
   self-contained one-liner — no "…" to fill in, no assumed setup), exactly what to send back,
   and any "do NOT click X" guardrails. Assume nothing about environment or prior steps.
   Number the steps. One unambiguous task per turn.
+- **Calibrate to his tooling literacy — MojoSOGO does NOT live in DevTools/F12/console.** Prefer
+  point-and-click capture: **right-click the element → Inspect** selects it and shows its exact
+  path in the breadcrumb (that's how he handed over the `html > … > div.modal` that cracked the
+  bug); right-click → Copy → "Copy selector"/"Copy element" also works. If a console one-liner is
+  genuinely required, walk him in every step: press **F12** (or right-click → Inspect), click the
+  **Console** tab, paste this exact line, press **Enter**, copy the line it prints back. Never
+  assume he knows "the F12 stuff."
+- **Pin the RIGHT object.** When you're both saying "the popup"/"the tile," make sure it's the same
+  element — there may be several `.modal`s or a stale one. Have him right-click → Inspect the
+  specific thing and send the breadcrumb path, or give a selector to confirm, before acting on it.
+- **He'd rather help than watch you burn an hour and credits guessing — so delegate early.** Reaching
+  for the external agent is the *preferred* fast path when tools can't reach, not a last resort. A
+  60-second copy-paste from him beats 60 minutes of blind iteration.
 - **A subagent inherits your framing — point it at the bug, not your prior.** If you've
   already decided "it's probably X," a diagnostic agent prompted around X will thoroughly
   *confirm* X. Ask it to find *what's wrong*, name the full search surface (all files, not a
