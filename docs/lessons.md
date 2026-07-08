@@ -69,6 +69,16 @@ concerns first within a section. Put the how-to in the topic doc and link it.
   `getBoundingClientRect()` + `getComputedStyle(el).position` one-liner from the browser
   console. An element reading `position:fixed` at `[0,0]` when your CSS never set it = a
   shell class collision. Turned a multi-day guessing loop into a five-minute find.
+- **iOS Safari WITHHOLDS the 2nd `click` of a double-tap — use pointer events for tap
+  gestures.** Mystic Wood's double-tap-to-zoom worked on a mouse but never on iPhone,
+  through many attempts, because Safari recognises the double-tap as a gesture and fires
+  only ONE `click` (the 1st) — so any click-based double-tap detector never sees tap #2.
+  (Single-tap *move* worked on iPhone precisely because the 1st click does fire.) Fix:
+  drive board tap / double-tap / drag off **pointer events** (`pointerdown`/`pointermove`/
+  `pointerup`), which iOS delivers per-tap, and set `touch-action:none` so Safari doesn't
+  claim the gesture. Resolve the tapped cell from pointer **coordinates** through the
+  board's live transform, not `e.target.closest('.cell')`, so a tap on an overlay (token/
+  badge) still hits the tile beneath. Any game adding tap/double-tap must do the same.
 - **The `GAME_HANDLERS` dispatch row lives in `workers/games/handlers.js`** — one import +
   one row — **not** `workers/sogotable-api.js` (older docs said otherwise). The worker
   entry stays a router. → `adding-a-game.md` Phase 2.

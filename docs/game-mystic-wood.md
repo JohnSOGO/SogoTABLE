@@ -102,10 +102,14 @@ rules win. (Report IDs are the in-app `bugreports` slugs.)
    asks the player to fulfil his quest, before the first move. **Ask:** Sogo to provide the
    copy, and whether it's one shared framing or per-knight. **Close-out:** one-time modal in
    `render.js` (gate per `view.gameKey`), text in `content.js`.
-7. **[mrbtylnl / mrc24ovl] Double-tap zoom on phone — FIX SHIPPED, needs Sogo to verify.** —
-   Rewrote double-tap to timestamp detection (350ms, works on non-reachable tiles) + pan.
-   **Ask:** Sogo to confirm on iPhone. **Close-out:** if still broken, the click cascade isn't
-   firing — move tap/double-tap detection onto `pointerup` (guarding against the pan gesture).
+7. **[mrbtylnl / mrc24ovl] Double-tap zoom on phone — REWRITTEN to pointer events (`ddd2ba6`),
+   needs Sogo to verify.** — Root cause found: iOS Safari withholds the **2nd click** of a
+   double-tap, so click-based zoom could never fire on iPhone (single-tap move worked because
+   the 1st click does). Board input is now fully pointer-event driven (tap / double-tap / pan),
+   tapped cell mapped from coordinates. **Ask:** Sogo to confirm on iPhone. **Close-out if STILL
+   broken:** the peek's `touchstart.preventDefault()` may cancel the pointer stream on holdables
+   (watch for `pointercancel`), or widen the 400ms window — capture pointer-event diagnostics
+   from the device. See `docs/lessons.md` (iOS double-tap).
 
 ## Status
 
