@@ -590,22 +590,26 @@ function applyZoom(animate) {
   if (!wrap || !board) return;
   const CELL = 96, gap = 3, cw = CELL + gap, ch = CELL * 0.72 + gap, pad = 8;
   const bw = 7 * cw - gap + pad * 2, bh = 9 * ch - gap + pad * 2;
-  // Compact map at the TOP: fit the whole board to the WIDTH and size the wrap to exactly that height
-  // (capped so the chronicle always keeps room). The root fills the viewport, so .mw-log (flex:1) fills
-  // whatever height the map leaves — the map rides up under the player strip, the chronicle grows below.
+  const RM = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The map panel's HEIGHT tracks the zoom level: at full view it's compact (fit-to-width) so it rides up
+  // under the player strip and the chronicle fills below; when zoomed in it GROWS to fill the space (down
+  // to a >=84px chronicle sliver) so the zoom actually reads. Both the panel height and the board scale
+  // animate together on a user zoom, so double-tap glides in instead of snapping.
   const kids = [...root.children];
   const rootTop = root.getBoundingClientRect().top;
   const availRoot = Math.floor(window.innerHeight - rootTop - 4);
   if (availRoot > 260) root.style.height = availRoot + "px";
   const otherH = kids.filter((c) => c !== wrap && !/mw-log/.test(c.className || "")).reduce((a, c) => a + (c.offsetHeight || 0), 0);
   const vw = wrap.clientWidth; if (!vw) return;
-  const maxMap = Math.max(160, availRoot - otherH - 84);        // always leave >=84px for the chronicle
-  const mapH = Math.max(160, Math.min(Math.round(bh * (vw / bw)), maxMap));
+  const zoom = view.zoom || 0;
+  const bigMap = Math.max(160, availRoot - otherH - 84);        // zoomed: map fills the space, chronicle at min
+  const fitMap = Math.max(160, Math.min(Math.round(bh * (vw / bw)), bigMap)); // full view: compact fit-to-width
+  const mapH = zoom === 0 ? fitMap : bigMap;
+  wrap.style.transition = (animate && !RM) ? "height .3s ease" : "none";
   wrap.style.height = mapH + "px";
-  const vh = wrap.clientHeight || mapH; if (!vh) return;
-  const N = ZOOM_WIDTHS[view.zoom || 0] || 7;
-  let scale = vw / (N * cw);
-  if ((view.zoom || 0) === 0) scale = Math.min(vw / bw, vh / bh);   // full view: fit the WHOLE board (real bw/bh incl. padding) so it centres
+  const vh = mapH; if (!vh) return;
+  const N = ZOOM_WIDTHS[zoom] || 7;
+  let scale = zoom === 0 ? Math.min(vw / bw, vh / bh) : vw / (N * cw);   // full view fits the WHOLE board; zoomed shows N cells wide
   const seat = game.players.find((p) => p.mark === me);
   const f = view.focus || (seat ? { r: seat.r, c: seat.c } : { r: 4, c: 3 });
   const fx = pad + (f.c + 0.5) * cw - gap / 2, fy = pad + (f.r + 0.5) * ch - gap / 2;
@@ -613,7 +617,6 @@ function applyZoom(animate) {
   const sw = bw * scale, sh = bh * scale;
   tx = sw > vw ? Math.min(0, Math.max(vw - sw, tx)) : (vw - sw) / 2;
   ty = sh > vh ? Math.min(0, Math.max(vh - sh, ty)) : (vh - sh) / 2;
-  const RM = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   board.style.transition = (animate && !RM) ? "transform .3s ease" : "none";
   board.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${scale.toFixed(3)})`;
 }
