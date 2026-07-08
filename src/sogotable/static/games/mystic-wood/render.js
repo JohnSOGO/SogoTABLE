@@ -13,6 +13,7 @@ let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 let prevPos = {};      // mark -> {r,c}, for gliding tokens between tiles
 let pulseCell = null;  // "r,c" of the legend/map badge currently highlighted
 let clickTimer = null; // single- vs double-tap discrimination
+let chronFilter = null; // Chronicle: mark of the knight whose entries are shown (null = all)
 
 function roomMeta(ctx) { const m = {}; ((ctx.room && ctx.room.players) || []).forEach((p) => { m[p.mark] = { icon: p.icon || "", color: p.color }; }); return m; }
 
@@ -38,7 +39,7 @@ export function renderMysticWoodGame(ctx) {
   const game = ctx.game || {};
   const gameKey = `${(ctx.room && ctx.room.code) || "?"}`;
   const justInit = view.gameKey !== gameKey;
-  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; }
+  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
   const me = localMark(ctx);
   let root = host.querySelector(".mystic-wood-root");
@@ -511,10 +512,28 @@ function openPanel(root, ctx, game, me, which) {
   const back = document.createElement("div"); back.className = "mw-backdrop"; back.addEventListener("click", closePanel); document.body.appendChild(back);
   const panel = document.createElement("div"); panel.className = "mystic-wood-root mw-panelover " + (which === "knights" ? "mw-knights" : "mw-chronicle");
   if (which === "knights") panel.innerHTML = `<h2 style="font-size:22px;margin-bottom:10px">Knights</h2>${game.players.map((p) => knightCard(p, p.mark === game.current_player)).join("")}`;
-  else panel.innerHTML = `<h2 style="font-size:22px;margin-bottom:10px">Chronicle</h2><div>${logRows(game, 60)}</div>`;
+  else { panel.innerHTML = chronicleHtml(game); wireChron(panel, game); }
   document.body.appendChild(panel);
   requestAnimationFrame(() => panel.classList.add("open"));
   panel.querySelectorAll("[data-peek]").forEach((el) => { const show = (ev) => { ev.stopPropagation(); const pt = ev.touches ? ev.touches[0] : ev; const c = peekContent(game, el.getAttribute("data-peek")); if (c) showPop(pt.clientX, pt.clientY, c.title, c.body); }; el.addEventListener("mousedown", show); el.addEventListener("touchstart", show, { passive: false }); });
+}
+// Canonical knight name — the log always writes knightOf(seat).name, so filtering matches on it.
+function knightName(p) { return (KNIGHTS[p.knight] || {}).name || p.name || ""; }
+function chronicleHtml(game) {
+  const chips = [`<button class="mw-cf${chronFilter == null ? " on" : ""}" data-cf="all">All</button>`]
+    .concat(game.players.map((p) => `<button class="mw-cf${chronFilter === p.mark ? " on" : ""}" data-cf="${p.mark}" style="--cf:${E(p.color)}">${E(knightName(p))}</button>`));
+  let rows = game.log || [];
+  if (chronFilter) { const p = game.players.find((q) => q.mark === chronFilter); const nm = p && knightName(p); rows = nm ? rows.filter((e) => String(e.text || "").includes(nm)) : rows; }
+  rows = rows.slice(-60).reverse();
+  const list = rows.length ? rows.map((e) => `<div class="le"><span class="${E(e.cls || "")}">${sanitizeLog(e.text)}</span></div>`).join("")
+    : `<div class="le muted">No entries${chronFilter ? " for this knight" : ""} yet.</div>`;
+  return `<h2 style="font-size:22px;margin-bottom:8px">Chronicle</h2><div class="mw-cfrow">${chips.join("")}</div><div class="mw-chronlist">${list}</div>`;
+}
+function wireChron(panel, game) {
+  panel.querySelectorAll("[data-cf]").forEach((b) => b.addEventListener("click", () => {
+    const v = b.getAttribute("data-cf"); chronFilter = v === "all" ? null : v;
+    panel.innerHTML = chronicleHtml(game); wireChron(panel, game);
+  }));
 }
 function closePanel() { document.querySelectorAll(".mw-panelover,.mw-backdrop").forEach((n) => n.remove()); }
 function knightCard(p, active) {

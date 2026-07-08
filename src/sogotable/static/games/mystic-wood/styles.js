@@ -90,6 +90,9 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root.mw-chronicle{right:0;transform:translateX(102%);border-left:2px solid var(--gold)}
 .mystic-wood-root.mw-panelover.open{transform:translateX(0)}
 .mw-backdrop{position:fixed;inset:0;background:#0008;z-index:55}
+.mystic-wood-root .mw-cfrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--rule)}
+.mystic-wood-root .mw-cf{--cf:var(--gold);font-size:12px;line-height:1;padding:5px 9px;border-radius:99px;background:var(--panel2);border:1px solid var(--rule);color:var(--gold2);white-space:nowrap}
+.mystic-wood-root .mw-cf.on{background:var(--cf);border-color:var(--cf);color:#0d0d0d;font-weight:700}
 .mystic-wood-root .le{padding:3px 0;border-bottom:1px solid #ffffff08}
 .mystic-wood-root .le b{color:var(--gold2)} .mystic-wood-root .le .g{color:#8fd08a} .mystic-wood-root .le .r{color:var(--crimson)} .mystic-wood-root .le .a{color:var(--azure)} .mystic-wood-root .le .muted{color:var(--muted)}
 
