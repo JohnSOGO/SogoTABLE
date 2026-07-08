@@ -95,7 +95,7 @@ export const MYSTIC_WOOD_CSS = `
 /* encounter / dice card — a compact popup centred in the VIEWPORT (consistent on every screen size) */
 .mystic-wood-root.mw-portal{position:fixed;inset:0;z-index:70;display:block;width:auto;background:none;pointer-events:none}
 .mw-portal .overlay{position:fixed;inset:0;background:#000b;display:grid;place-items:center;pointer-events:auto;padding:16px;box-sizing:border-box}
-.mw-portal .modal{background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:12px 13px;width:fit-content;max-width:min(340px,calc(100vw - 32px));box-shadow:0 12px 36px #000c;max-height:86vh;overflow-y:auto;overflow-x:hidden}
+.mw-portal .modal{position:static;inset:auto;display:block;z-index:auto;background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:12px 13px;width:fit-content;max-width:min(340px,calc(100vw - 32px));box-shadow:0 12px 36px #000c;max-height:86vh;overflow-y:auto;overflow-x:hidden}
 .mw-portal .modal h2{font-size:18px;color:var(--gold2);margin:2px 0 4px}
 .mw-portal .modal p{font-size:13px;margin:5px 0}
 .mw-portal .modal .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center}
