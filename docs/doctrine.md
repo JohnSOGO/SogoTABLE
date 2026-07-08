@@ -30,6 +30,7 @@ doctrine index points back to it.
 - [Wu Wei Method](wu-wei-method.md): the flow doctrine for shaping the app so correct play is the natural path.
 - [Modularity](modularity.md): the structure doctrine for module ownership, no god files, and growing code by extracting seams.
 - [Adding a Game](adding-a-game.md): the intake survey, build checklist, and AI-handoff brief for a new game module.
+- [Lessons & Gotchas](lessons.md): cross-cutting traps that cost real time (shell CSS class collisions, deploy lag, per-seat state) — read before re-paying for them.
 - [Building Offline UI Prototypes](offline-ui.md): the UI shape and shell contract for a Phase 0 standalone (no intro/setup, N-player, status table at the bottom).
 - [AREC](AREC.md): the idea-pressure test used before new concepts become doctrine or architecture.
 - [Bot Behavior](bots/index.md): the durable bot behavior contract, roster expectations, and shared strategy notes.

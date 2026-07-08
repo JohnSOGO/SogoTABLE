@@ -577,3 +577,5 @@ Rule), which is exactly why it's safe to ship the moment it's done.
 - [Cloudflare Quota Guardrails](cloudflare-quota.md) — why the client/server
   split matters for cost.
 - [Bot Behavior](bots/index.md) and [AI Difficulty Ladder](ai-difficulty.md).
+- [Lessons & Gotchas](lessons.md) — the traps that cost real time (CSS class
+  collisions, deploy lag, per-seat state); read before you re-pay for them.
