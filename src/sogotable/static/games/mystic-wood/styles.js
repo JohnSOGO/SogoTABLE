@@ -32,7 +32,7 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-topbar button{padding:7px 9px;font-size:12px;white-space:nowrap}
 .mystic-wood-root .mw-tb-turn{flex:1;min-width:0;text-align:center;font-family:var(--serif);font-size:15px;font-variant:small-caps;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--gold2)}
 .mystic-wood-root .mw-status{background:var(--panel);border-bottom:1px solid var(--rule);padding:6px 8px}
-.mystic-wood-root .mw-boardwrap{position:relative;overflow:hidden;width:100%;min-height:120px;flex:none;background:#0f1409;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
+.mystic-wood-root .mw-boardwrap{position:relative;overflow:hidden;width:100%;min-height:120px;flex:none;touch-action:none;background:#0f1409;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
 :root[data-theme="light"] .mystic-wood-root .mw-boardwrap{background:#c9d0b4}
 .mystic-wood-root .board{--cell:96px;position:absolute;top:0;left:0;transform-origin:0 0;display:grid;grid-template-columns:repeat(7,var(--cell));grid-auto-rows:calc(var(--cell)*0.72);gap:3px;padding:8px}
 .mystic-wood-root .cell{position:relative;display:block;aspect-ratio:auto;border-radius:5px;overflow:hidden;outline:2px solid transparent;transition:outline-color .1s;background:none;border:none;box-shadow:none;margin:0;padding:0;min-width:0;min-height:0;font-size:inherit;font-weight:inherit;touch-action:manipulation}

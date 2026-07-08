@@ -14,6 +14,8 @@ let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 let prevPos = {};      // mark -> {r,c}, for gliding tokens between tiles
 let pulseCell = null;  // "r,c" of the legend/map badge currently highlighted
 let clickTimer = null; // single- vs double-tap discrimination
+let panState = null;    // active drag-to-pan gesture (only when zoomed): {id,x,y,moved,f0,scale}
+let suppressTap = false; // a pan just happened → swallow the click it would otherwise fire
 let chronFilter = null; // Chronicle: mark of the knight whose entries are shown (null = all)
 let encTimer = null;    // deferred encounter reveal (waits for the mover's token glide)
 
@@ -490,6 +492,7 @@ function wireBoard(root, ctx, game, me) {
   }));
   root.querySelectorAll(".cell").forEach((cell) => {
     cell.addEventListener("click", (ev) => {
+      if (suppressTap) { suppressTap = false; return; }  // this click ends a pan, not a tap
       if (ev.target.closest(".holdable")) return; // a peek tap, not a move/zoom
       const [r, c] = cell.getAttribute("data-cell").split(",").map(Number);
       if (clickTimer) {                                   // double tap → zoom in on this tile
@@ -515,7 +518,42 @@ function wireBoard(root, ctx, game, me) {
     el.addEventListener("mousedown", show); el.addEventListener("touchstart", show, { passive: false });
     el.addEventListener("mouseleave", requestHide); el.addEventListener("click", (e) => e.stopPropagation());
   });
+  // drag-to-pan (only when zoomed): start the gesture; document-level move/up (below) carry it out
+  const wrapEl = root.querySelector(".mw-boardwrap");
+  if (wrapEl) wrapEl.addEventListener("pointerdown", (e) => {
+    suppressTap = false;
+    if ((view.zoom || 0) === 0) { panState = null; return; }   // full view fits everything — nothing to pan
+    const vw = wrapEl.clientWidth || 1, scale = vw / ((ZOOM_WIDTHS[view.zoom] || 7) * CW);
+    panState = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, f0: currentFocus(game, me), scale };
+  });
 }
+// The board's current centre in fractional cell coords: an explicit focus (double-tap / prior pan) or my knight.
+function currentFocus(game, me) {
+  if (view.focus) return { r: view.focus.r, c: view.focus.c };
+  const seat = (game.players || []).find((p) => p.mark === me);
+  return seat ? { r: seat.r, c: seat.c } : { r: 4, c: 3 };
+}
+const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+function onPanMove(e) {
+  if (!panState || e.pointerId !== panState.id) return;
+  const dpx = e.clientX - panState.x, dpy = e.clientY - panState.y;
+  if (!panState.moved && Math.hypot(dpx, dpy) < 8) return;      // small movements stay taps
+  panState.moved = true;
+  hidePop();                                                   // a drag cancels any press-hold peek
+  if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; } // ...and the pending single-tap move
+  // finger right → reveal content to the left → focus moves left; convert px delta to cell delta by the scale
+  const dc = -dpx / (panState.scale * CW), dr = -dpy / (panState.scale * CH);
+  view.focus = { r: clampN(panState.f0.r + dr, 0, 8), c: clampN(panState.f0.c + dc, 0, 6) };
+  applyZoom(false);                                            // recompute + clamp the transform to bounds
+}
+function onPanUp(e) {
+  if (!panState || e.pointerId !== panState.id) return;
+  if (panState.moved) suppressTap = true;                      // the trailing click is a pan-end, not a tap
+  panState = null;
+}
+document.addEventListener("pointermove", onPanMove);
+document.addEventListener("pointerup", onPanUp);
+document.addEventListener("pointercancel", onPanUp);
 document.addEventListener("mouseup", requestHide);
 document.addEventListener("touchend", requestHide);
 
