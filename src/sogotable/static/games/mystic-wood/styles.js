@@ -32,7 +32,7 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-topbar button{padding:7px 9px;font-size:12px;white-space:nowrap}
 .mystic-wood-root .mw-tb-turn{flex:1;min-width:0;text-align:center;font-family:var(--serif);font-size:15px;font-variant:small-caps;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--gold2)}
 .mystic-wood-root .mw-status{background:var(--panel);border-bottom:1px solid var(--rule);padding:6px 8px}
-.mystic-wood-root .mw-boardwrap{position:relative;overflow:hidden;width:100%;min-height:min(78vw,52vh);background:#0f1409;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
+.mystic-wood-root .mw-boardwrap{position:relative;overflow:hidden;width:100%;min-height:120px;flex:none;background:#0f1409;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
 :root[data-theme="light"] .mystic-wood-root .mw-boardwrap{background:#c9d0b4}
 .mystic-wood-root .board{--cell:96px;position:absolute;top:0;left:0;transform-origin:0 0;display:grid;grid-template-columns:repeat(7,var(--cell));grid-auto-rows:calc(var(--cell)*0.72);gap:3px;padding:8px}
 .mystic-wood-root .cell{position:relative;display:block;aspect-ratio:auto;border-radius:5px;overflow:hidden;outline:2px solid transparent;transition:outline-color .1s;background:none;border:none;box-shadow:none;margin:0;padding:0;min-width:0;min-height:0;font-size:inherit;font-weight:inherit;touch-action:manipulation}
@@ -52,7 +52,7 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-pulse{animation:mw-pulse .9s ease-in-out infinite;border-color:#7be07b}
 @keyframes mw-pulse{0%,100%{box-shadow:0 0 0 0 rgba(123,224,123,0)}50%{box-shadow:0 0 0 5px rgba(123,224,123,.5)}}
 .mystic-wood-root .cardmark.mw-pulse{outline:2px solid #7be07b}
-.mystic-wood-root .mw-log{height:62px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
+.mystic-wood-root .mw-log{flex:1 1 auto;min-height:84px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
 .mystic-wood-root .mw-actions{display:flex;justify-content:center;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-top:1px solid var(--rule);overflow-x:auto;flex-wrap:nowrap;border-radius:0 0 10px 10px}
 .mystic-wood-root .mw-actions button{font-size:12px;padding:8px 11px;white-space:nowrap;flex:0 0 auto;width:auto;height:auto}
 .mystic-wood-root .mw-prompt{flex:none;align-self:center;font-size:11px;color:var(--muted);white-space:nowrap;padding-right:2px}

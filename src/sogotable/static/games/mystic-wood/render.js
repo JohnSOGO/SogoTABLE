@@ -47,7 +47,7 @@ export function renderMysticWoodGame(ctx) {
   let root = host.querySelector(".mystic-wood-root");
   if (!root) { host.innerHTML = ""; root = document.createElement("div"); root.className = "mystic-wood-root"; host.appendChild(root); }
 
-  if (game.status === "complete") { root.innerHTML = endHtml(ctx, game); wireTop(root, ctx, game, me); return; }
+  if (game.status === "complete") { closePortals(); root.innerHTML = endHtml(ctx, game); wireTop(root, ctx, game, me); return; }
   // if my knight moved while zoomed & following me, keep the view centred on me (prevPos still holds the old spot)
   const lp = (game.players || []).find((p) => p.mark === me);
   const iMoved = !!(lp && prevPos[me] && (prevPos[me].r !== lp.r || prevPos[me].c !== lp.c)); // did my token glide this render?
@@ -387,7 +387,10 @@ function showEncounter(ctx, game) {
   </div></div>`;
   host.querySelectorAll("[data-enc]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;
-    closePortals(); ctx.makeMove({ type: "encounter", choice: b.getAttribute("data-enc") });
+    // Keep this card covering the map while the server resolves — the result modal then swaps in on the
+    // next render (showDice closePortals+opens in one tick), so the map is never seen in between.
+    const row = host.querySelector(".row"); if (row) row.innerHTML = `<div class="hint">Resolving…</div>`;
+    ctx.makeMove({ type: "encounter", choice: b.getAttribute("data-enc") });
   }));
 }
 function tileHeaderHtml(t) {
@@ -587,12 +590,19 @@ function applyZoom(animate) {
   if (!wrap || !board) return;
   const CELL = 96, gap = 3, cw = CELL + gap, ch = CELL * 0.72 + gap, pad = 8;
   const bw = 7 * cw - gap + pad * 2, bh = 9 * ch - gap + pad * 2;
-  // MAX VERTICAL: stretch the board window to fill the space down to the viewport bottom
-  const kids = [...root.children], wi = kids.indexOf(wrap);
-  const belowH = kids.slice(wi + 1).reduce((a, c) => a + c.offsetHeight, 0);
-  const avail = Math.floor(window.innerHeight - wrap.getBoundingClientRect().top - belowH - 6);
-  if (avail > 200) wrap.style.height = avail + "px";
-  const vw = wrap.clientWidth, vh = wrap.clientHeight; if (!vw || !vh) return;
+  // Compact map at the TOP: fit the whole board to the WIDTH and size the wrap to exactly that height
+  // (capped so the chronicle always keeps room). The root fills the viewport, so .mw-log (flex:1) fills
+  // whatever height the map leaves — the map rides up under the player strip, the chronicle grows below.
+  const kids = [...root.children];
+  const rootTop = root.getBoundingClientRect().top;
+  const availRoot = Math.floor(window.innerHeight - rootTop - 4);
+  if (availRoot > 260) root.style.height = availRoot + "px";
+  const otherH = kids.filter((c) => c !== wrap && !/mw-log/.test(c.className || "")).reduce((a, c) => a + (c.offsetHeight || 0), 0);
+  const vw = wrap.clientWidth; if (!vw) return;
+  const maxMap = Math.max(160, availRoot - otherH - 84);        // always leave >=84px for the chronicle
+  const mapH = Math.max(160, Math.min(Math.round(bh * (vw / bw)), maxMap));
+  wrap.style.height = mapH + "px";
+  const vh = wrap.clientHeight || mapH; if (!vh) return;
   const N = ZOOM_WIDTHS[view.zoom || 0] || 7;
   let scale = vw / (N * cw);
   if ((view.zoom || 0) === 0) scale = Math.min(vw / bw, vh / bh);   // full view: fit the WHOLE board (real bw/bh incl. padding) so it centres
