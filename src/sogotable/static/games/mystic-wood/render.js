@@ -37,7 +37,8 @@ export function renderMysticWoodGame(ctx) {
   }
   const game = ctx.game || {};
   const gameKey = `${(ctx.room && ctx.room.code) || "?"}`;
-  if (view.gameKey !== gameKey) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; }
+  const justInit = view.gameKey !== gameKey;
+  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
   const me = localMark(ctx);
   let root = host.querySelector(".mystic-wood-root");
@@ -53,8 +54,12 @@ export function renderMysticWoodGame(ctx) {
   wireBoard(root, ctx, game, me);
   zoomCtx = { root, game, me }; applyZoom(); requestAnimationFrame(() => applyZoom());
   animateTokens(root, game);
-  // overlays: my own most-recent roll result (kept per-seat so bot turns can't clobber it), else a pending encounter
+  // overlays: my own most-recent roll result (kept per-seat so bot turns can't clobber it), else a pending encounter.
   const myRoll = (game.results && me) ? game.results[me] : null;
+  // On a fresh mount (reload / rejoin on mobile) do NOT replay the last combat's dice — replaying it used to
+  // hide a live pending encounter behind a stale modal and softlock the turn. Seed to the latest seq so only
+  // genuinely NEW rolls pop; the pending encounter (if any) then shows normally.
+  if (justInit) seenRoll = myRoll ? (myRoll.seq || 0) : 0;
   if (myRoll && myRoll.seq > seenRoll) { seenRoll = myRoll.seq; showDice(ctx, myRoll); }
   else if (game.pending && game.pending.type === "encounter" && game.pending.mark === me) showEncounter(ctx, game);
 }
@@ -116,6 +121,12 @@ function actionsHtml(ctx, game, me) {
     if (jp.spoils && jp.spoils.things) b += `<button data-jp="thing">🎁 Take a Thing</button>`;
     if (jp.spoils && jp.spoils.companions) b += `<button data-jp="companion">🤝 Take a Companion</button>`;
     return b;
+  }
+  // A pending encounter for me ALWAYS keeps a resolve button in the bar, so a suppressed/dismissed encounter
+  // modal (stale-dice replay, reload, mis-tap) can never dead-end the turn.
+  if (jp && jp.type === "encounter" && jp.mark === me) {
+    const den = DEN[jp.card] || {};
+    return `<button class="primary" data-act="encounter">${jp.combat ? "⚔️ Challenge" : "🤝 Greet"} the ${E(jp.denName || den.name || "denizen")}</button>`;
   }
   let btns = "";
   if (mine && meSeat && !meSeat.tower && !meSeat.captured && !game.pending) {
@@ -436,7 +447,7 @@ function showDice(ctx, roll) {
   }
   host.innerHTML = `<div class="overlay"><div class="modal">${inner}</div></div>`;
   const close = host.querySelector("[data-close]");
-  if (close) close.addEventListener("click", () => closePortals());
+  if (close) close.addEventListener("click", () => { closePortals(); renderMysticWoodGame(ctx); }); // re-render surfaces any still-pending encounter
 }
 
 /* ------------------------------- wiring --------------------------------- */
@@ -458,6 +469,7 @@ function wireBoard(root, ctx, game, me) {
     else if (a === "drink") ctx.makeMove({ type: "drink" });
     else if (a === "transport") openTransport(root, ctx, game, me);
     else if (a === "joust") openJoust(root, ctx, game, me);
+    else if (a === "encounter") showEncounter(ctx, game);
   }));
   root.querySelectorAll("[data-jp]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;
