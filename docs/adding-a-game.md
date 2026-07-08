@@ -319,6 +319,22 @@ game hits (all learned on Yahtzee):
 - **Scope every CSS selector.** A promoted standalone uses generic names (`.row`,
   `.card`, `.die`) that would clobber the shell globally. Wrap the UI in a single
   `.<game>-root` and prefix all rules; inject the stylesheet once.
+  - **Scoping alone is NOT enough — reused generic class names still leak (Mystic Wood
+    lost hours to this twice).** A bare shell rule bleeds *every property your scoped
+    rule doesn't explicitly set*, because it still matches your element. The shell's
+    `.cell{aspect-ratio:1;background:#fff}` (`styles-games.css`) squared this game's
+    board tiles; its `.modal{position:fixed;inset:0}` (`styles-roster.css`) pinned the
+    popup to the top-left even though the card was appended to `<body>` inside a
+    correctly-`fixed` overlay. **So: don't reuse a shell class name for a different
+    element** (use `.<game>-modal`, not `.modal`) OR explicitly reset the leaked layout
+    props (`position`/`display`/`inset`/`aspect-ratio`/`background`/`border`). Grep
+    **all** `src/sogotable/static/styles*.css` (not just `styles-games`/`styles-room` —
+    `styles-roster.css` is easy to miss) for every generic class you reuse.
+  - **Diagnose layout bugs from the live DOM, not by guessing.** Have the user paste a
+    `getBoundingClientRect()` + `getComputedStyle(el).position` one-liner from the browser
+    console and send the numbers. An element reading `position:fixed` at `[0,0]` when your
+    CSS never set it = a shell class collision. That turned a multi-day guessing loop into
+    a five-minute find.
 - **Theme it for dark and light.** The platform is themed (`data-theme` on
   `<html>`) and **every shipped board now has a dark variant** — match that. Add a
   **theme-gated, scoped** dark block — `:root[data-theme="dark"] .<game>-root … {}`
