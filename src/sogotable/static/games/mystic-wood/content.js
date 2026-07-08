@@ -57,8 +57,9 @@ export const THING_DESC = {
 };
 export const COMP_DESC = {
   sage: "Adds +2 Prowess to one contest, then departs.", princess: "+1 Prowess. Won't aid against the King. (Roland's quest companion.)",
-  prince: "Aids one fight, then remains. (Britomart's quest companion.)", grail: "+1 Strength and +1 Prowess. Not a Thing. (Perceval's quest object.)",
-  magician: "A friendly Magician travels with you.", archmage: "On your turn, press <b>✨ Transport</b> beneath the board to send yourself to any revealed place.",
+  prince: "Lends +3 Strength & +3 Prowess to ONE fight (never vs the King, nor George vs the Dragon), then just travels on. (Britomart's quest companion.)", grail: "+1 Strength and +1 Prowess. Not a Thing. (Perceval's quest object.)",
+  magician: "His only power is to raise a Storm on any tile — that rule isn't in this build yet, so he grants no buff for now (no stat bonus).",
+  archmage: "On your turn, press <b>✨ Transport</b> beneath the board to send yourself to any revealed place.",
 };
 export const AREA_NAMES = { cave: "Cave", chapel: "Chapel", castle: "Castle", fountain: "Fountain", grove: "Sacred Grove", island: "Island", palace: "Palace", altar: "Altar", tower: "Tower", egate: "Earthly Gate", xgate: "Enchanted Gate" };
 export const AREA_FX = {
