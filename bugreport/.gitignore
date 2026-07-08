@@ -2,3 +2,5 @@
 *
 !.gitignore
 !export-bug-reports.bat
+!manage-bug-reports.bat
+!README.md
