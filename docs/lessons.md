@@ -26,6 +26,13 @@ concerns first within a section. Put the how-to in the topic doc and link it.
   minutes the instant he pasted a `getComputedStyle(modal).position` result (`fixed` at
   `[0,0]` — impossible from our own CSS, so it *had* to be an external rule). When your tools
   can't reach, he is the sensor/actuator that can — use him as one.
+- **But this external agent is "a raccoon with a flamethrower" — powerful reach, zero patience
+  for ambiguity, so be PRECISE and give a DETAILED, numbered procedure.** A vague ask gets a
+  vague or wrong result (or collateral damage). Spell it out foolproof: exactly where to go
+  (which screen/menu/button), exactly what to type or paste **verbatim** (a complete,
+  self-contained one-liner — no "…" to fill in, no assumed setup), exactly what to send back,
+  and any "do NOT click X" guardrails. Assume nothing about environment or prior steps.
+  Number the steps. One unambiguous task per turn.
 - **A subagent inherits your framing — point it at the bug, not your prior.** If you've
   already decided "it's probably X," a diagnostic agent prompted around X will thoroughly
   *confirm* X. Ask it to find *what's wrong*, name the full search surface (all files, not a
