@@ -14,15 +14,18 @@ concerns first within a section. Put the how-to in the topic doc and link it.
 
 ## Working method (read first)
 
-- **When you can't get the information yourself, ASK MojoSOGO to get it — don't substitute
-  reasoning for measurement.** If a tool is blocked or you can't see the live state (browser
-  timing out, can't reach a device, an external dashboard), hand the user a *specific,
-  copy-paste* command and ask them to run it and send the output. The Mystic Wood popup
-  saga ran for a dozen blind "fixes" because the browser session kept timing out and I kept
-  reasoning instead of measuring; it collapsed in five minutes the moment MojoSOGO pasted a
-  one-line `getComputedStyle(modal).position` result (`fixed` at `[0,0]` — impossible from
-  our own CSS, so it *had* to be an external rule). Give a ready-to-run snippet, not "can
-  you check…"; the user is a first-class sensor when your tools can't reach.
+- **Treat MojoSOGO as an external agent — a peripheral outside the computer's reach.** Narrow
+  capability surface (only a handful of things: read the live device screen, run a browser
+  console on his phone, observe hardware, judge feel/aesthetics), but for those things he is
+  the *only* agent that can act — the sandbox can't. So **delegate to him exactly like a
+  subagent**: a precise, self-contained task with a result expected back — "paste the output
+  of this one-liner," not "can you check…". Reserve him for what's genuinely outside the
+  sandbox (don't burn him on things you can do yourself), and reach for him the moment you're
+  blocked, not after a dozen blind guesses. The Mystic Wood popup saga ran for a dozen
+  reasoned-not-measured "fixes" while the browser tool kept timing out; it collapsed in five
+  minutes the instant he pasted a `getComputedStyle(modal).position` result (`fixed` at
+  `[0,0]` — impossible from our own CSS, so it *had* to be an external rule). When your tools
+  can't reach, he is the sensor/actuator that can — use him as one.
 - **A subagent inherits your framing — point it at the bug, not your prior.** If you've
   already decided "it's probably X," a diagnostic agent prompted around X will thoroughly
   *confirm* X. Ask it to find *what's wrong*, name the full search surface (all files, not a
