@@ -183,6 +183,16 @@ export function resolveSpell(game, seat, tile, spellId) {
 }
 
 /* ----------------------------- reactions -------------------------------- */
+// A short "what did this Thing do to me" note for the result card / chronicle: the stat/power it grants
+// and the seat's resulting totals, so a player sees the buff and their updated stats when they receive it.
+const POWER_NOTE = { cave: "lets you enter the Cave", key: "escapes the Tower once", wand: "rotates your tile", scry: "scries the deck" };
+function thingEffect(seat, id) {
+  const t = THINGS[id] || {}; const parts = [];
+  if (t.S) parts.push(`+${t.S} Strength`);
+  if (t.P) parts.push(`+${t.P} Prowess`);
+  if (t.power) parts.push(POWER_NOTE[t.power] || "a special power");
+  return `${parts.join(", ") || "no bonus"} (now S ${totalS(seat)} · P ${totalP(seat)})`;
+}
 // Apply a greeted denizen's reaction. Returns { endTurn, befriended }.
 export function applyReaction(game, seat, tile, den, act) {
   const name = knightOf(seat).name;
@@ -194,8 +204,8 @@ export function applyReaction(game, seat, tile, den, act) {
   if (act && act.startsWith("give:")) {
     const th = act.slice(5);
     seat.things.push(th);
-    logEvent(game, `${name} receives the ${THINGS[th].name}.`, "a");
     clearCard(game, tile); enforcePower(game, seat);
+    logEvent(game, `${name} receives the ${THINGS[th].name} — ${thingEffect(seat, th)}.`, "a");
     return {};
   }
   if (act && act.startsWith("run")) {
