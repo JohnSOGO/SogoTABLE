@@ -12,6 +12,23 @@ concerns first within a section. Put the how-to in the topic doc and link it.
 
 ---
 
+## Working method (read first)
+
+- **When you can't get the information yourself, ASK MojoSOGO to get it — don't substitute
+  reasoning for measurement.** If a tool is blocked or you can't see the live state (browser
+  timing out, can't reach a device, an external dashboard), hand the user a *specific,
+  copy-paste* command and ask them to run it and send the output. The Mystic Wood popup
+  saga ran for a dozen blind "fixes" because the browser session kept timing out and I kept
+  reasoning instead of measuring; it collapsed in five minutes the moment MojoSOGO pasted a
+  one-line `getComputedStyle(modal).position` result (`fixed` at `[0,0]` — impossible from
+  our own CSS, so it *had* to be an external rule). Give a ready-to-run snippet, not "can
+  you check…"; the user is a first-class sensor when your tools can't reach.
+- **A subagent inherits your framing — point it at the bug, not your prior.** If you've
+  already decided "it's probably X," a diagnostic agent prompted around X will thoroughly
+  *confirm* X. Ask it to find *what's wrong*, name the full search surface (all files, not a
+  subset), and let it contradict you. (The popup agent verified the popup's own CSS was
+  correct — true and useless — because that's what the prompt scoped it to.)
+
 ## Building & porting a game
 
 - **Port the developed UI verbatim — never regenerate it.** When a prototype exists in
