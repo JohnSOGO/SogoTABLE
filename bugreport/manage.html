@@ -128,6 +128,8 @@
   .act.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
   .act.danger.confirm { background: var(--danger); color: #fff; border-color: var(--danger); }
   .act:hover { filter: brightness(1.04); }
+  .rid { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); padding: 1px 6px; border-radius: 6px; cursor: pointer; }
+  .rid:hover { border-color: var(--accent); color: var(--ink); }
 
   .empty, .loading { text-align: center; color: var(--muted); padding: 60px 20px; }
   .empty .big { font-size: 40px; margin-bottom: 10px; }
@@ -186,6 +188,7 @@
 
 <div class="bulk" id="bulk">
   <b id="bulk-count">0 selected</b>
+  <button class="bbtn" data-bulk="copy">📋 Copy</button>
   <button class="bbtn" data-bulk="done">✓ Mark done</button>
   <button class="bbtn" data-bulk="open">↩ Reopen</button>
   <button class="bbtn danger" data-bulk="delete">🗑 Delete</button>
@@ -227,6 +230,34 @@ function relTime(ms) {
 }
 
 function isDone(r) { return r.status === "done"; }
+function getReport(id) { return state.reports.find((r) => r.id === id); }
+
+// A self-contained, paste-into-any-AI task block for one report — everything
+// needed to address it without a passcode lookup.
+function reportToText(r) {
+  const lines = [`Report ID: ${r.id}`];
+  if (r.game) lines.push(`Game: ${r.game}`);
+  if (r.screen) lines.push(`Screen: ${r.screen}`);
+  if (r.room_code) lines.push(`Room: ${r.room_code}`);
+  if (r.player_name) lines.push(`Reported by: ${r.player_name}`);
+  lines.push("", "Issue:", String(r.description || "").trim());
+  return lines.join("\n");
+}
+
+async function copyText(text, label) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    toast(label || "Copied ✓");
+  } catch (e) {
+    toast("⚠️ Copy failed");
+  }
+}
 
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -292,11 +323,12 @@ function cardHtml(r) {
         <span class="time" title="${escapeHtml(new Date(r.created_at || 0).toLocaleString())}">${relTime(r.created_at || 0)}</span>
       </div>
       <div class="desc">${escapeHtml(r.description)}</div>
-      <div class="meta">${meta}</div>
+      <div class="meta">${meta} <span class="dot">·</span> <code class="rid" data-copyid="${escapeHtml(r.id)}" title="Click to copy the report id">${escapeHtml(r.id)}</code></div>
       <div class="actions">
         ${done
           ? `<button class="act reopen" data-act="open" data-id="${escapeHtml(r.id)}">↩ Reopen</button>`
           : `<button class="act primary" data-act="done" data-id="${escapeHtml(r.id)}">✓ Mark done</button>`}
+        <button class="act" data-act="copy" data-id="${escapeHtml(r.id)}">📋 Copy for AI</button>
         <button class="act danger" data-act="delete" data-id="${escapeHtml(r.id)}">🗑 Delete</button>
       </div>
     </div>
@@ -329,11 +361,19 @@ document.getElementById("search").addEventListener("input", (e) => { state.searc
 document.getElementById("refresh").addEventListener("click", load);
 
 document.getElementById("list").addEventListener("click", (e) => {
+  const ridEl = e.target.closest("[data-copyid]");
+  if (ridEl) return copyText(ridEl.dataset.copyid, "Report id copied ✓");
+
   const act = e.target.closest("[data-act]");
   if (act) {
     const id = act.dataset.id;
     if (act.dataset.act === "done") return resolve([id], {}, "Marked done");
     if (act.dataset.act === "open") return resolve([id], { reopen: true }, "Reopened");
+    if (act.dataset.act === "copy") {
+      const r = getReport(id);
+      if (r) copyText("Please investigate and fix this SogoTable bug report.\n\n" + reportToText(r), "Copied for AI ✓");
+      return;
+    }
     if (act.dataset.act === "delete") {
       if (act.classList.contains("confirm")) return resolve([id], { delete: true }, "Deleted");
       act.classList.add("confirm");
@@ -364,6 +404,12 @@ document.getElementById("bulk").addEventListener("click", (e) => {
   const ids = [...state.selected];
   const kind = b.dataset.bulk;
   if (kind === "clear") { state.selected.clear(); render(); return; }
+  if (kind === "copy") {
+    const rs = ids.map(getReport).filter(Boolean);
+    const text = "Please investigate and fix these SogoTable bug reports.\n\n" +
+      rs.map((r, i) => `--- ${i + 1} ---\n` + reportToText(r)).join("\n\n");
+    return copyText(text, `Copied ${rs.length} for AI ✓`);
+  }
   if (kind === "done") return resolve(ids, {}, "Marked done");
   if (kind === "open") return resolve(ids, { reopen: true }, "Reopened");
   if (kind === "delete") {
