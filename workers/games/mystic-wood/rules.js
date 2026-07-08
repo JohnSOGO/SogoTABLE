@@ -12,6 +12,7 @@ import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
   resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
+  resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -47,6 +48,7 @@ function makeSeat(p, knight) {
     things: [], prowess: [], companions: [], horse: false,
     tower: false, towerTries: 0, captured: false, caveTurns: 0,
     questDone: false, isKing: false, castleHold: 0, atGate: false,
+    praying: false, prayerTurns: 0,
     _princeUsed: false, _princeAiding: false, moved: false, won: false,
   };
 }
@@ -102,6 +104,21 @@ function beginSeatTurn(game, seat) {
     if (e >= 5 || seat.towerTries >= 4 || hasThing(seat, "key")) { seat.tower = false; logEvent(game, `${name} escapes the Tower!`, "g"); }
     else { logEvent(game, `${name} rattles the Tower bars (rolled ${e}).`); return "skip"; }
   }
+  // Spend-turns-here mechanics accrue at the start of each turn you remain on the tile.
+  const here = tileNameAt(game, seat);
+  if (seat.q === "cave" && here === "cave" && !seat.questDone) {
+    seat.caveTurns = (seat.caveTurns || 0) + 1;
+    logEvent(game, `${name} keeps vigil in the Cave (${seat.caveTurns}/3).`);
+    if (seat.caveTurns >= 3) { seat.questDone = true; logEvent(game, `${name}'s vigil is complete — now reach the Enchanted Gate!`, "g"); }
+  }
+  if (seat.praying) {
+    const t = cellAt(game.board, seat.r, seat.c);
+    if (t && t.card === "bishop") {
+      seat.prayerTurns = (seat.prayerTurns || 0) + 1;
+      logEvent(game, `${name} prays before the Bishop (${seat.prayerTurns}/3).`);
+      if (seat.prayerTurns >= 3) { seat.things.push("ring"); seat.praying = false; clearCard(game, t, false); logEvent(game, `The Bishop blesses ${name} with the Ring (+1 Prowess).`, "g"); enforcePower(game, seat); }
+    } else { seat.praying = false; logEvent(game, `${name} leaves the Bishop; the prayer lapses.`); }
+  }
   return "act";
 }
 function advanceTurn(game) {
@@ -138,11 +155,7 @@ function enterTile(game, seat, tile) {
     seat.atGate = true;
     logEvent(game, `${name} stands in the Enchanted Gate, quest fulfilled — hold it to your next turn to leave in triumph.`, "g");
   }
-  if (tile.name === "cave" && seat.q === "cave") {
-    seat.caveTurns += 1;
-    logEvent(game, `${name} broods in the Cave (${seat.caveTurns}/3).`);
-    if (seat.caveTurns >= 3) { seat.questDone = true; logEvent(game, `${name}'s quest is fulfilled — now reach the Enchanted Gate!`, "g"); }
-  }
+  if (tile.name === "cave" && seat.q === "cave" && !seat.questDone) logEvent(game, `${name} enters the Cave — keep vigil here for 3 full turns.`);
   if (tile.card && DEN[tile.card].king && seat.knight === "britomart" && !anyKing(game)) {
     logEvent(game, "Britomart pays the King no heed and passes by.");
     passTurn(game); return;
@@ -195,6 +208,33 @@ function doTransport(game, seat, action) {
   relocate(game, seat, to.r, to.c);
   enterTile(game, seat, to);
 }
+function doJoust(game, seat, action) {
+  if (game.pending) throw new Error("Resolve the encounter first.");
+  if (seat.moved) throw new Error("You have already acted this turn.");
+  if (seat.tower || seat.captured) throw new Error("You cannot joust from here.");
+  const tile = cellAt(game.board, seat.r, seat.c);
+  if (tile && tile.name === "tower") throw new Error("There is no jousting in the Tower.");
+  const def = game.players[action && action.target];
+  if (!def || def.mark === seat.mark) throw new Error("Choose a knight to joust.");
+  if (def.won || def.tower || def.captured) throw new Error("That knight cannot be jousted.");
+  if (def.r !== seat.r || def.c !== seat.c) throw new Error("That knight is not in your area.");
+  const res = resolveJoust(game, seat, def);
+  if (res.chWon) {
+    seat.moved = true;                                        // won → pick the prize (turn stays open for it)
+    game.pending = { type: "joust-prize", mark: seat.mark, loser: def.mark };
+  } else {
+    joustPrize(game, def, seat, "tower");                     // lost → the defender unhorses you to the Tower
+    passTurn(game);
+  }
+}
+function doJoustPrize(game, seat, action) {
+  const p = game.pending;
+  if (!p || p.type !== "joust-prize" || p.mark !== seat.mark) throw new Error("There is no joust prize to claim.");
+  const loser = game.players[p.loser];
+  game.pending = null;
+  joustPrize(game, seat, loser, (action && action.prize) || "tower");
+  passTurn(game);
+}
 
 export function makeMysticWoodMove(game, mark, action) {
   if (game.status !== "playing") throw new Error("The game is already over.");
@@ -216,6 +256,8 @@ export function makeMysticWoodMove(game, mark, action) {
       break;
     }
     case "transport": doTransport(game, seat, action); break;
+    case "joust": doJoust(game, seat, action); break;
+    case "joust-prize": doJoustPrize(game, seat, action); break;
     case "end-turn": passTurn(game); break;
     default: throw new Error(`Unknown Mystic Wood action "${type}".`);
   }
@@ -242,6 +284,10 @@ function seatToDict(s) {
 function pendingToDict(game) {
   const p = game.pending;
   if (!p) return null;
+  if (p.type === "joust-prize") {
+    const loser = game.players[p.loser];
+    return { type: p.type, mark: p.mark, loser: p.loser, loserName: KNIGHTS[loser.knight].name, spoils: joustSpoils(loser) };
+  }
   const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat };
   const den = DEN[p.card];
   if (den) {

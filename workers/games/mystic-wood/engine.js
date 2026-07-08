@@ -308,7 +308,7 @@ function applyWin(game, seat, tile, den, id) {
   else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${k.name} takes the ${THINGS[den.gives].name}.`, "g"); clearCard(game, tile); }
   else if (den.king) { becomeKing(game, seat); clearCard(game, tile, false); }
   else if (id === "wizard") { seat.things.push("lance"); logEvent(game, `${k.name} takes the Lance (+1 Strength).`, "g"); clearCard(game, tile); }
-  else if (id === "illusion") { logEvent(game, "The Illusion does your bidding and fades away."); clearCard(game, tile); }
+  else if (id === "illusion") { sendIllusion(game, tile); }
   else clearCard(game, tile);
 }
 export function becomeKing(game, seat) {
@@ -337,10 +337,14 @@ export function resolveGreet(game, seat, tile) {
       } else if (id === "princess") {
         if (total >= 9) befriend(game, seat, tile, id);
         else { logEvent(game, "The Princess flees to the far Gate."); clearCard(game, tile); }
-      } else { // prince
+      } else { // prince — 8+ befriends, 2-7 he ATTACKS (vanquish → he yields & joins)
         if (total >= 8) befriend(game, seat, tile, id);
-        else logEvent(game, `The Prince rebuffs ${k.name}.`); // he remains to be met again
+        else princeAttack(game, seat, tile);
       }
+    } else if (id === "bishop") {
+      startPrayer(game, seat, tile);            // pray 3 full turns → Ring (counted at turn start)
+    } else if (id === "queen") {
+      queenBoon(game, seat, die);               // 5-6 casts a rival into the Tower
     } else {
       const idx = Math.min(6, Math.max(1, die + guyon));
       const act = (den.tbl && den.tbl[idx]) || "remains";
@@ -350,6 +354,79 @@ export function resolveGreet(game, seat, tile) {
   recordRoll(game, seat.mark, { greet: true, die, foeName: den.name,
     result: game.log.slice(before).map((e) => e.text).join("<br>") || `The ${den.name} reacts.` });
   return { endTurn: true };
+}
+
+// Prince attacks on a low greet: a S+P fight. Vanquish him → he yields and joins; lose → the Tower.
+function princeAttack(game, seat, tile) {
+  const name = knightOf(seat).name;
+  let white, red, mine, foe, guard = 0;
+  do { white = d6(); red = d6(); mine = white + totalS(seat) + totalP(seat); foe = red + DEN.prince.S + DEN.prince.P; } while (mine === foe && guard++ < 50);
+  logEvent(game, `The Prince attacks — ${mine} vs ${foe}.`, "a");
+  if (mine > foe) { logEvent(game, `${name} unhorses the Prince, who yields and joins!`, "g"); befriend(game, seat, tile, "prince"); }
+  else { logEvent(game, `The Prince strikes ${name} down — away to the Tower!`, "r"); toTower(game, seat); }
+}
+// Bishop: kneel to pray; 3 full turns on the tile earns the Ring (counted in beginSeatTurn).
+function startPrayer(game, seat, tile) {
+  seat.praying = true; seat.prayerTurns = 0;
+  logEvent(game, `${knightOf(seat).name} kneels to pray before the Bishop (0/3).`);
+}
+// Queen: on a 5-6 she casts a rival into the Tower (auto-picks the leading free opponent — she keeps
+// her seat). One-boon-per-game and player-chosen target are documented fast-follows.
+function queenBoon(game, seat, die) {
+  logEvent(game, `${knightOf(seat).name} kneels before the Queen (rolled ${die}).`);
+  if (die < 5) { logEvent(game, "The Queen grants no boon this time."); return; }
+  const rivals = game.seat_order.map((m) => game.players[m])
+    .filter((p) => p.mark !== seat.mark && !p.tower && !p.captured && !p.won && tileNameAt(game, p) !== "tower");
+  if (!rivals.length) { logEvent(game, "The Queen offers a boon, but no rival is within reach."); return; }
+  rivals.sort((a, b) => (Number(b.questDone) - Number(a.questDone)) || ((totalS(b) + totalP(b)) - (totalS(a) + totalP(a))));
+  const t = rivals[0];
+  logEvent(game, `The Queen grants a boon — ${knightOf(t).name} is cast into the Tower!`, "a");
+  toTower(game, t, false);
+}
+// Illusion "does your bidding": relocate its card to a random revealed, unoccupied, non-Tower glade.
+function sendIllusion(game, tile) {
+  const id = tile.card; tile.card = null;
+  const spots = game.board.filter((t) => t.revealed && !t.card && t.name !== "tower"
+    && !game.seat_order.some((m) => game.players[m].r === t.r && game.players[m].c === t.c));
+  if (spots.length) { spots[rnd(spots.length)].card = id; logEvent(game, "The Illusion does your bidding and drifts off to another glade."); }
+  else logEvent(game, "The Illusion does your bidding and fades away.");
+}
+
+/* ------------------------------- joust ---------------------------------- */
+// The contest only: both knights add full S+P + a die; ties reroll. Records the roll for the
+// challenger so they see the result, and returns who won. The prize is applied separately.
+export function resolveJoust(game, ch, def) {
+  const cName = knightOf(ch).name, dName = knightOf(def).name;
+  let cw, dw, guard = 0;
+  do { cw = d6() + totalS(ch) + totalP(ch); dw = d6() + totalS(def) + totalP(def); } while (cw === dw && guard++ < 50);
+  const chWon = cw > dw;
+  logEvent(game, `${cName} jousts ${dName} — ${cw} vs ${dw}. ${chWon ? cName : dName} prevails!`, "a");
+  recordRoll(game, ch.mark, { joust: true, cw, dw, cName, dName, winnerName: chWon ? cName : dName, chWon });
+  return { chWon };
+}
+// Whether the loser has anything worth taking (so the client only offers valid prizes).
+export function joustSpoils(loser) {
+  return { things: (loser.things.length > 0 || loser.horse), companions: loser.companions.length > 0 };
+}
+// Apply the winner's chosen prize. "tower" imprisons the loser (keeps cards); "thing" takes their
+// best Thing/Horse; "companion" takes one companion. Falls back to Tower if the picked spoil is gone.
+export function joustPrize(game, winner, loser, prize) {
+  const wn = knightOf(winner).name, ln = knightOf(loser).name;
+  if (prize === "thing") {
+    if (loser.horse && !winner.horse) { loser.horse = false; winner.horse = true; logEvent(game, `${wn} wins ${ln}'s Horse (+2 Strength).`, "g"); enforcePower(game, winner); return; }
+    if (loser.things.length) {
+      loser.things.sort((a, b) => ((THINGS[b].S || 0) + (THINGS[b].P || 0)) - ((THINGS[a].S || 0) + (THINGS[a].P || 0)));
+      const t = loser.things.shift(); winner.things.push(t); logEvent(game, `${wn} takes ${ln}'s ${THINGS[t].name}.`, "g"); enforcePower(game, winner); return;
+    }
+  }
+  if (prize === "companion" && loser.companions.length) {
+    const c = loser.companions.shift(); winner.companions.push(c);
+    logEvent(game, `${wn} wins ${ln}'s ${DEN[c].name}.`, "g");
+    if ((winner.q === "princess" && c === "princess") || (winner.q === "prince" && c === "prince")) { winner.questDone = true; logEvent(game, `${wn}'s quest companion is won — leave by the Enchanted Gate!`, "g"); }
+    enforcePower(game, winner); return;
+  }
+  logEvent(game, `${wn} unhorses ${ln} — away to the Tower!`, "r");
+  toTower(game, loser, false);   // sent by a joust → keeps all cards
 }
 
 /* ------------------------------- powers --------------------------------- */

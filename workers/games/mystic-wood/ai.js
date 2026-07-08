@@ -12,6 +12,8 @@ export function playBotTurn(game, seat) {
   const from = cellAt(game.board, seat.r, seat.c);
   // Sit tight on a winning square (hold the Gate/Castle to win next turn).
   if ((seat.questDone && from.name === "xgate") || (seat.isKing && from.name === "castle")) return;
+  // Hold position to accrue a multi-turn objective (Cave vigil / Bishop prayer).
+  if ((seat.q === "cave" && from.name === "cave" && !seat.questDone) || (seat.praying && from.card === "bishop")) return;
   const opts = reachableFrom(game.board, seat, from);
   if (!opts.length) return;
   let target = null;

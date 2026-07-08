@@ -54,9 +54,16 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   to the deck** — both keep quests always completable (they closed real unwinnable-state stalls).
 - **Bishop** gives the Ring instantly; **Dwarf** gives Armour directly; **Ring/Potion/Shield**
   bonuses are placeholders (source `[TBD]`). Generic tiles orient on reveal to stay connected.
-- **Not yet implemented:** jousts, Queen's boon, obligation/rescue companions, Magician's Storm
-  (undefined in sources), Illusion "send to an area", Prince's low-roll attack. Knight selection
-  is random at start; per-seat interactive picking is a planned fast-follow.
+- **Now implemented (2026-07-07):** jousts (same-tile challenge, both S+P, winner chooses
+  Tower / take a Thing / take a companion); Prince's low-roll attack (greet 2–7 → fight →
+  vanquish him and he joins); Bishop's 3-turn prayer for the Ring; Guyon's Cave now counts
+  3 turns *spent* (not entries); Illusion "does your bidding" → relocates to an empty glade;
+  Queen's boon (5–6 casts a rival into the Tower).
+- **Still not implemented:** the **obligation/rescue subsystem** (Boy/Damsel/Child + chivalry
+  cards + delivery — a dedicated feature), and **Magician's Storm** (the recovered rules never
+  state what a Storm *does* — blocked pending the rulebook text; won't be invented). Knight
+  selection is random at start; per-seat interactive picking is a planned fast-follow. Joust
+  refinements (once-per-game Queen boon, player-chosen boon target, Castle defender +2) pending.
 
 ## Status
 

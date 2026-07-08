@@ -56,7 +56,7 @@ export function renderMysticWoodGame(ctx) {
   // overlays: my own most-recent roll result (kept per-seat so bot turns can't clobber it), else a pending encounter
   const myRoll = (game.results && me) ? game.results[me] : null;
   if (myRoll && myRoll.seq > seenRoll) { seenRoll = myRoll.seq; showDice(ctx, myRoll); }
-  else if (game.pending && game.pending.mark === me) showEncounter(ctx, game);
+  else if (game.pending && game.pending.type === "encounter" && game.pending.mark === me) showEncounter(ctx, game);
 }
 
 /* ------------------------------- layout --------------------------------- */
@@ -109,11 +109,21 @@ function actionsHtml(ctx, game, me) {
   const cur = game.players.find((p) => p.mark === game.current_player);
   const meSeat = game.players.find((p) => p.mark === me);
   const mine = game.current_player === me;
+  const jp = game.pending;
+  if (jp && jp.type === "joust-prize" && jp.mark === me) {
+    let b = `<span class="mw-prompt">Won vs ${E(jp.loserName)} — your prize:</span>`;
+    b += `<button data-jp="tower">⛓ To the Tower</button>`;
+    if (jp.spoils && jp.spoils.things) b += `<button data-jp="thing">🎁 Take a Thing</button>`;
+    if (jp.spoils && jp.spoils.companions) b += `<button data-jp="companion">🤝 Take a Companion</button>`;
+    return b;
+  }
   let btns = "";
   if (mine && meSeat && !meSeat.tower && !meSeat.captured && !game.pending) {
     const tile = tileAt(game, meSeat.r, meSeat.c);
     const has = (id) => (meSeat.things || []).some((t) => t.id === id);
     const comp = (id) => (meSeat.companions || []).some((c) => c.id === id);
+    const foes = game.players.filter((p) => p.mark !== me && !p.won && !p.tower && !p.captured && p.r === meSeat.r && p.c === meSeat.c);
+    if (foes.length && !meSeat.moved && !(tile && tile.name === "tower")) btns += `<button data-act="joust">⚔️ Joust</button>`;
     if (tile && tile.name === "fountain") btns += `<button data-act="drink">⛲ Drink</button>`;
     if (has("crystal")) btns += `<button data-act="scry">🔮 Scry</button>`;
     if (has("wand")) btns += `<button data-act="rotate">🔄 Rotate</button>`;
@@ -395,7 +405,12 @@ function showDice(ctx, roll) {
   closePortals();
   const host = portal();
   let inner;
-  if (roll.greet) {
+  if (roll.joust) {
+    inner = `<div class="tag">Joust</div>
+      <div class="result mw-result-big">⚔️ ${E(roll.winnerName)} prevails!</div>
+      <div class="hint">${E(roll.cName)} ${roll.cw} vs ${E(roll.dName)} ${roll.dw}</div>
+      <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
+  } else if (roll.greet) {
     inner = `<div class="tag">You greet the ${E(roll.foeName)}</div>
       <div class="result mw-result-big">${sanitizeLog(roll.result || "The denizen reacts.")}</div>
       <div class="hint">the roll:</div>
@@ -435,6 +450,11 @@ function wireBoard(root, ctx, game, me) {
     else if (a === "rotate") ctx.makeMove({ type: "rotate" });
     else if (a === "drink") ctx.makeMove({ type: "drink" });
     else if (a === "transport") openTransport(root, ctx, game, me);
+    else if (a === "joust") openJoust(root, ctx, game, me);
+  }));
+  root.querySelectorAll("[data-jp]").forEach((b) => b.addEventListener("click", () => {
+    if (ctx.isMovePending && ctx.isMovePending()) return;
+    ctx.makeMove({ type: "joust-prize", prize: b.getAttribute("data-jp") });
   }));
   root.querySelectorAll(".cell").forEach((cell) => {
     cell.addEventListener("click", (ev) => {
@@ -486,6 +506,17 @@ function knightCard(p, active) {
     <div class="quest">${p.questDone ? "✓ " : ""}${E(p.quest || "")}</div>
     <div class="inv">${invHtml(p)}</div>
   </div>`;
+}
+function openJoust(root, ctx, game, me) {
+  const meSeat = game.players.find((p) => p.mark === me);
+  const targets = game.players.filter((p) => p.mark !== me && !p.won && !p.tower && !p.captured && p.r === meSeat.r && p.c === meSeat.c);
+  const bar = root.querySelector(".mw-actions"); if (!bar) return;
+  if (!targets.length) { bar.innerHTML = `<button disabled>No knight to joust here</button>`; return; }
+  bar.innerHTML = `<span class="mw-prompt">Joust which knight?</span>` + targets.map((t) => `<button data-jt="${t.mark}">⚔️ ${E(t.name)}</button>`).join("") + `<button data-jt="cancel">Cancel</button>`;
+  bar.querySelectorAll("[data-jt]").forEach((b) => b.addEventListener("click", () => {
+    const v = b.getAttribute("data-jt"); if (v === "cancel") { renderMysticWoodGame(ctx); return; }
+    if (!(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "joust", target: v });
+  }));
 }
 function openTransport(root, ctx, game, me) {
   const seat = game.players.find((p) => p.mark === me);

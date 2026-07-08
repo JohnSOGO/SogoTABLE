@@ -55,6 +55,7 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-log{height:62px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
 .mystic-wood-root .mw-actions{display:flex;justify-content:center;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-top:1px solid var(--rule);overflow-x:auto;flex-wrap:nowrap;border-radius:0 0 10px 10px}
 .mystic-wood-root .mw-actions button{font-size:12px;padding:8px 11px;white-space:nowrap;flex:0 0 auto;width:auto;height:auto}
+.mystic-wood-root .mw-prompt{flex:none;align-self:center;font-size:11px;color:var(--muted);white-space:nowrap;padding-right:2px}
 
 /* knight strip (status) */
 .mystic-wood-root .pstrip{display:flex;flex-direction:column;gap:3px}
