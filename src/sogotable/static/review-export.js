@@ -65,6 +65,8 @@ const REVIEW_EXPORT_FILES = [
   "workers/games/mystic-wood/ai.js",
   "src/sogotable/static/games/mystic-wood/manifest.js",
   "src/sogotable/static/games/mystic-wood/render.js",
+  "src/sogotable/static/games/mystic-wood/encounter.js",
+  "src/sogotable/static/games/mystic-wood/util.js",
   "src/sogotable/static/games/mystic-wood/horn.js",
   "src/sogotable/static/games/mystic-wood/styles.js",
   "src/sogotable/static/games/mystic-wood/content.js",
