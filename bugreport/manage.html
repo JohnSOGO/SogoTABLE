@@ -164,6 +164,13 @@
   .diff .add { color: var(--done); }
   .diff .del { color: var(--danger); }
   .diff .hunk { color: var(--accent); }
+  .edit-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .edit-note { margin: 0; color: var(--muted); font-size: 13px; }
+  .edit-meta { font-size: 12px; color: var(--muted); }
+  .edit-meta b { color: var(--ink); }
+  .edit-text { width: 100%; min-height: 240px; resize: vertical; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); border-radius: 10px; padding: 12px 14px; font: inherit; font-size: 14px; line-height: 1.5; }
+  .edit-actions { display: flex; align-items: center; gap: 12px; }
+  .edit-hint { color: var(--muted); font-size: 12px; }
 
   .empty, .loading { text-align: center; color: var(--muted); padding: 60px 20px; }
   .empty .big { font-size: 40px; margin-bottom: 10px; }
@@ -237,6 +244,24 @@
       <button class="btn" id="modal-close">✕ Close</button>
     </div>
     <pre id="modal-body" class="diff"></pre>
+  </div>
+</div>
+
+<div id="editModal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <b>🤖 Brief for the agent</b>
+      <button class="btn" id="editCancel">✕ Cancel</button>
+    </div>
+    <div class="edit-body">
+      <p class="edit-note">Edit what the agent will work from — clarify, add detail, or paste extra context. The original report isn't changed.</p>
+      <div class="edit-meta" id="editMeta"></div>
+      <textarea id="editText" class="edit-text" spellcheck="true"></textarea>
+      <div class="edit-actions">
+        <button class="act ship" id="editStart">🤖 Start agent</button>
+        <span class="edit-hint">Ctrl+Enter to start</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -431,7 +456,7 @@ document.getElementById("list").addEventListener("click", (e) => {
     }
     if (act.dataset.act === "address") {
       const r = getReport(id);
-      if (r) addressReport(r, act);
+      if (r) openAddressEditor(r);
       return;
     }
     if (act.dataset.act === "delete") {
@@ -483,18 +508,40 @@ document.getElementById("bulk").addEventListener("click", (e) => {
 let pollTimer = null;
 let lastJobs = [];
 
-async function addressReport(r, btn) {
-  if (btn) { btn.disabled = true; btn.textContent = "🤖 Starting…"; }
+let editingReport = null;
+
+function openAddressEditor(r) {
+  editingReport = r;
+  const meta = [r.game, r.screen, r.room_code ? "room " + r.room_code : "", r.player_name].filter(Boolean).join(" · ");
+  document.getElementById("editMeta").innerHTML = `<b>${escapeHtml(r.id)}</b>${meta ? " · " + escapeHtml(meta) : ""}`;
+  const t = document.getElementById("editText");
+  t.value = String(r.description || "").trim();
+  document.getElementById("editModal").hidden = false;
+  t.focus();
+}
+
+async function startAgent(report) {
   try {
-    const data = await api("/agent/fix", { report: r });
+    const data = await api("/agent/fix", { report });
     toast(`Agent started on ${data.branch}`);
     pollJobs();
   } catch (e) {
     toast("⚠️ " + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "🤖 Address"; }
   }
 }
+
+document.getElementById("editCancel").addEventListener("click", () => { document.getElementById("editModal").hidden = true; });
+document.getElementById("editModal").addEventListener("click", (e) => { if (e.target.id === "editModal") document.getElementById("editModal").hidden = true; });
+document.getElementById("editStart").addEventListener("click", () => {
+  if (!editingReport) return;
+  const edited = String(document.getElementById("editText").value || "").trim();
+  if (!edited) return toast("The brief is empty");
+  document.getElementById("editModal").hidden = true;
+  startAgent({ ...editingReport, description: edited });
+});
+document.getElementById("editText").addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); document.getElementById("editStart").click(); }
+});
 
 async function pollJobs() {
   let jobs = [];
