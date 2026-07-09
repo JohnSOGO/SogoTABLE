@@ -18,6 +18,10 @@ if "%PASSCODE%"=="" (
 
 node "%~dp0..\scripts\serve-bug-manager.mjs" "%PASSCODE%"
 
-echo.
-pause
+rem Clean stop (browser Stop button / Ctrl+C) closes this window; pause only on error.
+if errorlevel 1 (
+  echo.
+  echo The bug manager stopped with an error above.
+  pause
+)
 endlocal

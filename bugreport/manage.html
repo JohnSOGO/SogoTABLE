@@ -219,6 +219,7 @@
       </div>
       <input id="search" class="search" type="search" placeholder="Search description, game, player…" />
       <button class="btn" id="refresh">↻ Refresh</button>
+      <button class="btn" id="stop" title="Stop the manager and close its window">⏻ Stop</button>
     </div>
   </div>
 </header>
@@ -439,6 +440,23 @@ document.getElementById("filters").addEventListener("click", (e) => {
 });
 document.getElementById("search").addEventListener("input", (e) => { state.search = e.target.value; render(); });
 document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("stop").addEventListener("click", async (e) => {
+  const b = e.currentTarget;
+  if (!b.dataset.armed) {
+    b.dataset.armed = "1"; b.textContent = "⏻ Stop server?";
+    setTimeout(() => { if (b) { delete b.dataset.armed; b.textContent = "⏻ Stop"; } }, 3000);
+    return;
+  }
+  try { await fetch("/shutdown", { method: "POST" }); } catch { /* server already gone */ }
+  clearTimeout(pollTimer);
+  document.body.innerHTML =
+    '<div style="max-width:460px;margin:18vh auto;text-align:center;font-family:system-ui,sans-serif;color:#888;line-height:1.6;padding:0 20px">' +
+    '<div style="font-size:44px;margin-bottom:12px">⏻</div>' +
+    '<div style="font-size:18px;color:#555;font-weight:600">Bug manager stopped</div>' +
+    '<p>Its console window has closed itself. Your Claude session is untouched.</p>' +
+    '<p style="font-size:13px">Double-click <b>START-bug-manager.cmd</b> to start it again.</p>' +
+    '</div>';
+});
 
 document.getElementById("list").addEventListener("click", (e) => {
   const ridEl = e.target.closest("[data-copyid]");

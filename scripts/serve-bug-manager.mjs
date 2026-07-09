@@ -62,6 +62,15 @@ const server = createServer(async (req, res) => {
       res.end(text);
       return;
     }
+    // Stop the server from the browser, so the user never has to guess which
+    // console window to close (and never risks closing their Claude session).
+    if (req.method === "POST" && url.pathname === "/shutdown") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      console.log("\nStopped from the browser. This window is safe to close.");
+      setTimeout(() => process.exit(0), 150);
+      return;
+    }
     // Local agent routes — spawn/track fix agents in isolated worktrees.
     if (url.pathname.startsWith("/agent/")) {
       const send = (payload, status = 200) => {
@@ -123,8 +132,13 @@ server.on("error", (err) => {
 // Bind to loopback only — this is a personal admin tool, not a network service.
 server.listen(port, "127.0.0.1", async () => {
   const target = `http://localhost:${port}/`;
-  console.log(`Bug-report manager running at ${target}`);
-  console.log(`Proxying to ${api} — press Ctrl+C to stop.`);
+  console.log("========================================================");
+  console.log("  SogoTable BUG MANAGER  —  THIS window (safe to close)");
+  console.log("  This is NOT your Claude session.");
+  console.log(`  Running at ${target}`);
+  console.log("  Stop it with the browser's  ⏻ Stop  button (closes this");
+  console.log("  window for you), or just close this window.");
+  console.log("========================================================");
   try {
     const n = await initJobs();
     if (n) console.log(`Restored ${n} fix branch(es) from a previous run.`);
