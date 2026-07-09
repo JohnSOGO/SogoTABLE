@@ -444,7 +444,7 @@ export function resolveGreet(game, seat, tile, forcedDie) {
       applyReaction(game, seat, tile, den, act);
     }
   }
-  recordRoll(game, seat.mark, { greet: true, die, foeName: den.name,
+  recordRoll(game, seat.mark, { greet: true, die, picked: forcedDie != null, foeName: den.name,
     result: game.log.slice(before).map((e) => e.text).join("<br>") || `The ${den.name} reacts.` });
   return { endTurn: true };
 }

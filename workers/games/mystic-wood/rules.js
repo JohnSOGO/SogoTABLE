@@ -12,7 +12,7 @@ import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
   resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
-  resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower,
+  resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -164,8 +164,18 @@ function enterTile(game, seat, tile) {
   }
   if (tile.card) {
     const den = DEN[tile.card];
-    game.pending = { type: "encounter", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
-      combat: den.cls === "beast" || den.cls === "warrior" || den.cls === "magic" };
+    const combat = den.cls === "beast" || den.cls === "warrior" || den.cls === "magic";
+    // A greeting whose outcome varies becomes "pick one of six": the player taps one of six
+    // identical denizen faces (shuffled here, hidden) instead of watching a die roll.
+    if (!combat) {
+      const outcomes = greetOutcomes(game, seat, tile);
+      if (outcomes) {
+        game.pending = { type: "greet_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
+          groups: outcomes.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
+        return;
+      }
+    }
+    game.pending = { type: "encounter", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card, combat };
     return;   // await the player's Greet/Challenge choice — turn stays open
   }
   passTurn(game);
@@ -184,6 +194,20 @@ function doHumanMove(game, seat, action) {
   if (!reachableFrom(game.board, seat, from).includes(to)) throw new Error("That tile is not reachable from here.");
   applyMoveTo(game, seat, from, to);
   enterTile(game, seat, to);
+}
+// The shell-free "pick one of six" greeting: the player taps a face (1-6); we map it
+// through the hidden shuffle to a die face and resolve the greet exactly as a roll would.
+function doGreetPick(game, seat, action) {
+  const p = game.pending;
+  if (!p || p.type !== "greet_pick" || p.mark !== seat.mark) throw new Error("There is no greeting to resolve.");
+  const pick = Number(action && action.pick);
+  if (!(pick >= 1 && pick <= 6)) throw new Error("Pick one of the six.");
+  const tile = cellAt(game.board, p.r, p.c);
+  const face = p.faceMap[pick - 1];
+  game.pending = null;
+  if (!tile || !tile.card) { passTurn(game); return; }
+  resolveGreet(game, seat, tile, face);
+  passTurn(game);
 }
 function doEncounterChoice(game, seat, action) {
   const p = game.pending;
@@ -248,6 +272,7 @@ export function makeMysticWoodMove(game, mark, action) {
   switch (type) {
     case "move": doHumanMove(game, seat, action); break;
     case "encounter": doEncounterChoice(game, seat, action); break;
+    case "greet_pick": doGreetPick(game, seat, action); break;
     case "scry": { requireThing(seat, "crystal"); const res = powerScry(game, seat); game.scry_reveal = res.next; break; }
     case "rotate": { requireThing(seat, "wand"); powerRotate(game, seat); break; }
     case "drink": {
@@ -289,6 +314,12 @@ function pendingToDict(game) {
   if (p.type === "joust-prize") {
     const loser = game.players[p.loser];
     return { type: p.type, mark: p.mark, loser: p.loser, loserName: KNIGHTS[loser.knight].name, spoils: joustSpoils(loser) };
+  }
+  // "pick one of six" greeting: send the grouped odds, NEVER the face-map (it's the answer key).
+  if (p.type === "greet_pick") {
+    const den = DEN[p.card];
+    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups,
+      denName: den ? den.name : "", denClass: den ? den.cls : "" };
   }
   const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat };
   const den = DEN[p.card];

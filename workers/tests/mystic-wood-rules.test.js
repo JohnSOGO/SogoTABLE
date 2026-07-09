@@ -79,9 +79,22 @@ test("greet shells: greetOutcomes previews the six faces, and a picked face reso
   game = mkGame(); t = witchTile(game); s = seatLit("roland");
   resolveGreet(game, s, t, 5); assert.ok(s.things.includes("potion")); assert.equal(t.card, null); // face 5 → Potion
 
-  // A single-effect denizen never rolls — no shells.
+  // A single-effect denizen never rolls — no pick.
   const g2 = mkGame(); const nt = cellAt(g2.board, 6, 4); nt.revealed = true; nt.card = "dwarf";
   assert.equal(greetOutcomes(g2, seatLit("roland"), nt), null);
+});
+
+test("greet_pick projection sends the odds but never the face-map", () => {
+  setMysticWoodRandom(mulberry32(4));
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.pending = { type: "greet_pick", mark: "P1", r: 6, c: 4, card: "witch",
+    groups: [{ key: "transport", label: "transports away", count: 2 }, { key: "give:potion", label: "gives a Potion", count: 2 }],
+    faceMap: [5, 3, 1, 6, 2, 4] };
+  const dict = mysticWoodGameToDict(g);
+  assert.equal(dict.pending.type, "greet_pick");
+  assert.ok(Array.isArray(dict.pending.groups) && dict.pending.groups.length >= 1);
+  assert.equal(dict.pending.faceMap, undefined, "the answer key must never reach the client");
 });
 
 test("Grail lends +1 P and +1 S", () => {
@@ -290,7 +303,11 @@ test("integration: seeded bot-heavy games run to completion with a valid winner"
     while (g.status === "playing" && steps++ < 8000) {
       const seat = g.players[g.current_player];
       assert.equal(seat.is_bot, false, "advance loop must stop only on a human");
-      if (g.pending) { makeMysticWoodMove(g, g.current_player, { type: "encounter", choice: g.pending.combat ? "challenge" : "greet" }); continue; }
+      if (g.pending) {
+        if (g.pending.type === "greet_pick") makeMysticWoodMove(g, g.current_player, { type: "greet_pick", pick: 1 + Math.floor(rr() * 6) });
+        else makeMysticWoodMove(g, g.current_player, { type: "encounter", choice: g.pending.combat ? "challenge" : "greet" });
+        continue;
+      }
       const from = cellAt(g.board, seat.r, seat.c);
       const reach = reachableFrom(g.board, seat, from);
       if (!reach.length) { makeMysticWoodMove(g, g.current_player, { type: "end-turn" }); continue; }

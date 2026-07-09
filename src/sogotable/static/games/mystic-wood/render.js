@@ -73,11 +73,12 @@ export function renderMysticWoodGame(ctx) {
   if (justInit) seenRoll = myRoll ? (myRoll.seq || 0) : 0;
   if (encTimer) { clearTimeout(encTimer); encTimer = null; } // a newer render owns the encounter-reveal timing
   if (myRoll && myRoll.seq > seenRoll) { seenRoll = myRoll.seq; showDice(ctx, myRoll); }
-  else if (game.pending && game.pending.type === "encounter" && game.pending.mark === me) {
-    // Let the token finish gliding onto the tile BEFORE the encounter card covers it; on a fresh
-    // mount (no glide) reveal at once. A newer render clears this timer, so a stale card can't pop.
-    if (iMoved) encTimer = setTimeout(() => { encTimer = null; showEncounter(ctx, game); }, GLIDE_MS + 60);
-    else showEncounter(ctx, game);
+  else if (game.pending && (game.pending.type === "encounter" || game.pending.type === "greet_pick") && game.pending.mark === me) {
+    // Let the token finish gliding onto the tile BEFORE the card covers it; on a fresh mount
+    // (no glide) reveal at once. A newer render clears this timer, so a stale card can't pop.
+    const show = game.pending.type === "greet_pick" ? showGreetPick : showEncounter;
+    if (iMoved) encTimer = setTimeout(() => { encTimer = null; show(ctx, game); }, GLIDE_MS + 60);
+    else show(ctx, game);
   } else if (game.round === 1 && me && introShownFor !== gameKey && !introSeen(gameKey)) {
     // At a clean game start (no roll, no pending), the local knight entrusts their quest — once per room.
     introShownFor = gameKey; markIntroSeen(gameKey); showIntro(ctx, game, me);
@@ -160,6 +161,10 @@ function actionsHtml(ctx, game, me) {
   }
   // A pending encounter for me ALWAYS keeps a resolve button in the bar, so a suppressed/dismissed encounter
   // modal (stale-dice replay, reload, mis-tap) can never dead-end the turn.
+  if (jp && jp.type === "greet_pick" && jp.mark === me) {
+    const den = DEN[jp.card];
+    return `<button class="primary" data-act="greetpick">🤝 Greet the ${E(jp.denName || (den && den.name) || "denizen")}</button>`;
+  }
   if (jp && jp.type === "encounter" && jp.mark === me) {
     const den = DEN[jp.card] || {};
     return `<button class="primary" data-act="encounter">${jp.combat ? "⚔️ Challenge" : "🤝 Greet"} the ${E(jp.denName || den.name || "denizen")}</button>`;
@@ -452,6 +457,31 @@ function showEncounter(ctx, game) {
     ctx.makeMove({ type: "encounter", choice: b.getAttribute("data-enc") });
   }));
 }
+// A greeting whose outcome varies is a "pick one of six" — six identical denizen faces, shuffled
+// server-side, with the odds shown. You tap one; the consequence reveals. No dice on screen.
+function showGreetPick(ctx, game) {
+  closePortals();
+  const p = game.pending, den = DEN[p.card], tile = tileAt(game, p.r, p.c);
+  const emoji = denEmoji(p.card);
+  const name = E(p.denName || (den && den.name) || "denizen");
+  const odds = (p.groups || []).map((g) => `<div class="mw-pickodd"><span class="mw-pickn">${g.count}</span> ${E(g.label)}</div>`).join("");
+  const faces = [1, 2, 3, 4, 5, 6].map((n) => `<button class="mw-pickface" data-pick="${n}" aria-label="pick ${n}">${emoji}</button>`).join("");
+  const host = portal();
+  host.innerHTML = `<div class="overlay"><div class="modal">
+    <div class="tag">You greet the ${name}</div>
+    ${tileHeaderHtml(tile)}
+    <h2>${emoji} Pick one</h2>
+    <div class="mw-pickodds">${odds}</div>
+    <div class="mw-pickgrid">${faces}</div>
+  </div></div>`;
+  host.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
+    if (ctx.isMovePending && ctx.isMovePending()) return;
+    host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
+    b.classList.add("mw-chosen");
+    // The result modal swaps in on the next render (die suppressed — this was a pick, not a roll).
+    ctx.makeMove({ type: "greet_pick", pick: Number(b.getAttribute("data-pick")) });
+  }));
+}
 function tileHeaderHtml(t) {
   if (!t) return "";
   const half = t.half === "ench" ? "Enchanted Wood" : "Earthly Wood";
@@ -504,8 +534,9 @@ function showDice(ctx, roll) {
       <div class="hint">${E(roll.cName)} ${roll.cw} vs ${E(roll.dName)} ${roll.dw}</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else if (roll.greet) {
-    // The server sends no die when the reaction never varies (Dwarf, Nymph, Sage, Bishop).
-    const dice = roll.die == null ? "" : `<div class="hint">the roll:</div><div class="dicewrap">${diceRow("Roll", "white", roll.die, null, null)}</div>`;
+    // No die on screen when the reaction never varies (Dwarf/Nymph/Sage/Bishop) OR when the
+    // player picked a face instead of rolling — the pick already stood in for the die.
+    const dice = (roll.die == null || roll.picked) ? "" : `<div class="hint">the roll:</div><div class="dicewrap">${diceRow("Roll", "white", roll.die, null, null)}</div>`;
     inner = `<div class="tag">You greet the ${E(roll.foeName)}</div>
       <div class="result mw-result-big">${sanitizeLog(roll.result || "The denizen reacts.")}</div>
       ${dice}
@@ -549,6 +580,7 @@ function wireBoard(root, ctx, game, me) {
     else if (a === "transport") openTransport(root, ctx, game, me);
     else if (a === "joust") openJoust(root, ctx, game, me);
     else if (a === "encounter") showEncounter(ctx, game);
+    else if (a === "greetpick") showGreetPick(ctx, game);
   }));
   root.querySelectorAll("[data-jp]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;

@@ -133,6 +133,15 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .r{color:var(--crimson)} .mw-portal .g{color:#8fd08a} .mw-portal .a{color:var(--azure)}
 /* the rows stretch to the widest one, so both dice and both totals line up */
 .mw-portal .dicewrap{width:fit-content;max-width:100%;margin:0 auto}
+.mw-portal .mw-pickodds{display:flex;flex-direction:column;gap:3px;margin:6px 0 10px;text-align:left}
+.mw-portal .mw-pickodd{font-size:13px;color:var(--ink);display:flex;align-items:baseline;gap:7px}
+.mw-portal .mw-pickn{display:inline-block;min-width:1.5em;text-align:center;font-weight:700;color:var(--gold2);background:var(--panel2);border:1px solid var(--rule);border-radius:6px;padding:0 5px;font-size:12px}
+.mw-portal .mw-pickgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px}
+.mw-portal .mw-pickface{font-size:30px;line-height:1;padding:11px 0;background:var(--panel2);border:1.5px solid var(--gold);border-radius:12px;cursor:pointer;transition:transform .1s,opacity .2s,box-shadow .1s}
+.mw-portal .mw-pickface:hover:not(:disabled){transform:translateY(-2px) scale(1.04);box-shadow:0 4px 14px #0008;border-color:var(--gold2)}
+.mw-portal .mw-pickface:disabled{cursor:default}
+.mw-portal .mw-pickface.mw-faded{opacity:.28}
+.mw-portal .mw-pickface.mw-chosen{border-color:var(--gold-bright);box-shadow:0 0 0 2px var(--gold-bright),0 6px 18px #000a;transform:scale(1.06)}
 .mw-portal .dicerow{display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:10px;margin:7px 0}
 .mw-portal .drmain{min-width:0}
 .mw-portal .drtop{display:flex;align-items:baseline;justify-content:space-between;gap:16px;white-space:nowrap}
