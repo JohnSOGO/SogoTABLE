@@ -1,10 +1,14 @@
 // Bug-fixing agent runner for the bug-report manager. Each "Address" from the GUI
 // spins up an isolated git worktree on its own branch, launches the Claude Code
-// CLI headlessly inside it to diagnose + fix + test the report, and leaves the
-// branch for review. It NEVER pushes or deploys — that stays a human decision.
+// CLI headlessly inside it to diagnose + fix + test the report, and then — by
+// default — auto-ships the committed fix straight to main (see AUTOSHIP below).
 //
 // Isolation matters: worktrees keep the agent off the user's main working tree, so
-// concurrent work (and other jobs sharing the clone) is untouched.
+// concurrent work (and other jobs sharing the clone) is untouched. Shipping also runs
+// FROM the worktree — it pushes the branch tip to origin/main directly — so it never
+// depends on (or disturbs) the shared primary working tree's branch or cleanliness.
+// That dependency is what used to strand fixes on their branch: the shared main moved
+// under a concurrent session and the in-tree merge hit a spurious conflict.
 //
 // Job state is in-memory: it lives only while the server runs, which is fine — the
 // durable artifacts are the git branches/worktrees, which survive a restart.
@@ -304,36 +308,84 @@ async function doAutoShip(job) {
   const log = (s) => writeLog(job, s);
   job.shipState = "shipping";
   log(`\n▶ auto-ship: landing ${job.branch} on main…\n`);
-  // Only land onto a clean main — never clobber concurrent local work.
-  const status = await git(["status", "--porcelain"]);
-  if (status.out) { job.shipState = "parked"; job.shipError = "main working tree has uncommitted changes"; log(`■ parked: ${job.shipError} — use Ship when clear.\n`); return; }
-  const head = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  if (head.out !== "main") { job.shipState = "parked"; job.shipError = `not on main (on ${head.out})`; log(`■ parked: ${job.shipError}.\n`); return; }
-  const before = (await git(["rev-parse", "HEAD"])).out;
-  const touchesWorker = (await git(["diff", "--name-only", `main...${job.branch}`])).out.split("\n").some((f) => f.startsWith("workers/"));
-  const merge = await git(["merge", "--no-ff", job.branch, "-m", `Merge ${job.branch} (bug ${job.reportId})`]);
-  if (merge.code !== 0) { await git(["merge", "--abort"]); job.shipState = "parked"; job.shipError = "merge conflict"; log(`■ parked: merge conflict, aborted.\n`); return; }
-  // Safety gate: never push a red suite. Revert the merge if tests fail.
-  log(`  running the test suite before pushing…\n`);
-  const test = await runNpm(["test"]);
-  if (test.code !== 0) {
-    await git(["reset", "--hard", before]);
-    job.shipState = "parked"; job.shipError = "tests failed after merge — reverted, work still on the branch";
-    log(`■ parked: tests failed — merge reverted.\n`); return;
+  const res = await landOnMain(job);
+  if (!res.ok) {
+    job.shipState = "parked"; job.shipError = res.error;
+    log(`■ parked: ${res.error}\n   (the fix stays on ${job.branch} — resolve, then use Ship to retry.)\n`);
+    return;
   }
-  const push = await git(["push", "origin", "main"]);
-  if (push.code !== 0) { job.shipState = "parked"; job.shipError = "push failed: " + (push.err || push.out).slice(0, 200); log(`■ push failed — use Ship to retry.\n`); return; }
-  job.shippedHash = (await git(["rev-parse", "--short", "HEAD"])).out;
-  if (touchesWorker) {
-    const dep = await runNpm(["run", "deploy:brain"]);
-    job.deployed = dep.code === 0;
-    if (!job.deployed) job.shipError = "pushed, but deploy:brain failed — run it manually";
-  }
+  job.shippedHash = res.hash; job.deployed = res.deployed;
+  if (res.touchesWorker && !res.deployed) job.shipError = "pushed, but deploy:brain failed — run it manually";
   job.shipState = "shipped";
-  log(`\n■ SHIPPED to main as ${job.shippedHash}${touchesWorker ? (job.deployed ? " · worker deployed" : " · ⚠ worker deploy FAILED") : ""}\n`);
-  // Tidy the merged branch + worktree.
-  await git(["worktree", "remove", "--force", job.wtPath]);
-  await git(["branch", "-d", job.branch]);
+  log(`\n■ SHIPPED to main as ${res.hash}${res.touchesWorker ? (res.deployed ? " · worker deployed" : " · ⚠ worker deploy FAILED") : ""}\n`);
+}
+
+// The shared "land this branch on origin/main" core, used by both auto-ship and the
+// manual Ship button. It runs ENTIRELY from the job's worktree: fetch the current remote
+// main, merge it into the fix branch there, run the test suite on the merged result, and
+// push the branch tip straight to origin/main. Nothing here touches the shared primary
+// working tree — depending on that tree (dirty / on another branch because several
+// sessions share this clone) is exactly what used to strand fixes. A genuine content
+// conflict (two sessions edited the same lines) is now the only thing that parks a fix,
+// and the branch is preserved for a manual resolve + retry.
+// Returns { ok, hash, deployed, touchesWorker, error }.
+async function landOnMain(job) {
+  const log = (s) => writeLog(job, s);
+  const wt = job.wtPath;
+  if (!existsSync(wt)) return { ok: false, error: "the fix worktree is gone — Discard this job and re-run the fix." };
+
+  const touchesWorker = (await git(["diff", "--name-only", `main...${job.branch}`], wt)).out
+    .split("\n").some((f) => f.startsWith("workers/"));
+
+  // Catch the branch up to the CURRENT remote main so the push fast-forwards cleanly.
+  await git(["fetch", "origin", "main"], wt);
+  const merge = await git(["merge", "--no-ff", "FETCH_HEAD", "-m", `Merge origin/main into ${job.branch}`], wt);
+  if (merge.code !== 0) {
+    await git(["merge", "--abort"], wt);
+    return { ok: false, touchesWorker, error: "conflicts with the current main — resolve on the branch, then Ship." };
+  }
+
+  // Safety gate: never push a red suite. Tests run against the merged worktree state.
+  log(`  running the test suite before pushing…\n`);
+  const test = await runNpm(["test"], wt);
+  if (test.code !== 0) return { ok: false, touchesWorker, error: "tests failed after merging main — not pushed; the fix is safe on the branch." };
+
+  // Push the branch tip straight onto origin/main (Cloudflare Pages auto-deploys static).
+  const push = await git(["push", "origin", "HEAD:main"], wt);
+  if (push.code !== 0) return { ok: false, touchesWorker, error: "push rejected: " + (push.err || push.out).slice(0, 200) + " — Ship to retry." };
+  job.shippedHash = (await git(["rev-parse", "--short", "HEAD"], wt)).out;
+
+  // Keep the clone's local main ref current when it's safe, so future fix branches start fresh.
+  await syncLocalMain(job);
+
+  let deployed = false;
+  if (touchesWorker) {
+    const dep = await runNpm(["run", "deploy:brain"], wt);
+    deployed = dep.code === 0;
+  }
+
+  // Tidy the now-merged branch + worktree.
+  await git(["worktree", "remove", "--force", wt]);
+  await git(["branch", "-D", job.branch]);
+
+  return { ok: true, hash: job.shippedHash, deployed, touchesWorker };
+}
+
+// Best-effort: move the clone's LOCAL main ref up to the just-pushed tip, so the next fix
+// branch (cut from local main) starts current. Safe by construction — if main is the
+// checked-out branch we only fast-forward a clean tree; if it's dirty or not checked out
+// we leave it (the next run re-fetches remote main anyway). Never blocks a ship.
+async function syncLocalMain(job) {
+  const log = (s) => writeLog(job, s);
+  const head = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (head.out === "main") {
+    const status = await git(["status", "--porcelain"]);
+    if (status.out) { log(`  (local main has uncommitted work — left it as-is)\n`); return; }
+    const ff = await git(["merge", "--ff-only", job.branch]);
+    if (ff.code === 0) log(`  local main fast-forwarded to ${job.shippedHash}\n`);
+  } else {
+    await git(["update-ref", "refs/heads/main", job.branch]);
+  }
 }
 
 // Send a follow-up message into an existing job, resuming its Claude session in the
@@ -419,9 +471,9 @@ export async function discardJob(id) {
   return { ok: true };
 }
 
-function runNpm(args) {
+function runNpm(args, cwd = repoRoot) {
   return new Promise((resolve) => {
-    const p = spawn("npm", args, { cwd: repoRoot, shell: isWin, env: process.env });
+    const p = spawn("npm", args, { cwd, shell: isWin, env: process.env });
     let out = "";
     p.stdout.on("data", (d) => { out += d; });
     p.stderr.on("data", (d) => { out += d; });
@@ -430,27 +482,22 @@ function runNpm(args) {
   });
 }
 
-// Ship a reviewed fix to the LIVE site: merge (with the same safety checks), push to
-// origin/main (Cloudflare Pages auto-deploys the static frontend), and — only if the
-// change touched workers/ — run deploy:brain. Deliberate + user-triggered; the agent
-// itself never does this. Because live is the only place changes can be verified here.
+// Ship a reviewed fix to the LIVE site — the manual retry for a parked auto-ship. Uses
+// the exact same worktree-based landing (landOnMain), so it works even when the primary
+// tree is busy: fetch → merge current main → test → push HEAD:main → deploy if worker.
+// Deliberate + user-triggered. Because live is the only place changes can be verified.
 export async function shipJob(id) {
   const j = jobs.get(id);
   if (!j) return { ok: false, error: "No such job." };
-  const changed = await git(["diff", "--name-only", `main...${j.branch}`]);
-  const touchesWorker = changed.out.split("\n").some((f) => f.startsWith("workers/"));
-  const merged = await mergeJob(id);
-  if (!merged.ok) return merged;
-  const steps = [merged.message || "merged"];
-  const push = await git(["push", "origin", "main"]);
-  if (push.code !== 0) return { ok: false, error: "Merged locally, but push failed:\n" + (push.err || push.out) + "\nPush/deploy manually." };
-  steps.push("pushed → main (Pages deploys the static site)");
-  if (touchesWorker) {
-    const dep = await runNpm(["run", "deploy:brain"]);
-    if (dep.code !== 0) return { ok: false, error: "Pushed, but worker deploy failed:\n" + dep.out.slice(-900) + "\nRun `npm run deploy:brain` manually." };
-    steps.push("deployed worker (deploy:brain)");
-  }
-  return { ok: true, message: steps.join(" · "), hint: touchesWorker ? "Live now — hard-refresh to beat the SW cache." : "Live shortly (Pages build) — hard-refresh to beat the SW cache." };
+  const ahead = await git(["rev-list", "--count", `main..${j.branch}`]);
+  if (Number(ahead.out) === 0) return { ok: false, error: "Nothing to ship — the agent committed no changes to this branch." };
+  j.shipState = "shipping";
+  const res = await landOnMain(j);
+  if (!res.ok) { j.shipState = "parked"; j.shipError = res.error; return { ok: false, error: res.error }; }
+  j.shipState = "shipped"; j.shippedHash = res.hash; j.deployed = res.deployed;
+  const steps = [`pushed → main as ${res.hash} (Pages deploys the static site)`];
+  if (res.touchesWorker) steps.push(res.deployed ? "deployed worker (deploy:brain)" : "⚠ worker deploy FAILED — run `npm run deploy:brain`");
+  return { ok: true, message: steps.join(" · "), hint: "Live shortly — hard-refresh to beat the SW cache." };
 }
 
 // Confirm the CLI is reachable so the GUI can warn early.
