@@ -105,6 +105,21 @@ const server = createServer(async (req, res) => {
   }
 });
 
+// If a manager is already running on this port, don't crash with a stack trace —
+// just open the existing one and exit cleanly. (Common when double-clicking the
+// launcher again without closing the previous window.)
+server.on("error", (err) => {
+  if (err && err.code === "EADDRINUSE") {
+    const target = `http://localhost:${port}/`;
+    console.log(`\nA bug manager is already running at ${target} — opening it.`);
+    console.log(`To run a fresh copy, close the other manager window first (or set BUG_MANAGER_PORT to a different port).`);
+    openBrowser(target);
+    process.exit(0);
+  }
+  console.error(err);
+  process.exit(1);
+});
+
 // Bind to loopback only — this is a personal admin tool, not a network service.
 server.listen(port, "127.0.0.1", async () => {
   const target = `http://localhost:${port}/`;
