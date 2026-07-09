@@ -157,6 +157,12 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .tilethumb svg{width:100%;height:100%;display:block}
 .mw-portal .tileinfo{font-size:12.5px;line-height:1.4;text-align:left}
 .mw-portal .hint{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+.mw-portal .modal.mw-intro{max-width:min(400px,calc(100vw - 32px))}
+.mw-portal .mw-intro-head{display:flex;align-items:center;gap:10px;margin:6px 0 4px}
+.mw-portal .mw-intro-head h2{margin:0}
+.mw-portal .mw-intro-frame{color:var(--muted);font-size:12px;margin:2px 0 8px}
+.mw-portal .mw-intro-tale{font-family:var(--serif);font-size:15px;line-height:1.55;margin:0 0 4px}
+.mw-portal .mw-intro-tale b{color:var(--gold2)}
 .mystic-wood-root.mw-pop{position:fixed;z-index:80;background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:8px 11px;max-width:270px;font-size:12px;line-height:1.5;box-shadow:0 8px 24px #000b;pointer-events:none;display:block}
 .mystic-wood-root.mw-pop b{color:var(--gold2);display:block;margin-bottom:3px;font-family:var(--serif);font-size:13px}
 .mystic-wood-root.mw-pop .popbody{color:var(--ink)}

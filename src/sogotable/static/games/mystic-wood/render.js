@@ -5,7 +5,7 @@
 import { renderHostStartLobby } from "../lobby.js";
 import { MYSTIC_WOOD_CSS } from "./styles.js";
 import { syncHorn, resetHorn, hornOwnsTokens } from "./horn.js";
-import { KNIGHTS, THINGS, DEN, DEN_CLASS, DEN_EMOJI, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
+import { KNIGHTS, KNIGHT_INTRO, THINGS, DEN, DEN_CLASS, DEN_EMOJI, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
 const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + gap 3)
@@ -19,6 +19,7 @@ let lastTapAt = 0;      // timestamp of the previous board tap, for pointer-base
 let gesture = null;     // active board pointer gesture (tap / double-tap / drag-pan), from pointer events
 let chronFilter = null; // Chronicle: mark of the knight whose entries are shown (null = all)
 let encTimer = null;    // deferred encounter reveal (waits for the mover's token glide)
+let introShownFor = null; // gameKey whose start-of-game knight send-off has been shown this session
 
 function roomMeta(ctx) { const m = {}; ((ctx.room && ctx.room.players) || []).forEach((p) => { m[p.mark] = { icon: p.icon || "", color: p.color }; }); return m; }
 
@@ -77,7 +78,26 @@ export function renderMysticWoodGame(ctx) {
     // mount (no glide) reveal at once. A newer render clears this timer, so a stale card can't pop.
     if (iMoved) encTimer = setTimeout(() => { encTimer = null; showEncounter(ctx, game); }, GLIDE_MS + 60);
     else showEncounter(ctx, game);
+  } else if (game.round === 1 && me && introShownFor !== gameKey && !introSeen(gameKey)) {
+    // At a clean game start (no roll, no pending), the local knight entrusts their quest — once per room.
+    introShownFor = gameKey; markIntroSeen(gameKey); showIntro(ctx, game, me);
   }
+}
+function introSeen(key) { try { return localStorage.getItem("mw.intro." + key) === "1"; } catch (_e) { return false; } }
+function markIntroSeen(key) { try { localStorage.setItem("mw.intro." + key, "1"); } catch (_e) { /* private mode */ } }
+function showIntro(ctx, game, me) {
+  const seat = game.players.find((p) => p.mark === me); if (!seat) return;
+  const k = KNIGHTS[seat.knight] || {}, tale = KNIGHT_INTRO[seat.knight]; if (!tale) return;
+  closePortals();
+  const host = portal();
+  host.innerHTML = `<div class="overlay"><div class="modal mw-intro">
+    <div class="tag">A quest entrusted</div>
+    <div class="mw-intro-head"><span class="crest" style="background:${E(k.color)}">${E((seat.name || "?")[0])}</span><h2>Sir ${E(k.name)}</h2></div>
+    <p class="mw-intro-frame">${E(k.name)} cannot ride today, and entrusts the quest to you:</p>
+    <p class="mw-intro-tale">${tale}</p>
+    <div class="row"><button class="primary" data-intro="go">Begin the quest</button></div>
+  </div></div>`;
+  const b = host.querySelector("[data-intro]"); if (b) b.addEventListener("click", () => closePortals());
 }
 
 /* ------------------------------- layout --------------------------------- */

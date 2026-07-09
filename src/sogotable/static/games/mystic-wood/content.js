@@ -8,6 +8,16 @@ export const KNIGHTS = {
   guyon:     { name: "Guyon",     P: 2, S: 1, color: "#caa24a", quest: "Spend 3 full turns in the Cave", q: "cave" },
   britomart: { name: "Britomart", P: 3, S: 1, color: "#a37ec6", quest: "Leave the Wood with the Prince", q: "prince" },
 };
+// One-time send-off shown at game start: the knight cannot ride, and in their own voice entrusts their
+// quest to the player. Original chivalric-romance flavour (the rulebook has no story) — each keyed to the
+// knight's actual win condition; the objective is bolded.
+export const KNIGHT_INTRO = {
+  george: "Brave friend, a grievous wound keeps me from the Wood — but the Dragon must be answered. Take up my arms in my name; no hand but ours can end that beast. <b>Slay the Dragon</b>, then bear my colours safe through the Enchanted Gate.",
+  perceval: "All my days I have sought the Holy Grail, and now I may seek no more. Go in my stead — walk the enchanted paths, take up the sacred cup where it waits, and <b>carry the Grail out of the Wood</b> in your keeping.",
+  roland: "A Princess is lost among the denizens of the Wood, and I cannot reach her. Win her trust, keep her at your side, and <b>lead her safely out through the Enchanted Gate</b>. Her deliverance I entrust to you.",
+  guyon: "There is a Cave in the Wood where a vigil must be kept — <b>three full turns, unbroken</b> — but its mouth will not admit you without the <b>Golden Bough</b>. Find the Bough, keep the vigil in my name, then leave the Wood, your penance done.",
+  britomart: "A Prince awaits deliverance in the Wood, and my road is barred. Find him, take him as your companion, and <b>bring him out through the Enchanted Gate</b>. Pay the King no heed — his crown is no quarrel of ours.",
+};
 export const THINGS = {
   lance: { name: "Lance", S: 1 }, shield: { name: "Shield", S: 1 }, armour: { name: "Armour", S: 2 },
   golden_bough: { name: "Golden Bough", power: "cave" }, key: { name: "Key", power: "key" },
