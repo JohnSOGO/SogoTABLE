@@ -7,8 +7,9 @@ import {
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
   resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes, combatOutcomes,
+  logEvent,
 } from "../games/mystic-wood/engine.js";
-import { KNIGHTS, DEN } from "../games/mystic-wood/data.js";
+import { KNIGHTS, DEN, DEN_TALES } from "../games/mystic-wood/data.js";
 
 // deterministic PRNG
 function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -299,6 +300,62 @@ test("Greet: a varying reaction table still rolls (Merlin: 1-2 transports, 5-6 g
   resolveGreet(high.game, high.s, high.tile);
   assert.deepEqual(high.s.things, ["shield"]);
   assert.equal(high.game.results.P1.die, 6);
+});
+
+test("Greet: the result narrates the reaction, and Merlin takes no article", () => {
+  const { game, s, tile } = greetGame("george", "merlin");
+  setMysticWoodRandom(seq([0.4]));   // die = 3 → remains
+  resolveGreet(game, s, tile);
+  const rec = game.results.P1;
+  assert.equal(rec.foePhrase, "Merlin", "a person, not a species: never 'the Merlin'");
+  assert.match(rec.result, /Merlin turns a page/);
+  assert.doesNotMatch(rec.result, /reacts/);
+
+  const witch = greetGame("roland", "witch");
+  setMysticWoodRandom(seq([0.99]));  // die = 6 → gives the Potion
+  resolveGreet(witch.game, witch.s, witch.tile);
+  assert.equal(witch.game.results.P1.foePhrase, "the Witch");
+  const [scene, detail] = witch.game.results.P1.result.split("<br>");
+  assert.match(scene, /The Witch presses a warm phial into Roland's hand/, "the story leads");
+  assert.match(detail, /Potion — \+1 Strength/, "the bookkeeping follows");
+});
+
+// The chronicle is capped at 80 lines. An encounter that read its own outcome back by INDEX went
+// silent the moment the cap began trimming the front — every greet result and fight detail from
+// then on collapsed to the "…reacts." fallback. Report mrdvkkfp-j59jyf: "it just says 'the Merlin
+// reacts'… a few interactions". Pin it: a full chronicle must not mute the narration.
+test("Greet: the result survives a full chronicle (log-cap regression)", () => {
+  const { game, s, tile } = greetGame("george", "merlin");
+  for (let i = 0; i < 200; i += 1) logEvent(game, `filler ${i}`);
+  assert.equal(game.log.length, 80, "the chronicle is trimmed to its cap");
+  setMysticWoodRandom(seq([0.4]));   // die = 3 → remains
+  resolveGreet(game, s, tile);
+  assert.match(game.results.P1.result, /Merlin turns a page/);
+});
+
+// Every reaction a greet table can actually produce must have a story written for it. Without this
+// a new `tbl` row lands the player on engine.js's bare fallback, which is how the encounter card
+// came to read like bookkeeping. `befriend` narrates itself in befriend(); the Bishop's table is
+// never applied (greeting him starts a prayer instead).
+test("Greet: every reaction a table can roll has a tale", () => {
+  const missing = [];
+  for (const [id, den] of Object.entries(DEN)) {
+    if (!den.tbl || id === "bishop") continue;
+    for (const act of new Set(Object.values(den.tbl))) {
+      if (act === "befriend") continue;
+      const keys = act.startsWith("run") ? ["run", "catch"] : [act];
+      for (const k of keys) if (!(DEN_TALES[id] && DEN_TALES[id][k])) missing.push(`${id}.${k}`);
+    }
+  }
+  assert.deepEqual(missing, [], "write a line in DEN_TALES (data.js) for each");
+});
+
+test("Challenge: the detail survives a full chronicle (log-cap regression)", () => {
+  const { game, s, tile } = greetGame("george", "troll");
+  for (let i = 0; i < 200; i += 1) logEvent(game, `filler ${i}`);
+  setMysticWoodRandom(seq([0.99, 0.0]));   // white 6 vs red 1 → George wins
+  resolveChallenge(game, s, tile);
+  assert.match(game.results.P1.detail, /Troll-slayer/, "the win must still say what was gained");
 });
 
 test("contract: id predicate, seat count, distinct knights, projection shape", () => {

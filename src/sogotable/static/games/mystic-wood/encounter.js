@@ -58,14 +58,15 @@ export function showEncounter(ctx, game) {
 // server-side, with the odds shown. You tap one; the consequence reveals. No dice on screen.
 // A greeting whose outcome varies: tap one of six identical denizen faces (shuffled server-side)
 // with the odds shown. No dice on screen.
-export function showGreetPick(ctx, game) { pickCard(ctx, game, "greet_pick", "You greet the"); }
+export function showGreetPick(ctx, game) { pickCard(ctx, game, "greet_pick", "You greet"); }
 // A fight: same six-face pick, but the odds are win / lose (/ tie → reroll) vs the foe's hidden roll.
-export function showCombatPick(ctx, game) { pickCard(ctx, game, "combat_pick", "You fight the"); }
+export function showCombatPick(ctx, game) { pickCard(ctx, game, "combat_pick", "You fight"); }
 function pickCard(ctx, game, moveType, verb) {
   closePortals();
   const p = game.pending, den = DEN[p.card], tile = tileAt(game, p.r, p.c);
   const emoji = denEmoji(p.card);
-  const name = E(p.denName || (den && den.name) || "denizen");
+  // The server carries the article ("Merlin", but "the Witch") — he is a person, not a species.
+  const name = E(p.denPhrase || `the ${p.denName || (den && den.name) || "denizen"}`);
   const odds = (p.groups || []).map((g) => `<div class="mw-pickodd mw-odd-${E(g.key)}"><span class="mw-pickn">${g.count}</span> ${E(g.label)}</div>`).join("");
   const faces = [1, 2, 3, 4, 5, 6].map((n) => `<button class="mw-pickface" data-pick="${n}" aria-label="pick ${n}">${emoji}</button>`).join("");
   const host = portal();
@@ -139,8 +140,13 @@ export function showDice(ctx, roll) {
     // No die on screen when the reaction never varies (Dwarf/Nymph/Sage/Bishop) OR when the
     // player picked a face instead of rolling — the pick already stood in for the die.
     const dice = (roll.die == null || roll.picked) ? "" : `<div class="hint">the roll:</div><div class="dicewrap">${diceRow("Roll", "white", roll.die, null, null)}</div>`;
-    inner = `<div class="tag">You greet the ${E(roll.foeName)}</div>
-      <div class="result mw-result-big">${sanitizeLog(roll.result || "The denizen reacts.")}</div>
+    // The scene the denizen makes is the headline; the bookkeeping it caused (the Thing taken, the
+    // stats now) drops to the detail line, as a fight's consequences do. Same shape, quieter voice.
+    const [scene, ...rest] = String(roll.result || "The denizen reacts.").split("<br>");
+    const detail = rest.length ? `<div class="mw-result-detail">${sanitizeLog(rest.join("<br>"))}</div>` : "";
+    inner = `<div class="tag">You greet ${E(roll.foePhrase || `the ${roll.foeName}`)}</div>
+      <div class="result mw-result-big mw-result-tale">${sanitizeLog(scene)}</div>
+      ${detail}
       ${dice}
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else {

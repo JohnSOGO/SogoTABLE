@@ -48,7 +48,7 @@ export const DEN = {
   witch:       { name: "Witch",       cls: "greet",   tbl: { 1: "transport", 2: "transport", 3: "remains", 4: "remains", 5: "give:potion", 6: "give:potion" } },
   druid:       { name: "Druid",       cls: "greet",   tbl: { 1: "remains", 2: "remains", 3: "remains", 4: "remains", 5: "give:golden_bough", 6: "give:golden_bough" } },
   elf:         { name: "Elf",         cls: "greet",   tbl: { 1: "transport", 2: "transport", 3: "transport", 4: "give:wand", 5: "give:wand", 6: "give:wand" } },
-  merlin:      { name: "Merlin",      cls: "greet",   tbl: { 1: "transport", 2: "transport", 3: "remains", 4: "remains", 5: "give:shield", 6: "give:shield" } },
+  merlin:      { name: "Merlin",      cls: "greet",   proper: true, tbl: { 1: "transport", 2: "transport", 3: "remains", 4: "remains", 5: "give:shield", 6: "give:shield" } },
   hermit:      { name: "Hermit",      cls: "greet",   tbl: { 1: "transport", 2: "remains", 3: "remains", 4: "remains", 5: "give:blessing", 6: "give:blessing" } },
   bishop:      { name: "Bishop",      cls: "greet",   tbl: { 1: "give:ring", 2: "give:ring", 3: "give:ring", 4: "give:ring", 5: "give:ring", 6: "give:ring" } },
   archmage:    { name: "Arch-Mage",   cls: "greet",   tbl: { 1: "transportYou", 2: "transportYou", 3: "transport", 4: "transport", 5: "befriend", 6: "befriend" } },
@@ -63,6 +63,55 @@ export const DEN = {
   fog:         { name: "Mystic Fog",  cls: "spell" },
   horn:        { name: "Mystic Horn", cls: "spell" },
   wind:        { name: "Mystic Wind", cls: "spell" },
+};
+
+// How a greeting reads. The rulebook prints a reaction table and no story, so — as with
+// KNIGHT_INTRO on the client — this is original chivalric-romance flavour, one line per reaction
+// each denizen's table can actually produce. `{k}` is the greeting knight's name. A missing key
+// falls back to engine.js's plain narration, so an unwritten reaction still says what happened.
+// Keys match the `tbl` actions: remains | transport | transportYou | tower | give:<thing> | run | catch.
+export const DEN_TALES = {
+  merlin: {
+    remains: "Merlin turns a page of his great book and does not look up. {k} waits, and is not answered.",
+    transport: "Merlin closes his book, draws a sign upon the air, and is simply no longer there.",
+    "give:shield": "Merlin lays a battered shield at {k}'s feet. “You will want this,” he says, “before the week is out.”",
+  },
+  witch: {
+    remains: "The Witch stirs her pot and hums, as though {k} were only weather.",
+    transport: "The Witch throws a handful of dust; the glade folds shut, and she is gone with it.",
+    "give:potion": "The Witch presses a warm phial into {k}'s hand. “Drink it when you are afraid.”",
+  },
+  druid: {
+    remains: "The Druid stands among the oaks so still that {k} half takes him for one.",
+    "give:golden_bough": "The Druid breaks a bough of gold from the oldest tree and sets it in {k}'s hands.",
+  },
+  elf: {
+    transport: "The Elf laughs once from the branches, and by the time {k} looks up there is only leaf-shadow.",
+    "give:wand": "The Elf lays a slender wand across {k}'s palms and is gone before thanks can be given.",
+  },
+  hermit: {
+    remains: "The Hermit tells his beads and will not break his silence, even for {k}.",
+    transport: "The Hermit steps into his cell and shuts the door, and the cell is no longer there.",
+    "give:blessing": "The Hermit lays a thin hand on {k}'s head and blesses the road ahead.",
+  },
+  magician: {
+    remains: "The Magician watches the clouds gather over the wood and spares {k} not a word.",
+    transport: "The Magician steps behind a curtain of rain and does not step out of it again.",
+  },
+  archmage: {
+    transport: "The Arch-Mage draws the glade around him like a cloak, and is gone.",
+    transportYou: "The Arch-Mage speaks one word, and the Wood rearranges itself about {k}!",
+  },
+  rogue: {
+    tower: "The Rogue clasps {k}'s hand like a brother — then whistles for the guard. Away to the Tower!",
+    "give:key": "The Rogue grins, palms {k} an iron key, and is over the wall before it is missed.",
+  },
+  horse: {
+    run: "The Horse tosses its head and is away down the path before {k} can touch the bridle.",
+    catch: "{k} takes the bridle and gentles the Horse. It will carry you now.",
+  },
+  dwarf: { "give:armour": "The Dwarf hauls a mail-coat from his hoard and buckles it onto {k} himself." },
+  nymph: { "give:crystal": "The Nymph rises from the pool and presses a cold crystal into {k}'s hand." },
 };
 
 // The denizen deck: one of each, plus a couple of duplicate beasts as filler. Recycled via a discard.

@@ -13,6 +13,7 @@ import {
   resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
+  denPhrase,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -347,12 +348,12 @@ function pendingToDict(game) {
   if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
     return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "",
-      denName: den ? den.name : "", denClass: den ? den.cls : "" };
+      denName: den ? den.name : "", denPhrase: denPhrase(p.card), denClass: den ? den.cls : "" };
   }
   const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat };
   const den = DEN[p.card];
   if (den) {
-    out.denName = den.name; out.denClass = den.cls; out.denS = den.S || 0; out.denP = den.P || 0;
+    out.denName = den.name; out.denPhrase = denPhrase(p.card); out.denClass = den.cls; out.denS = den.S || 0; out.denP = den.P || 0;
     if (p.combat) { const tile = cellAt(game.board, p.r, p.c); out.preview = combatPreview(game.players[p.mark], tile); }
   }
   return out;

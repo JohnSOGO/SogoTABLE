@@ -4,7 +4,7 @@
 // through one swappable module seam so tests can inject a deterministic RNG.
 // The turn machine + platform contract live in rules.js; the bot in ai.js.
 import {
-  KNIGHTS, THINGS, DEN, DECK_IDS, COMP_P, ROWS, COLS, POWER_LIMIT,
+  KNIGHTS, THINGS, DEN, DEN_TALES, DECK_IDS, COMP_P, ROWS, COLS, POWER_LIMIT,
   NAMED_TILES,
 } from "./data.js";
 
@@ -23,7 +23,18 @@ const LOG_CAP = 80;
 export function logEvent(game, text, cls = "") {
   if (!game.log) game.log = [];
   game.log.push({ text, cls });
+  game.log_n = (game.log_n || 0) + 1;
   if (game.log.length > LOG_CAP) game.log.splice(0, game.log.length - LOG_CAP);
+}
+// An encounter narrates itself by reading back the lines its own resolution logged. An INDEX into
+// game.log cannot do that: once the log reaches LOG_CAP the trim drops the front, so the index a
+// resolution captured before it ran still points at the end afterwards and the read comes back
+// empty — the result modal then falls through to "the Merlin reacts." mid-game, and only mid-game.
+// `log_n` counts every event ever logged and never shrinks, so the read stays anchored.
+function logMark(game) { return game.log_n || 0; }
+function logSince(game, mark) {
+  const n = (game.log_n || 0) - mark;
+  return n > 0 ? game.log.slice(-n).map((e) => e.text).join("<br>") : "";
 }
 
 /* ------------------------------- board ---------------------------------- */
@@ -212,26 +223,45 @@ function thingEffect(seat, id) {
   if (t.power) parts.push(POWER_NOTE[t.power] || "a special power");
   return `${parts.join(", ") || "no bonus"} (now S ${totalS(seat)} · P ${totalP(seat)})`;
 }
+// "the Merlin" reads as a typo: he is a person, not a species. `proper` denizens take no article.
+export function denPhrase(id) {
+  const den = DEN[id];
+  if (!den) return "the denizen";
+  return den.proper ? den.name : `the ${den.name}`;
+}
+// The story a reaction tells, with the knight written into it. Falls back to plain narration.
+function tale(id, act, name) {
+  const t = DEN_TALES[id] && DEN_TALES[id][act];
+  return t ? t.replace(/\{k\}/g, name) : null;
+}
 // Apply a greeted denizen's reaction. Returns { endTurn, befriended }.
-export function applyReaction(game, seat, tile, den, act) {
+export function applyReaction(game, seat, tile, act) {
   const name = knightOf(seat).name;
-  if (act === "remains") { tile.remains = true; logEvent(game, `The ${den.name} remains, ignoring ${name}.`); return {}; }
-  if (act === "transport") { logEvent(game, `The ${den.name} transports away.`); clearCard(game, tile); return {}; }
-  if (act === "transportYou") { logEvent(game, `The Arch-Mage transports ${name}!`, "a"); relocate(game, seat, 8 - seat.r, 6 - seat.c); return {}; }
-  if (act === "befriend") return befriend(game, seat, tile, tile.card);
-  if (act === "tower") { logEvent(game, `The Rogue betrays ${name} — to the Tower!`, "r"); toTower(game, seat, false); return { endTurn: true }; } // Rogue: keep companions
+  const id = tile.card;
+  if (act === "remains") { tile.remains = true; logEvent(game, tale(id, act, name) || `${denPhrase(id)} remains, ignoring ${name}.`); return {}; }
+  if (act === "transport") { logEvent(game, tale(id, act, name) || `${denPhrase(id)} transports away.`); clearCard(game, tile); return {}; }
+  if (act === "transportYou") { logEvent(game, tale(id, act, name) || `The Arch-Mage transports ${name}!`, "a"); relocate(game, seat, 8 - seat.r, 6 - seat.c); return {}; }
+  if (act === "befriend") return befriend(game, seat, tile, id);
+  if (act === "tower") { logEvent(game, tale(id, act, name) || `The Rogue betrays ${name} — to the Tower!`, "r"); toTower(game, seat, false); return { endTurn: true }; } // Rogue: keep companions
   if (act && act.startsWith("give:")) {
     const th = act.slice(5);
     seat.things.push(th);
     clearCard(game, tile); enforcePower(game, seat);
-    logEvent(game, `${name} receives the ${THINGS[th].name} — ${thingEffect(seat, th)}.`, "a");
+    // The tale first, then the bookkeeping — the player wants the scene, and then the numbers.
+    logEvent(game, tale(id, act, name) || `${denPhrase(id)} gives ${name} the ${THINGS[th].name}.`, "a");
+    logEvent(game, `${name} takes the ${THINGS[th].name} — ${thingEffect(seat, th)}.`, "a");
     return {};
   }
   if (act && act.startsWith("run")) {
     const dir = act.slice(3);
     const nb = { N: cellAt(game.board, tile.r - 1, tile.c), S: cellAt(game.board, tile.r + 1, tile.c), E: cellAt(game.board, tile.r, tile.c + 1), W: cellAt(game.board, tile.r, tile.c - 1) }[dir];
-    if (tile.open[dir] && nb) { logEvent(game, `The Horse gallops off.`); clearCard(game, tile); }
-    else { seat.horse = true; logEvent(game, `${name} catches the Horse! +2 Strength.`, "a"); clearCard(game, tile); }
+    if (tile.open[dir] && nb) { logEvent(game, tale(id, "run", name) || "The Horse gallops off."); clearCard(game, tile); }
+    else {
+      seat.horse = true;
+      logEvent(game, tale(id, "catch", name) || `${name} catches the Horse!`, "a");
+      logEvent(game, `${name} rides the Horse — +2 Strength.`, "a");
+      clearCard(game, tile);
+    }
     return {};
   }
   return {};
@@ -351,7 +381,7 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   if (outcome === "win") logEvent(game, `${k.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
   else if (outcome === "captured") logEvent(game, `The Enchantress captures ${k.name}! (escape on a 6) — ${mine} vs ${foe}`, "r");
   else logEvent(game, `${k.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
-  const before = game.log.length;   // headline is already on the modal; capture only what follows
+  const before = logMark(game);   // headline is already on the modal; capture only what follows
 
   if (outcome === "win") {
     applyWin(game, seat, tile, den, id);
@@ -364,7 +394,7 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   }
   // Record the decisive roll so the client can show the dice-reveal modal.
   recordRoll(game, seat.mark, { white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome,
-    picked: forcedWhite != null, detail: game.log.slice(before).map((e) => e.text).join("<br>") });
+    picked: forcedWhite != null, detail: logSince(game, before) });
   return { result, endTurn: true };
 }
 function applyWin(game, seat, tile, den, id) {
@@ -438,14 +468,14 @@ function greetFaceOutcome(game, seat, tile, den, id, face, guyon, chapel, isPCom
     const nb = { N: cellAt(game.board, tile.r - 1, tile.c), S: cellAt(game.board, tile.r + 1, tile.c), E: cellAt(game.board, tile.r, tile.c + 1), W: cellAt(game.board, tile.r, tile.c - 1) }[dir];
     return (tile.open[dir] && nb) ? { key: "run", label: "the Horse gallops off" } : { key: "catch", label: "you catch the Horse (+2 S)" };
   }
-  return { key: "remains", label: "reacts" };
+  return { key: "remains", label: "ignores you" };
 }
 // Resolve a Greet. Returns { endTurn:true } (a greeting always ends the turn, like the standalone).
 // forcedDie (1-6) lets a shell pick drive the face instead of an internal d6 roll.
 export function resolveGreet(game, seat, tile, forcedDie) {
   const den = DEN[tile.card];
   const id = tile.card;
-  const before = game.log.length;      // capture the outcome lines for the result card
+  const before = logMark(game);        // capture the outcome lines for the result card
   const die = forcedDie != null ? forcedDie : (greetNeedsDie(den, id) ? d6() : null);
   if (den.befriendAlways) { befriend(game, seat, tile, id); } // Sage
   else {
@@ -470,11 +500,11 @@ export function resolveGreet(game, seat, tile, forcedDie) {
     } else {
       const idx = die == null ? 1 : Math.min(6, Math.max(1, die + guyon));   // no die → every row is the same row
       const act = (den.tbl && den.tbl[idx]) || "remains";
-      applyReaction(game, seat, tile, den, act);
+      applyReaction(game, seat, tile, act);
     }
   }
   recordRoll(game, seat.mark, { greet: true, die, picked: forcedDie != null, foeName: den.name,
-    result: game.log.slice(before).map((e) => e.text).join("<br>") || `The ${den.name} reacts.` });
+    foePhrase: denPhrase(id), result: logSince(game, before) || `${denPhrase(id)} reacts.` });
   return { endTurn: true };
 }
 

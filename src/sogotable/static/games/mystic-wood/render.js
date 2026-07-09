@@ -148,17 +148,16 @@ function actionsHtml(ctx, game, me) {
   }
   // A pending encounter for me ALWAYS keeps a resolve button in the bar, so a suppressed/dismissed encounter
   // modal (stale-dice replay, reload, mis-tap) can never dead-end the turn.
+  // The server carries the article ("Merlin", but "the Witch") — he is a person, not a species.
+  const denizen = (p) => E(p.denPhrase || `the ${p.denName || (DEN[p.card] && DEN[p.card].name) || "denizen"}`);
   if (jp && jp.type === "greet_pick" && jp.mark === me) {
-    const den = DEN[jp.card];
-    return `<button class="primary" data-act="greetpick">🤝 Greet the ${E(jp.denName || (den && den.name) || "denizen")}</button>`;
+    return `<button class="primary" data-act="greetpick">🤝 Greet ${denizen(jp)}</button>`;
   }
   if (jp && jp.type === "combat_pick" && jp.mark === me) {
-    const den = DEN[jp.card];
-    return `<button class="primary" data-act="combatpick">⚔️ Fight the ${E(jp.denName || (den && den.name) || "denizen")}</button>`;
+    return `<button class="primary" data-act="combatpick">⚔️ Fight ${denizen(jp)}</button>`;
   }
   if (jp && jp.type === "encounter" && jp.mark === me) {
-    const den = DEN[jp.card] || {};
-    return `<button class="primary" data-act="encounter">${jp.combat ? "⚔️ Challenge" : "🤝 Greet"} the ${E(jp.denName || den.name || "denizen")}</button>`;
+    return `<button class="primary" data-act="encounter">${jp.combat ? "⚔️ Challenge" : "🤝 Greet"} ${denizen(jp)}</button>`;
   }
   let btns = "";
   if (mine && meSeat && !meSeat.tower && !meSeat.captured && !game.pending) {
