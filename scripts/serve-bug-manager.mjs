@@ -30,7 +30,7 @@ if (!passcode) {
 }
 
 // Only these upstream paths may be proxied — the page can list and resolve, nothing else.
-const PROXY_PATHS = new Set(["/api/bug-reports/list", "/api/bug-reports/resolve"]);
+const PROXY_PATHS = new Set(["/api/bug-reports/list", "/api/bug-reports/resolve", "/api/bug-reports/update"]);
 
 function readBody(req) {
   return new Promise((resolve) => {

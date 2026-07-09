@@ -22,7 +22,7 @@ import {
 } from "./stats.js";
 import { BOT_DEFINITIONS, isBotSeat } from "./games/bots.js";
 // Bug-report store (append / list / clear) — its own leaf owner; the Worker only routes.
-import { appendBugReport, listBugReports, clearBugReports, resolveBugReports } from "./bug-reports.js";
+import { appendBugReport, listBugReports, clearBugReports, resolveBugReports, updateBugReport } from "./bug-reports.js";
 // Per-game dispatch layer (table + game-agnostic dispatchers). Each game's
 // server-authoritative rules live in its own module; games/handlers.js owns the
 // one table that binds them. The Worker entry only routes.
@@ -509,6 +509,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/bug-reports/list") return listBugReports(data, payload, superuserPasscode);
     if (method === "POST" && url.pathname === "/api/bug-reports/clear") return clearBugReports(data, payload, superuserPasscode);
     if (method === "POST" && url.pathname === "/api/bug-reports/resolve") return resolveBugReports(data, payload, superuserPasscode);
+    if (method === "POST" && url.pathname === "/api/bug-reports/update") return updateBugReport(data, payload, superuserPasscode);
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
       if (!playerId) throw new Error("Player id is required.");

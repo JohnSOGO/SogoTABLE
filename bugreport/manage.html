@@ -585,11 +585,21 @@ async function startAgent(report) {
 
 document.getElementById("editCancel").addEventListener("click", () => { document.getElementById("editModal").hidden = true; });
 document.getElementById("editModal").addEventListener("click", (e) => { if (e.target.id === "editModal") document.getElementById("editModal").hidden = true; });
-document.getElementById("editStart").addEventListener("click", () => {
+document.getElementById("editStart").addEventListener("click", async () => {
   if (!editingReport) return;
   const edited = String(document.getElementById("editText").value || "").trim();
   if (!edited) return toast("The brief is empty");
   document.getElementById("editModal").hidden = true;
+  // Persist the refined brief back onto the report so the record reflects what was
+  // actually worked on (not the terse phone note). Non-blocking — launch either way.
+  if (edited !== String(editingReport.description || "").trim()) {
+    try {
+      await api("/api/bug-reports/update", { id: editingReport.id, description: edited });
+      editingReport.description = edited;
+      const r = getReport(editingReport.id); if (r) { r.description = edited; render(); }
+      toast("Report updated ✓");
+    } catch (e) { toast("⚠️ couldn't save the edit: " + e.message); }
+  }
   startAgent({ ...editingReport, description: edited });
 });
 document.getElementById("editText").addEventListener("keydown", (e) => {

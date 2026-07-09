@@ -75,3 +75,19 @@ export function resolveBugReports(data, payload, superuserPasscode) {
   }
   return { ok: true, affected };
 }
+
+// Refine a report's description in place — used when the admin expands a terse
+// in-game note (often typed quickly on a phone) into a fuller brief before handing
+// it to a fix agent. Keeps the report record in sync with what was actually worked
+// on. Gated by the Sogo passcode; mutating (persists via the entry's save).
+export function updateBugReport(data, payload, superuserPasscode) {
+  assertSogoPasscode(payload.passcode, superuserPasscode);
+  const id = String(payload.id || "");
+  const description = String(payload.description || "").trim();
+  if (!description) throw new Error("Description is required.");
+  const report = (Array.isArray(data.bug_reports) ? data.bug_reports : []).find((r) => String(r.id) === id);
+  if (!report) throw new Error("No such report.");
+  report.description = description.slice(0, 4000);
+  report.edited_at = Date.now();
+  return { ok: true, id };
+}
