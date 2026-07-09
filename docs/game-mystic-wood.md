@@ -54,6 +54,10 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   to the deck** — both keep quests always completable (they closed real unwinnable-state stalls).
 - **Bishop** gives the Ring instantly; **Dwarf** gives Armour directly; **Ring/Potion/Shield**
   bonuses are placeholders (source `[TBD]`). Generic tiles orient on reveal to stay connected.
+- **A greeting rolls only when the die can change the outcome.** The Dwarf (→ Armour), the Nymph
+  (→ Crystal), the Sage (always befriends) and the Bishop (always kneels to pray) have one fixed
+  reaction, so `resolveGreet` rolls no die and the result card shows none (`greetNeedsDie`,
+  `engine.js`). Every varying reaction table still rolls, as before.
 - **Now implemented (2026-07-07):** jousts (same-tile challenge, both S+P, winner chooses
   Tower / take a Thing / take a companion); Prince's low-roll attack (greet 2–7 → fight →
   vanquish him and he joins); Bishop's 3-turn prayer for the Ring; Guyon's Cave now counts
@@ -89,10 +93,13 @@ rules win. (Report IDs are the in-app `bugreports` slugs.)
    when it "runs" (`applyReaction` `run*` branch). **Ask:** should it instead **flee to an
    adjacent tile** (move the card, so you can chase it)? **Close-out:** relocate `tile.card`
    to the neighbour in the rolled direction rather than `clearCard`. `deploy:brain`.
-4. **[mrbty83d] Dwarf rolls but always gives Armour.** — Its whole reaction table is one
-   outcome, so the die is cosmetic. **Ask:** skip the roll for single-outcome denizens?
-   **Close-out:** detect a denizen whose `tbl` has one distinct effect and skip the die
-   display (client) / roll (server).
+4. ~~**[mrbty83d / mrc79i4d] Dwarf rolls but always gives Armour.**~~ — **CLOSED 2026-07-08.**
+   Sogo re-asked ("Does dwarf always give armor? Why roll?") — yes, it always did; the die was
+   cosmetic. `greetNeedsDie` (`engine.js`) now suppresses the roll for any denizen whose reaction
+   never varies (Dwarf, Nymph, Sage, Bishop) and `showDice` (`render.js`) omits the die from the
+   result card. **No rules change** — the outcome was already unconditional. Needs `deploy:brain`.
+   *If* the rulebook turns out to give the Dwarf a varying table, that is a separate `data.js` fix
+   and the roll returns on its own.
 5. **[mrbu6ls6] "Can't move to a tile that's my quest."** — Likely the **Cave** (Guyon needs
    the Golden Bough to enter — by rules) or a named tile whose fixed roads don't connect.
    **Ask:** which knight + which tile (r,c)? **Close-out:** if it's the Cave, it's by-design

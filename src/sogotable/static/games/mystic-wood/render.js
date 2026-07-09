@@ -456,10 +456,11 @@ function showDice(ctx, roll) {
       <div class="hint">${E(roll.cName)} ${roll.cw} vs ${E(roll.dName)} ${roll.dw}</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else if (roll.greet) {
+    // The server sends no die when the reaction never varies (Dwarf, Nymph, Sage, Bishop).
+    const dice = roll.die == null ? "" : `<div class="hint">the roll:</div>${diceRow("Roll", "white", roll.die, null, null)}`;
     inner = `<div class="tag">You greet the ${E(roll.foeName)}</div>
       <div class="result mw-result-big">${sanitizeLog(roll.result || "The denizen reacts.")}</div>
-      <div class="hint">the roll:</div>
-      ${diceRow("Roll", "white", roll.die, null, null)}
+      ${dice}
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else {
     const res = roll.outcome === "win" ? `<span class="g">⚔️✨ Victory! — ${roll.mine} vs ${roll.foe}</span>`

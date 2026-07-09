@@ -328,13 +328,22 @@ export function becomeKing(game, seat) {
 }
 
 /* -------------------------------- greet --------------------------------- */
+// A greeting only rolls when the die can change the outcome. The Sage always befriends, the Bishop
+// always starts a prayer, and a denizen whose reaction table holds a single effect (Dwarf → Armour,
+// Nymph → Crystal) always gives it. Rolling there is theatre, and reads as a bug: no die is rolled
+// and none is shown.
+function greetNeedsDie(den, id) {
+  if (den.befriendAlways || id === "bishop") return false;
+  if (id === "queen" || den.cls === "companion") return true;   // queen's boon, Grail/Princess/Prince
+  if (!den.tbl) return false;
+  return new Set(Object.values(den.tbl)).size > 1;
+}
 // Resolve a Greet. Returns { endTurn:true } (a greeting always ends the turn, like the standalone).
 export function resolveGreet(game, seat, tile) {
   const den = DEN[tile.card];
   const id = tile.card;
-  const k = knightOf(seat);
   const before = game.log.length;      // capture the outcome lines for the result card
-  const die = d6();
+  const die = greetNeedsDie(den, id) ? d6() : null;
   if (den.befriendAlways) { befriend(game, seat, tile, id); } // Sage
   else {
     const guyon = seat.knight === "guyon" ? 1 : 0;
@@ -356,7 +365,7 @@ export function resolveGreet(game, seat, tile) {
     } else if (id === "queen") {
       queenBoon(game, seat, die);               // 5-6 casts a rival into the Tower
     } else {
-      const idx = Math.min(6, Math.max(1, die + guyon));
+      const idx = die == null ? 1 : Math.min(6, Math.max(1, die + guyon));   // no die → every row is the same row
       const act = (den.tbl && den.tbl[idx]) || "remains";
       applyReaction(game, seat, tile, den, act);
     }

@@ -6,7 +6,7 @@ import {
 } from "../games/mystic-wood/rules.js";
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
-  resolveChallenge, hasThing,
+  resolveChallenge, resolveGreet, hasThing,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN } from "../games/mystic-wood/data.js";
 
@@ -85,6 +85,52 @@ test("Enchantress captures on a loss (escape on a 6), not the Tower", () => {
   assert.equal(res.result, "captured");
   assert.equal(s.captured, true);
   assert.equal(s.tower, false);
+});
+
+function greetGame(knight, card) {
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], seat_order: ["P1"], players: {} };
+  const s = seatLit(knight); game.players.P1 = s;
+  const tile = cellAt(game.board, s.r, s.c); tile.card = card; tile.revealed = true;
+  return { game, s, tile };
+}
+
+test("Greet: a single-outcome denizen gives its Thing with no die rolled", () => {
+  for (const [card, thing] of [["dwarf", "armour"], ["nymph", "crystal"]]) {
+    const { game, s, tile } = greetGame("george", card);
+    setMysticWoodRandom(() => { throw new Error(`${card} must not roll`); });
+    resolveGreet(game, s, tile);
+    assert.deepEqual(s.things, [thing]);
+    assert.equal(tile.card, null);
+    assert.equal(game.results.P1.die, null);   // client shows no die
+  }
+});
+
+test("Greet: the Sage and the Bishop have fixed reactions and roll no die", () => {
+  const sage = greetGame("george", "sage");
+  setMysticWoodRandom(() => { throw new Error("sage must not roll"); });
+  resolveGreet(sage.game, sage.s, sage.tile);
+  assert.deepEqual(sage.s.companions, ["sage"]);
+  assert.equal(sage.game.results.P1.die, null);
+
+  const bishop = greetGame("george", "bishop");
+  setMysticWoodRandom(() => { throw new Error("bishop must not roll"); });
+  resolveGreet(bishop.game, bishop.s, bishop.tile);
+  assert.equal(bishop.s.praying, true);
+  assert.equal(bishop.game.results.P1.die, null);
+});
+
+test("Greet: a varying reaction table still rolls (Merlin: 1-2 transports, 5-6 gives the Shield)", () => {
+  const low = greetGame("george", "merlin");
+  setMysticWoodRandom(seq([0.0]));   // die = 1 → transports away, no Thing
+  resolveGreet(low.game, low.s, low.tile);
+  assert.deepEqual(low.s.things, []);
+  assert.equal(low.game.results.P1.die, 1);
+
+  const high = greetGame("george", "merlin");
+  setMysticWoodRandom(seq([0.99]));  // die = 6 → gives the Shield
+  resolveGreet(high.game, high.s, high.tile);
+  assert.deepEqual(high.s.things, ["shield"]);
+  assert.equal(high.game.results.P1.die, 6);
 });
 
 test("contract: id predicate, seat count, distinct knights, projection shape", () => {
