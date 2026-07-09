@@ -290,8 +290,33 @@ export function combatPreview(seat, tile) {
   const label = den.cls === "beast" ? "Strength" : den.cls === "magic" ? "Prowess" : "Strength + Prowess";
   return { label, mine, foe };
 }
+// Preview a combat as "pick one of six": roll the foe's (red) die now, then mark each of the
+// player's six white faces win / lose / tie, so the client can show "2 win, 4 lose" and let the
+// player tap one. Pure over the seat/tile except for the one red roll it returns. Ties reroll
+// (handled at pick time). Mirrors resolveChallenge's bonus math via combatPreview.
+export function combatOutcomes(game, seat, tile) {
+  const den = DEN[tile.card];
+  if (!den) return null;
+  const pv = combatPreview(seat, tile);        // { label, mine:mineBonus, foe:foeBonus } — no side effects
+  const red = d6();
+  const foeTotal = red + pv.foe;
+  const faces = [];
+  for (let f = 1; f <= 6; f += 1) {
+    const mine = f + pv.mine;
+    faces.push({ face: f, result: mine > foeTotal ? "win" : (mine === foeTotal ? "tie" : (den.captures ? "captured" : "lose")) });
+  }
+  const labels = { win: "you win", lose: "you lose", captured: "she captures you", tie: "a tie — reroll" };
+  const groups = [];
+  for (const key of ["win", "lose", "captured", "tie"]) {
+    const count = faces.filter((x) => x.result === key).length;
+    if (count) groups.push({ key, label: labels[key], count });
+  }
+  return { card: tile.card, red, foeTotal, mineBonus: pv.mine, label: pv.label, faces, groups };
+}
 // Resolve a Challenge. Returns { result: 'win'|'lose'|'captured', endTurn:true }.
-export function resolveChallenge(game, seat, tile) {
+// forcedWhite/forcedRed (1-6) let a combat pick drive the dice instead of rolling; the caller
+// guarantees they don't tie (a tie is rerolled at pick time).
+export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   const den = DEN[tile.card];
   const id = tile.card;
   const k = knightOf(seat);
@@ -312,7 +337,11 @@ export function resolveChallenge(game, seat, tile) {
   const mineBonus = mineParts.reduce((a, x) => a + x.v, 0), foeBonus = foeParts.reduce((a, x) => a + x.v, 0);
 
   let white, red, mine, foe, guard = 0;
-  do { white = d6(); red = d6(); mine = white + mineBonus; foe = red + foeBonus; } while (mine === foe && guard++ < 50);
+  if (forcedWhite != null && forcedRed != null) {
+    white = forcedWhite; red = forcedRed; mine = white + mineBonus; foe = red + foeBonus;
+  } else {
+    do { white = d6(); red = d6(); mine = white + mineBonus; foe = red + foeBonus; } while (mine === foe && guard++ < 50);
+  }
 
   // Resolve first, then record: the consequences of the fight (the Dragon slain, a Thing taken, the crown
   // claimed, a companion spent) are logged by the branches below, and the result modal must show them —
@@ -335,7 +364,7 @@ export function resolveChallenge(game, seat, tile) {
   }
   // Record the decisive roll so the client can show the dice-reveal modal.
   recordRoll(game, seat.mark, { white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome,
-    detail: game.log.slice(before).map((e) => e.text).join("<br>") });
+    picked: forcedWhite != null, detail: game.log.slice(before).map((e) => e.text).join("<br>") });
   return { result, endTurn: true };
 }
 function applyWin(game, seat, tile, den, id) {

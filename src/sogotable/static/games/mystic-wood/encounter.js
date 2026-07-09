@@ -56,16 +56,21 @@ export function showEncounter(ctx, game) {
 }
 // A greeting whose outcome varies is a "pick one of six" — six identical denizen faces, shuffled
 // server-side, with the odds shown. You tap one; the consequence reveals. No dice on screen.
-export function showGreetPick(ctx, game) {
+// A greeting whose outcome varies: tap one of six identical denizen faces (shuffled server-side)
+// with the odds shown. No dice on screen.
+export function showGreetPick(ctx, game) { pickCard(ctx, game, "greet_pick", "You greet the"); }
+// A fight: same six-face pick, but the odds are win / lose (/ tie → reroll) vs the foe's hidden roll.
+export function showCombatPick(ctx, game) { pickCard(ctx, game, "combat_pick", "You fight the"); }
+function pickCard(ctx, game, moveType, verb) {
   closePortals();
   const p = game.pending, den = DEN[p.card], tile = tileAt(game, p.r, p.c);
   const emoji = denEmoji(p.card);
   const name = E(p.denName || (den && den.name) || "denizen");
-  const odds = (p.groups || []).map((g) => `<div class="mw-pickodd"><span class="mw-pickn">${g.count}</span> ${E(g.label)}</div>`).join("");
+  const odds = (p.groups || []).map((g) => `<div class="mw-pickodd mw-odd-${E(g.key)}"><span class="mw-pickn">${g.count}</span> ${E(g.label)}</div>`).join("");
   const faces = [1, 2, 3, 4, 5, 6].map((n) => `<button class="mw-pickface" data-pick="${n}" aria-label="pick ${n}">${emoji}</button>`).join("");
   const host = portal();
   host.innerHTML = `<div class="overlay"><div class="modal">
-    <div class="tag">You greet the ${name}</div>
+    <div class="tag">${verb} ${name}</div>
     ${tileHeaderHtml(tile)}
     <h2>${emoji} Pick one</h2>
     <div class="mw-pickodds">${odds}</div>
@@ -75,8 +80,8 @@ export function showGreetPick(ctx, game) {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
     b.classList.add("mw-chosen");
-    // The result modal swaps in on the next render (die suppressed — this was a pick, not a roll).
-    ctx.makeMove({ type: "greet_pick", pick: Number(b.getAttribute("data-pick")) });
+    // The result modal swaps in on the next render (dice suppressed — this was a pick, not a roll).
+    ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")) });
   }));
 }
 function tileHeaderHtml(t) {
@@ -145,11 +150,13 @@ export function showDice(ctx, roll) {
     // What the fight actually did — the Dragon slain, a Thing taken, the crown claimed. Without it a
     // win reads as "you rolled higher" and the player never learns what they gained.
     const detail = roll.detail ? `<div class="mw-result-detail">${sanitizeLog(roll.detail)}</div>` : "";
+    // A picked fight shows no dice — the pick stood in for the roll; the headline carries the totals.
+    const dice = roll.picked ? "" : `<div class="hint">the dice — white = you · red = foe:</div>
+      <div class="dicewrap">${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}</div>`;
     inner = `<div class="tag">Encounter result</div>
       <div class="result mw-result-big">${res}</div>
       ${detail}
-      <div class="hint">the dice — white = you · red = foe:</div>
-      <div class="dicewrap">${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}</div>
+      ${dice}
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   }
   host.innerHTML = `<div class="overlay"><div class="modal">${inner}</div></div>`;

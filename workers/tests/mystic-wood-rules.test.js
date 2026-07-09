@@ -6,7 +6,7 @@ import {
 } from "../games/mystic-wood/rules.js";
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
-  resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes,
+  resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes, combatOutcomes,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN } from "../games/mystic-wood/data.js";
 
@@ -82,6 +82,46 @@ test("greet shells: greetOutcomes previews the six faces, and a picked face reso
   // A single-effect denizen never rolls — no pick.
   const g2 = mkGame(); const nt = cellAt(g2.board, 6, 4); nt.revealed = true; nt.card = "dwarf";
   assert.equal(greetOutcomes(g2, seatLit("roland"), nt), null);
+});
+
+test("combat pick: combatOutcomes marks the six white faces vs the rolled red, and a pick resolves", () => {
+  setMysticWoodRandom(seq([0.99])); // red die = 6
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1"], players: {} };
+  const s = seatLit("george"); game.players.P1 = s;                 // George S3
+  const tile = cellAt(game.board, s.r, s.c); tile.card = "ox"; tile.revealed = true; // Ox: beast S1
+  const co = combatOutcomes(game, s, tile);
+  assert.equal(co.red, 6);
+  // mine = face+3 vs foe = 6+1 = 7 → faces 5,6 win; face 4 ties; 1-3 lose.
+  assert.deepEqual(co.faces.map((x) => x.result), ["lose", "lose", "lose", "tie", "win", "win"]);
+  assert.deepEqual(Object.fromEntries(co.groups.map((x) => [x.key, x.count])), { win: 2, lose: 3, tie: 1 });
+
+  // Parity: a winning white (5) vs the stored red (6) vanquishes the Ox and yields its slayer.
+  const g2 = { board: buildBoard(), deck: [], discard: [], log: [], results: {} };
+  const s2 = seatLit("george"); const t2 = cellAt(g2.board, s2.r, s2.c); t2.card = "ox"; t2.revealed = true;
+  const res = resolveChallenge(g2, s2, t2, 5, 6);
+  assert.equal(res.result, "win");
+  assert.ok(s2.prowess.some((p) => p.name === "Ox-slayer"));
+  assert.equal(g2.results.P1.picked, true);   // reveal will hide the dice
+});
+
+test("combat pick: a tie reopens the pick with a fresh red (rulebook reroll)", () => {
+  setMysticWoodRandom(mulberry32(9));
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  const s = g.players.P1; s.knight = "george"; s.things = []; s.prowess = []; s.companions = []; s.horse = false;
+  const t = cellAt(g.board, s.r, s.c); t.card = "ox"; t.revealed = true;
+  // Rig a guaranteed tie: every shell maps to white 4, stored red 6 → 4+S3 == 6+S1 == 7.
+  g.current_player = "P1";
+  g.pending = { type: "combat_pick", mark: "P1", r: t.r, c: t.c, card: "ox", red: 6, label: "Strength", groups: [], faceMap: [4, 4, 4, 4, 4, 4] };
+  makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 2 });
+  assert.equal(g.pending.type, "combat_pick", "a tie reopens the pick");
+  assert.notEqual(g.pending.faceMap, undefined);   // a fresh shuffle was made
+  // The projection must never leak the red die or the face-map (the answer key).
+  const dict = mysticWoodGameToDict(g);
+  assert.equal(dict.pending.type, "combat_pick");
+  assert.equal(dict.pending.red, undefined);
+  assert.equal(dict.pending.faceMap, undefined);
+  assert.ok(Array.isArray(dict.pending.groups));
 });
 
 test("greet_pick projection sends the odds but never the face-map", () => {
@@ -304,7 +344,7 @@ test("integration: seeded bot-heavy games run to completion with a valid winner"
       const seat = g.players[g.current_player];
       assert.equal(seat.is_bot, false, "advance loop must stop only on a human");
       if (g.pending) {
-        if (g.pending.type === "greet_pick") makeMysticWoodMove(g, g.current_player, { type: "greet_pick", pick: 1 + Math.floor(rr() * 6) });
+        if (g.pending.type === "greet_pick" || g.pending.type === "combat_pick") makeMysticWoodMove(g, g.current_player, { type: g.pending.type, pick: 1 + Math.floor(rr() * 6) });
         else makeMysticWoodMove(g, g.current_player, { type: "encounter", choice: g.pending.combat ? "challenge" : "greet" });
         continue;
       }

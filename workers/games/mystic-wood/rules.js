@@ -12,7 +12,7 @@ import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
   resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
-  resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes,
+  resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -165,20 +165,26 @@ function enterTile(game, seat, tile) {
   if (tile.card) {
     const den = DEN[tile.card];
     const combat = den.cls === "beast" || den.cls === "warrior" || den.cls === "magic";
-    // A greeting whose outcome varies becomes "pick one of six": the player taps one of six
-    // identical denizen faces (shuffled here, hidden) instead of watching a die roll.
-    if (!combat) {
-      const outcomes = greetOutcomes(game, seat, tile);
-      if (outcomes) {
-        game.pending = { type: "greet_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
-          groups: outcomes.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
-        return;
-      }
+    // Both greeting and combat become "pick one of six": the player taps one of six identical
+    // denizen faces (shuffled here, hidden) instead of watching a die roll.
+    if (combat) { openCombatPick(game, seat, tile); return; }
+    const outcomes = greetOutcomes(game, seat, tile);
+    if (outcomes) {
+      game.pending = { type: "greet_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
+        groups: outcomes.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
+      return;
     }
     game.pending = { type: "encounter", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card, combat };
-    return;   // await the player's Greet/Challenge choice — turn stays open
+    return;   // a single-effect greet: one confirm button, no pick
   }
   passTurn(game);
+}
+// Open a combat "pick one of six": the foe's (red) die is rolled now and stored; the player taps a
+// white face. groups carry the win/lose(/tie) counts; faceMap + red stay server-side (the answer key).
+function openCombatPick(game, seat, tile) {
+  const co = combatOutcomes(game, seat, tile);
+  game.pending = { type: "combat_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
+    red: co.red, label: co.label, groups: co.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
 }
 
 /* ------------------------------- moves ---------------------------------- */
@@ -207,6 +213,26 @@ function doGreetPick(game, seat, action) {
   game.pending = null;
   if (!tile || !tile.card) { passTurn(game); return; }
   resolveGreet(game, seat, tile, face);
+  passTurn(game);
+}
+// Combat "pick one of six": the tapped face maps through the hidden shuffle to a white die,
+// fought against the stored red die. A tie reopens the pick with a fresh red (the rulebook reroll).
+function doCombatPick(game, seat, action) {
+  const p = game.pending;
+  if (!p || p.type !== "combat_pick" || p.mark !== seat.mark) throw new Error("There is no fight to resolve.");
+  const pick = Number(action && action.pick);
+  if (!(pick >= 1 && pick <= 6)) throw new Error("Pick one of the six.");
+  const tile = cellAt(game.board, p.r, p.c);
+  if (!tile || !tile.card) { game.pending = null; passTurn(game); return; }
+  const white = p.faceMap[pick - 1];
+  const pv = combatPreview(seat, tile);
+  if (white + pv.mine === p.red + pv.foe) {   // tie → reroll (new red, pick again)
+    logEvent(game, "A tie — the fates are cast again.");
+    openCombatPick(game, seat, tile);
+    return;
+  }
+  game.pending = null;
+  resolveChallenge(game, seat, tile, white, p.red);
   passTurn(game);
 }
 function doEncounterChoice(game, seat, action) {
@@ -273,6 +299,7 @@ export function makeMysticWoodMove(game, mark, action) {
     case "move": doHumanMove(game, seat, action); break;
     case "encounter": doEncounterChoice(game, seat, action); break;
     case "greet_pick": doGreetPick(game, seat, action); break;
+    case "combat_pick": doCombatPick(game, seat, action); break;
     case "scry": { requireThing(seat, "crystal"); const res = powerScry(game, seat); game.scry_reveal = res.next; break; }
     case "rotate": { requireThing(seat, "wand"); powerRotate(game, seat); break; }
     case "drink": {
@@ -315,10 +342,11 @@ function pendingToDict(game) {
     const loser = game.players[p.loser];
     return { type: p.type, mark: p.mark, loser: p.loser, loserName: KNIGHTS[loser.knight].name, spoils: joustSpoils(loser) };
   }
-  // "pick one of six" greeting: send the grouped odds, NEVER the face-map (it's the answer key).
-  if (p.type === "greet_pick") {
+  // "pick one of six" greeting/combat: send the grouped odds, NEVER the face-map or the red die
+  // (they're the answer key).
+  if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
-    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups,
+    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "",
       denName: den ? den.name : "", denClass: den ? den.cls : "" };
   }
   const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat };

@@ -135,6 +135,9 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .dicewrap{width:fit-content;max-width:100%;margin:0 auto}
 .mw-portal .mw-pickodds{display:flex;flex-direction:column;gap:3px;margin:6px 0 10px;text-align:left}
 .mw-portal .mw-pickodd{font-size:13px;color:var(--ink);display:flex;align-items:baseline;gap:7px}
+.mw-portal .mw-odd-win{color:#8fd694}
+.mw-portal .mw-odd-lose,.mw-portal .mw-odd-captured{color:#e58a80}
+.mw-portal .mw-odd-tie{color:var(--gold2)}
 .mw-portal .mw-pickn{display:inline-block;min-width:1.5em;text-align:center;font-weight:700;color:var(--gold2);background:var(--panel2);border:1px solid var(--rule);border-radius:6px;padding:0 5px;font-size:12px}
 .mw-portal .mw-pickgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px}
 .mw-portal .mw-pickface{font-size:30px;line-height:1;padding:11px 0;background:var(--panel2);border:1.5px solid var(--gold);border-radius:12px;cursor:pointer;transition:transform .1s,opacity .2s,box-shadow .1s}
