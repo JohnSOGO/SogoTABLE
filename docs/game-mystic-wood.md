@@ -42,9 +42,14 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
 - **Client:** `src/sogotable/static/games/mystic-wood/{render,styles,manifest}.js` — the 7×9
   board + 3-level zoom, seat list, encounter Greet/Challenge prompt, power buttons, end screen.
   Idempotent snapshot render from `mysticWoodGameToDict`; intents via `ctx.makeMove`. Joins the
-  shared host-start render branch in `app.js`.
+  shared host-start render branch in `app.js`. `horn.js` owns the Mystic Horn scatter effect.
 - **State** is plain serializable data; the projection carries inventory names + an encounter
   combat preview so the client does zero rules math.
+- **Discrete one-shot events** ride the projection as monotonically-seq'd records the client fires
+  exactly once, never replaying on re-render or reload: `results[mark].seq` (a knight's last roll)
+  and `horn.seq` (the Mystic Horn scatter — `{ seq, byName, marks, tour }`, where `tour` is each
+  scattered knight's landing cell in seat order). The seq only ever advances; nothing clears it.
+  On a fresh mount the client adopts the current seq without playing it.
 
 ## Intended deviations from the rulebook (product decisions, not bugs)
 
@@ -63,6 +68,11 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   vanquish him and he joins); Bishop's 3-turn prayer for the Ring; Guyon's Cave now counts
   3 turns *spent* (not entries); Illusion "does your bidding" → relocates to an empty glade;
   Queen's boon (5–6 casts a rival into the Tower).
+- **The Mystic Horn is staged, not silent (2026-07-08).** A scatter used to look like a teleport,
+  so knights lost their own token. Now `horn.js` plays it: a horn call, every token touring each
+  knight's landing place in turn before it settles (~2s, one-shot per `horn.seq`), and the
+  chronicle strip becomes a flashing herald that narrates the Horn and holds the tale until the
+  player taps **Silence the Mystic Horn**. Reduced-motion skips the tour and the flashing.
 - **Still not implemented:** the **obligation/rescue subsystem** (Boy/Damsel/Child + chivalry
   cards + delivery — a dedicated feature), and **Magician's Storm** (the recovered rules never
   state what a Storm *does* — blocked pending the rulebook text; won't be invented). Knight

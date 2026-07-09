@@ -638,3 +638,36 @@ PLACEMENT RECEIPT
                  commits) + full suite 310/310 green. Prototype heavily verified in
                  AI/potion-lab/ before the port. Commit: pending (this change).
 ```
+
+```
+PLACEMENT RECEIPT
+- Ask:          Where does the Mystic Wood "Mystic Horn" client effect live — a ~2s
+                choreographed token tour, a colour-flashing narrating banner over the
+                chronicle strip with an exit button, and a horn fanfare — plus the
+                server side that announces the scatter as a one-shot event.
+- Verdict:      EXISTING owners — no new owner row. New client file
+                src/sogotable/static/games/mystic-wood/horn.js is covered by the
+                per-game directory pattern. playMysticHorn joins the sound owner
+                src/sogotable/static/sound.js. Server split: engine.js resolveSpell
+                RECORDS game.horn (seq'd, like recordRoll); rules.js
+                mysticWoodGameToDict PROJECTS it. styles.js takes the banner CSS.
+- Flow stage:   render — the effect only PRESENTS an already-applied transition. The
+                mirror rule stays server-authoritative in engine.js; the client reads
+                horn.tour + the projected cells and derives no position of its own.
+- Considerations:
+    - render.js was 712/800 (GLOBAL_FILE_CAP). Inlining ~100 lines of choreography
+      would breach the cap and stack a third concern on the board-render hub, so the
+      effect is a new leaf module (fan-in 1) and render.js took a 6-line hook only:
+      resetHorn on fresh mount, syncHorn before animateTokens, and glide suppression
+      while hornOwnsTokens(). render.js finished at 718/800 — no reorganizer needed.
+    - horn.js imports sound.js directly (the sanctioned per-game pattern) and never
+      the shell; grid stride + prevPos are injected by render.js.
+    - Sibling parity: bot and human casts share resolveSpell, so one choke point
+      covers both. The scatter is public information — no per-viewer sanitizer.
+      A reload/reconnect adopts horn.seq without replaying (same guard as roll_seq).
+- New owner row: none. (CI action taken instead: horn.js added to REVIEW_EXPORT_FILES.)
+- Verification:  workers/tests/mystic-wood-rules.test.js gains 2 tests (scatter +
+                 seq'd event; projection carries it); full suite 331/331 green.
+                 horn.js choreography driven against DOM stubs: waypoints, once-only
+                 seq guard, banner re-mount, dismiss. Advisor: placement-advisor.
+```

@@ -52,7 +52,27 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-pulse{animation:mw-pulse .9s ease-in-out infinite;border-color:#7be07b}
 @keyframes mw-pulse{0%,100%{box-shadow:0 0 0 0 rgba(123,224,123,0)}50%{box-shadow:0 0 0 5px rgba(123,224,123,.5)}}
 .mystic-wood-root .cardmark.mw-pulse{outline:2px solid #7be07b}
-.mystic-wood-root .mw-log{flex:1 1 auto;min-height:84px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
+.mystic-wood-root .mw-log{position:relative;flex:1 1 auto;min-height:84px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
+
+/* Mystic Horn: the chronicle strip becomes the horn's own herald — it flashes for the two seconds
+   the knights are in flight, then holds the tale until the player silences it. */
+.mystic-wood-root .mw-horn{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;gap:3px;padding:6px 10px;background:var(--panel);overflow-y:auto;box-shadow:inset 0 0 0 2px var(--gold)}
+.mystic-wood-root .mw-horn-title{font-family:var(--serif);font-variant:small-caps;letter-spacing:.04em;font-size:14px;color:var(--gold2);flex:none}
+.mystic-wood-root .mw-horn-tale{font-size:11.5px;line-height:1.45;color:var(--ink)}
+.mystic-wood-root .mw-horn-tale b{color:var(--gold2)}
+.mystic-wood-root .mw-horn-tale .muted{color:var(--muted)}
+.mystic-wood-root .mw-horn-exit{align-self:center;flex:none;margin-top:4px;font-size:11px;padding:5px 11px;white-space:nowrap}
+.mystic-wood-root .mw-horn-flash{animation:mw-horn-flash .32s steps(1) infinite}
+.mystic-wood-root .mw-horn-flash .mw-horn-tale,.mystic-wood-root .mw-horn-flash .mw-horn-tale .muted{color:#fff}
+.mystic-wood-root .mw-horn-flash .mw-horn-title,.mystic-wood-root .mw-horn-flash .mw-horn-tale b{color:#fff8dc}
+@keyframes mw-horn-flash{
+  0%{background:#3b2a5e;box-shadow:inset 0 0 0 2px #a97bd6}
+  25%{background:#5e3a20;box-shadow:inset 0 0 0 2px var(--gold)}
+  50%{background:#1f5244;box-shadow:inset 0 0 0 2px #4fae91}
+  75%{background:#5a2320;box-shadow:inset 0 0 0 2px var(--crimson)}
+}
+.mystic-wood-root .tok.mw-tok-horn{z-index:5;box-shadow:0 0 0 3px rgba(224,189,99,.65),0 2px 8px #000b}
+@media (prefers-reduced-motion:reduce){.mystic-wood-root .mw-horn-flash{animation:none;background:var(--panel2)}}
 .mystic-wood-root .mw-actions{display:flex;justify-content:center;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-top:1px solid var(--rule);overflow-x:auto;flex-wrap:nowrap;border-radius:0 0 10px 10px}
 .mystic-wood-root .mw-actions button{font-size:12px;padding:8px 11px;white-space:nowrap;flex:0 0 auto;width:auto;height:auto}
 .mystic-wood-root .mw-prompt{flex:none;align-self:center;font-size:11px;color:var(--muted);white-space:nowrap;padding-right:2px}

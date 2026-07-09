@@ -4,6 +4,7 @@
 // seams are rewired: data source (the ctx.game projection) and intent (ctx.makeMove). Snapshot render.
 import { renderHostStartLobby } from "../lobby.js";
 import { MYSTIC_WOOD_CSS } from "./styles.js";
+import { syncHorn, resetHorn, hornOwnsTokens } from "./horn.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, DEN_EMOJI, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
@@ -43,7 +44,7 @@ export function renderMysticWoodGame(ctx) {
   const game = ctx.game || {};
   const gameKey = `${(ctx.room && ctx.room.code) || "?"}`;
   const justInit = view.gameKey !== gameKey;
-  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; }
+  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; resetHorn(game.horn ? game.horn.seq : 0); }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
   const me = localMark(ctx);
   let root = host.querySelector(".mystic-wood-root");
@@ -59,6 +60,9 @@ export function renderMysticWoodGame(ctx) {
   wireTop(root, ctx, game, me);
   wireBoard(root, ctx, game, me);
   zoomCtx = { root, game, me }; applyZoom(); requestAnimationFrame(() => applyZoom());
+  // The Horn owns the tokens while it scatters them (and re-mounts its banner over the chronicle
+  // on every render until silenced); it reads prevPos, so it runs BEFORE animateTokens.
+  syncHorn(root, game, { cw: CW, ch: CH, prevPos });
   animateTokens(root, game);
   // overlays: my own most-recent roll result (kept per-seat so bot turns can't clobber it), else a pending encounter.
   const myRoll = (game.results && me) ? game.results[me] : null;
@@ -255,13 +259,15 @@ function legendHtml(ctx, game) {
     return `<span class="mw-legbadge${pulseCell === pc ? " mw-pulse" : ""}" data-legend="${pc}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</span>`;
   }).join("");
 }
-// Glide any token whose tile changed from its previous render position.
+// Glide any token whose tile changed from its previous render position — unless the Mystic Horn's
+// tour is carrying the tokens, in which case it owns them and the straight-line glide would fight it.
 function animateTokens(root, game) {
+  const horn = hornOwnsTokens();
   (game.players || []).forEach((p) => {
     if (p.won) { prevPos[p.mark] = { r: p.r, c: p.c }; return; }
     const tok = root.querySelector(`.tok[data-mark="${p.mark}"]`);
     const prev = prevPos[p.mark];
-    if (tok && prev && (prev.r !== p.r || prev.c !== p.c)) {
+    if (!horn && tok && prev && (prev.r !== p.r || prev.c !== p.c)) {
       const dx = (prev.c - p.c) * CW, dy = (prev.r - p.r) * CH;
       tok.style.transition = "none";
       tok.style.transform = `translate(${dx}px,${dy}px)`;
