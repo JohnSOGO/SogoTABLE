@@ -50,6 +50,10 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   and `horn.seq` (the Mystic Horn scatter — `{ seq, byName, marks, tour }`, where `tour` is each
   scattered knight's landing cell in seat order). The seq only ever advances; nothing clears it.
   On a fresh mount the client adopts the current seq without playing it.
+- **A roll record always states its consequence.** Both encounter records carry the chronicle lines
+  the resolution produced — `detail` for a challenge, `result` for a greet — so the modal says *what
+  happened* (the Dragon slain, a Thing taken, the crown claimed), not just who rolled higher. Resolve
+  first, `recordRoll` last; the headline (`Victory! — 9 vs 6`) is not repeated in the detail.
 
 ## Intended deviations from the rulebook (product decisions, not bugs)
 

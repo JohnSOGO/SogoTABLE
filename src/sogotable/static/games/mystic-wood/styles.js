@@ -128,6 +128,8 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .result{margin:9px 0 2px;text-align:center;font-size:13.5px;line-height:1.45}
 .mw-portal .result.mw-result-big{font-size:16px;font-weight:700;margin:4px 0 9px}
 .mw-portal .result.mw-result-big .g{color:#8fd08a} .mw-portal .result.mw-result-big .r{color:var(--crimson)}
+.mw-portal .mw-result-detail{margin:-4px 0 9px;text-align:center;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.mw-portal .mw-result-detail .g{color:#8fd08a} .mw-portal .mw-result-detail .r{color:var(--crimson)} .mw-portal .mw-result-detail .a{color:var(--azure)}
 .mw-portal .r{color:var(--crimson)} .mw-portal .g{color:#8fd08a} .mw-portal .a{color:var(--azure)}
 /* the rows stretch to the widest one, so both dice and both totals line up */
 .mw-portal .dicewrap{width:fit-content;max-width:100%;margin:0 auto}
