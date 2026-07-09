@@ -292,28 +292,47 @@ function tileSvg(t, seed) {
     g += `<path d="${d}" fill="${PP}" opacity="0.85"/>`; }); }
   for (let i = 0; i < 10; i += 1) { const x = 4 + rr() * 92, y = 4 + rr() * 64; if (Math.abs(x - 50) < 13 || Math.abs(y - 36) < 11) continue; const hh = 3 + rr() * 3;
     g += `<path d="M${x.toFixed(1)} ${y.toFixed(1)} l -1.4 ${(-hh * 0.8).toFixed(1)} M${x.toFixed(1)} ${y.toFixed(1)} l 0 ${(-hh).toFixed(1)} M${x.toFixed(1)} ${y.toFixed(1)} l 1.4 ${(-hh * 0.8).toFixed(1)}" fill="none" stroke="${rr() < 0.5 ? LF : H1}" stroke-width="0.9" stroke-linecap="round" opacity="0.9"/>`; }
-  if (t.name) { g += `<ellipse cx="50" cy="36" rx="23" ry="16" fill="${PP}" opacity="0.9"/>` + drawIcon(t.name)
-    + `<rect x="26" y="2" width="48" height="11" rx="3" fill="#0007"/><text x="50" y="10" text-anchor="middle" font-family="var(--serif)" font-size="8" fill="var(--gold2)">${E(t.label || t.name)}</text>`; }
+  if (t.name) {
+    const col = AREA_COLOR[t.name] || AREA_COLOR.grove;
+    // A named place is the thing players hunt for, so it gets a bright parchment medallion,
+    // an ink rim, and an emblem inked in black over its own colour — legible at any zoom.
+    g += `<ellipse cx="50" cy="36" rx="24" ry="17" fill="${INK}" opacity="0.35"/>`
+      + `<ellipse cx="50" cy="36" rx="23" ry="16" fill="${PARCHMENT}" stroke="${INK}" stroke-width="1.6"/>`
+      + `<ellipse cx="50" cy="36" rx="23" ry="16" fill="${col}" opacity="0.28"/>`
+      + drawIcon(t.name, col)
+      + `<rect x="26" y="2" width="48" height="11" rx="3" fill="${PARCHMENT}" stroke="${INK}" stroke-width="1"/>`
+      + `<rect x="28" y="10.2" width="44" height="2.2" rx="1.1" fill="${col}"/>`
+      + `<text x="50" y="9.6" text-anchor="middle" font-family="var(--serif)" font-size="8" font-weight="600" fill="${INK}">${E(t.label || t.name)}</text>`;
+  }
   g += `<path d="M9 4 l3 5 h-6 Z" fill="var(--gold)" opacity="0.85"/></svg>`;
   return g;
 }
-function drawIcon(name) {
-  const G = "var(--gold)", Gf = "color-mix(in srgb,var(--gold) 26%,transparent)";
-  const P = (d) => `<path d="${d}" fill="none" stroke="${G}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
-  const F = (d, f) => `<path d="${d}" fill="${f || G}" stroke="${G}" stroke-width="1.6"/>`;
-  const C = (cx, cy, r, f, sw) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${f || "none"}"${sw ? ` stroke="${G}" stroke-width="${sw}"` : ""}/>`;
+// Ink, medallion, and a distinct hue per place — the hue tells you *what* the place is
+// before you can read its name; the ink keeps every emblem readable on either theme.
+const INK = "#14150e", PARCHMENT = "#f0e6cd";
+const AREA_COLOR = {
+  tower: "#8b93a3", egate: "#8a6a3c", xgate: "#9a6fd0", cave: "#5f4c39", chapel: "#b3aa93",
+  castle: "#c9564c", fountain: "#4f9fd8", grove: "#4f9a52", island: "#3fa6a0",
+  palace: "#d8a93f", altar: "#d97b3f",
+};
+function drawIcon(name, col) {
+  const c = col || AREA_COLOR.grove;
+  const P = (d) => `<path d="${d}" fill="none" stroke="${INK}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const F = (d, f) => `<path d="${d}" fill="${f || c}" stroke="${INK}" stroke-width="1.8" stroke-linejoin="round"/>`;
+  const C = (cx, cy, r, f, sw) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${f || "none"}" stroke="${INK}" stroke-width="${sw || 1.8}"/>`;
   const map = {
-    tower: () => F("M42 48 v-22 h4 v-4 h3 v4 h2 v-4 h3 v4 h4 v22 z", Gf),
-    egate: () => F("M36 48 v-13 a14 14 0 0 1 28 0 v13 z", Gf) + P("M50 22 l5 5 l-5 5 l-5 -5 z"),
-    xgate: () => F("M36 48 v-13 a14 14 0 0 1 28 0 v13 z", Gf) + P("M50 20 l6 6 l-6 6 l-6 -6 z") + C(50, 32, 3, "var(--gold2)"),
-    cave: () => F("M33 47 q4 -21 17 -21 q13 0 17 21 z", "#1a1a10") + F("M44 47 q2 -10 6 -10 q4 0 6 10 z", "#000"),
-    chapel: () => F("M50 18 l13 13 v16 h-26 v-16 z", Gf) + C(50, 33, 4, "none", 2),
-    castle: () => F("M33 30 h5 v-4 h4 v4 h4 v-4 h4 v4 h4 v-4 h4 v4 h5 v17 h-39 z", Gf),
-    fountain: () => P("M37 46 h26 l-3 -8 h-20 z") + P("M50 38 v-8") + C(50, 24, 3, G),
-    grove: () => P("M50 48 v-12") + F("M50 18 q13 4 11 15 q-11 6 -22 0 q-2 -11 11 -15 z", Gf),
-    island: () => P("M31 44 q19 7 38 0") + F("M40 40 q10 -12 20 0 z", Gf),
-    palace: () => F("M50 14 l4 8 h-8 z", G) + F("M39 47 v-17 l11 -8 l11 8 v17 z", Gf),
-    altar: () => F("M41 47 h18 v-4 h-18 z", G) + F("M44 43 v-13 h12 v13", Gf),
+    tower: () => F("M42 48 v-22 h4 v-4 h3 v4 h2 v-4 h3 v4 h4 v22 z"),
+    egate: () => F("M36 48 v-13 a14 14 0 0 1 28 0 v13 z") + P("M50 22 l5 5 l-5 5 l-5 -5 z"),
+    xgate: () => F("M36 48 v-13 a14 14 0 0 1 28 0 v13 z") + P("M50 20 l6 6 l-6 6 l-6 -6 z") + C(50, 32, 3, "var(--gold)"),
+    cave: () => F("M33 47 q4 -21 17 -21 q13 0 17 21 z") + F("M44 47 q2 -10 6 -10 q4 0 6 10 z", "#12120c"),
+    chapel: () => F("M50 18 l13 13 v16 h-26 v-16 z") + C(50, 33, 4, "none", 2.2),
+    // Walk right 7x4 units, then close with the matching h-28 — a mismatched return leaves the wall slanted.
+    castle: () => F("M35 31 h4 v-4 h4 v4 h4 v-4 h4 v4 h4 v-4 h4 v4 h4 v15 h-28 z"),
+    fountain: () => F("M37 46 h26 l-3 -8 h-20 z") + P("M50 38 v-8") + C(50, 24, 3),
+    grove: () => P("M50 48 v-12") + F("M50 18 q13 4 11 15 q-11 6 -22 0 q-2 -11 11 -15 z"),
+    island: () => F("M40 40 q10 -12 20 0 z") + P("M31 44 q19 7 38 0"),
+    palace: () => F("M39 47 v-17 l11 -8 l11 8 v17 z") + F("M50 14 l4 8 h-8 z", "var(--gold)"),
+    altar: () => F("M44 43 v-13 h12 v13 z") + F("M41 47 h18 v-4 h-18 z", "var(--gold)"),
   };
   return (map[name] || map.grove)();
 }
