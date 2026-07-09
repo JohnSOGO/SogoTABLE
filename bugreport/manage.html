@@ -476,6 +476,7 @@ document.getElementById("bulk").addEventListener("click", (e) => {
 
 // ----- fix agents -----
 let pollTimer = null;
+let lastJobs = [];
 
 async function addressReport(r, btn) {
   if (btn) { btn.disabled = true; btn.textContent = "🤖 Starting…"; }
@@ -503,6 +504,7 @@ async function pollJobs() {
 }
 
 function renderJobs(jobs) {
+  lastJobs = jobs;
   const panel = document.getElementById("agents");
   const list = document.getElementById("agents-list");
   panel.hidden = jobs.length === 0;
@@ -520,7 +522,7 @@ function jobHtml(j) {
   const body = j.status === "error"
     ? `<div class="job-summary">${escapeHtml(j.error || "Agent failed.")}</div>`
     : (j.summary ? `<div class="job-summary">${escapeHtml(j.summary)}</div>` : "");
-  const actions = [];
+  const actions = [`<button class="act" data-job="copylog" data-id="${escapeHtml(j.id)}">📋 Copy log</button>`];
   if (j.status === "done") {
     actions.push(`<button class="act" data-job="diff" data-id="${escapeHtml(j.id)}">🔍 View diff</button>`);
     actions.push(`<button class="act primary" data-job="merge" data-id="${escapeHtml(j.id)}">⇧ Merge to main</button>`);
@@ -544,6 +546,19 @@ function jobHtml(j) {
 document.getElementById("agents").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-job]"); if (!b) return;
   const kind = b.dataset.job;
+  if (kind === "copylog") {
+    const j = lastJobs.find((x) => x.id === b.dataset.id);
+    if (!j) return toast("No log yet");
+    const text = [
+      "SogoTable fix-agent debug",
+      `Job ${j.id} · report ${j.reportId} · branch ${j.branch}`,
+      `Status: ${j.status}`,
+      j.commits ? "\nCommits on branch:\n" + j.commits : "",
+      "\n--- Summary / error ---\n" + (j.error || j.summary || "(none)"),
+      "\n--- Log (tail) ---\n" + (j.log || "(empty)"),
+    ].filter(Boolean).join("\n");
+    return copyText(text, "Log copied ✓");
+  }
   if (kind === "diff") return showDiff(b.dataset.id);
   if (kind === "done") return resolve([b.dataset.report], {}, "Marked done");
   if (kind === "merge") {

@@ -132,9 +132,12 @@ async function run(job, report) {
 
   // Launch Claude Code headless inside the worktree. bypassPermissions lets it edit
   // and run tests unattended; the prompt forbids push/deploy and it's boxed to the
-  // worktree branch.
-  log(`\n$ claude -p <prompt> --permission-mode bypassPermissions  (cwd: worktree)\n\n`);
-  const args = ["-p", buildPrompt(report, job.branch), "--permission-mode", "bypassPermissions"];
+  // worktree branch. The prompt goes in via STDIN, not as an argument: a multi-line
+  // prompt passed as a command-line arg gets mangled by Windows cmd.exe (newlines
+  // break the command line), which silently handed the agent an empty task.
+  log(`\n$ claude -p --permission-mode bypassPermissions  (prompt via stdin, cwd: worktree)\n\n`);
+  const args = ["-p", "--permission-mode", "bypassPermissions"];
+  const prompt = buildPrompt(report, job.branch);
   let result = "";
   const exit = await new Promise((resolve) => {
     let proc;
@@ -149,6 +152,7 @@ async function run(job, report) {
     proc.stderr.on("data", (d) => log(d.toString()));
     proc.on("error", (e) => { log(`[claude error: ${e.message}]\n`); resolve(-1); });
     proc.on("close", (code) => resolve(code));
+    try { proc.stdin.write(prompt); proc.stdin.end(); } catch (e) { log(`[stdin error: ${e.message}]\n`); }
   });
 
   const commits = await git(["log", "--oneline", `main..${job.branch}`]);
