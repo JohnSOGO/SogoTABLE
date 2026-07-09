@@ -25,6 +25,28 @@ Why a server and not just opening `manage.html`? The API's CORS only allows
 passcode in the terminal — it's injected into proxied requests and never touches
 the browser page.
 
+### 🤖 Let an agent fix it
+
+Each report has an **🤖 Address** button. It launches the Claude Code CLI headless
+in an **isolated git worktree** (`.worktrees/bug-<id>/`) on a branch
+(`fix/bug-<id>`), where the agent diagnoses, fixes, runs tests, and commits — then
+the job appears in the **Fix agents** panel at the top. From there you can **View
+diff**, **Merge to main**, **Mark report done**, or **Discard**.
+
+Guarantees, by design:
+- The agent **never pushes and never deploys** — it only commits to its branch, so
+  nothing ships without you clicking Merge (and deploying yourself).
+- It runs in a worktree, so your main working tree and any other jobs sharing the
+  clone are untouched.
+- **Merge to main** refuses on a dirty tree or a merge conflict (it aborts cleanly)
+  and tells you to merge manually — it never leaves a mess.
+
+Requirements: the `claude` CLI must be on PATH and logged in (it is, in this repo).
+Runner: `scripts/bug-agent.mjs`; the server exposes local `/agent/*` routes.
+Residual note: the agent runs with permissions bypassed *inside its worktree* so it
+can edit and test unattended; the no-push/no-deploy rule is enforced by instruction,
+not a sandbox — review the diff before merging.
+
 ## Command-line helpers
 
 | Command | What it does |

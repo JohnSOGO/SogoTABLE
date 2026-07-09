@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { startFix, listJobs, getJob, getDiff, mergeJob, discardJob, claudeAvailable } from "./bug-agent.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const htmlPath = join(repoRoot, "bugreport", "manage.html");
@@ -60,6 +61,29 @@ const server = createServer(async (req, res) => {
       res.writeHead(upstream.status, { "Content-Type": "application/json; charset=utf-8" });
       res.end(text);
       return;
+    }
+    // Local agent routes — spawn/track fix agents in isolated worktrees.
+    if (url.pathname.startsWith("/agent/")) {
+      const send = (payload, status = 200) => {
+        res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify(payload));
+      };
+      if (req.method === "GET" && url.pathname === "/agent/jobs") return send({ ok: true, jobs: listJobs() });
+      if (req.method === "GET" && url.pathname === "/agent/available") return send({ ok: true, available: await claudeAvailable() });
+      if (req.method === "GET" && url.pathname === "/agent/job") return send(getJob(url.searchParams.get("id")) || { ok: false, error: "No such job." });
+      if (req.method === "GET" && url.pathname === "/agent/diff") return send(await getDiff(url.searchParams.get("id")));
+      if (req.method === "POST" && url.pathname === "/agent/fix") {
+        const body = JSON.parse((await readBody(req)) || "{}");
+        return send(await startFix(body.report || {}));
+      }
+      if (req.method === "POST" && url.pathname === "/agent/merge") {
+        const body = JSON.parse((await readBody(req)) || "{}");
+        return send(await mergeJob(body.id));
+      }
+      if (req.method === "POST" && url.pathname === "/agent/discard") {
+        const body = JSON.parse((await readBody(req)) || "{}");
+        return send(await discardJob(body.id));
+      }
     }
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ ok: false, error: "Not found" }));

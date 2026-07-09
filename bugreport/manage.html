@@ -130,6 +130,34 @@
   .act:hover { filter: brightness(1.04); }
   .rid { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); padding: 1px 6px; border-radius: 6px; cursor: pointer; }
   .rid:hover { border-color: var(--accent); color: var(--ink); }
+  .act.ai { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); font-weight: 700; }
+  .act.ai:hover { background: var(--accent); color: var(--accent-ink); }
+
+  /* Fix-agents panel */
+  .agents { border-bottom: 1px solid var(--line); background: var(--panel-2); padding: 14px 0; }
+  .agents-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .agents-head .muted { color: var(--muted); font-size: 12px; }
+  .job { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--shadow); }
+  .job-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .job-title { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .jstat { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  .jstat.running { background: var(--open-bg); color: var(--open); }
+  .jstat.done { background: var(--done-bg); color: var(--done); }
+  .jstat.error { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+  .spin { display: inline-block; width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -1px; margin-right: 5px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .job-branch { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); }
+  .job-summary { margin-top: 8px; font-size: 13px; color: var(--ink); white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow: auto; background: var(--panel-2); border-radius: 8px; padding: 8px 10px; }
+  .job-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Diff modal */
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; width: 100%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .diff { margin: 0; padding: 14px 16px; overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.45; white-space: pre; }
+  .diff .add { color: var(--done); }
+  .diff .del { color: var(--danger); }
+  .diff .hunk { color: var(--accent); }
 
   .empty, .loading { text-align: center; color: var(--muted); padding: 60px 20px; }
   .empty .big { font-size: 40px; margin-bottom: 10px; }
@@ -182,9 +210,29 @@
   </div>
 </header>
 
+<section id="agents" class="agents" hidden>
+  <div class="wrap">
+    <div class="agents-head">
+      <b>🤖 Fix agents</b>
+      <span id="agents-sub" class="muted"></span>
+    </div>
+    <div id="agents-list"></div>
+  </div>
+</section>
+
 <main id="list">
   <div class="loading">Loading reports…</div>
 </main>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <b id="modal-title">Diff</b>
+      <button class="btn" id="modal-close">✕ Close</button>
+    </div>
+    <pre id="modal-body" class="diff"></pre>
+  </div>
+</div>
 
 <div class="bulk" id="bulk">
   <b id="bulk-count">0 selected</b>
@@ -328,6 +376,7 @@ function cardHtml(r) {
         ${done
           ? `<button class="act reopen" data-act="open" data-id="${escapeHtml(r.id)}">↩ Reopen</button>`
           : `<button class="act primary" data-act="done" data-id="${escapeHtml(r.id)}">✓ Mark done</button>`}
+        <button class="act ai" data-act="address" data-id="${escapeHtml(r.id)}">🤖 Address</button>
         <button class="act" data-act="copy" data-id="${escapeHtml(r.id)}">📋 Copy for AI</button>
         <button class="act danger" data-act="delete" data-id="${escapeHtml(r.id)}">🗑 Delete</button>
       </div>
@@ -372,6 +421,11 @@ document.getElementById("list").addEventListener("click", (e) => {
     if (act.dataset.act === "copy") {
       const r = getReport(id);
       if (r) copyText("Please investigate and fix this SogoTable bug report.\n\n" + reportToText(r), "Copied for AI ✓");
+      return;
+    }
+    if (act.dataset.act === "address") {
+      const r = getReport(id);
+      if (r) addressReport(r, act);
       return;
     }
     if (act.dataset.act === "delete") {
@@ -419,7 +473,118 @@ document.getElementById("bulk").addEventListener("click", (e) => {
   }
 });
 
+// ----- fix agents -----
+let pollTimer = null;
+
+async function addressReport(r, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "🤖 Starting…"; }
+  try {
+    const data = await api("/agent/fix", { report: r });
+    toast(`Agent started on ${data.branch}`);
+    pollJobs();
+  } catch (e) {
+    toast("⚠️ " + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "🤖 Address"; }
+  }
+}
+
+async function pollJobs() {
+  let jobs = [];
+  try {
+    const res = await fetch("/agent/jobs");
+    jobs = (await res.json()).jobs || [];
+  } catch { /* server gone */ }
+  renderJobs(jobs);
+  const anyRunning = jobs.some((j) => j.status === "running");
+  clearTimeout(pollTimer);
+  if (jobs.length) pollTimer = setTimeout(pollJobs, anyRunning ? 2500 : 8000);
+}
+
+function renderJobs(jobs) {
+  const panel = document.getElementById("agents");
+  const list = document.getElementById("agents-list");
+  panel.hidden = jobs.length === 0;
+  const running = jobs.filter((j) => j.status === "running").length;
+  document.getElementById("agents-sub").textContent =
+    jobs.length ? `${running} running · ${jobs.length} total — fixes land on a branch for your review (never pushed)` : "";
+  list.innerHTML = jobs.map(jobHtml).join("");
+}
+
+function jobHtml(j) {
+  const stat = j.status === "running"
+    ? '<span class="jstat running"><span class="spin"></span>Working</span>'
+    : j.status === "done" ? '<span class="jstat done">✓ Ready</span>'
+    : '<span class="jstat error">⚠ Failed</span>';
+  const body = j.status === "error"
+    ? `<div class="job-summary">${escapeHtml(j.error || "Agent failed.")}</div>`
+    : (j.summary ? `<div class="job-summary">${escapeHtml(j.summary)}</div>` : "");
+  const actions = [];
+  if (j.status === "done") {
+    actions.push(`<button class="act" data-job="diff" data-id="${escapeHtml(j.id)}">🔍 View diff</button>`);
+    actions.push(`<button class="act primary" data-job="merge" data-id="${escapeHtml(j.id)}">⇧ Merge to main</button>`);
+    actions.push(`<button class="act" data-job="done" data-report="${escapeHtml(j.reportId)}">✓ Mark report done</button>`);
+  }
+  if (j.status !== "running") {
+    actions.push(`<button class="act danger" data-job="discard" data-id="${escapeHtml(j.id)}">🗑 Discard</button>`);
+  }
+  return `
+  <div class="job">
+    <div class="job-top">
+      <span class="job-title">${escapeHtml(j.title)}</span>
+      ${stat}
+      <span class="job-branch">${escapeHtml(j.branch)}</span>
+    </div>
+    ${body}
+    ${actions.length ? `<div class="job-actions">${actions.join("")}</div>` : ""}
+  </div>`;
+}
+
+document.getElementById("agents").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-job]"); if (!b) return;
+  const kind = b.dataset.job;
+  if (kind === "diff") return showDiff(b.dataset.id);
+  if (kind === "done") return resolve([b.dataset.report], {}, "Marked done");
+  if (kind === "merge") {
+    b.disabled = true;
+    try { const d = await api("/agent/merge", { id: b.dataset.id }); toast("✓ " + (d.message || "Merged")); if (d.hint) toast(d.hint); }
+    catch (err) { toast("⚠️ " + err.message); }
+    finally { b.disabled = false; }
+    return;
+  }
+  if (kind === "discard") {
+    if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Discard? tap again"; setTimeout(() => { if (b) { delete b.dataset.armed; b.textContent = "🗑 Discard"; } }, 3000); return; }
+    try { await api("/agent/discard", { id: b.dataset.id }); toast("Discarded"); pollJobs(); }
+    catch (err) { toast("⚠️ " + err.message); }
+  }
+});
+
+async function showDiff(id) {
+  try {
+    const res = await fetch("/agent/diff?id=" + encodeURIComponent(id));
+    const d = await res.json();
+    if (!d.ok) return toast("⚠️ " + d.error);
+    document.getElementById("modal-title").textContent = d.branch + "  ·  " + (d.stat.split("\n").pop() || "");
+    document.getElementById("modal-body").innerHTML = colorizeDiff(d.diff || "(no changes)");
+    document.getElementById("modal").hidden = false;
+  } catch (e) { toast("⚠️ " + e.message); }
+}
+
+function colorizeDiff(text) {
+  return text.split("\n").map((line) => {
+    const safe = escapeHtml(line);
+    if (line.startsWith("@@")) return `<span class="hunk">${safe}</span>`;
+    if (line.startsWith("+") && !line.startsWith("+++")) return `<span class="add">${safe}</span>`;
+    if (line.startsWith("-") && !line.startsWith("---")) return `<span class="del">${safe}</span>`;
+    return safe;
+  }).join("\n");
+}
+
+document.getElementById("modal-close").addEventListener("click", () => { document.getElementById("modal").hidden = true; });
+document.getElementById("modal").addEventListener("click", (e) => { if (e.target.id === "modal") document.getElementById("modal").hidden = true; });
+
 load();
+pollJobs();
 </script>
 </body>
 </html>
