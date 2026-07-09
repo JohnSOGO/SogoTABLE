@@ -124,3 +124,20 @@ audit when the newest entry is stale (>14 days or >150 commits since).
 - **Handoffs:** 2 to implementer (both actioned this pass); 0 to reorganizer;
   0 net to placement-advisor (Finding 2 took the guard-test path; the shared-module
   option is deferred, not owed).
+
+## 2026-07-09 — fifth steward pass (Mystic Wood shell-game + bug-manager tooling era)
+- **Trigger:** on-demand, ~182 commits overdue since the 2026-07-03 pass. Verdict: **MINOR DRIFT** —
+  structure sound; the ~182-commit delta placed almost everything correctly.
+- **Finding 1 (HIGH, time-sensitive):** `mystic-wood/render.js` at 776/800 and the repo's #1 hotspot
+  (26 commits), with the incoming Phase 2 combat UI about to breach the 800 cap.
+  → **Fixed:** reorganizer extracted the portal-overlay modal family into a new `encounter.js` leaf
+  (+ shared pure builders to `util.js`); render.js 776 → 557. The Phase 2 combat card then added
+  zero lines to render.js. Prep commit da270ce; feature 1f2557a.
+- **Finding 2 (LOW-MED):** `workers/bug-reports.js` (c67a08c) shipped a new owner row with no receipt.
+  → **Fixed (doc-only):** retroactive PLACEMENT RECEIPT appended to placement-receipts.md.
+- **Restraint (weighed, left alone):** bug-agent.mjs (cohesive deep module, not a god-file);
+  bugreport/manage.html (847 lines but an off-graph, single-user, loopback admin tool, uncapped .html);
+  the 5 bug-scripts' duplicated api/passcode boilerplate (negative ROI to consolidate);
+  hearts/render.js (788/800 but cold since ship day); app.js/worker parked 1 line under ceiling.
+- **Handoffs:** 1 to reorganizer (render.js seam — done), 1 to implementer (retroactive receipt — done);
+  0 to placement-advisor.

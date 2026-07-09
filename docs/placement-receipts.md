@@ -671,3 +671,26 @@ PLACEMENT RECEIPT
                  horn.js choreography driven against DOM stubs: waypoints, once-only
                  seq guard, banner re-mount, dismiss. Advisor: placement-advisor.
 ```
+
+## 2026-07-09 — RETROACTIVE: workers/bug-reports.js (bug-report store leaf)
+
+> Reconstructed after the fact (code-steward finding, 2026-07-09 pass): commit c67a08c created a
+> new owner but logged no receipt. The placement was correct; this restores the paper trail.
+
+```
+PLACEMENT RECEIPT
+- Ask:          Pull the bug_reports store (append/list/clear, later resolve/update) out of the
+                Worker entry into its own module.
+- Verdict:      New leaf `workers/bug-reports.js` (zero fan-in; owns the data.bug_reports lifecycle);
+                the entry keeps thin dispatch routes only. Passcode gate → assertSogoPasscode in
+                workers/platform/auth.js (existing owner, no new row).
+- Flow stage:   persist / record-outcome — stores admin dispositions; decides no game rules.
+- Considerations:
+    - Entry (workers/sogotable-api.js) was at its ratcheted ceiling; a fourth bug-report handler
+      would fatten a god-file. A cohesive store concern earns its own leaf (stats.js/projections.js
+      precedent). Reorganizer extracted append/list/clear first; the ceiling ratcheted down.
+    - Must-not-import the entry (matches stats.js/projections.js); added to REVIEW_EXPORT_FILES.
+- New owner row: `workers/bug-reports.js` (present in docs/module-ownership.md since c67a08c).
+- Verification:  workers/tests/bug-reports.test.js pins resolve/update; full suite green.
+                 Advisor: placement-advisor (2026-07-08). Retroactive log: 2026-07-09.
+```
