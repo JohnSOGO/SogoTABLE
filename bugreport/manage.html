@@ -178,7 +178,17 @@
   .focus-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
   .focus-head .focus-title { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
   .focus-head .job-title { font-size: 16px; }
-  .focus-log { flex: 1; margin: 0; overflow: auto; padding: 16px; background: var(--panel-2); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .focus-log { flex: 1; margin: 0; overflow: auto; padding: 16px 18px; background: var(--panel-2); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .focus-log .lg-h { font-family: var(--sans, system-ui), sans-serif; font-weight: 700; font-size: 14px; color: var(--ink); margin-top: 12px; margin-bottom: 2px; }
+  .focus-log .lg-tool { color: var(--muted); }
+  .focus-log .lg-tname { color: var(--accent); font-weight: 600; }
+  .focus-log .lg-meta { color: var(--done); }
+  .focus-log .lg-cmd { color: var(--muted); font-style: italic; }
+  .focus-log .lg-you { color: var(--accent); font-weight: 700; }
+  .focus-log .lg-err { color: var(--danger); }
+  .focus-log .lg-bullet { padding-left: 14px; text-indent: -12px; }
+  .focus-log .lg-gap { height: 8px; }
+  .focus-log code { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: .92em; }
   .focus-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--panel); }
   .focus-actions .job-continue { flex: 1 1 260px; margin-top: 0; }
 
@@ -294,7 +304,7 @@
     </div>
     <button class="btn" id="focus-restore">🗗 Restore view</button>
   </div>
-  <pre id="focus-log" class="focus-log"></pre>
+  <div id="focus-log" class="focus-log"></div>
   <div id="focus-actions" class="focus-actions"></div>
 </div>
 
@@ -667,6 +677,28 @@ function jobHtml(j) {
   </div>`;
 }
 
+// Turn the raw agent log (streamed markers + the agent's markdown-ish summary)
+// into a readable, coloured transcript.
+function formatLog(raw) {
+  const inline = (s) => escapeHtml(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+  return String(raw || "").split("\n").map((line) => {
+    if (!line.trim()) return '<div class="lg-gap"></div>';
+    if (/^#{1,4}\s/.test(line)) return `<div class="lg-h">${inline(line.replace(/^#{1,4}\s+/, ""))}</div>`;
+    if (line.startsWith("⚙")) {
+      const m = line.match(/^⚙\s+([^:]+):\s*([\s\S]*)$/);
+      return m
+        ? `<div class="lg-tool"><span class="lg-tname">⚙ ${escapeHtml(m[1])}</span> ${escapeHtml(m[2])}</div>`
+        : `<div class="lg-tool">${escapeHtml(line)}</div>`;
+    }
+    if (line.startsWith("▶") || line.startsWith("■")) return `<div class="lg-meta">${escapeHtml(line)}</div>`;
+    if (line.startsWith("$ ")) return `<div class="lg-cmd">${escapeHtml(line)}</div>`;
+    if (line.startsWith("— you:")) return `<div class="lg-you">${escapeHtml(line)}</div>`;
+    if (/\b(error|failed|fatal|cannot)\b/i.test(line)) return `<div class="lg-err">${inline(line)}</div>`;
+    if (/^\s*[-*]\s/.test(line)) return `<div class="lg-bullet">• ${inline(line.replace(/^\s*[-*]\s+/, ""))}</div>`;
+    return `<div>${inline(line)}</div>`;
+  }).join("");
+}
+
 let focusedJobId = null;
 
 function renderFocus() {
@@ -678,7 +710,7 @@ function renderFocus() {
   document.getElementById("focus-branch").textContent = j.branch;
   const logEl = document.getElementById("focus-log");
   const nearBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 60;
-  logEl.textContent = j.log || "(no output yet)";
+  logEl.innerHTML = j.log ? formatLog(j.log) : "(no output yet)";
   if (nearBottom) logEl.scrollTop = logEl.scrollHeight;
   const actEl = document.getElementById("focus-actions");
   const typed = actEl.querySelector(".cont-input") ? actEl.querySelector(".cont-input").value : "";
