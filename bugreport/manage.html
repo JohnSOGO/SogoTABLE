@@ -147,6 +147,8 @@
   .spin { display: inline-block; width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -1px; margin-right: 5px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .job-branch { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); }
+  .job-commit { margin-top: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; color: var(--done); background: var(--done-bg); border-radius: 8px; padding: 6px 10px; word-break: break-word; }
+  .job-commit.warn { color: var(--open); background: var(--open-bg); }
   .job-summary { margin-top: 8px; font-size: 13px; color: var(--ink); white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow: auto; background: var(--panel-2); border-radius: 8px; padding: 8px 10px; }
   .job-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
   .job-summary.live { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.5; }
@@ -324,12 +326,12 @@ async function api(path, body) {
   return data;
 }
 
-function toast(msg) {
+function toast(msg, ms) {
   const el = document.createElement("div");
   el.className = "toast";
   el.textContent = msg;
   document.getElementById("toasts").appendChild(el);
-  setTimeout(() => el.remove(), 2600);
+  setTimeout(() => el.remove(), ms || 2600);
 }
 
 function relTime(ms) {
@@ -664,6 +666,9 @@ function jobHtml(j) {
   if (j.status === "error") body = `<div class="job-summary">${escapeHtml(j.error || "Agent failed.")}</div>`;
   else if (j.status === "running") body = `<div class="job-summary live">${escapeHtml(liveTail(j.log) || "starting…")}</div>`;
   else if (j.summary) body = `<div class="job-summary">${escapeHtml(j.summary)}</div>`;
+  const commit = j.commits
+    ? `<div class="job-commit" title="commit(s) on this branch, ready to ship">✔ ${escapeHtml(j.commits.split("\n")[0])}</div>`
+    : (j.status === "done" ? `<div class="job-commit warn">⚠ no commit on this branch — nothing to ship</div>` : "");
   return `
   <div class="job">
     <div class="job-top">
@@ -672,6 +677,7 @@ function jobHtml(j) {
       <span class="job-branch">${escapeHtml(j.branch)}</span>
     </div>
     ${body}
+    ${commit}
     <div class="job-actions">${jobActions(j, false)}</div>
     ${jobContinue(j)}
   </div>`;
@@ -752,8 +758,8 @@ async function onJobClick(e) {
   if (kind === "ship") {
     if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "🚀 Ship live — tap again"; setTimeout(() => { if (b) { delete b.dataset.armed; b.textContent = "🚀 Ship to live"; } }, 3500); return; }
     b.disabled = true; b.textContent = "🚀 Shipping…";
-    try { const d = await api("/agent/ship", { id: b.dataset.id }); toast("🚀 " + (d.message || "Shipped")); if (d.hint) toast(d.hint); }
-    catch (err) { toast("⚠️ " + err.message); }
+    try { const d = await api("/agent/ship", { id: b.dataset.id }); toast("🚀 " + (d.message || "Shipped"), 8000); if (d.hint) toast(d.hint, 8000); }
+    catch (err) { toast("⚠️ " + err.message, 8000); }
     finally { b.disabled = false; b.textContent = "🚀 Ship to live"; }
     return;
   }

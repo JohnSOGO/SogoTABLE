@@ -174,11 +174,13 @@ export async function startFix(report) {
 async function run(job, report) {
   const log = (s) => writeLog(job, s);
 
-  // Start the persisted log fresh for a new fix.
+  // Start the persisted log fresh for a new fix, and record the exact brief the agent
+  // was given (the edited text goes in via stdin and isn't stored anywhere else).
   try {
     mkdirSync(logDir, { recursive: true });
     writeFileSync(job.logFile, `# Fix-agent log — ${job.branch} (report ${job.reportId})\n\n`);
   } catch { /* non-fatal */ }
+  log(`== Brief given to the agent ==\n${reportToText(report)}\n\n`);
 
   // Fresh worktree: clear any stale one for this report first.
   await git(["worktree", "remove", "--force", job.wtPath]);
@@ -336,6 +338,8 @@ export async function getDiff(id) {
 export async function mergeJob(id) {
   const j = jobs.get(id);
   if (!j) return { ok: false, error: "No such job." };
+  const ahead = await git(["rev-list", "--count", `main..${j.branch}`]);
+  if (Number(ahead.out) === 0) return { ok: false, error: "Nothing to ship — the agent committed no changes to this branch." };
   const status = await git(["status", "--porcelain"]);
   if (status.out) return { ok: false, error: `Main working tree has uncommitted changes — merge manually when clear:\n  git merge --no-ff ${j.branch}` };
   const head = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
