@@ -21,6 +21,11 @@ const LOG_TAIL = 6000;
 // server restart and can be reopened later. In-memory job.log keeps only a tail.
 const logDir = join(repoRoot, "bugreport", "agent-logs");
 const MEM_LOG_CAP = 24000;
+// Auto-ship: when a fix agent finishes with committed work, land it on main by itself
+// (merge → test → push → deploy-if-worker) and report the hash — no manual Ship. Set
+// BUG_AGENT_AUTOSHIP=off to fall back to park-on-branch-for-review.
+const AUTOSHIP = String(process.env.BUG_AGENT_AUTOSHIP || "on").toLowerCase() !== "off";
+let shipChain = Promise.resolve();   // serialize merges into main so two jobs never race
 
 const safeBranch = (branch) => branch.replace(/[^\w.-]/g, "-");
 
@@ -102,6 +107,7 @@ function publicJob(j) {
     id: j.id, reportId: j.reportId, title: j.title, branch: j.branch,
     status: j.status, summary: j.summary, error: j.error, commits: j.commits,
     sessionId: j.sessionId || "", log: j.log.slice(-LOG_TAIL), logFile: j.logFile || "",
+    shipState: j.shipState || "", shippedHash: j.shippedHash || "", deployed: !!j.deployed, shipError: j.shipError || "",
     startedAt: j.startedAt, endedAt: j.endedAt,
   };
 }
@@ -268,7 +274,6 @@ async function finalize(job, res) {
   const commits = await git(["log", "--oneline", `main..${job.branch}`]);
   job.commits = commits.out;
   if (res.result) job.summary = res.result.trim().slice(-4000);
-  job.endedAt = Date.now();
   if (res.exit !== 0) {
     job.status = "error";
     if (!job.error) job.error = `Agent exited with code ${res.exit}` + (res.exit === -1 ? " (is the `claude` CLI on PATH?)" : "");
@@ -277,8 +282,58 @@ async function finalize(job, res) {
     if (!job.error) job.error = job.summary || "Agent reported an error.";
   } else {
     job.status = "done";
-    if (!commits.out && !job.summary) job.summary = "Agent finished but committed no changes.";
+    if (!commits.out) {
+      if (!job.summary) job.summary = "Agent finished but committed no changes.";
+    } else if (AUTOSHIP) {
+      await autoShip(job);
+    }
   }
+  job.endedAt = Date.now();
+}
+
+// Land a finished job on main, serialized so two jobs never merge at once.
+function autoShip(job) {
+  job.shipState = "queued";
+  shipChain = shipChain
+    .then(() => doAutoShip(job))
+    .catch((e) => { job.shipState = "parked"; job.shipError = String(e && e.message || e); });
+  return shipChain;
+}
+
+async function doAutoShip(job) {
+  const log = (s) => writeLog(job, s);
+  job.shipState = "shipping";
+  log(`\n▶ auto-ship: landing ${job.branch} on main…\n`);
+  // Only land onto a clean main — never clobber concurrent local work.
+  const status = await git(["status", "--porcelain"]);
+  if (status.out) { job.shipState = "parked"; job.shipError = "main working tree has uncommitted changes"; log(`■ parked: ${job.shipError} — use Ship when clear.\n`); return; }
+  const head = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (head.out !== "main") { job.shipState = "parked"; job.shipError = `not on main (on ${head.out})`; log(`■ parked: ${job.shipError}.\n`); return; }
+  const before = (await git(["rev-parse", "HEAD"])).out;
+  const touchesWorker = (await git(["diff", "--name-only", `main...${job.branch}`])).out.split("\n").some((f) => f.startsWith("workers/"));
+  const merge = await git(["merge", "--no-ff", job.branch, "-m", `Merge ${job.branch} (bug ${job.reportId})`]);
+  if (merge.code !== 0) { await git(["merge", "--abort"]); job.shipState = "parked"; job.shipError = "merge conflict"; log(`■ parked: merge conflict, aborted.\n`); return; }
+  // Safety gate: never push a red suite. Revert the merge if tests fail.
+  log(`  running the test suite before pushing…\n`);
+  const test = await runNpm(["test"]);
+  if (test.code !== 0) {
+    await git(["reset", "--hard", before]);
+    job.shipState = "parked"; job.shipError = "tests failed after merge — reverted, work still on the branch";
+    log(`■ parked: tests failed — merge reverted.\n`); return;
+  }
+  const push = await git(["push", "origin", "main"]);
+  if (push.code !== 0) { job.shipState = "parked"; job.shipError = "push failed: " + (push.err || push.out).slice(0, 200); log(`■ push failed — use Ship to retry.\n`); return; }
+  job.shippedHash = (await git(["rev-parse", "--short", "HEAD"])).out;
+  if (touchesWorker) {
+    const dep = await runNpm(["run", "deploy:brain"]);
+    job.deployed = dep.code === 0;
+    if (!job.deployed) job.shipError = "pushed, but deploy:brain failed — run it manually";
+  }
+  job.shipState = "shipped";
+  log(`\n■ SHIPPED to main as ${job.shippedHash}${touchesWorker ? (job.deployed ? " · worker deployed" : " · ⚠ worker deploy FAILED") : ""}\n`);
+  // Tidy the merged branch + worktree.
+  await git(["worktree", "remove", "--force", job.wtPath]);
+  await git(["branch", "-d", job.branch]);
 }
 
 // Send a follow-up message into an existing job, resuming its Claude session in the

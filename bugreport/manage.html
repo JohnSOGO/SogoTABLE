@@ -613,9 +613,9 @@ async function pollJobs() {
     jobs = (await res.json()).jobs || [];
   } catch { /* server gone */ }
   renderJobs(jobs);
-  const anyRunning = jobs.some((j) => j.status === "running");
+  const busy = jobs.some((j) => j.status === "running" || j.shipState === "shipping" || j.shipState === "queued");
   clearTimeout(pollTimer);
-  if (jobs.length) pollTimer = setTimeout(pollJobs, anyRunning ? 2500 : 8000);
+  if (jobs.length) pollTimer = setTimeout(pollJobs, busy ? 2500 : 8000);
 }
 
 function renderJobs(jobs) {
@@ -649,24 +649,29 @@ function jobStat(j) {
 }
 
 function jobActions(j, focus) {
+  const shipped = j.shipState === "shipped";
+  const shipping = j.shipState === "shipping" || j.shipState === "queued";
   const a = [];
   a.push(focus
     ? `<button class="act" data-job="unfocus">🗗 Restore view</button>`
     : `<button class="act" data-job="focus" data-id="${escapeHtml(j.id)}">⛶ Focus</button>`);
   a.push(`<button class="act" data-job="copylog" data-id="${escapeHtml(j.id)}">📋 Copy log</button>`);
-  if (j.status === "done") {
+  // Manual ship/merge/diff only when there's committed work not yet landed (parked
+  // by auto-ship, or auto-ship off). Once shipped, the branch is gone.
+  if (j.status === "done" && j.commits && !shipped && !shipping) {
     a.push(`<button class="act" data-job="diff" data-id="${escapeHtml(j.id)}">🔍 View diff</button>`);
     a.push(`<button class="act ship" data-job="ship" data-id="${escapeHtml(j.id)}">🚀 Ship to live</button>`);
     a.push(`<button class="act" data-job="merge" data-id="${escapeHtml(j.id)}">⇧ Merge only</button>`);
-    a.push(`<button class="act" data-job="done" data-report="${escapeHtml(j.reportId)}">✓ Mark report done</button>`);
   }
-  if (j.status !== "running" && j.sessionId) a.push(`<button class="act" data-job="terminal" data-id="${escapeHtml(j.id)}">⌨ Terminal</button>`);
-  if (j.status !== "running") a.push(`<button class="act danger" data-job="discard" data-id="${escapeHtml(j.id)}">🗑 Discard</button>`);
+  if (j.status === "done") a.push(`<button class="act" data-job="done" data-report="${escapeHtml(j.reportId)}">✓ Mark report done</button>`);
+  if (j.status !== "running" && j.sessionId && !shipped) a.push(`<button class="act" data-job="terminal" data-id="${escapeHtml(j.id)}">⌨ Terminal</button>`);
+  if (j.status !== "running" && !shipping) a.push(`<button class="act danger" data-job="discard" data-id="${escapeHtml(j.id)}">🗑 Discard</button>`);
   return a.join("");
 }
 
 function jobContinue(j) {
-  return (j.status !== "running" && j.sessionId)
+  const gone = j.shipState === "shipped" || j.shipState === "shipping" || j.shipState === "queued";
+  return (j.status !== "running" && j.sessionId && !gone)
     ? `<div class="job-continue"><input class="cont-input" data-id="${escapeHtml(j.id)}" placeholder="Send the agent a follow-up (it resumes in this worktree)…"><button class="act" data-job="send" data-id="${escapeHtml(j.id)}">Send ➤</button></div>`
     : "";
 }
@@ -676,9 +681,12 @@ function jobHtml(j) {
   if (j.status === "error") body = `<div class="job-summary">${escapeHtml(j.error || "Agent failed.")}</div>`;
   else if (j.status === "running") body = `<div class="job-summary live">${escapeHtml(liveTail(j.log) || "starting…")}</div>`;
   else if (j.summary) body = `<div class="job-summary">${escapeHtml(j.summary)}</div>`;
-  const commit = j.commits
-    ? `<div class="job-commit" title="commit(s) on this branch, ready to ship">✔ ${escapeHtml(j.commits.split("\n")[0])}</div>`
-    : (j.status === "done" ? `<div class="job-commit warn">⚠ no commit on this branch — nothing to ship</div>` : "");
+  let commit = "";
+  if (j.shipState === "shipped") commit = `<div class="job-commit">🚀 Shipped to main — <b>${escapeHtml(j.shippedHash)}</b>${j.deployed ? " · worker deployed" : (j.shipError ? " · ⚠ " + escapeHtml(j.shipError) : "")}</div>`;
+  else if (j.shipState === "shipping" || j.shipState === "queued") commit = `<div class="job-commit warn"><span class="spin"></span> shipping to main…</div>`;
+  else if (j.shipState === "parked") commit = `<div class="job-commit warn">⚠ ${escapeHtml(j.shipError || "parked on branch")} — Ship manually</div>`;
+  else if (j.commits) commit = `<div class="job-commit" title="committed, landing on main">✔ ${escapeHtml(j.commits.split("\n")[0])}</div>`;
+  else if (j.status === "done") commit = `<div class="job-commit warn">⚠ no commit — nothing to ship</div>`;
   return `
   <div class="job">
     <div class="job-top">
