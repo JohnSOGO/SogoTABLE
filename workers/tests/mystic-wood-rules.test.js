@@ -6,7 +6,7 @@ import {
 } from "../games/mystic-wood/rules.js";
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
-  resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell,
+  resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN } from "../games/mystic-wood/data.js";
 
@@ -55,6 +55,33 @@ test("transport onto an already-revealed tile does not re-draw", () => {
   relocate(game, seat, dest.r, dest.c);
   assert.equal(dest.card, null, "no card drawn onto an already-explored tile");
   assert.equal(game.deck.length, 1, "deck left untouched");
+});
+
+test("greet shells: greetOutcomes previews the six faces, and a picked face resolves to match", () => {
+  const mkGame = () => ({ board: buildBoard(), deck: [], discard: [], log: [], results: {} });
+  const witchTile = (game) => { const t = cellAt(game.board, 6, 4); t.revealed = true; t.remains = false; t.card = "witch"; t.card2 = null; return t; };
+
+  // Odds: the Witch is 2 transport, 2 remains, 2 give-Potion across the six faces.
+  let game = mkGame();
+  const out = greetOutcomes(game, seatLit("roland"), witchTile(game));
+  assert.equal(out.faces.length, 6);
+  assert.deepEqual(out.faces.map((f) => f.key), ["transport", "transport", "remains", "remains", "give:potion", "give:potion"]);
+  assert.deepEqual(Object.fromEntries(out.groups.map((g) => [g.key, g.count])), { transport: 2, remains: 2, "give:potion": 2 });
+  assert.equal(out.groups.reduce((a, g) => a + g.count, 0), 6);
+
+  // Parity: picking a shell (forcedDie = its face) applies exactly what the preview said.
+  game = mkGame(); let t = witchTile(game); let s = seatLit("roland");
+  resolveGreet(game, s, t, 1); assert.equal(t.card, null);                 // face 1 → transport (gone)
+
+  game = mkGame(); t = witchTile(game); s = seatLit("roland");
+  resolveGreet(game, s, t, 3); assert.equal(t.remains, true); assert.equal(t.card, "witch"); // face 3 → remains
+
+  game = mkGame(); t = witchTile(game); s = seatLit("roland");
+  resolveGreet(game, s, t, 5); assert.ok(s.things.includes("potion")); assert.equal(t.card, null); // face 5 → Potion
+
+  // A single-effect denizen never rolls — no shells.
+  const g2 = mkGame(); const nt = cellAt(g2.board, 6, 4); nt.revealed = true; nt.card = "dwarf";
+  assert.equal(greetOutcomes(g2, seatLit("roland"), nt), null);
 });
 
 test("Grail lends +1 P and +1 S", () => {

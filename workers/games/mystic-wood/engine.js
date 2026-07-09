@@ -367,12 +367,57 @@ function greetNeedsDie(den, id) {
   if (!den.tbl) return false;
   return new Set(Object.values(den.tbl)).size > 1;
 }
+// Preview what each of the six greet faces would do, WITHOUT applying anything — this
+// is the shell game's odds. Returns null for denizens that never roll (Sage/Bishop,
+// single-effect tables — they resolve at once). Otherwise a per-face list plus the
+// grouped counts the client shows ("2 give a Potion, 2 ignore you, 2 transport away").
+// It mirrors resolveGreet's branching exactly; the parity test pins them together.
+export function greetOutcomes(game, seat, tile) {
+  const den = DEN[tile.card];
+  const id = tile.card;
+  if (!greetNeedsDie(den, id)) return null;
+  const guyon = seat.knight === "guyon" ? 1 : 0;
+  const chapel = tile.name === "chapel" ? 2 : 0;
+  const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
+  const faces = [];
+  for (let f = 1; f <= 6; f += 1) faces.push({ face: f, ...greetFaceOutcome(game, seat, tile, den, id, f, guyon, chapel, isPComp) });
+  const groups = [];
+  for (const o of faces) {
+    const g = groups.find((x) => x.key === o.key);
+    if (g) g.count += 1; else groups.push({ key: o.key, label: o.label, count: 1 });
+  }
+  return { card: id, faces, groups };
+}
+function greetFaceOutcome(game, seat, tile, den, id, face, guyon, chapel, isPComp) {
+  if (isPComp) {
+    const total = face + totalP(seat) + guyon + chapel;
+    if (den.grail) return total >= 9 ? { key: "grail", label: "you take up the Grail" } : { key: "flee", label: "the Grail slips away" };
+    if (id === "princess") return total >= 9 ? { key: "befriend", label: "she befriends you" } : { key: "flee", label: "she flees to the far Gate" };
+    return total >= 8 ? { key: "befriend", label: "he befriends you" } : { key: "attack", label: "he attacks you (a fight)" };
+  }
+  if (id === "queen") return face >= 5 ? { key: "imprison", label: "she imprisons a rival" } : { key: "nothing", label: "she grants nothing" };
+  const idx = Math.min(6, Math.max(1, face + guyon));
+  const act = (den.tbl && den.tbl[idx]) || "remains";
+  if (act === "remains") return { key: "remains", label: "ignores you" };
+  if (act === "transport") return { key: "transport", label: "transports away" };
+  if (act === "transportYou") return { key: "transportYou", label: "transports you" };
+  if (act === "befriend") return { key: "befriend", label: "befriends you" };
+  if (act === "tower") return { key: "tower", label: "sends you to the Tower" };
+  if (act.startsWith("give:")) { const th = act.slice(5); return { key: act, label: `gives the ${THINGS[th].name}` }; }
+  if (act.startsWith("run")) {
+    const dir = act.slice(3);
+    const nb = { N: cellAt(game.board, tile.r - 1, tile.c), S: cellAt(game.board, tile.r + 1, tile.c), E: cellAt(game.board, tile.r, tile.c + 1), W: cellAt(game.board, tile.r, tile.c - 1) }[dir];
+    return (tile.open[dir] && nb) ? { key: "run", label: "the Horse gallops off" } : { key: "catch", label: "you catch the Horse (+2 S)" };
+  }
+  return { key: "remains", label: "reacts" };
+}
 // Resolve a Greet. Returns { endTurn:true } (a greeting always ends the turn, like the standalone).
-export function resolveGreet(game, seat, tile) {
+// forcedDie (1-6) lets a shell pick drive the face instead of an internal d6 roll.
+export function resolveGreet(game, seat, tile, forcedDie) {
   const den = DEN[tile.card];
   const id = tile.card;
   const before = game.log.length;      // capture the outcome lines for the result card
-  const die = greetNeedsDie(den, id) ? d6() : null;
+  const die = forcedDie != null ? forcedDie : (greetNeedsDie(den, id) ? d6() : null);
   if (den.befriendAlways) { befriend(game, seat, tile, id); } // Sage
   else {
     const guyon = seat.knight === "guyon" ? 1 : 0;
