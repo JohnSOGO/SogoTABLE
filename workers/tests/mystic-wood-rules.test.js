@@ -6,7 +6,7 @@ import {
 } from "../games/mystic-wood/rules.js";
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
-  resolveChallenge, resolveGreet, hasThing, relocate,
+  resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN } from "../games/mystic-wood/data.js";
 
@@ -110,6 +110,43 @@ test("Enchantress captures on a loss (escape on a 6), not the Tower", () => {
   assert.equal(res.result, "captured");
   assert.equal(s.captured, true);
   assert.equal(s.tower, false);
+});
+
+test("Mystic Horn: scatters the free knights and announces a seq'd tour for the client to animate", () => {
+  setMysticWoodRandom(mulberry32(11));
+  const game = {
+    board: buildBoard(), deck: [], discard: [], log: [],
+    seat_order: ["P1", "P2", "P3"], players: {},
+  };
+  game.players.P1 = seatLit("george", { mark: "P1", r: 1, c: 1 });
+  game.players.P2 = seatLit("britomart", { mark: "P2", r: 6, c: 2 });
+  game.players.P3 = seatLit("perceval", { mark: "P3", r: 3, c: 4, tower: true }); // never hears it
+  const tile = cellAt(game.board, 1, 1);
+
+  const res = resolveSpell(game, game.players.P1, tile, "horn");
+  assert.equal(res.endTurn, true, "the Horn ends the drawer's turn");
+  assert.deepEqual([game.players.P1.r, game.players.P1.c], [7, 5]);
+  assert.deepEqual([game.players.P2.r, game.players.P2.c], [2, 4]);
+  assert.deepEqual([game.players.P3.r, game.players.P3.c], [3, 4], "the Tower's prisoner stays put");
+
+  assert.equal(game.horn_seq, 1);
+  assert.equal(game.horn.seq, 1);
+  assert.equal(game.horn.byName, KNIGHTS.george.name);
+  assert.deepEqual(game.horn.marks, ["P1", "P2"], "only the scattered knights tour");
+  assert.deepEqual(game.horn.tour, [[7, 5], [2, 4]], "landing places, in seat order");
+
+  // The seq only advances, so a re-render/reload never replays the effect; a second Horn does.
+  resolveSpell(game, game.players.P1, tile, "horn");
+  assert.equal(game.horn.seq, 2);
+  assert.deepEqual([game.players.P1.r, game.players.P1.c], [1, 1], "scattered back through the centre");
+});
+
+test("Mystic Horn: the projection carries the horn event to the client", () => {
+  setMysticWoodRandom(mulberry32(5));
+  const game = initMysticWoodSeats(newMysticWoodGame(), [human("P1"), bot("P2"), bot("P3")]);
+  assert.equal(mysticWoodGameToDict(game).horn, null, "no horn until one sounds");
+  game.horn = { seq: 3, byName: "George", marks: ["P1"], tour: [[7, 5]] };
+  assert.deepEqual(mysticWoodGameToDict(game).horn, { seq: 3, byName: "George", marks: ["P1"], tour: [[7, 5]] });
 });
 
 function greetGame(knight, card) {

@@ -259,6 +259,22 @@ export function playQueenSpades() {
   ]);
 }
 
+// The Mystic Horn scatters the knights: a low brass call answered a fifth up, then four bright
+// pips — one per stop of the knights' tour — fading as the wood settles. Runs about 2s, the
+// length of the scatter animation.
+export function playMysticHorn() {
+  playSequence([
+    { frequency: 131, duration: 0.42, type: "sawtooth", volume: 0.03, slideTo: 196 },
+    { frequency: 196, duration: 0.4, type: "triangle", volume: 0.034, delay: 0.3, slideTo: 262 },
+    { frequency: 294, duration: 0.55, type: "sine", volume: 0.03, delay: 0.62 },
+    { frequency: 392, duration: 0.5, type: "triangle", volume: 0.028, delay: 0.72, slideTo: 523 },
+    ...Array.from({ length: 4 }, (_, i) => (
+      { frequency: 660 + i * 110, duration: 0.06, type: "sine", volume: 0.02, delay: 1.15 + i * 0.2, slideTo: 990 + i * 110 }
+    )),
+    { frequency: 98, duration: 0.5, type: "triangle", volume: 0.026, delay: 1.5, slideTo: 73 },
+  ]);
+}
+
 // Somebody shot the moon: a rising fanfare.
 export function playMoonShot() {
   playSequence([

@@ -170,6 +170,17 @@ export function applyMoveTo(game, seat, from, to) {
 }
 
 /* ------------------------------- spells --------------------------------- */
+// The scatter is a discrete, one-shot presentation event (like a roll): the client tours the tokens
+// across the wood exactly once, keyed off the seq. A re-render, a reconnect, or a reload must never
+// replay it, so the seq only ever advances — it is never cleared.
+function recordHorn(game, byName, scattered) {
+  game.horn_seq = (game.horn_seq || 0) + 1;
+  game.horn = {
+    seq: game.horn_seq, byName,
+    marks: scattered.map((s) => s.mark),
+    tour: scattered.map((s) => [s.r, s.c]),
+  };
+}
 // Returns { endTurn } — Mystic Horn ends the drawer's turn.
 export function resolveSpell(game, seat, tile, spellId) {
   const name = knightOf(seat).name;
@@ -177,10 +188,14 @@ export function resolveSpell(game, seat, tile, spellId) {
   if (spellId === "wind") { logEvent(game, "Mystic Wind blows — loose Things are swept away."); return {}; }
   if (spellId === "horn") {
     logEvent(game, `Mystic Horn sounds — the knights are scattered!`, "a");
+    const scattered = [];
     game.seat_order.forEach((m) => {
       const q = game.players[m];
-      if (!q.tower && !q.captured) relocate(game, q, 8 - q.r, 6 - q.c);
+      if (q.tower || q.captured) return;          // the imprisoned and the bound never hear the horn
+      relocate(game, q, 8 - q.r, 6 - q.c);
+      scattered.push({ mark: m, r: q.r, c: q.c });
     });
+    recordHorn(game, name, scattered);
     return { endTurn: true };
   }
   return {};
