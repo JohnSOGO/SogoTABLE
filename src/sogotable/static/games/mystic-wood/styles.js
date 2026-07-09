@@ -129,14 +129,19 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .result.mw-result-big{font-size:16px;font-weight:700;margin:4px 0 9px}
 .mw-portal .result.mw-result-big .g{color:#8fd08a} .mw-portal .result.mw-result-big .r{color:var(--crimson)}
 .mw-portal .r{color:var(--crimson)} .mw-portal .g{color:#8fd08a} .mw-portal .a{color:var(--azure)}
-.mw-portal .dicerow{display:flex;align-items:center;gap:7px;justify-content:center;flex-wrap:wrap;margin:7px 0;max-width:100%}
-.mw-portal .drlabel{font-size:12px;color:var(--muted);min-width:0;text-align:right}
+/* the rows stretch to the widest one, so both dice and both totals line up */
+.mw-portal .dicewrap{width:fit-content;max-width:100%;margin:0 auto}
+.mw-portal .dicerow{display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:10px;margin:7px 0}
+.mw-portal .drmain{min-width:0}
+.mw-portal .drtop{display:flex;align-items:baseline;justify-content:space-between;gap:16px;white-space:nowrap}
+.mw-portal .drbons{display:flex;align-items:baseline;gap:5px;white-space:nowrap;font-size:clamp(10px,3vw,13px);margin-top:1px}
+.mw-portal .drlabel{font-size:12px;color:var(--muted)}
 .mw-portal .die{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;font-family:var(--mono);font-size:20px;font-weight:700;border:2px solid}
 .mw-portal .die.white{background:#f2eede;color:#222;border-color:#fff}
 .mw-portal .die.red{background:#7a2b26;color:#fff;border-color:#c9564c}
 .mw-portal .drop{color:var(--muted);font-family:var(--mono)}
-.mw-portal .drbon{font-size:13px;color:var(--gold2);font-family:var(--mono)}
-.mw-portal .drtot{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--gold-bright);margin-left:2px}
+.mw-portal .drbon{color:var(--gold2);font-family:var(--mono)}
+.mw-portal .drtot{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--gold-bright)}
 .mw-portal .denbox{background:var(--panel2);border:1px solid var(--rule);border-radius:9px;padding:8px 10px;margin:7px 0;display:flex;flex-direction:column;gap:3px;text-align:left}
 .mw-portal .denrow{font-size:12.5px;line-height:1.3}
 .mw-portal .denrow.good{color:#8fd08a} .mw-portal .denrow.bad{color:var(--crimson)} .mw-portal .denrow.muted{color:var(--muted);font-size:12px;margin-top:2px}

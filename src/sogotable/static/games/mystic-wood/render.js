@@ -465,11 +465,14 @@ function denboxHtml(p, den, tile) {
 }
 
 /* -------------------------------- dice ---------------------------------- */
+// Die, then name + total on one line with the bonuses tucked under them. Never a single
+// long line: a warrior foe (the King) carries Strength + Prowess + tile bonus and would wrap.
 function diceRow(label, cls, die, parts, total) {
-  let h = `<div class="dicerow"><span class="drlabel">${label}</span><div class="die ${cls}">${die}</div>`;
-  (parts || []).forEach((pt) => { h += `<span class="drop">+</span><span class="drbon">${E(pt.l)} ${pt.v}</span>`; });
-  if (total != null) h += `<span class="drtot">= ${total}</span>`;
-  return h + `</div>`;
+  const bons = (parts || []).map((pt) => `<span class="drbon">${E(pt.l)} ${pt.v}</span>`).join(`<span class="drop">+</span>`);
+  const tot = total == null ? "" : `<span class="drtot">= ${total}</span>`;
+  return `<div class="dicerow"><div class="die ${cls}">${die}</div><div class="drmain">`
+    + `<div class="drtop"><span class="drlabel">${label}</span>${tot}</div>`
+    + (bons ? `<div class="drbons">${bons}</div>` : "") + `</div></div>`;
 }
 function showDice(ctx, roll) {
   closePortals();
@@ -482,7 +485,7 @@ function showDice(ctx, roll) {
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else if (roll.greet) {
     // The server sends no die when the reaction never varies (Dwarf, Nymph, Sage, Bishop).
-    const dice = roll.die == null ? "" : `<div class="hint">the roll:</div>${diceRow("Roll", "white", roll.die, null, null)}`;
+    const dice = roll.die == null ? "" : `<div class="hint">the roll:</div><div class="dicewrap">${diceRow("Roll", "white", roll.die, null, null)}</div>`;
     inner = `<div class="tag">You greet the ${E(roll.foeName)}</div>
       <div class="result mw-result-big">${sanitizeLog(roll.result || "The denizen reacts.")}</div>
       ${dice}
@@ -494,8 +497,7 @@ function showDice(ctx, roll) {
     inner = `<div class="tag">Encounter result</div>
       <div class="result mw-result-big">${res}</div>
       <div class="hint">the dice — white = you · red = foe:</div>
-      ${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}
-      ${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}
+      <div class="dicewrap">${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   }
   host.innerHTML = `<div class="overlay"><div class="modal">${inner}</div></div>`;
