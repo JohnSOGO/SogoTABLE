@@ -44,7 +44,8 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${port}`);
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      // Never cache — the page is edited often, and a stale cache hides new features.
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, must-revalidate" });
       res.end(readFileSync(htmlPath, "utf8"));
       return;
     }
