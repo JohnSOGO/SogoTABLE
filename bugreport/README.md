@@ -5,8 +5,8 @@ stored server-side in D1 as the `data.bug_reports` array (capped at the last 500
 This folder is the **local admin surface** for triaging them. Everything here is
 gated by the Sogo superuser passcode.
 
-The exported `.txt` reports are git-ignored (local artifacts); only the helper
-scripts and this note are tracked — see `.gitignore`.
+Local artifacts (exported `.txt`, agent logs, the passcode-baked launcher) are
+git-ignored; only `manage.html` and this note are tracked — see `.gitignore`.
 
 ## The friendly way: the web UI ⭐
 
@@ -17,8 +17,11 @@ npm run bugreports:ui <passcode>
 Starts a tiny **localhost-only** server and opens `manage.html` in your browser —
 a nice point-and-click panel to browse, search, filter (Open / Done / All), mark
 done, reopen, and delete reports, with bulk-select for clearing many at once.
-Windows: double-click **`bug-manager.bat`**. Press Ctrl+C (or close the console)
-when done.
+
+Windows, day-to-day: **double-click the `SogoTable Bug Manager` shortcut on your
+Desktop** (it points at `bugreport/START-bug-manager.cmd`, which has the passcode
+baked in). Stop it with the **⏻ Stop** button in the UI — the console window
+closes itself, so you never have to hunt for the right window to close.
 
 Why a server and not just opening `manage.html`? The API's CORS only allows
 `http://localhost:<port>` (a `file://` page is rejected), and this keeps the
@@ -30,12 +33,15 @@ the browser page.
 Each report has an **🤖 Address** button. It launches the Claude Code CLI headless
 in an **isolated git worktree** (`.worktrees/bug-<id>/`) on a branch
 (`fix/bug-<id>`), where the agent diagnoses, fixes, runs tests, and commits — then
-the job appears in the **Fix agents** panel at the top. From there you can **View
-diff**, **Merge to main**, **Mark report done**, or **Discard**.
+the job appears in the **Fix agents** panel with **live progress**. Before it
+launches, **Address** lets you edit the brief the agent receives. From the panel
+you can **View diff**, **🚀 Ship to live** (merge → push → deploy), **Merge only**,
+**Mark report done**, **⌨ Terminal** / send a follow-up to steer it, or **Discard**.
+Full logs are saved under `agent-logs/` and reload after a restart.
 
 Guarantees, by design:
-- The agent **never pushes and never deploys** — it only commits to its branch, so
-  nothing ships without you clicking Merge (and deploying yourself).
+- The agent **never pushes and never deploys** on its own — it only commits to its
+  branch. Shipping happens only when *you* click **🚀 Ship to live** (or Merge).
 - It runs in a worktree, so your main working tree and any other jobs sharing the
   clone are untouched.
 - **Merge to main** refuses on a dirty tree or a merge conflict (it aborts cleanly)
@@ -56,8 +62,7 @@ not a sandbox — review the diff before merging.
 | `npm run bugreports:clear <passcode>` | **Nuke** — delete *all* reports from the server. Blunt; prefer `manage delete` or the UI. |
 
 Passcode for any of them can instead come from the `SOGOTABLE_SUPERUSER_PASSCODE`
-env var. On Windows you can double-click `bug-manager.bat`, `export-bug-reports.bat`,
-or `manage-bug-reports.bat` (they prompt for the passcode).
+env var. These are power-user commands — day-to-day, just use the UI.
 
 ## Managing reports (`scripts/manage-bug-reports.mjs`)
 
@@ -103,10 +108,17 @@ use here.)
 
 ## Files here
 
-- `manage.html` — the web UI (self-contained; served by `serve-bug-manager.mjs`).
-- `bug-manager.bat` / `manage-bug-reports.bat` / `export-bug-reports.bat` —
-  double-click launchers (they prompt for the passcode).
-- Exported `*.txt` reports — git-ignored local artifacts.
+- `manage.html` — the web UI (tracked; served by `scripts/serve-bug-manager.mjs`).
+- `README.md` — this note (tracked).
+- `START-bug-manager.cmd` — the one-click launcher, passcode baked in (git-ignored,
+  local). A Desktop shortcut points at it. To recreate after a clone: a one-line
+  `.cmd` running `node "%~dp0..\scripts\serve-bug-manager.mjs" <passcode>`.
+- `agent-logs/` — saved fix-agent logs (git-ignored).
+- Everything else here is a git-ignored local artifact.
+
+The command-line scripts live in `scripts/` (`serve-bug-manager.mjs`,
+`bug-agent.mjs`, `export-bug-reports.mjs`, `manage-bug-reports.mjs`,
+`clear-bug-reports.mjs`) and run via the `npm run bugreports*` commands above.
 
 ## Ideas / follow-ups
 

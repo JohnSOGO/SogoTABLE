@@ -1,8 +1,6 @@
-# Exported bug reports are local artifacts — keep the folder + helper, ignore the reports.
+# Local artifacts (exported reports, agent logs, the passcode-baked launcher) are
+# ignored; only the UI + docs are tracked.
 *
 !.gitignore
-!export-bug-reports.bat
-!manage-bug-reports.bat
-!bug-manager.bat
 !manage.html
 !README.md
