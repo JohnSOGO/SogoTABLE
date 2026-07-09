@@ -143,7 +143,11 @@ export function enforcePower(game, seat) {
 export function relocate(game, seat, r, c) {
   const d = cellAt(game.board, r, c);
   if (!d) return null;
-  revealTile(d);
+  // First-time reveal of a partner tile draws its card, exactly like exploring into it
+  // (§11 "cards are drawn when an area is first revealed"). Without this, a knight
+  // transported onto a fresh tile flipped it face-up with its denizen/spell silently
+  // skipped. Already-revealed tiles keep whatever card lingers on them.
+  if (!d.revealed) { revealTile(d); drawCardFor(game, d); }
   seat.r = d.r; seat.c = d.c;
   return d;
 }

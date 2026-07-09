@@ -6,7 +6,7 @@ import {
 } from "../games/mystic-wood/rules.js";
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
-  resolveChallenge, resolveGreet, hasThing,
+  resolveChallenge, resolveGreet, hasThing, relocate,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN } from "../games/mystic-wood/data.js";
 
@@ -30,6 +30,31 @@ test("derived stats: things, horse, grail, prowess cards", () => {
   // george base P1 S3; lance+armour = +3 S; horse +2 S; one prowess card +1 P
   assert.equal(totalS(s), 3 + 1 + 2 + 2);
   assert.equal(totalP(s), 1 + 1);
+});
+
+test("transport reveals AND draws a fresh partner tile (no silently-skipped denizen)", () => {
+  setMysticWoodRandom(mulberry32(7));
+  const game = { board: buildBoard(), deck: ["troll", "orc"], discard: [], log: [] };
+  // (7,5) is the point-reflection partner of (1,1): 8-1=7, 6-1=5.
+  const dest = cellAt(game.board, 7, 5);
+  assert.equal(dest.fixed, false);
+  assert.equal(dest.revealed, false);
+  const seat = seatLit("george", { r: 1, c: 1 });
+  relocate(game, seat, 8 - seat.r, 6 - seat.c);
+  assert.equal(seat.r, 7);
+  assert.equal(seat.c, 5);
+  assert.equal(dest.revealed, true);
+  assert.ok(dest.card || dest.pendingSpell, "a card must be drawn when the partner tile is first revealed");
+});
+
+test("transport onto an already-revealed tile does not re-draw", () => {
+  const game = { board: buildBoard(), deck: ["troll"], discard: [], log: [] };
+  const dest = cellAt(game.board, 7, 5);
+  dest.revealed = true; dest.card = null;
+  const seat = seatLit("george");
+  relocate(game, seat, dest.r, dest.c);
+  assert.equal(dest.card, null, "no card drawn onto an already-explored tile");
+  assert.equal(game.deck.length, 1, "deck left untouched");
 });
 
 test("Grail lends +1 P and +1 S", () => {
