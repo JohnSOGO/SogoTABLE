@@ -307,12 +307,14 @@ export function continueJob(id, message) {
 export function openTerminal(id) {
   const j = jobs.get(id);
   if (!j) return { ok: false, error: "No such job." };
-  const resume = j.sessionId ? ` --resume ${j.sessionId}` : "";
+  // Interactive session — you're at the keyboard, so run with permissions skipped
+  // (no prompts) and resume the agent's session so it keeps context.
+  const flags = `--dangerously-skip-permissions${j.sessionId ? ` --resume ${j.sessionId}` : ""}`;
   try {
     if (isWin) {
-      spawn("cmd", ["/c", "start", "cmd", "/k", `cd /d "${j.wtPath}" && claude${resume}`], { shell: true, detached: true }).unref();
+      spawn("cmd", ["/c", "start", "cmd", "/k", `cd /d "${j.wtPath}" && claude ${flags}`], { shell: true, detached: true }).unref();
     } else {
-      spawn("sh", ["-c", `cd "${j.wtPath}" && claude${resume}`], { detached: true, stdio: "ignore" }).unref();
+      spawn("sh", ["-c", `cd "${j.wtPath}" && claude ${flags}`], { detached: true, stdio: "ignore" }).unref();
     }
     return { ok: true };
   } catch (e) {
