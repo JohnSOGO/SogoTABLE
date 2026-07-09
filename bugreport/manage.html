@@ -172,6 +172,16 @@
   .edit-actions { display: flex; align-items: center; gap: 12px; }
   .edit-hint { color: var(--muted); font-size: 12px; }
 
+  /* Focus mode — one job filling the screen */
+  .focus { position: fixed; inset: 0; z-index: 35; background: var(--bg); display: flex; flex-direction: column; }
+  .focus[hidden] { display: none; }
+  .focus-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .focus-head .focus-title { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .focus-head .job-title { font-size: 16px; }
+  .focus-log { flex: 1; margin: 0; overflow: auto; padding: 16px; background: var(--panel-2); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .focus-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--panel); }
+  .focus-actions .job-continue { flex: 1 1 260px; margin-top: 0; }
+
   .empty, .loading { text-align: center; color: var(--muted); padding: 60px 20px; }
   .empty .big { font-size: 40px; margin-bottom: 10px; }
 
@@ -273,6 +283,19 @@
   <button class="bbtn" data-bulk="open">↩ Reopen</button>
   <button class="bbtn danger" data-bulk="delete">🗑 Delete</button>
   <button class="bbtn" data-bulk="clear">Cancel</button>
+</div>
+
+<div id="focus" class="focus" hidden>
+  <div class="focus-head">
+    <div class="focus-title">
+      <span id="focus-name" class="job-title"></span>
+      <span id="focus-stat"></span>
+      <span id="focus-branch" class="job-branch"></span>
+    </div>
+    <button class="btn" id="focus-restore">🗗 Restore view</button>
+  </div>
+  <pre id="focus-log" class="focus-log"></pre>
+  <div id="focus-actions" class="focus-actions"></div>
 </div>
 
 <div id="toasts"></div>
@@ -588,54 +611,89 @@ function renderJobs(jobs) {
   list.querySelectorAll(".cont-input").forEach((el) => { if (typing[el.dataset.id]) el.value = typing[el.dataset.id]; });
   // Follow live logs: pin running job boxes to the bottom.
   list.querySelectorAll(".job-summary.live").forEach((el) => { el.scrollTop = el.scrollHeight; });
+  // Keep the maximized focus view live too.
+  if (focusedJobId) renderFocus();
 }
 
 function liveTail(log) {
   return (log || "").split("\n").filter((l) => l.trim()).slice(-12).join("\n");
 }
 
-function jobHtml(j) {
-  const stat = j.status === "running"
+function jobStat(j) {
+  return j.status === "running"
     ? '<span class="jstat running"><span class="spin"></span>Working</span>'
     : j.status === "done" ? '<span class="jstat done">✓ Ready</span>'
     : '<span class="jstat error">⚠ Failed</span>';
+}
+
+function jobActions(j, focus) {
+  const a = [];
+  a.push(focus
+    ? `<button class="act" data-job="unfocus">🗗 Restore view</button>`
+    : `<button class="act" data-job="focus" data-id="${escapeHtml(j.id)}">⛶ Focus</button>`);
+  a.push(`<button class="act" data-job="copylog" data-id="${escapeHtml(j.id)}">📋 Copy log</button>`);
+  if (j.status === "done") {
+    a.push(`<button class="act" data-job="diff" data-id="${escapeHtml(j.id)}">🔍 View diff</button>`);
+    a.push(`<button class="act ship" data-job="ship" data-id="${escapeHtml(j.id)}">🚀 Ship to live</button>`);
+    a.push(`<button class="act" data-job="merge" data-id="${escapeHtml(j.id)}">⇧ Merge only</button>`);
+    a.push(`<button class="act" data-job="done" data-report="${escapeHtml(j.reportId)}">✓ Mark report done</button>`);
+  }
+  if (j.status !== "running" && j.sessionId) a.push(`<button class="act" data-job="terminal" data-id="${escapeHtml(j.id)}">⌨ Terminal</button>`);
+  if (j.status !== "running") a.push(`<button class="act danger" data-job="discard" data-id="${escapeHtml(j.id)}">🗑 Discard</button>`);
+  return a.join("");
+}
+
+function jobContinue(j) {
+  return (j.status !== "running" && j.sessionId)
+    ? `<div class="job-continue"><input class="cont-input" data-id="${escapeHtml(j.id)}" placeholder="Send the agent a follow-up (it resumes in this worktree)…"><button class="act" data-job="send" data-id="${escapeHtml(j.id)}">Send ➤</button></div>`
+    : "";
+}
+
+function jobHtml(j) {
   let body = "";
   if (j.status === "error") body = `<div class="job-summary">${escapeHtml(j.error || "Agent failed.")}</div>`;
   else if (j.status === "running") body = `<div class="job-summary live">${escapeHtml(liveTail(j.log) || "starting…")}</div>`;
   else if (j.summary) body = `<div class="job-summary">${escapeHtml(j.summary)}</div>`;
-
-  const actions = [`<button class="act" data-job="copylog" data-id="${escapeHtml(j.id)}">📋 Copy log</button>`];
-  if (j.status === "done") {
-    actions.push(`<button class="act" data-job="diff" data-id="${escapeHtml(j.id)}">🔍 View diff</button>`);
-    actions.push(`<button class="act ship" data-job="ship" data-id="${escapeHtml(j.id)}">🚀 Ship to live</button>`);
-    actions.push(`<button class="act" data-job="merge" data-id="${escapeHtml(j.id)}">⇧ Merge only</button>`);
-    actions.push(`<button class="act" data-job="done" data-report="${escapeHtml(j.reportId)}">✓ Mark report done</button>`);
-  }
-  if (j.status !== "running" && j.sessionId) {
-    actions.push(`<button class="act" data-job="terminal" data-id="${escapeHtml(j.id)}">⌨ Terminal</button>`);
-  }
-  if (j.status !== "running") {
-    actions.push(`<button class="act danger" data-job="discard" data-id="${escapeHtml(j.id)}">🗑 Discard</button>`);
-  }
-  const cont = (j.status !== "running" && j.sessionId)
-    ? `<div class="job-continue"><input class="cont-input" data-id="${escapeHtml(j.id)}" placeholder="Send the agent a follow-up (it resumes in this worktree)…"><button class="act" data-job="send" data-id="${escapeHtml(j.id)}">Send ➤</button></div>`
-    : "";
   return `
   <div class="job">
     <div class="job-top">
       <span class="job-title">${escapeHtml(j.title)}</span>
-      ${stat}
+      ${jobStat(j)}
       <span class="job-branch">${escapeHtml(j.branch)}</span>
     </div>
     ${body}
-    <div class="job-actions">${actions.join("")}</div>
-    ${cont}
+    <div class="job-actions">${jobActions(j, false)}</div>
+    ${jobContinue(j)}
   </div>`;
 }
 
-document.getElementById("agents").addEventListener("click", async (e) => {
+let focusedJobId = null;
+
+function renderFocus() {
+  const el = document.getElementById("focus");
+  const j = lastJobs.find((x) => x.id === focusedJobId);
+  if (!j) { el.hidden = true; focusedJobId = null; return; }
+  document.getElementById("focus-name").textContent = j.title;
+  document.getElementById("focus-stat").innerHTML = jobStat(j);
+  document.getElementById("focus-branch").textContent = j.branch;
+  const logEl = document.getElementById("focus-log");
+  const nearBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 60;
+  logEl.textContent = j.log || "(no output yet)";
+  if (nearBottom) logEl.scrollTop = logEl.scrollHeight;
+  const actEl = document.getElementById("focus-actions");
+  const typed = actEl.querySelector(".cont-input") ? actEl.querySelector(".cont-input").value : "";
+  actEl.innerHTML = jobActions(j, true) + jobContinue(j);
+  if (typed) { const ni = actEl.querySelector(".cont-input"); if (ni) ni.value = typed; }
+  el.hidden = false;
+}
+
+function closeFocus() { focusedJobId = null; document.getElementById("focus").hidden = true; }
+
+async function onJobClick(e) {
   const b = e.target.closest("[data-job]"); if (!b) return;
   const kind = b.dataset.job;
+  if (kind === "focus") { focusedJobId = b.dataset.id; renderFocus(); return; }
+  if (kind === "unfocus") { closeFocus(); return; }
   if (kind === "copylog") {
     const j = lastJobs.find((x) => x.id === b.dataset.id);
     if (!j) return toast("No log yet");
@@ -685,7 +743,11 @@ document.getElementById("agents").addEventListener("click", async (e) => {
     try { await api("/agent/discard", { id: b.dataset.id }); toast("Discarded"); pollJobs(); }
     catch (err) { toast("⚠️ " + err.message); }
   }
-});
+}
+document.getElementById("agents").addEventListener("click", onJobClick);
+document.getElementById("focus").addEventListener("click", onJobClick);
+document.getElementById("focus-restore").addEventListener("click", closeFocus);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && focusedJobId) closeFocus(); });
 
 async function showDiff(id) {
   try {
@@ -708,14 +770,16 @@ function colorizeDiff(text) {
   }).join("\n");
 }
 
-document.getElementById("agents").addEventListener("keydown", (e) => {
+function onContKeydown(e) {
   const inp = e.target.closest(".cont-input");
   if (inp && e.key === "Enter") {
     e.preventDefault();
     const btn = inp.parentElement.querySelector('[data-job="send"]');
     if (btn) btn.click();
   }
-});
+}
+document.getElementById("agents").addEventListener("keydown", onContKeydown);
+document.getElementById("focus").addEventListener("keydown", onContKeydown);
 
 document.getElementById("modal-close").addEventListener("click", () => { document.getElementById("modal").hidden = true; });
 document.getElementById("modal").addEventListener("click", (e) => { if (e.target.id === "modal") document.getElementById("modal").hidden = true; });
