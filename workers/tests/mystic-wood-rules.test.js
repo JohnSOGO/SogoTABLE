@@ -101,6 +101,32 @@ test("Challenge: losing a fight sends you to the Tower and RETURNS companions to
   assert.ok(game.discard.includes("princess")); // but recycled, not deleted (no permanent quest lock)
 });
 
+// The result modal shows the roll AND `detail` — without it, slaying the Dragon read as a bare
+// "Victory! 9 vs 6" and the player never learned the quest was done.
+test("Challenge result carries the consequence: the Dragon slain completes George's quest", () => {
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], seat_order: ["P1"], players: {} };
+  const s = seatLit("george"); game.players.P1 = s;               // george S3, q=dragon
+  const tile = cellAt(game.board, s.r, s.c); tile.card = "dragon"; tile.revealed = true; // beast S5
+  setMysticWoodRandom(seq([0.99, 0.0]));                          // white=6, red=1 → 9 vs 6 → win
+  assert.equal(resolveChallenge(game, s, tile).result, "win");
+  assert.equal(s.questDone, true);
+  const roll = game.results.P1;
+  assert.equal(roll.outcome, "win");
+  assert.match(roll.detail, /Dragon is SLAIN/);
+  assert.doesNotMatch(roll.detail, /vanquishes/);                 // headline isn't duplicated into the detail
+});
+
+test("Challenge result detail: another knight beating the Dragon is told it fled", () => {
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], seat_order: ["P1"], players: {} };
+  const s = seatLit("roland"); game.players.P1 = s;               // roland S2, q=princess
+  const tile = cellAt(game.board, s.r, s.c); tile.card = "dragon"; tile.revealed = true;
+  setMysticWoodRandom(seq([0.99, 0.0]));                          // white=6, red=1 → 8 vs 6 → win
+  assert.equal(resolveChallenge(game, s, tile).result, "win");
+  assert.ok(!s.questDone);
+  assert.match(game.results.P1.detail, /Dragon flees/);
+  assert.ok(game.discard.includes("dragon"));                     // recycled — George's quest stays possible
+});
+
 test("Enchantress captures on a loss (escape on a 6), not the Tower", () => {
   const game = { board: buildBoard(), deck: [], discard: [], log: [], seat_order: ["P1"], players: {} };
   const s = seatLit("george"); game.players.P1 = s;

@@ -313,20 +313,30 @@ export function resolveChallenge(game, seat, tile) {
 
   let white, red, mine, foe, guard = 0;
   do { white = d6(); red = d6(); mine = white + mineBonus; foe = red + foeBonus; } while (mine === foe && guard++ < 50);
-  // Record the decisive roll so the client can show the dice-reveal modal.
-  recordRoll(game, seat.mark, { white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome: mine > foe ? "win" : (den.captures ? "captured" : "lose") });
 
-  if (mine > foe) {
-    logEvent(game, `${k.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
+  // Resolve first, then record: the consequences of the fight (the Dragon slain, a Thing taken, the crown
+  // claimed, a companion spent) are logged by the branches below, and the result modal must show them —
+  // "Victory! 9 vs 7" alone leaves the player guessing what they actually won.
+  let result;
+  const outcome = mine > foe ? "win" : (den.captures ? "captured" : "lose");
+  if (outcome === "win") logEvent(game, `${k.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
+  else if (outcome === "captured") logEvent(game, `The Enchantress captures ${k.name}! (escape on a 6) — ${mine} vs ${foe}`, "r");
+  else logEvent(game, `${k.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
+  const before = game.log.length;   // headline is already on the modal; capture only what follows
+
+  if (outcome === "win") {
     applyWin(game, seat, tile, den, id);
     useSage(game, seat); usePrince(game, seat); enforcePower(game, seat);
-    return { result: "win", endTurn: true };
+    result = "win";
+  } else {
+    useSage(game, seat); usePrince(game, seat);
+    if (outcome === "captured") { seat.captured = true; result = "captured"; }
+    else { toTower(game, seat); result = "lose"; }   // fight loss → companions lost (they return to the wood)
   }
-  useSage(game, seat); usePrince(game, seat);
-  if (den.captures) { logEvent(game, `The Enchantress captures ${k.name}! (escape on a 6) — ${mine} vs ${foe}`, "r"); seat.captured = true; return { result: "captured", endTurn: true }; }
-  logEvent(game, `${k.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
-  toTower(game, seat);   // fight loss → companions lost (they return to the wood)
-  return { result: "lose", endTurn: true };
+  // Record the decisive roll so the client can show the dice-reveal modal.
+  recordRoll(game, seat.mark, { white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome,
+    detail: game.log.slice(before).map((e) => e.text).join("<br>") });
+  return { result, endTurn: true };
 }
 function applyWin(game, seat, tile, den, id) {
   const k = knightOf(seat);

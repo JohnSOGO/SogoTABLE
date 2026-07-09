@@ -494,8 +494,12 @@ function showDice(ctx, roll) {
     const res = roll.outcome === "win" ? `<span class="g">⚔️✨ Victory! — ${roll.mine} vs ${roll.foe}</span>`
       : roll.outcome === "captured" ? `<span class="r">✦ Captured by the Enchantress! — ${roll.mine} vs ${roll.foe}</span>`
       : `<span class="r">💀 Defeated — ${roll.mine} vs ${roll.foe}<br>⛓️ To the Tower — companions lost.</span>`;
+    // What the fight actually did — the Dragon slain, a Thing taken, the crown claimed. Without it a
+    // win reads as "you rolled higher" and the player never learns what they gained.
+    const detail = roll.detail ? `<div class="mw-result-detail">${sanitizeLog(roll.detail)}</div>` : "";
     inner = `<div class="tag">Encounter result</div>
       <div class="result mw-result-big">${res}</div>
+      ${detail}
       <div class="hint">the dice — white = you · red = foe:</div>
       <div class="dicewrap">${diceRow("You", "white", roll.white, roll.mineParts, roll.mine)}${diceRow(E(roll.foeName), "red", roll.red, roll.foeParts, roll.foe)}</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
