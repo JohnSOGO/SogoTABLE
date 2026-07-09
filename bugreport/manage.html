@@ -149,6 +149,11 @@
   .job-branch { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); }
   .job-summary { margin-top: 8px; font-size: 13px; color: var(--ink); white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow: auto; background: var(--panel-2); border-radius: 8px; padding: 8px 10px; }
   .job-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .job-summary.live { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.5; }
+  .act.ship { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .job-continue { margin-top: 8px; display: flex; gap: 6px; }
+  .cont-input { flex: 1; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); border-radius: 8px; padding: 7px 11px; font: inherit; font-size: 13px; }
+  .cont-input::placeholder { color: var(--muted); }
 
   /* Diff modal */
   .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -510,8 +515,18 @@ function renderJobs(jobs) {
   panel.hidden = jobs.length === 0;
   const running = jobs.filter((j) => j.status === "running").length;
   document.getElementById("agents-sub").textContent =
-    jobs.length ? `${running} running · ${jobs.length} total — fixes land on a branch for your review (never pushed)` : "";
+    jobs.length ? `${running} running · ${jobs.length} total — fixes land on a branch; Ship to live when you've reviewed` : "";
+  // Preserve any follow-up text being typed across re-renders.
+  const typing = {};
+  list.querySelectorAll(".cont-input").forEach((el) => { if (el.value) typing[el.dataset.id] = el.value; });
   list.innerHTML = jobs.map(jobHtml).join("");
+  list.querySelectorAll(".cont-input").forEach((el) => { if (typing[el.dataset.id]) el.value = typing[el.dataset.id]; });
+  // Follow live logs: pin running job boxes to the bottom.
+  list.querySelectorAll(".job-summary.live").forEach((el) => { el.scrollTop = el.scrollHeight; });
+}
+
+function liveTail(log) {
+  return (log || "").split("\n").filter((l) => l.trim()).slice(-12).join("\n");
 }
 
 function jobHtml(j) {
@@ -519,18 +534,27 @@ function jobHtml(j) {
     ? '<span class="jstat running"><span class="spin"></span>Working</span>'
     : j.status === "done" ? '<span class="jstat done">✓ Ready</span>'
     : '<span class="jstat error">⚠ Failed</span>';
-  const body = j.status === "error"
-    ? `<div class="job-summary">${escapeHtml(j.error || "Agent failed.")}</div>`
-    : (j.summary ? `<div class="job-summary">${escapeHtml(j.summary)}</div>` : "");
+  let body = "";
+  if (j.status === "error") body = `<div class="job-summary">${escapeHtml(j.error || "Agent failed.")}</div>`;
+  else if (j.status === "running") body = `<div class="job-summary live">${escapeHtml(liveTail(j.log) || "starting…")}</div>`;
+  else if (j.summary) body = `<div class="job-summary">${escapeHtml(j.summary)}</div>`;
+
   const actions = [`<button class="act" data-job="copylog" data-id="${escapeHtml(j.id)}">📋 Copy log</button>`];
   if (j.status === "done") {
     actions.push(`<button class="act" data-job="diff" data-id="${escapeHtml(j.id)}">🔍 View diff</button>`);
-    actions.push(`<button class="act primary" data-job="merge" data-id="${escapeHtml(j.id)}">⇧ Merge to main</button>`);
+    actions.push(`<button class="act ship" data-job="ship" data-id="${escapeHtml(j.id)}">🚀 Ship to live</button>`);
+    actions.push(`<button class="act" data-job="merge" data-id="${escapeHtml(j.id)}">⇧ Merge only</button>`);
     actions.push(`<button class="act" data-job="done" data-report="${escapeHtml(j.reportId)}">✓ Mark report done</button>`);
+  }
+  if (j.status !== "running" && j.sessionId) {
+    actions.push(`<button class="act" data-job="terminal" data-id="${escapeHtml(j.id)}">⌨ Terminal</button>`);
   }
   if (j.status !== "running") {
     actions.push(`<button class="act danger" data-job="discard" data-id="${escapeHtml(j.id)}">🗑 Discard</button>`);
   }
+  const cont = (j.status !== "running" && j.sessionId)
+    ? `<div class="job-continue"><input class="cont-input" data-id="${escapeHtml(j.id)}" placeholder="Send the agent a follow-up (it resumes in this worktree)…"><button class="act" data-job="send" data-id="${escapeHtml(j.id)}">Send ➤</button></div>`
+    : "";
   return `
   <div class="job">
     <div class="job-top">
@@ -539,7 +563,8 @@ function jobHtml(j) {
       <span class="job-branch">${escapeHtml(j.branch)}</span>
     </div>
     ${body}
-    ${actions.length ? `<div class="job-actions">${actions.join("")}</div>` : ""}
+    <div class="job-actions">${actions.join("")}</div>
+    ${cont}
   </div>`;
 }
 
@@ -553,6 +578,7 @@ document.getElementById("agents").addEventListener("click", async (e) => {
       "SogoTable fix-agent debug",
       `Job ${j.id} · report ${j.reportId} · branch ${j.branch}`,
       `Status: ${j.status}`,
+      j.logFile ? `Full log saved at: ${j.logFile}` : "",
       j.commits ? "\nCommits on branch:\n" + j.commits : "",
       "\n--- Summary / error ---\n" + (j.error || j.summary || "(none)"),
       "\n--- Log (tail) ---\n" + (j.log || "(empty)"),
@@ -566,6 +592,27 @@ document.getElementById("agents").addEventListener("click", async (e) => {
     try { const d = await api("/agent/merge", { id: b.dataset.id }); toast("✓ " + (d.message || "Merged")); if (d.hint) toast(d.hint); }
     catch (err) { toast("⚠️ " + err.message); }
     finally { b.disabled = false; }
+    return;
+  }
+  if (kind === "ship") {
+    if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "🚀 Ship live — tap again"; setTimeout(() => { if (b) { delete b.dataset.armed; b.textContent = "🚀 Ship to live"; } }, 3500); return; }
+    b.disabled = true; b.textContent = "🚀 Shipping…";
+    try { const d = await api("/agent/ship", { id: b.dataset.id }); toast("🚀 " + (d.message || "Shipped")); if (d.hint) toast(d.hint); }
+    catch (err) { toast("⚠️ " + err.message); }
+    finally { b.disabled = false; b.textContent = "🚀 Ship to live"; }
+    return;
+  }
+  if (kind === "terminal") {
+    try { await api("/agent/terminal", { id: b.dataset.id }); toast("Opened a terminal in the worktree"); }
+    catch (err) { toast("⚠️ " + err.message); }
+    return;
+  }
+  if (kind === "send") {
+    const input = document.querySelector(`.cont-input[data-id="${CSS.escape(b.dataset.id)}"]`);
+    const msg = input ? input.value.trim() : "";
+    if (!msg) return toast("Type a message first");
+    try { await api("/agent/continue", { id: b.dataset.id, message: msg }); toast("Sent — agent resuming"); if (input) input.value = ""; pollJobs(); }
+    catch (err) { toast("⚠️ " + err.message); }
     return;
   }
   if (kind === "discard") {
@@ -595,6 +642,15 @@ function colorizeDiff(text) {
     return safe;
   }).join("\n");
 }
+
+document.getElementById("agents").addEventListener("keydown", (e) => {
+  const inp = e.target.closest(".cont-input");
+  if (inp && e.key === "Enter") {
+    e.preventDefault();
+    const btn = inp.parentElement.querySelector('[data-job="send"]');
+    if (btn) btn.click();
+  }
+});
 
 document.getElementById("modal-close").addEventListener("click", () => { document.getElementById("modal").hidden = true; });
 document.getElementById("modal").addEventListener("click", (e) => { if (e.target.id === "modal") document.getElementById("modal").hidden = true; });

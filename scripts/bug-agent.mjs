@@ -9,7 +9,7 @@
 // Job state is in-memory: it lives only while the server runs, which is fine — the
 // durable artifacts are the git branches/worktrees, which survive a restart.
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync, appendFileSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +17,19 @@ const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const isWin = process.platform === "win32";
 const MAX_CONCURRENT = 2;
 const LOG_TAIL = 6000;
+// Full agent logs are persisted here (gitignored under bugreport/) so they survive a
+// server restart and can be reopened later. In-memory job.log keeps only a tail.
+const logDir = join(repoRoot, "bugreport", "agent-logs");
+const MEM_LOG_CAP = 24000;
+
+const safeBranch = (branch) => branch.replace(/[^\w.-]/g, "-");
+
+// Append to a job's log: memory (capped) + its on-disk file (full).
+function writeLog(job, s) {
+  job.log += s;
+  if (job.log.length > MEM_LOG_CAP) job.log = job.log.slice(-MEM_LOG_CAP);
+  if (job.logFile) { try { appendFileSync(job.logFile, s); } catch { /* disk hiccup — memory still has it */ } }
+}
 
 const jobs = new Map(); // id -> full job record
 let running = 0;
@@ -74,16 +87,60 @@ function buildPrompt(report, branch) {
   ].join("\n");
 }
 
+// A short, human-readable label for a tool_use event in the live log.
+function briefTool(item) {
+  const inp = item.input || {};
+  if (item.name === "Bash") return String(inp.command || "").split("\n")[0].slice(0, 140);
+  if (item.name === "Edit" || item.name === "Write" || item.name === "Read" || item.name === "NotebookEdit") return inp.file_path || "";
+  if (item.name === "Grep" || item.name === "Glob") return inp.pattern || inp.query || "";
+  if (item.name === "Task") return inp.description || inp.subagent_type || "";
+  return JSON.stringify(inp).slice(0, 120);
+}
+
 function publicJob(j) {
   return {
     id: j.id, reportId: j.reportId, title: j.title, branch: j.branch,
     status: j.status, summary: j.summary, error: j.error, commits: j.commits,
-    log: j.log.slice(-LOG_TAIL), startedAt: j.startedAt, endedAt: j.endedAt,
+    sessionId: j.sessionId || "", log: j.log.slice(-LOG_TAIL), logFile: j.logFile || "",
+    startedAt: j.startedAt, endedAt: j.endedAt,
   };
 }
 
 export function listJobs() {
   return [...jobs.values()].map(publicJob).sort((a, b) => b.startedAt - a.startedAt);
+}
+
+// Rebuild job cards for any fix/bug-* branches left from a previous server run, so a
+// restart never strands a fix. The in-memory summary/log/session are gone (they
+// weren't persisted), but the branch + worktree are real, so View diff / Ship /
+// Merge / Discard still work. Called once at startup.
+export async function initJobs() {
+  const branches = await git(["branch", "--list", "fix/bug-*", "--format=%(refname:short)"]);
+  const wt = await git(["worktree", "list", "--porcelain"]);
+  const wtByBranch = {};
+  let cur = "";
+  for (const line of wt.out.split("\n")) {
+    if (line.startsWith("worktree ")) cur = line.slice(9).trim();
+    else if (line.startsWith("branch ")) wtByBranch[line.slice(7).trim().replace("refs/heads/", "")] = cur;
+  }
+  for (const branch of branches.out.split("\n").map((s) => s.trim()).filter(Boolean)) {
+    if ([...jobs.values()].some((j) => j.branch === branch)) continue;
+    const reportId = branch.replace(/^fix\/bug-/, "");
+    const commits = await git(["log", "--oneline", `main..${branch}`]);
+    const id = `job-${++seq}`;
+    const logFile = join(logDir, safeBranch(branch) + ".log");
+    let savedLog = "(restored after a server restart — no saved log found)\n";
+    if (existsSync(logFile)) { try { savedLog = readFileSync(logFile, "utf8").slice(-MEM_LOG_CAP); } catch { /* keep default */ } }
+    jobs.set(id, {
+      id, reportId, title: `(restored) ${reportId}`, branch,
+      wtPath: wtByBranch[branch] || join(repoRoot, ".worktrees", `bug-${reportId}`),
+      logFile,
+      status: "done", log: savedLog,
+      summary: commits.out ? "Restored fix branch from a previous run. View the diff to review, then Ship or Discard." : "Restored branch with no commits — safe to discard.",
+      error: "", commits: commits.out, sessionId: "", startedAt: 0, endedAt: 0,
+    });
+  }
+  return listJobs().length;
 }
 
 export function getJob(id) {
@@ -103,6 +160,7 @@ export async function startFix(report) {
   const job = {
     id, reportId, title: firstLine(report.description), branch,
     wtPath: join(repoRoot, ".worktrees", `bug-${reportId}`),
+    logFile: join(logDir, safeBranch(branch) + ".log"),
     status: "running", log: "", summary: "", error: "", commits: "",
     startedAt: Date.now(), endedAt: 0,
   };
@@ -114,7 +172,13 @@ export async function startFix(report) {
 }
 
 async function run(job, report) {
-  const log = (s) => { job.log += s; };
+  const log = (s) => writeLog(job, s);
+
+  // Start the persisted log fresh for a new fix.
+  try {
+    mkdirSync(logDir, { recursive: true });
+    writeFileSync(job.logFile, `# Fix-agent log — ${job.branch} (report ${job.reportId})\n\n`);
+  } catch { /* non-fatal */ }
 
   // Fresh worktree: clear any stale one for this report first.
   await git(["worktree", "remove", "--force", job.wtPath]);
@@ -130,43 +194,129 @@ async function run(job, report) {
     return;
   }
 
-  // Launch Claude Code headless inside the worktree. bypassPermissions lets it edit
-  // and run tests unattended; the prompt forbids push/deploy and it's boxed to the
-  // worktree branch. The prompt goes in via STDIN, not as an argument: a multi-line
-  // prompt passed as a command-line arg gets mangled by Windows cmd.exe (newlines
-  // break the command line), which silently handed the agent an empty task.
-  log(`\n$ claude -p --permission-mode bypassPermissions  (prompt via stdin, cwd: worktree)\n\n`);
-  const args = ["-p", "--permission-mode", "bypassPermissions"];
-  const prompt = buildPrompt(report, job.branch);
-  let result = "";
-  const exit = await new Promise((resolve) => {
+  log(`\n$ claude (stream-json) — prompt via stdin, cwd: worktree\n\n`);
+  const res = await spawnClaude(job, { prompt: buildPrompt(report, job.branch) });
+  job.sessionId = res.sessionId || job.sessionId;
+  await finalize(job, res);
+}
+
+// Spawn Claude Code headless, streaming stream-json events into the job log so the
+// GUI sees live progress. bypassPermissions lets it edit + run tests unattended; the
+// prompt forbids push/deploy and it's boxed to the worktree branch. The prompt goes
+// in via STDIN, not as an argument: a multi-line arg gets mangled by Windows cmd.exe.
+function spawnClaude(job, { prompt, resume }) {
+  const log = (s) => writeLog(job, s);
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"];
+  if (resume) args.push("--resume", resume);
+  const holder = { result: "", isError: false, sessionId: job.sessionId || "" };
+  return new Promise((resolve) => {
     let proc;
     try {
       proc = spawn("claude", args, { cwd: job.wtPath, shell: isWin, env: process.env });
     } catch (e) {
       log(`[could not launch claude: ${e.message}]\n`);
-      resolve(-1);
+      resolve({ exit: -1, ...holder });
       return;
     }
-    proc.stdout.on("data", (d) => { const s = d.toString(); result += s; log(s); });
+    let buf = "";
+    proc.stdout.on("data", (d) => {
+      buf += d.toString();
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        const t = line.trim(); if (!t) continue;
+        let evt; try { evt = JSON.parse(t); } catch { log(line + "\n"); continue; }
+        onEvent(evt, holder, log);
+      }
+    });
     proc.stderr.on("data", (d) => log(d.toString()));
-    proc.on("error", (e) => { log(`[claude error: ${e.message}]\n`); resolve(-1); });
-    proc.on("close", (code) => resolve(code));
+    proc.on("error", (e) => { log(`[claude error: ${e.message}]\n`); resolve({ exit: -1, ...holder }); });
+    proc.on("close", (code) => resolve({ exit: code, ...holder }));
     try { proc.stdin.write(prompt); proc.stdin.end(); } catch (e) { log(`[stdin error: ${e.message}]\n`); }
   });
+}
 
+// Translate a stream-json event into a readable live-log line.
+function onEvent(evt, holder, log) {
+  if (evt.type === "system") {
+    if (evt.subtype === "init") { holder.sessionId = evt.session_id || holder.sessionId; log(`▶ session ${(evt.session_id || "").slice(0, 8)} · ${evt.model || "?"}\n`); }
+    return;
+  }
+  if (evt.type === "assistant" && evt.message && evt.message.content) {
+    for (const item of evt.message.content) {
+      if (item.type === "text" && item.text && item.text.trim()) log(item.text.trim() + "\n");
+      else if (item.type === "tool_use") log(`⚙ ${item.name}: ${briefTool(item)}\n`);
+    }
+    return;
+  }
+  if (evt.type === "user" && evt.message && evt.message.content) {
+    for (const item of evt.message.content) if (item.type === "tool_result" && item.is_error) log(`  ↳ tool error\n`);
+    return;
+  }
+  if (evt.type === "result") {
+    holder.result = evt.result || holder.result;
+    holder.isError = Boolean(evt.is_error);
+    holder.sessionId = evt.session_id || holder.sessionId;
+    log(`\n■ ${evt.subtype || "done"} · ${evt.num_turns || "?"} turns · $${Number(evt.total_cost_usd || 0).toFixed(3)}\n`);
+    return;
+  }
+}
+
+async function finalize(job, res) {
   const commits = await git(["log", "--oneline", `main..${job.branch}`]);
   job.commits = commits.out;
-  job.summary = result.trim().slice(-4000);
+  if (res.result) job.summary = res.result.trim().slice(-4000);
   job.endedAt = Date.now();
-  if (exit === 0 && commits.out) {
-    job.status = "done";
-  } else if (exit === 0) {
-    job.status = "done";
-    if (!job.summary) job.summary = "Agent finished but committed no changes.";
-  } else {
+  if (res.exit !== 0) {
     job.status = "error";
-    if (!job.error) job.error = `Agent exited with code ${exit}` + (exit === -1 ? " (is the `claude` CLI on PATH?)" : "");
+    if (!job.error) job.error = `Agent exited with code ${res.exit}` + (res.exit === -1 ? " (is the `claude` CLI on PATH?)" : "");
+  } else if (res.isError) {
+    job.status = "error";
+    if (!job.error) job.error = job.summary || "Agent reported an error.";
+  } else {
+    job.status = "done";
+    if (!commits.out && !job.summary) job.summary = "Agent finished but committed no changes.";
+  }
+}
+
+// Send a follow-up message into an existing job, resuming its Claude session in the
+// same worktree/branch — turn-based interactivity from the GUI.
+export function continueJob(id, message) {
+  const j = jobs.get(id);
+  if (!j) return { ok: false, error: "No such job." };
+  if (j.status === "running") return { ok: false, error: "Agent is still working — wait for it to pause." };
+  if (!j.sessionId) return { ok: false, error: "No session to resume yet." };
+  const msg = String(message || "").trim();
+  if (!msg) return { ok: false, error: "Empty message." };
+  if (running >= MAX_CONCURRENT) return { ok: false, error: `Too many agents running (${running}).` };
+  j.status = "running"; j.endedAt = 0; j.error = "";
+  writeLog(j, `\n\n— you: ${msg}\n\n`);
+  running += 1;
+  (async () => {
+    const res = await spawnClaude(j, { prompt: msg, resume: j.sessionId });
+    j.sessionId = res.sessionId || j.sessionId;
+    await finalize(j, res);
+  })().catch((e) => { j.status = "error"; j.error = String(e && e.message || e); })
+    .finally(() => { running -= 1; if (!j.endedAt) j.endedAt = Date.now(); });
+  return { ok: true };
+}
+
+// Open a full interactive Claude session in the job's worktree, in a new console
+// window — for when you want to watch and steer it live. Resumes the session so it
+// keeps the conversation context.
+export function openTerminal(id) {
+  const j = jobs.get(id);
+  if (!j) return { ok: false, error: "No such job." };
+  const resume = j.sessionId ? ` --resume ${j.sessionId}` : "";
+  try {
+    if (isWin) {
+      spawn("cmd", ["/c", "start", "cmd", "/k", `cd /d "${j.wtPath}" && claude${resume}`], { shell: true, detached: true }).unref();
+    } else {
+      spawn("sh", ["-c", `cd "${j.wtPath}" && claude${resume}`], { detached: true, stdio: "ignore" }).unref();
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
   }
 }
 
@@ -206,6 +356,40 @@ export async function discardJob(id) {
   await git(["branch", "-D", j.branch]);
   jobs.delete(id);
   return { ok: true };
+}
+
+function runNpm(args) {
+  return new Promise((resolve) => {
+    const p = spawn("npm", args, { cwd: repoRoot, shell: isWin, env: process.env });
+    let out = "";
+    p.stdout.on("data", (d) => { out += d; });
+    p.stderr.on("data", (d) => { out += d; });
+    p.on("error", (e) => resolve({ code: -1, out: String(e.message || e) }));
+    p.on("close", (code) => resolve({ code, out }));
+  });
+}
+
+// Ship a reviewed fix to the LIVE site: merge (with the same safety checks), push to
+// origin/main (Cloudflare Pages auto-deploys the static frontend), and — only if the
+// change touched workers/ — run deploy:brain. Deliberate + user-triggered; the agent
+// itself never does this. Because live is the only place changes can be verified here.
+export async function shipJob(id) {
+  const j = jobs.get(id);
+  if (!j) return { ok: false, error: "No such job." };
+  const changed = await git(["diff", "--name-only", `main...${j.branch}`]);
+  const touchesWorker = changed.out.split("\n").some((f) => f.startsWith("workers/"));
+  const merged = await mergeJob(id);
+  if (!merged.ok) return merged;
+  const steps = [merged.message || "merged"];
+  const push = await git(["push", "origin", "main"]);
+  if (push.code !== 0) return { ok: false, error: "Merged locally, but push failed:\n" + (push.err || push.out) + "\nPush/deploy manually." };
+  steps.push("pushed → main (Pages deploys the static site)");
+  if (touchesWorker) {
+    const dep = await runNpm(["run", "deploy:brain"]);
+    if (dep.code !== 0) return { ok: false, error: "Pushed, but worker deploy failed:\n" + dep.out.slice(-900) + "\nRun `npm run deploy:brain` manually." };
+    steps.push("deployed worker (deploy:brain)");
+  }
+  return { ok: true, message: steps.join(" · "), hint: touchesWorker ? "Live now — hard-refresh to beat the SW cache." : "Live shortly (Pages build) — hard-refresh to beat the SW cache." };
 }
 
 // Confirm the CLI is reachable so the GUI can warn early.

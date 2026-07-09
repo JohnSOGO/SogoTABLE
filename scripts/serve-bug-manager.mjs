@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { startFix, listJobs, getJob, getDiff, mergeJob, discardJob, claudeAvailable } from "./bug-agent.mjs";
+import { startFix, listJobs, getJob, getDiff, mergeJob, discardJob, continueJob, openTerminal, shipJob, initJobs, claudeAvailable } from "./bug-agent.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const htmlPath = join(repoRoot, "bugreport", "manage.html");
@@ -84,6 +84,18 @@ const server = createServer(async (req, res) => {
         const body = JSON.parse((await readBody(req)) || "{}");
         return send(await discardJob(body.id));
       }
+      if (req.method === "POST" && url.pathname === "/agent/continue") {
+        const body = JSON.parse((await readBody(req)) || "{}");
+        return send(continueJob(body.id, body.message));
+      }
+      if (req.method === "POST" && url.pathname === "/agent/terminal") {
+        const body = JSON.parse((await readBody(req)) || "{}");
+        return send(openTerminal(body.id));
+      }
+      if (req.method === "POST" && url.pathname === "/agent/ship") {
+        const body = JSON.parse((await readBody(req)) || "{}");
+        return send(await shipJob(body.id));
+      }
     }
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ ok: false, error: "Not found" }));
@@ -94,10 +106,14 @@ const server = createServer(async (req, res) => {
 });
 
 // Bind to loopback only — this is a personal admin tool, not a network service.
-server.listen(port, "127.0.0.1", () => {
+server.listen(port, "127.0.0.1", async () => {
   const target = `http://localhost:${port}/`;
   console.log(`Bug-report manager running at ${target}`);
   console.log(`Proxying to ${api} — press Ctrl+C to stop.`);
+  try {
+    const n = await initJobs();
+    if (n) console.log(`Restored ${n} fix branch(es) from a previous run.`);
+  } catch { /* not fatal — just start with no restored jobs */ }
   openBrowser(target);
 });
 
