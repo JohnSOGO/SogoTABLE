@@ -114,6 +114,48 @@ export const DEN_TALES = {
   nymph: { "give:crystal": "The Nymph rises from the pool and presses a cold crystal into {k}'s hand." },
 };
 
+// First sight of a denizen — one bespoke line shown on the encounter/pick card the moment {k} meets
+// it, before Greet or Challenge. Same original chivalric-romance voice as DEN_TALES / KNIGHT_INTRO
+// (the rulebook prints stats, not story); one unique line per denizen that can be encountered. `{k}`
+// is the meeting knight's name. Spells are never "met" — they resolve on arrival (see resolveSpell) —
+// so they are absent here; a missing key falls back to engine.js's plain "{k} comes upon …".
+export const DEN_INTRO = {
+  // Beasts — a fight of Strength.
+  ox:          "A wild ox stands hock-deep in the fern and swings its great head to fix {k} with one black eye.",
+  boar:        "The bracken bursts apart — a boar wheels about, tusks lowered, and will not yield {k} the path.",
+  troll:       "A troll uncoils from beneath the roots, grey as wet stone, and grins at {k} with a mouthful of teeth.",
+  giant:       "The trees thin, and what {k} took for a hill stands up: a giant, blinking down through the leaves.",
+  orc:         "An orc drops from the branch it was crouched on, notched blade already drawn, and comes for {k}.",
+  dragon:      "The wood goes silent, then hot. The Dragon lifts its head from the ash of its own making and regards {k}.",
+  // Warriors — a fight of Strength and Prowess.
+  saracen:     "A Saracen knight bars the road, shield up and lance couched, and calls across the glade for {k} to prove their worth.",
+  king:        "A crowned knight rides out beneath a hundred banners — the King himself, who suffers no rival, and looks on {k} with cold eyes.",
+  // Magic-users — a contest of Prowess.
+  wizard:      "A wizard turns from the fire he was reading, and the flames lean toward {k} as if to point.",
+  illusion:    "The glade doubles, and doubles again; {k} can no longer tell the true path from the painted one.",
+  enchantress: "A woman sings among the willows, and {k} feels the song reach in and try the latch of the heart.",
+  // Greet denizens — offer a greeting and see what they do.
+  horse:       "A grey horse grazes untethered in the clearing, then lifts its head, ears turned toward {k}.",
+  rogue:       "A ragged fellow steps from behind an oak, all smiles and open hands, and hails {k} as an old friend.",
+  witch:       "Smoke threads up through the leaves; a witch bends over her pot and does not yet look up at {k}.",
+  druid:       "Among the oldest oaks a druid stands so still that {k} nearly walks past him for a tree.",
+  elf:         "A laugh comes down from the branches, and {k} catches only a flash of green before the leaves are still again.",
+  merlin:      "An old man sits reading beneath the ash, a great book open on his knee, unsurprised to see {k}. It is Merlin.",
+  hermit:      "A hermit tells his beads at the door of a mean cell, and lifts his eyes to {k} without breaking his prayer.",
+  bishop:      "A bishop keeps a wayside shrine here, mitred and mild, and beckons {k} to kneel a while.",
+  archmage:    "The air bends about a figure in the glade — the Arch-Mage, to whom the whole Wood is a room he may rearrange for {k}.",
+  magician:    "A magician watches the clouds gather over the wood, and greets {k} without turning from the coming storm.",
+  dwarf:       "A dwarf looks up from his hoard, measures {k} with a smith's eye, and reaches for something in the dark behind him.",
+  nymph:       "A nymph rises dripping from the pool, cups something bright in her hands, and holds it out toward {k}.",
+  // Companions — won, not slain (though the Prince may test you first).
+  sage:        "An old sage rests on a stone beside the path, and offers {k} his counsel for the road ahead.",
+  princess:    "A princess waits at the glade's edge, hopeful and wary at once, weighing whether {k} is the deliverance she was promised.",
+  prince:      "A young prince rises, hand on hilt, to judge whether {k} comes as rescuer or as rival.",
+  grail:       "A cold light stands in the clearing where no light should fall: the Holy Grail, waiting to see if {k} is worthy to bear it.",
+  // The Queen holds court and may grant a boon.
+  queen:       "A queen holds court beneath a canopy of leaves, and inclines her head, curious what boon {k} will ask.",
+};
+
 // The denizen deck: one of each, plus a couple of duplicate beasts as filler. Recycled via a discard.
 export const DECK_IDS = [
   "ox", "boar", "troll", "giant", "orc", "dragon", "saracen", "king", "wizard", "illusion", "enchantress",

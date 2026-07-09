@@ -9,7 +9,7 @@ import {
   resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes, combatOutcomes,
   logEvent,
 } from "../games/mystic-wood/engine.js";
-import { KNIGHTS, DEN, DEN_TALES } from "../games/mystic-wood/data.js";
+import { KNIGHTS, DEN, DEN_TALES, DEN_INTRO } from "../games/mystic-wood/data.js";
 
 // deterministic PRNG
 function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -348,6 +348,17 @@ test("Greet: every reaction a table can roll has a tale", () => {
     }
   }
   assert.deepEqual(missing, [], "write a line in DEN_TALES (data.js) for each");
+});
+
+// Every card a knight can actually MEET (encounter card or pick grid) must have its own first-sight
+// line, so no denizen falls through to the bare "{k} comes upon …" fallback. Spells resolve on
+// arrival and are never met, so they're exempt.
+test("Encounter: every denizen you can meet has a first-sight intro", () => {
+  const missing = Object.entries(DEN)
+    .filter(([, den]) => den.cls !== "spell")
+    .map(([id]) => id)
+    .filter((id) => !DEN_INTRO[id]);
+  assert.deepEqual(missing, [], "write a line in DEN_INTRO (data.js) for each");
 });
 
 test("Challenge: the detail survives a full chronicle (log-cap regression)", () => {

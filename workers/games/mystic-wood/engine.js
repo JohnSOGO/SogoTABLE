@@ -4,7 +4,7 @@
 // through one swappable module seam so tests can inject a deterministic RNG.
 // The turn machine + platform contract live in rules.js; the bot in ai.js.
 import {
-  KNIGHTS, THINGS, DEN, DEN_TALES, DECK_IDS, COMP_P, ROWS, COLS, POWER_LIMIT,
+  KNIGHTS, THINGS, DEN, DEN_TALES, DEN_INTRO, DECK_IDS, COMP_P, ROWS, COLS, POWER_LIMIT,
   NAMED_TILES,
 } from "./data.js";
 
@@ -233,6 +233,12 @@ export function denPhrase(id) {
 function tale(id, act, name) {
   const t = DEN_TALES[id] && DEN_TALES[id][act];
   return t ? t.replace(/\{k\}/g, name) : null;
+}
+// The first-sight line for an encountered denizen, the knight written in. Falls back to a plain
+// meeting so a denizen with no written intro still says who {k} has come upon.
+export function denIntro(id, name) {
+  const t = DEN_INTRO[id];
+  return t ? t.replace(/\{k\}/g, name) : `${name} comes upon ${denPhrase(id)}.`;
 }
 // Apply a greeted denizen's reaction. Returns { endTurn, befriended }.
 export function applyReaction(game, seat, tile, act) {

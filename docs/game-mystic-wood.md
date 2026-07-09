@@ -63,6 +63,12 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   its headline and drops the bookkeeping (the Thing, the new S/P) to the detail line. A test pins the
   coverage, so a new `tbl` row can't quietly fall back to bare narration. Denizens marked `proper`
   (Merlin) take no article: "You greet Merlin", never "the Merlin".
+- **Every card is met with its own line.** `DEN_INTRO` (`data.js`) gives each *encounterable* denizen
+  a unique first-sight sentence (`{k}` = the knight), pushed through `pendingToDict` as `pending.intro`
+  and shown atop both the encounter card and the "pick one of six" grid — so a fight foe, a companion,
+  and a greet denizen are each introduced in the same voice, not just the greet denizens. Spells are
+  never "met" (they resolve on arrival) and are exempt; a test pins coverage of the rest. A missing
+  key falls back to engine's plain "{k} comes upon …".
 
 ## Intended deviations from the rulebook (product decisions, not bugs)
 

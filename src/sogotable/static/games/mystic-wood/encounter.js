@@ -17,6 +17,9 @@ export function initEncounter(fn) { rerender = fn; }
 /* ------------------------------- portal --------------------------------- */
 function portal() { const p = document.createElement("div"); p.className = "mystic-wood-root mw-portal"; document.body.appendChild(p); return p; }
 export function closePortals() { document.querySelectorAll(".mw-portal").forEach((n) => n.remove()); }
+// The first-sight narrative the server writes for a met card (server-owned prose, no user input) —
+// shown on both the encounter card and the pick grid so EVERY card type is met with its own line.
+function introHtml(p) { return p && p.intro ? `<p class="mw-enc-intro">${sanitizeLog(p.intro)}</p>` : ""; }
 
 /* ------------------------------- intro ---------------------------------- */
 export function showIntro(ctx, game, me) {
@@ -43,6 +46,7 @@ export function showEncounter(ctx, game) {
     <div class="tag">An encounter</div>
     ${tileHeaderHtml(tile)}
     <h2>${denEmoji(p.card)} ${E(p.denName || (den && den.name) || "")}</h2>
+    ${introHtml(p)}
     ${denboxHtml(p, den, tile)}
     <div class="row">${p.combat ? `<button class="primary" data-enc="challenge">Challenge</button>` : `<button class="primary" data-enc="greet">Greet</button>`}</div>
   </div></div>`;
@@ -73,6 +77,7 @@ function pickCard(ctx, game, moveType, verb) {
   host.innerHTML = `<div class="overlay"><div class="modal">
     <div class="tag">${verb} ${name}</div>
     ${tileHeaderHtml(tile)}
+    ${introHtml(p)}
     <h2>${emoji} Pick one</h2>
     <div class="mw-pickodds">${odds}</div>
     <div class="mw-pickgrid">${faces}</div>
