@@ -12,6 +12,10 @@ data/
 runtime/
 AI/
 *.log
+# Local secrets — never commit. Holds SOGOTABLE_SUPERUSER_PASSCODE for the bug manager.
+.env
+.env.*
+!.env.example
 src/sogotable/static/revision.json
 .tmp-chrome/
 .tmp-chrome-*/

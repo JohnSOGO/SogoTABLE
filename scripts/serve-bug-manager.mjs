@@ -12,7 +12,7 @@
 // Override the API origin with SOGOTABLE_API_ORIGIN (defaults to production) and
 // the port with BUG_MANAGER_PORT (defaults to 8917).
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,10 +22,54 @@ const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const htmlPath = join(repoRoot, "bugreport", "manage.html");
 const api = process.env.SOGOTABLE_API_ORIGIN || "https://sogotable.sogodojo.com";
 const port = Number(process.env.BUG_MANAGER_PORT) || 8917;
-const passcode = process.argv[2] || process.env.SOGOTABLE_SUPERUSER_PASSCODE || "";
+
+// The bug-report API is a PUBLIC Cloudflare endpoint gated by the Sogo superuser passcode; that gate
+// stays. What we remove is the friction of re-typing it: the passcode is remembered in a gitignored
+// local `.env` (SOGOTABLE_SUPERUSER_PASSCODE=…) and read here, injected server-side, never sent to the
+// browser. If the bug-report endpoints ever stop being passcode-gated, this local convenience is moot.
+const envFile = join(repoRoot, ".env");
+const PASS_KEY = "SOGOTABLE_SUPERUSER_PASSCODE";
+function readEnvFile() {
+  const out = {};
+  try {
+    if (!existsSync(envFile)) return out;
+    for (const raw of readFileSync(envFile, "utf8").split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("="); if (eq === -1) continue;
+      let v = line.slice(eq + 1).trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      out[line.slice(0, eq).trim()] = v;
+    }
+  } catch { /* unreadable — treat as empty */ }
+  return out;
+}
+function saveToEnv(code) {                       // preserve any other keys already in .env
+  const env = readEnvFile(); env[PASS_KEY] = code;
+  writeFileSync(envFile, Object.entries(env).map(([k, v]) => `${k}=${v}`).join("\n") + "\n", { mode: 0o600 });
+}
+
+const argv = process.argv.slice(2);
+const saveIdx = argv.indexOf("--save");
+const cliPass = (saveIdx !== -1 ? (argv[saveIdx + 1] || "") : (argv.find((a) => a && !a.startsWith("--")) || "")).trim();
+// `--save <passcode>` writes it to .env once, then launches with it — future runs need no passcode.
+if (saveIdx !== -1) {
+  if (!cliPass) { console.error("Usage: node scripts/serve-bug-manager.mjs --save <sogo-passcode>"); process.exit(1); }
+  try { saveToEnv(cliPass); console.log(`Saved ${PASS_KEY} to .env (gitignored) — future launches need no passcode.`); }
+  catch (e) { console.error("Could not write .env: " + e.message); process.exit(1); }
+}
+
+let passcode = cliPass, passSource = cliPass ? (saveIdx !== -1 ? "saved to .env, now in use" : "command line") : "";
+if (!passcode && process.env[PASS_KEY]) { passcode = process.env[PASS_KEY]; passSource = "environment"; }
+if (!passcode) { const v = readEnvFile()[PASS_KEY]; if (v) { passcode = v; passSource = ".env file"; } }
 
 if (!passcode) {
-  console.error("Usage: node scripts/serve-bug-manager.mjs <sogo-passcode>  (or set SOGOTABLE_SUPERUSER_PASSCODE)");
+  console.error([
+    "No passcode found. Save it once — it's remembered locally and never committed:",
+    "  node scripts/serve-bug-manager.mjs --save <sogo-passcode>",
+    `  (writes ${PASS_KEY} to .env, which is gitignored)`,
+    "Per-launch alternatives: pass it as an argument, or set SOGOTABLE_SUPERUSER_PASSCODE.",
+  ].join("\n"));
   process.exit(1);
 }
 
@@ -147,6 +191,7 @@ server.listen(port, "127.0.0.1", async () => {
     console.log(`  Code:      ${st.branch} @ ${st.short}${st.dirty ? " (DIRTY working tree)" : ""} — ${st.subject}`);
     console.log(`  Auto-ship: ${st.autoship ? "ON — fixes land on main automatically and report the hash" : "OFF — fixes park on a branch for review"}`);
     console.log(`  Agent CLI: ${(await claudeAvailable()) ? "claude reachable" : "⚠ claude NOT found on PATH — fixes can't run"}`);
+    console.log(`  Passcode:  loaded from ${passSource} (public API stays gated; value never shown)`);
     console.log("========================================================");
   } catch { /* non-fatal — banner is best-effort */ }
   try {
