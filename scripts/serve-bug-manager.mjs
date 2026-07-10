@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { startFix, listJobs, getJob, getDiff, mergeJob, discardJob, continueJob, openTerminal, shipJob, initJobs, claudeAvailable } from "./bug-agent.mjs";
+import { startFix, listJobs, getJob, getDiff, mergeJob, discardJob, continueJob, openTerminal, shipJob, initJobs, claudeAvailable, runnerStatus } from "./bug-agent.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const htmlPath = join(repoRoot, "bugreport", "manage.html");
@@ -140,6 +140,15 @@ server.listen(port, "127.0.0.1", async () => {
   console.log("  Stop it with the browser's  ⏻ Stop  button (closes this");
   console.log("  window for you), or just close this window.");
   console.log("========================================================");
+  // Print the revision this server is running on, so a restart is verifiable at a glance ("am I on
+  // the new code?"), plus whether auto-ship is armed and the agent CLI is reachable.
+  try {
+    const st = await runnerStatus();
+    console.log(`  Code:      ${st.branch} @ ${st.short}${st.dirty ? " (DIRTY working tree)" : ""} — ${st.subject}`);
+    console.log(`  Auto-ship: ${st.autoship ? "ON — fixes land on main automatically and report the hash" : "OFF — fixes park on a branch for review"}`);
+    console.log(`  Agent CLI: ${(await claudeAvailable()) ? "claude reachable" : "⚠ claude NOT found on PATH — fixes can't run"}`);
+    console.log("========================================================");
+  } catch { /* non-fatal — banner is best-effort */ }
   try {
     const n = await initJobs();
     if (n) console.log(`Restored ${n} fix branch(es) from a previous run.`);

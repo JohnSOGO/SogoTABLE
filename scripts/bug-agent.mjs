@@ -39,6 +39,12 @@ function writeLog(job, s) {
   if (job.log.length > MEM_LOG_CAP) job.log = job.log.slice(-MEM_LOG_CAP);
   if (job.logFile) { try { appendFileSync(job.logFile, s); } catch { /* disk hiccup — memory still has it */ } }
 }
+// A one-line lifecycle ledger to the SERVER CONSOLE (the terminal window) — START / SHIPPED / PARKED /
+// ERROR only, so a job's outcome is visible at a glance even with the browser GUI closed. Distinct from
+// writeLog, which feeds the detailed in-GUI/on-disk job log; this is the terminal's running record.
+function ledger(job, msg) {
+  console.log(`${new Date().toTimeString().slice(0, 8)} [${job.id}·${job.reportId}] ${msg}`);
+}
 
 const jobs = new Map(); // id -> full job record
 let running = 0;
@@ -209,8 +215,13 @@ async function run(job, report) {
     job.status = "error";
     job.error = "Could not create worktree: " + (add.err || "git failed");
     job.endedAt = Date.now();
+    ledger(job, "✗ ERROR — could not create worktree: " + (add.err || "git failed"));
     return;
   }
+  // Stamp the exact base the fix is cut from — the answer to "which code did this land on top of?".
+  job.baseRev = (await git(["rev-parse", "--short", base])).out || base;
+  log(`base: ${base === "FETCH_HEAD" ? "origin/main" : "local main"} @ ${job.baseRev}\n`);
+  ledger(job, `▶ START — "${job.title}" (base ${job.baseRev})`);
 
   log(`\n$ claude (stream-json) — prompt via stdin, cwd: worktree\n\n`);
   const res = await spawnClaude(job, { prompt: buildPrompt(report, job.branch) });
@@ -287,15 +298,20 @@ async function finalize(job, res) {
   if (res.exit !== 0) {
     job.status = "error";
     if (!job.error) job.error = `Agent exited with code ${res.exit}` + (res.exit === -1 ? " (is the `claude` CLI on PATH?)" : "");
+    ledger(job, "✗ ERROR — " + job.error);
   } else if (res.isError) {
     job.status = "error";
     if (!job.error) job.error = job.summary || "Agent reported an error.";
+    ledger(job, "✗ ERROR — agent reported a failure");
   } else {
     job.status = "done";
     if (!commits.out) {
       if (!job.summary) job.summary = "Agent finished but committed no changes.";
+      ledger(job, "○ done — no changes committed");
     } else if (AUTOSHIP) {
       await autoShip(job);
+    } else {
+      ledger(job, `● done — ${commits.out.split("\n").length} commit(s) parked on ${job.branch} (auto-ship off)`);
     }
   }
   job.endedAt = Date.now();
@@ -318,12 +334,15 @@ async function doAutoShip(job) {
   if (!res.ok) {
     job.shipState = "parked"; job.shipError = res.error;
     log(`■ parked: ${res.error}\n   (the fix stays on ${job.branch} — resolve, then use Ship to retry.)\n`);
+    ledger(job, "■ PARKED — " + res.error);
     return;
   }
   job.shippedHash = res.hash; job.deployed = res.deployed;
   if (res.touchesWorker && !res.deployed) job.shipError = "pushed, but deploy:brain failed — run it manually";
   job.shipState = "shipped";
-  log(`\n■ SHIPPED to main as ${res.hash}${res.touchesWorker ? (res.deployed ? " · worker deployed" : " · ⚠ worker deploy FAILED") : ""}\n`);
+  const shipTail = res.touchesWorker ? (res.deployed ? " · worker deployed" : " · ⚠ worker deploy FAILED") : "";
+  log(`\n■ SHIPPED to main as ${res.hash}${shipTail}\n`);
+  ledger(job, `■ SHIPPED to main as ${res.hash}${shipTail}`);
 }
 
 // The shared "land this branch on origin/main" core, used by both auto-ship and the
@@ -504,6 +523,16 @@ export async function shipJob(id) {
   const steps = [`pushed → main as ${res.hash} (Pages deploys the static site)`];
   if (res.touchesWorker) steps.push(res.deployed ? "deployed worker (deploy:brain)" : "⚠ worker deploy FAILED — run `npm run deploy:brain`");
   return { ok: true, message: steps.join(" · "), hint: "Live shortly — hard-refresh to beat the SW cache." };
+}
+
+// The runner's own state for the startup banner: which revision this code is running on, and whether
+// auto-ship is armed. Printed once at launch so a restart can be verified ("am I on the new code?").
+export async function runnerStatus() {
+  const short = (await git(["rev-parse", "--short", "HEAD"])).out;
+  const branch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).out;
+  const dirty = !!(await git(["status", "--porcelain"])).out;
+  const subject = (await git(["log", "-1", "--format=%s"])).out;
+  return { short, branch, dirty, subject, autoship: AUTOSHIP };
 }
 
 // Confirm the CLI is reachable so the GUI can warn early.
