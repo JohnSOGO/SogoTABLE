@@ -196,8 +196,14 @@ async function run(job, report) {
   await git(["worktree", "remove", "--force", job.wtPath]);
   await git(["branch", "-D", job.branch]);
   mkdirSync(join(repoRoot, ".worktrees"), { recursive: true });
-  log(`$ git worktree add -b ${job.branch} ${job.wtPath} main\n`);
-  const add = await git(["worktree", "add", "-b", job.branch, job.wtPath, "main"]);
+  // Start from the freshest PUBLISHED main, not the shared clone's local main — which may be behind
+  // if another machine pushed. Branching off FETCH_HEAD means the agent reasons about (and its fix
+  // lands on) current code, so a stale start doesn't turn into a merge conflict at ship time. Falls
+  // back to local main only if the fetch can't reach origin (offline).
+  const fetched = await git(["fetch", "origin", "main"]);
+  const base = fetched.code === 0 ? "FETCH_HEAD" : "main";
+  log(`$ git worktree add -b ${job.branch} ${job.wtPath} ${base === "FETCH_HEAD" ? "origin/main (fetched)" : "main (offline — fetch failed)"}\n`);
+  const add = await git(["worktree", "add", "-b", job.branch, job.wtPath, base]);
   log((add.out ? add.out + "\n" : "") + (add.err ? add.err + "\n" : ""));
   if (add.code !== 0) {
     job.status = "error";
