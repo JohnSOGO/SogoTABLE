@@ -426,3 +426,53 @@ test("integration: seeded bot-heavy games run to completion with a valid winner"
   }
   assert.ok(completed >= 18, `most seeded games complete under random play (${completed}/24)`);
 });
+
+// The Horse (rulebook §6): 1,2→N · 3,4→S · 5→E · 6→W "if a road leads that way; else it befriends".
+// It RUNS — into the next glade, where it can be chased — it never leaves the wood.
+function horseAt(r, c) {
+  const g = { board: buildBoard(), deck: [], discard: [], log: [], results: {} };
+  const t = cellAt(g.board, r, c);
+  t.revealed = true; t.open = { N: 1, E: 1, S: 1, W: 1 }; t._openSet = true; t.card = "horse";
+  return { g, t };
+}
+
+test("horse: bolts into the neighbouring glade rather than vanishing (you can give chase)", () => {
+  const { g, t } = horseAt(4, 3);
+  const s = seatLit("george", { r: 4, c: 3 });
+  resolveGreet(g, s, t, 1);                       // face 1 → runs north
+  const nb = cellAt(g.board, 3, 3);
+  assert.equal(t.card, null, "the Horse has left this glade");
+  assert.equal(nb.card, "horse", "…and stands in the glade to the north");
+  assert.equal(s.horse, false, "it was not caught");
+  assert.deepEqual(g.discard, [], "a running Horse is never discarded out of play");
+});
+
+test("horse: walled in, it is caught — held, not reshuffled into the deck", () => {
+  const { g, t } = horseAt(4, 3);
+  t.open.N = 0;                                   // no road north
+  const s = seatLit("george", { r: 4, c: 3 });
+  resolveGreet(g, s, t, 1);
+  assert.equal(s.horse, true, "no road that way → the Horse befriends you");
+  assert.equal(t.card, null);
+  assert.deepEqual(g.discard, [], "a held Horse must not return to the deck");
+  assert.equal(totalS(s), 3 + 2, "the Horse is worth +2 Strength");
+});
+
+test("horse: the board edge catches it too (a run off-board is no road)", () => {
+  const { g, t } = horseAt(0, 3);                 // top row: nothing north of it
+  const s = seatLit("george", { r: 0, c: 3 });
+  resolveGreet(g, s, t, 2);                       // face 2 → runs north
+  assert.equal(s.horse, true);
+});
+
+test("horse: the odds panel shows the catch faces the board actually allows", () => {
+  const { g, t } = horseAt(4, 3);
+  t.open.E = 0;                                   // face 5 (east) has nowhere to go → catch
+  const s = seatLit("george", { r: 4, c: 3 });
+  const out = greetOutcomes(g, s, t);
+  const catchGrp = out.groups.find((x) => x.key === "catch");
+  const runGrp = out.groups.find((x) => x.key === "run");
+  assert.equal(catchGrp.count, 1, "exactly the east face catches");
+  assert.equal(runGrp.count, 5);
+  assert.equal(out.faces[4].key, "catch", "face 5 is the eastward bolt");
+});

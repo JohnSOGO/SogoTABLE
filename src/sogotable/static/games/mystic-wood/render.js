@@ -306,7 +306,7 @@ function peekContent(game, spec) {
   if (type === "thing") return { title: (THINGS[arg] || {}).name || arg, body: THING_DESC[arg] || "A magical Thing." };
   if (type === "comp") return { title: (DEN[arg] || {}).name || arg, body: COMP_DESC[arg] || "A companion travelling with you." };
   if (type === "prowess") return { title: "Prowess card", body: "+1 Prowess — won by slaying a beast. Adds to your Prowess in every contest." };
-  if (type === "horse") return { title: "Horse", body: "+2 Strength. Not a companion; another knight can win it in a joust." };
+  if (type === "horse") return { title: "Horse", body: "+2 Strength. Caught when it bolts into a wall — greet it, chase it. Not a companion; another knight can win it in a joust." };
   if (type === "tower") return { title: "Imprisoned in the Tower", body: "Each turn roll a die — escape on 5–6, or freed on the 4th turn. The Key frees you at once." };
   if (type === "captured") return { title: "Captured by the Enchantress", body: "Each turn, roll — escape on a 6." };
   if (type === "king") return { title: "👑 King of the Wood", body: "You struck down the King and wear the crown. <b>Hold the Castle through a full turn to win as King.</b> (Britomart never takes the crown.)" };

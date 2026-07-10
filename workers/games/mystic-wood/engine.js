@@ -38,6 +38,8 @@ function logSince(game, mark) {
 }
 
 /* ------------------------------- board ---------------------------------- */
+const DIR_DELTA = { N: [-1, 0], S: [1, 0], E: [0, 1], W: [0, -1] };
+const DIR_WORD = { N: "north", S: "south", E: "east", W: "west" };
 export function cellAt(board, r, c) {
   return (r >= 0 && r < ROWS && c >= 0 && c < COLS) ? board[r * COLS + c] : null;
 }
@@ -260,17 +262,31 @@ export function applyReaction(game, seat, tile, act) {
   }
   if (act && act.startsWith("run")) {
     const dir = act.slice(3);
-    const nb = { N: cellAt(game.board, tile.r - 1, tile.c), S: cellAt(game.board, tile.r + 1, tile.c), E: cellAt(game.board, tile.r, tile.c + 1), W: cellAt(game.board, tile.r, tile.c - 1) }[dir];
-    if (tile.open[dir] && nb) { logEvent(game, tale(id, "run", name) || "The Horse gallops off."); clearCard(game, tile); }
-    else {
+    const dest = horseRunsTo(game, tile, dir);
+    if (dest) {
+      tile.card = null; tile.remains = false;             // it moves — it does NOT leave play
+      if (!dest.card) dest.card = id; else dest.card2 = id;
+      logEvent(game, tale(id, "run", name) || "The Horse gallops off.");
+      logEvent(game, `The Horse bolts ${DIR_WORD[dir]} into the next glade — give chase.`, "muted");
+    } else {
       seat.horse = true;
+      clearCard(game, tile, false);                       // caught: the Horse is held, not reshuffled
       logEvent(game, tale(id, "catch", name) || `${name} catches the Horse!`, "a");
       logEvent(game, `${name} rides the Horse — +2 Strength.`, "a");
-      clearCard(game, tile);
+      enforcePower(game, seat);                           // the Horse counts toward the Power Limit
     }
     return {};
   }
   return {};
+}
+// The Horse runs along a road (1,2→N · 3,4→S · 5→E · 6→W) into the neighbouring glade, where it can be
+// chased and greeted again. Only when no road leads that way — or the glade beyond has no room for it —
+// does it stay to be caught (rulebook: "if a road leads that way; else it befriends").
+export function horseRunsTo(game, tile, dir) {
+  const d = DIR_DELTA[dir];
+  if (!d || !tile.open[dir]) return null;
+  const nb = cellAt(game.board, tile.r + d[0], tile.c + d[1]);
+  return nb && (!nb.card || !nb.card2) ? nb : null;
 }
 export function befriend(game, seat, tile, id) {
   seat.companions.push(id);
@@ -470,9 +486,9 @@ function greetFaceOutcome(game, seat, tile, den, id, face, guyon, chapel, isPCom
   if (act === "tower") return { key: "tower", label: "sends you to the Tower" };
   if (act.startsWith("give:")) { const th = act.slice(5); return { key: act, label: `gives the ${THINGS[th].name}` }; }
   if (act.startsWith("run")) {
-    const dir = act.slice(3);
-    const nb = { N: cellAt(game.board, tile.r - 1, tile.c), S: cellAt(game.board, tile.r + 1, tile.c), E: cellAt(game.board, tile.r, tile.c + 1), W: cellAt(game.board, tile.r, tile.c - 1) }[dir];
-    return (tile.open[dir] && nb) ? { key: "run", label: "the Horse gallops off" } : { key: "catch", label: "you catch the Horse (+2 S)" };
+    return horseRunsTo(game, tile, act.slice(3))
+      ? { key: "run", label: "the Horse bolts to the next glade" }
+      : { key: "catch", label: "you catch the Horse (+2 S)" };
   }
   return { key: "remains", label: "ignores you" };
 }

@@ -118,10 +118,17 @@ rules win. (Report IDs are the in-app `bugreports` slugs.)
    visible dice roll each turn? **Close-out:** `recordRoll(game, mark, …)` the escape attempt
    so the client pops the dice modal; consider making escape **player-triggered** (a "roll to
    escape" action) instead of auto in the bot loop. `deploy:brain`.
-3. **[mrbu91ij] "Horses running away doesn't work."** — The Horse greet vanishes the card
-   when it "runs" (`applyReaction` `run*` branch). **Ask:** should it instead **flee to an
-   adjacent tile** (move the card, so you can chase it)? **Close-out:** relocate `tile.card`
-   to the neighbour in the rolled direction rather than `clearCard`. `deploy:brain`.
+3. ~~**[mrbu91ij] "Horses running away doesn't work." / "is there a path where I get the horse?"**~~
+   — **CLOSED 2026-07-10.** No question needed: the rulebook settles it (`AI/Mystic_Wood`
+   COMPONENT_DATA + rules-complete §6) — *1,2→N · 3,4→S · 5→E · 6→W **if a road leads that way;
+   else it befriends***. The Horse **runs one glade along the road**, it does not leave the wood.
+   `applyReaction` was `clearCard`-ing it (recycled into the deck), so on an open crossroads it
+   simply disappeared and only a *walled* direction ever yielded a catch — the player's "I never
+   get the horse". Now `horseRunsTo` (`engine.js`) relocates `tile.card` to the neighbour (chase
+   it); no road / board edge / no free card slot there → caught, `clearCard(…, false)` so a held
+   Horse is **not** reshuffled into the deck, and `enforcePower` runs (the Horse counts toward the
+   Power Limit of 10, per §6). `greetOutcomes` now shows the real per-board catch odds. Needs
+   `deploy:brain`.
 4. ~~**[mrbty83d / mrc79i4d] Dwarf rolls but always gives Armour.**~~ — **CLOSED 2026-07-08.**
    Sogo re-asked ("Does dwarf always give armor? Why roll?") — yes, it always did; the die was
    cosmetic. `greetNeedsDie` (`engine.js`) now suppresses the roll for any denizen whose reaction

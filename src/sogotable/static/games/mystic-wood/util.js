@@ -15,7 +15,9 @@ export function sanitizeLog(t) {
 
 export function tileAt(game, r, c) { return (r >= 0 && r < 9 && c >= 0 && c < 7) ? game.board[r * 7 + c] : null; }
 
-const ACT_LABEL = (a) => a === "remains" ? "remains / ignores you" : a === "transport" ? "vanishes to the far wood" : a === "transportYou" ? "transports you away" : a === "befriend" ? "befriends you" : a === "tower" ? "betrays you → Tower" : a && a.startsWith("give:") ? "gives " + THINGS[a.slice(5)].name : a && a.startsWith("run") ? "the Horse runs off" : (a || "remains");
+// The Horse bolts one glade that way if a road leads there; walled in, it is caught.
+const RUN_WORD = { N: "north", S: "south", E: "east", W: "west" };
+const ACT_LABEL = (a) => a === "remains" ? "remains / ignores you" : a === "transport" ? "vanishes to the far wood" : a === "transportYou" ? "transports you away" : a === "befriend" ? "befriends you" : a === "tower" ? "betrays you → Tower" : a && a.startsWith("give:") ? "gives " + THINGS[a.slice(5)].name : a && a.startsWith("run") ? `bolts ${RUN_WORD[a.slice(3)]} (no road → you catch it)` : (a || "remains");
 export function tblRows(tbl) {
   if (!tbl) return null;
   const a = []; for (let i = 1; i <= 6; i += 1) a.push(tbl[i] || "remains");
