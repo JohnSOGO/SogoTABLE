@@ -362,13 +362,27 @@ async function landOnMain(job) {
   const touchesWorker = (await git(["diff", "--name-only", `main...${job.branch}`], wt)).out
     .split("\n").some((f) => f.startsWith("workers/"));
 
-  // Catch the branch up to the CURRENT remote main so the push fast-forwards cleanly.
-  await git(["fetch", "origin", "main"], wt);
-  const merge = await git(["merge", "--no-ff", "FETCH_HEAD", "-m", `Merge origin/main into ${job.branch}`], wt);
-  if (merge.code !== 0) {
-    await git(["merge", "--abort"], wt);
-    return { ok: false, touchesWorker, error: "conflicts with the current main — resolve on the branch, then Ship." };
+  // Catch the branch up to the CURRENT remote main so the push fast-forwards cleanly. A merge can
+  // fail for two very different reasons: a REAL content conflict (two edits to the same lines — only a
+  // human can resolve), or a TRANSIENT git error (an index.lock held by a concurrent op in this shared
+  // clone, a flaky fetch). Only the first should park the fix. Tell them apart by whether git actually
+  // left conflicted paths, and retry a transient failure once before giving up — a spurious "conflict"
+  // park (which is what stranded a clean fix) is exactly what we're preventing.
+  let merged = false;
+  for (let attempt = 1; attempt <= 2 && !merged; attempt += 1) {
+    await git(["fetch", "origin", "main"], wt);
+    const merge = await git(["merge", "--no-ff", "FETCH_HEAD", "-m", `Merge origin/main into ${job.branch}`], wt);
+    if (merge.code === 0) { merged = true; break; }
+    const conflicted = (await git(["diff", "--name-only", "--diff-filter=U"], wt)).out;
+    await git(["merge", "--abort"], wt);   // harmless if there was no merge to abort
+    if (conflicted) {
+      const n = conflicted.split("\n").filter(Boolean).length;
+      return { ok: false, touchesWorker, error: `conflicts with the current main (${n} file${n === 1 ? "" : "s"}) — resolve on the branch, then Ship.` };
+    }
+    log(`  merge hit a transient git error (attempt ${attempt}/2): ${(merge.err || merge.out || "").split("\n")[0]} — retrying…\n`);
+    await new Promise((r) => setTimeout(r, 500));   // let a concurrent index.lock clear
   }
+  if (!merged) return { ok: false, touchesWorker, error: "transient git error merging main (likely a lock in the shared clone) — Ship to retry." };
 
   // Safety gate: never push a red suite. Tests run against the merged worktree state.
   log(`  running the test suite before pushing…\n`);
