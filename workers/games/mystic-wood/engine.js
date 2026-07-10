@@ -314,6 +314,43 @@ function recordRoll(game, mark, data) {
   game.results[mark] = { seq: game.roll_seq, mark, ...data };
 }
 
+/* ------------------------- imprisoned escape ---------------------------- */
+// The escape rule as a single face predicate, shared by the odds preview and the resolution so the
+// two can never drift. Tower: a 5 or 6 frees you, and the fourth attempt frees you no matter the die
+// (the rulebook's auto-release on the 4th turn). Enchantress: only a 6 breaks her song.
+export function escapeFrees(mode, face, tries) {
+  return mode === "capture" ? face === 6 : (face >= 5 || tries >= 4);
+}
+// Preview the imprisoned-escape roll as a "pick one of six": mark each face free/held so the client can
+// show "2 free you · 4 held" and let the captive tap one. Pure — the shuffled faceMap stays server-side.
+export function escapeOutcomes(mode, tries) {
+  const free = mode === "capture" ? "you break free of the Enchantress" : "you slip free of the Tower";
+  const held = mode === "capture" ? "the Enchantress holds you fast" : "the Tower bars hold";
+  const f = [1, 2, 3, 4, 5, 6].filter((x) => escapeFrees(mode, x, tries)).length;
+  const groups = [];
+  if (f) groups.push({ key: "free", label: free, count: f });
+  if (6 - f) groups.push({ key: "held", label: held, count: 6 - f });
+  return { mode, tries, groups };
+}
+// Resolve a picked escape attempt: apply the rule, free the seat on success, and record the roll under
+// the seat's OWN mark so the client pops its result modal (a following bot turn records elsewhere and
+// can't clobber it). `tries` is the attempt count already reflected in the pending projection.
+export function resolveEscape(game, seat, face, mode, tries) {
+  const name = knightOf(seat).name;
+  const freed = escapeFrees(mode, face, tries);
+  if (mode === "capture") {
+    if (freed) { seat.captured = false; logEvent(game, `${name} breaks free of the Enchantress!`, "g"); }
+    else logEvent(game, `${name} struggles against the Enchantress's song.`);
+  } else if (freed) {
+    seat.tower = false;
+    logEvent(game, tries >= 4 && face < 5 ? `${name} slips free of the Tower — the fourth dawn opens the door.` : `${name} escapes the Tower!`, "g");
+  } else {
+    logEvent(game, `${name} rattles the Tower bars — they hold.`);
+  }
+  recordRoll(game, seat.mark, { escape: true, mode, freed, tries });
+  return { freed };
+}
+
 /* ------------------------------- combat --------------------------------- */
 function princeAids(seat, den) {
   return seat.companions.includes("prince") && !seat._princeUsed && !den.king && !(den.dragon && seat.q === "dragon");

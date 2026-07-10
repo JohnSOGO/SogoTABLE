@@ -90,6 +90,33 @@ function pickCard(ctx, game, moveType, verb) {
     ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")) });
   }));
 }
+// The imprisoned-escape "pick one of six": each turn the captive taps a face to try the lock. The odds
+// (server-computed) say how many faces free you; the result modal then reveals whether you slipped out.
+export function showEscapePick(ctx, game) {
+  closePortals();
+  const p = game.pending, capture = p.mode === "capture";
+  const emoji = capture ? "🧝‍♀️" : "⛓️";
+  const title = capture ? "Captured by the Enchantress" : "Imprisoned in the Tower";
+  const lead = capture ? "Her song holds you fast. Pick one of six — you break free only on the toll of the sixth."
+                       : "The bars are cold and close. Pick one of six — you slip free on a 5 or 6, or on the fourth dawn.";
+  const odds = (p.groups || []).map((g) => `<div class="mw-pickodd mw-odd-${E(g.key)}"><span class="mw-pickn">${g.count}</span> ${E(g.label)}</div>`).join("");
+  const faces = [1, 2, 3, 4, 5, 6].map((n) => `<button class="mw-pickface" data-pick="${n}" aria-label="pick ${n}">${emoji}</button>`).join("");
+  const host = portal();
+  host.innerHTML = `<div class="overlay"><div class="modal">
+    <div class="tag">${title}</div>
+    <p class="mw-enc-intro">${lead}</p>
+    <h2>${emoji} Pick one</h2>
+    <div class="mw-pickodds">${odds}</div>
+    <div class="mw-pickgrid">${faces}</div>
+  </div></div>`;
+  host.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
+    if (ctx.isMovePending && ctx.isMovePending()) return;
+    host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
+    b.classList.add("mw-chosen");
+    // The result modal swaps in on the next render (no die — the pick stood in for the roll).
+    ctx.makeMove({ type: "escape_pick", pick: Number(b.getAttribute("data-pick")) });
+  }));
+}
 function tileHeaderHtml(t) {
   if (!t) return "";
   const half = t.half === "ench" ? "Enchanted Wood" : "Earthly Wood";
@@ -136,7 +163,21 @@ export function showDice(ctx, roll) {
   closePortals();
   const host = portal();
   let inner;
-  if (roll.joust) {
+  if (roll.escape) {
+    // The picked escape shows no die (the pick stood in for the roll); the headline says free or held.
+    const capture = roll.mode === "capture";
+    const res = roll.freed
+      ? `<span class="g">${capture ? "🕊️ Free of the Enchantress!" : "🔓 Free of the Tower!"}</span>`
+      : `<span class="r">${capture ? "✦ Her song still holds you." : "⛓️ The bars hold — still imprisoned."}</span>`;
+    const sub = roll.freed
+      ? "You may move this turn."
+      : capture ? "Try again next turn — break free on a 6."
+      : roll.tries >= 3 ? "The fourth dawn will open the door." : "Try again next turn — or find the Key.";
+    inner = `<div class="tag">${capture ? "The Enchantress" : "The Tower"}</div>
+      <div class="result mw-result-big">${res}</div>
+      <div class="hint">${sub}</div>
+      <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
+  } else if (roll.joust) {
     inner = `<div class="tag">Joust</div>
       <div class="result mw-result-big">⚔️ ${E(roll.winnerName)} prevails!</div>
       <div class="hint">${E(roll.cName)} ${roll.cw} vs ${E(roll.dName)} ${roll.dw}</div>

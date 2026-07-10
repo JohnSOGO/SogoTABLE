@@ -7,7 +7,7 @@ import {
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
   resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes, combatOutcomes,
-  logEvent,
+  logEvent, escapeOutcomes, escapeFrees, resolveEscape,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN, DEN_TALES, DEN_INTRO } from "../games/mystic-wood/data.js";
 
@@ -219,6 +219,76 @@ test("Enchantress captures on a loss (escape on a 6), not the Tower", () => {
   assert.equal(s.tower, false);
 });
 
+// The escape rule is unchanged (5–6, auto-free on the 4th try, Enchantress needs a 6) — but it must be
+// a VISIBLE pick each turn, not an invisible auto-roll. These pin the rule and the surfacing.
+test("escape rule: Tower frees on 5–6 or the 4th attempt; the Enchantress needs a 6", () => {
+  assert.equal(escapeFrees("tower", 4, 1), false);
+  assert.equal(escapeFrees("tower", 5, 1), true);
+  assert.equal(escapeFrees("tower", 1, 4), true, "the 4th attempt frees you no matter the die");
+  assert.equal(escapeFrees("capture", 5, 9), false);
+  assert.equal(escapeFrees("capture", 6, 1), true);
+});
+
+test("escape odds: the projected groups match the rule (2/6 free from the Tower, 1/6 from the Enchantress)", () => {
+  const tower = escapeOutcomes("tower", 1).groups;
+  assert.deepEqual(tower.map((g) => [g.key, g.count]), [["free", 2], ["held", 4]]);
+  const last = escapeOutcomes("tower", 4).groups;   // the 4th dawn: every face frees you
+  assert.deepEqual(last.map((g) => [g.key, g.count]), [["free", 6]]);
+  const ench = escapeOutcomes("capture", 1).groups;
+  assert.deepEqual(ench.map((g) => [g.key, g.count]), [["free", 1], ["held", 5]]);
+});
+
+test("resolveEscape: a freeing face releases and records a viewable roll; a held one records a failure", () => {
+  const g = { log: [], results: {} };
+  const s = seatLit("george", { tower: true, towerTries: 1 });
+  assert.equal(resolveEscape(g, s, 6, "tower", 1).freed, true);
+  assert.equal(s.tower, false);
+  assert.equal(g.results.P1.escape, true);
+  assert.equal(g.results.P1.freed, true);            // the client pops a result modal off this seq'd record
+  const g2 = { log: [], results: {} };
+  const s2 = seatLit("george", { tower: true, towerTries: 1 });
+  assert.equal(resolveEscape(g2, s2, 2, "tower", 1).freed, false);
+  assert.equal(s2.tower, true);
+  assert.equal(g2.results.P1.freed, false);
+});
+
+test("imprisoned human: the escape surfaces as a pick-one-of-six each turn (no invisible auto-roll)", () => {
+  setMysticWoodRandom(mulberry32(5));
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.players.P1.tower = true; g.players.P1.towerTries = 0;
+  makeMysticWoodMove(g, "P1", { type: "end-turn" });   // cycle the bots; P1's next turn must offer the pick
+  assert.equal(g.current_player, "P1");
+  assert.equal(g.pending.type, "escape_pick");
+  assert.equal(g.pending.mode, "tower");
+  const proj = mysticWoodGameToDict(g).pending;
+  assert.equal(proj.type, "escape_pick");
+  assert.ok(!("faceMap" in proj), "the faceMap (answer key) is never projected to the client");
+  assert.ok(proj.groups.some((gr) => gr.key === "free" && gr.count === 2));
+  // resolving a held face keeps you imprisoned AND ends the turn (turn_seq advances past the bots);
+  // the next imprisoned turn then offers a fresh pick (the 2nd of up-to-4 attempts).
+  const held = g.pending.faceMap.indexOf(1) + 1;       // the pick mapping to a die 1 (Tower: held)
+  const seqBefore = g.turn_seq;
+  makeMysticWoodMove(g, "P1", { type: "escape_pick", pick: held });
+  assert.equal(g.players.P1.tower, true);
+  assert.ok(g.turn_seq > seqBefore, "a failed escape ends the turn");
+  assert.equal(g.players.P1.towerTries, 1, "the attempt counted (toward the 4th-turn auto-free)");
+  assert.equal(g.results.P1.escape, true, "the failed attempt is a viewable roll, not just a chronicle line");
+  assert.equal(g.pending.type, "escape_pick", "the next turn offers a fresh escape pick");
+  assert.equal(g.pending.tries, 2, "…now the 2nd attempt");
+});
+
+test("imprisoned bot: still auto-resolves its escape (no pending left dangling for a bot)", () => {
+  setMysticWoodRandom(seq([0.0]));   // every die = 1 → a bot never rolls a 5/6, so it stays put and skips
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.players.P2.tower = true; g.players.P2.towerTries = 0;
+  makeMysticWoodMove(g, "P1", { type: "end-turn" });   // hand off to the imprisoned bot P2
+  assert.equal(g.current_player, "P1", "the bot's failed escape is auto-skipped back to the human");
+  assert.equal(g.players.P2.tower, true);
+  assert.ok(!g.pending, "a bot never leaves an escape pick pending");
+});
+
 test("Mystic Horn: scatters the free knights and announces a seq'd tour for the client to animate", () => {
   setMysticWoodRandom(mulberry32(11));
   const game = {
@@ -412,7 +482,7 @@ test("integration: seeded bot-heavy games run to completion with a valid winner"
       const seat = g.players[g.current_player];
       assert.equal(seat.is_bot, false, "advance loop must stop only on a human");
       if (g.pending) {
-        if (g.pending.type === "greet_pick" || g.pending.type === "combat_pick") makeMysticWoodMove(g, g.current_player, { type: g.pending.type, pick: 1 + Math.floor(rr() * 6) });
+        if (g.pending.type === "greet_pick" || g.pending.type === "combat_pick" || g.pending.type === "escape_pick") makeMysticWoodMove(g, g.current_player, { type: g.pending.type, pick: 1 + Math.floor(rr() * 6) });
         else makeMysticWoodMove(g, g.current_player, { type: "encounter", choice: g.pending.combat ? "challenge" : "greet" });
         continue;
       }

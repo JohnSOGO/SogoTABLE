@@ -112,12 +112,17 @@ rules win. (Report IDs are the in-app `bugreports` slugs.)
    **Close-out (if fixed):** drop the foe's die in `resolveChallenge`, set `foe = foe stat
    total` (no `red` die), update `combatPreview`, the dice-reveal card (`showDice`), and the
    unit tests; `deploy:brain`. This affects **all** combat, not just the Enchantress.
-2. **[mrc1uwxb] Tower/capture escape roll is invisible.** — Rules are right (escape 5–6, or
-   freed on the 4th turn, Key frees at once), but the roll auto-resolves inside
-   `beginSeatTurn`/`beginAndAdvance` and only hits the chronicle. **Ask:** surface it as a
-   visible dice roll each turn? **Close-out:** `recordRoll(game, mark, …)` the escape attempt
-   so the client pops the dice modal; consider making escape **player-triggered** (a "roll to
-   escape" action) instead of auto in the bot loop. `deploy:brain`.
+2. ~~**[mrc1uwxb] Tower/capture escape roll is invisible.**~~ — **CLOSED 2026-07-10.** Sogo
+   confirmed the ask ("make it obvious every turn I am trying to escape and whether it succeeds;
+   use the pick one of the six emoji screens"). No rules change — escape is still 5–6 / auto-free
+   on the 4th turn / Key frees at once (Tower) and a 6 (Enchantress); the answer to "am I forced to
+   stay three turns?" is **no** (any 5–6 frees you, the 4th turn is the guaranteed release). The fix
+   is purely surfacing: a HUMAN's imprisoned turn now stops on a **player-triggered `escape_pick`**
+   (the same "pick one of six" as combat/greet), resolved in `doEscapePick` (`rules.js`) via
+   `resolveEscape`/`escapeOutcomes` (`engine.js`), which `recordRoll`s the attempt so the client
+   pops a result modal (`showEscapePick` + the `escape` branch of `showDice`, `encounter.js`).
+   **Bots still auto-roll** in `beginSeatTurn` (they can't tap). A freed knight keeps the turn to
+   move (rulebook: "may move same turn"); a held one ends it. Needs `deploy:brain`.
 3. ~~**[mrbu91ij] "Horses running away doesn't work." / "is there a path where I get the horse?"**~~
    — **CLOSED 2026-07-10.** No question needed: the rulebook settles it (`AI/Mystic_Wood`
    COMPONENT_DATA + rules-complete §6) — *1,2→N · 3,4→S · 5→E · 6→W **if a road leads that way;

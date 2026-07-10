@@ -7,7 +7,7 @@ import { MYSTIC_WOOD_CSS } from "./styles.js";
 import { syncHorn, resetHorn, hornOwnsTokens } from "./horn.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
-import { closePortals, showEncounter, showGreetPick, showCombatPick, showDice, showIntro, initEncounter } from "./encounter.js";
+import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showDice, showIntro, initEncounter } from "./encounter.js";
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
 const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + gap 3)
@@ -75,10 +75,11 @@ export function renderMysticWoodGame(ctx) {
   if (justInit) seenRoll = myRoll ? (myRoll.seq || 0) : 0;
   if (encTimer) { clearTimeout(encTimer); encTimer = null; } // a newer render owns the encounter-reveal timing
   if (myRoll && myRoll.seq > seenRoll) { seenRoll = myRoll.seq; showDice(ctx, myRoll); }
-  else if (game.pending && ["encounter", "greet_pick", "combat_pick"].includes(game.pending.type) && game.pending.mark === me) {
+  else if (game.pending && ["encounter", "greet_pick", "combat_pick", "escape_pick"].includes(game.pending.type) && game.pending.mark === me) {
     // Let the token finish gliding onto the tile BEFORE the card covers it; on a fresh mount
     // (no glide) reveal at once. A newer render clears this timer, so a stale card can't pop.
-    const show = game.pending.type === "greet_pick" ? showGreetPick : game.pending.type === "combat_pick" ? showCombatPick : showEncounter;
+    const show = game.pending.type === "greet_pick" ? showGreetPick : game.pending.type === "combat_pick" ? showCombatPick
+      : game.pending.type === "escape_pick" ? showEscapePick : showEncounter;
     if (iMoved) encTimer = setTimeout(() => { encTimer = null; show(ctx, game); }, GLIDE_MS + 60);
     else show(ctx, game);
   } else if (game.round === 1 && me && introShownFor !== gameKey && !introSeen(gameKey)) {
@@ -155,6 +156,10 @@ function actionsHtml(ctx, game, me) {
   }
   if (jp && jp.type === "combat_pick" && jp.mark === me) {
     return `<button class="primary" data-act="combatpick">⚔️ Fight ${denizen(jp)}</button>`;
+  }
+  // Imprisonment keeps an actionable button in the bar, so a dismissed escape modal can't dead-end the turn.
+  if (jp && jp.type === "escape_pick" && jp.mark === me) {
+    return `<button class="primary" data-act="escapepick">${jp.mode === "capture" ? "✦ Break the Enchantress's song" : "⛓ Try to escape the Tower"}</button>`;
   }
   if (jp && jp.type === "encounter" && jp.mark === me) {
     return `<button class="primary" data-act="encounter">${jp.combat ? "⚔️ Challenge" : "🤝 Greet"} ${denizen(jp)}</button>`;
@@ -365,6 +370,7 @@ function wireBoard(root, ctx, game, me) {
     else if (a === "encounter") showEncounter(ctx, game);
     else if (a === "greetpick") showGreetPick(ctx, game);
     else if (a === "combatpick") showCombatPick(ctx, game);
+    else if (a === "escapepick") showEscapePick(ctx, game);
   }));
   root.querySelectorAll("[data-jp]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;

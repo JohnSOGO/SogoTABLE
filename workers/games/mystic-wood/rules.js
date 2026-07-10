@@ -13,7 +13,7 @@ import {
   resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
-  denPhrase, denIntro,
+  denPhrase, denIntro, escapeOutcomes, resolveEscape,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -96,16 +96,25 @@ function beginSeatTurn(game, seat) {
     if (onCastle && seat.castleHold >= 2) { winGame(game, seat, "castle"); return "skip"; }
     if (onCastle) logEvent(game, `${name} holds the Castle as King — stay through your next turn to win the crown.`);
   }
-  if (seat.captured) {
-    const e = rollDie();
-    if (e === 6) { seat.captured = false; logEvent(game, `${name} breaks free of the Enchantress!`, "g"); }
-    else { logEvent(game, `${name} struggles against the Enchantress (rolled ${e}).`); return "skip"; }
-  }
-  if (seat.tower) {
-    seat.towerTries += 1;
-    const e = rollDie();
-    if (e >= 5 || seat.towerTries >= 4 || hasThing(seat, "key")) { seat.tower = false; logEvent(game, `${name} escapes the Tower!`, "g"); }
-    else { logEvent(game, `${name} rattles the Tower bars (rolled ${e}).`); return "skip"; }
+  // Imprisonment: the escape used to auto-roll here and only reach the chronicle — invisible to the
+  // player. A HUMAN now taps a visible "pick one of six" each turn (resolved in doEscapePick); bots
+  // still auto-roll. The Key frees at once (no roll) from the Tower. On success the seat may still move.
+  if (seat.captured || seat.tower) {
+    if (seat.tower && hasThing(seat, "key")) {
+      seat.tower = false; logEvent(game, `${name} unlocks the Tower with the Key and walks free.`, "g");
+    } else if (seat.is_bot) {
+      const mode = seat.captured ? "capture" : "tower";
+      if (mode === "tower") seat.towerTries += 1;
+      const tries = mode === "tower" ? seat.towerTries : 1;
+      const { freed } = resolveEscape(game, seat, rollDie(), mode, tries);
+      if (!freed) return "skip";
+    } else {
+      const mode = seat.captured ? "capture" : "tower";
+      const tries = mode === "tower" ? seat.towerTries + 1 : 1;
+      game.pending = { type: "escape_pick", mark: seat.mark, mode, tries,
+        groups: escapeOutcomes(mode, tries).groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
+      return "act";
+    }
   }
   // Spend-turns-here mechanics accrue at the start of each turn you remain on the tile.
   const here = tileNameAt(game, seat);
@@ -236,6 +245,23 @@ function doCombatPick(game, seat, action) {
   resolveChallenge(game, seat, tile, white, p.red);
   passTurn(game);
 }
+// The visible "pick one of six" escape: the captive taps a face; we map it through the hidden shuffle
+// to a die and resolve the escape rule exactly as an auto-roll would. Success → the seat may still move
+// this turn (the rulebook lets you move the turn you break out); failure → the turn ends.
+function doEscapePick(game, seat, action) {
+  const p = game.pending;
+  if (!p || p.type !== "escape_pick" || p.mark !== seat.mark) throw new Error("There is nothing to escape from.");
+  const pick = Number(action && action.pick);
+  if (!(pick >= 1 && pick <= 6)) throw new Error("Pick one of the six.");
+  const face = p.faceMap[pick - 1];
+  game.pending = null;
+  if (!seat.tower && !seat.captured) return;   // already freed by some other path (defensive)
+  const mode = seat.captured ? "capture" : "tower";
+  if (mode === "tower") seat.towerTries += 1;
+  const tries = mode === "tower" ? seat.towerTries : 1;
+  const { freed } = resolveEscape(game, seat, face, mode, tries);
+  if (!freed) passTurn(game);   // still imprisoned → the turn ends; a freed knight keeps the turn to move
+}
 function doEncounterChoice(game, seat, action) {
   const p = game.pending;
   if (!p || p.type !== "encounter" || p.mark !== seat.mark) throw new Error("There is no encounter to resolve.");
@@ -301,6 +327,7 @@ export function makeMysticWoodMove(game, mark, action) {
     case "encounter": doEncounterChoice(game, seat, action); break;
     case "greet_pick": doGreetPick(game, seat, action); break;
     case "combat_pick": doCombatPick(game, seat, action); break;
+    case "escape_pick": doEscapePick(game, seat, action); break;
     case "scry": { requireThing(seat, "crystal"); const res = powerScry(game, seat); game.scry_reveal = res.next; break; }
     case "rotate": { requireThing(seat, "wand"); powerRotate(game, seat); break; }
     case "drink": {
@@ -345,6 +372,10 @@ function pendingToDict(game) {
   }
   // "pick one of six" greeting/combat: send the grouped odds, NEVER the face-map or the red die
   // (they're the answer key).
+  if (p.type === "escape_pick") {
+    // Never send the faceMap (the answer key) — only the grouped odds, the mode, and the attempt count.
+    return { type: p.type, mark: p.mark, mode: p.mode, tries: p.tries, groups: p.groups };
+  }
   const knightName = KNIGHTS[game.players[p.mark].knight].name;   // the intro/first-sight line names the meeting knight
   if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
