@@ -87,11 +87,19 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   vanquish him and he joins); Bishop's 3-turn prayer for the Ring; Guyon's Cave now counts
   3 turns *spent* (not entries); Illusion "does your bidding" → relocates to an empty glade;
   Queen's boon (5–6 casts a rival into the Tower).
-- **The Mystic Horn is staged, not silent (2026-07-08).** A scatter used to look like a teleport,
-  so knights lost their own token. Now `horn.js` plays it: a horn call, every token touring each
-  knight's landing place in turn before it settles (~2s, one-shot per `horn.seq`), and the
-  chronicle strip becomes a flashing herald that narrates the Horn and holds the tale until the
-  player taps **Silence the Mystic Horn**. Reduced-motion skips the tour and the flashing.
+- **The Mystic Horn is staged, not silent (2026-07-08; hardened 2026-07-10).** A scatter used to
+  look like a teleport, so knights lost their own token. `horn.js` plays it: a horn call, every
+  token touring each knight's landing place in turn before it settles (~2s, one-shot per
+  `horn.seq`), and the chronicle strip becomes a flashing herald that narrates the Horn.
+  Reduced-motion skips the tour and the flashing.
+  Two fixes (bug `mrdk3cws-996mir`): (1) the tour now **resumes on every render** while it is in
+  flight — a snapshot render rebuilds the tokens, so a mid-tour re-render (a bot's turn, a poll)
+  used to strand the knights half-way and you'd never see the full scatter. (2) The herald
+  **clears itself** after a readable window (~8s) instead of sitting over the chronicle until the
+  player taps **Silence** — which they rarely did, so the Horn's message lingered across later
+  turns and read as a phantom re-trigger (e.g. it appeared to "sound" while a knight was being
+  beaten by a beast). The **Silence** button still dismisses it early. The server never triggers a
+  Horn on a defeat; `resolveSpell` is the only source, and a Horn always ends the drawer's turn.
 - **Still not implemented:** the **obligation/rescue subsystem** (Boy/Damsel/Child + chivalry
   cards + delivery — a dedicated feature), and **Magician's Storm** (the recovered rules never
   state what a Storm *does* — blocked pending the rulebook text; won't be invented). Knight

@@ -63,8 +63,9 @@ export function renderMysticWoodGame(ctx) {
   wireTop(root, ctx, game, me);
   wireBoard(root, ctx, game, me);
   zoomCtx = { root, game, me }; applyZoom(); requestAnimationFrame(() => applyZoom());
-  // The Horn owns the tokens while it scatters them (and re-mounts its banner over the chronicle
-  // on every render until silenced); it reads prevPos, so it runs BEFORE animateTokens.
+  // The Horn owns the tokens while it scatters them (resuming the tour on every render so a
+  // re-render can't strand it, and re-mounting its self-clearing herald over the chronicle);
+  // it reads prevPos, so it runs BEFORE animateTokens.
   syncHorn(root, game, { cw: CW, ch: CH, prevPos });
   animateTokens(root, game);
   // overlays: my own most-recent roll result (kept per-seat so bot turns can't clobber it), else a pending encounter.
