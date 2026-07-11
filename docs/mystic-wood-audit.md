@@ -38,7 +38,7 @@ the documented choice. This is the maintenance backlog; check items off as fixed
   in the deviations list — a core tactical choice is absent.
 - [x] **2.2 Free second move** through an explored empty area (§5.2) — a move no longer auto-ends the turn; you may continue through empty explored areas, then End turn. FIXED. §5.2 — entering a revealed cardless/
   knightless area grants one more move. `enterTile` always `passTurn`s.
-- [ ] **2.3 Transport skips the destination denizen.** §5.3/§17.4 — after transport/Fountain you
+- [x] **2.3 Transport-meets-denizen** (§5.3/§8) — a denizen on your transport destination is now approached on your next turn (relocate flags `mustApproach`; humans get the encounter at turn start, bots resolve it, no move after). FIXED. §5.3/§17.4 — after transport/Fountain you
   interact with cards on the arrival tile next turn. `relocate` sets up no pending; you can walk away.
 - [x] **2.4 Joust before OR after moving** (§12) — the `moved` guard is gone. FIXED. §12 — joust "at the beginning of a turn OR after moving."
   `doJoust` throws if `moved`, and moving ends the turn → can't chase-then-joust.

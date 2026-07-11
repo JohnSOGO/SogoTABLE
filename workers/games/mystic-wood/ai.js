@@ -10,6 +10,16 @@ import {
 // Play one bot seat's whole turn. Turn-start rolls/win-checks already ran in beginSeatTurn.
 export function playBotTurn(game, seat) {
   const from = cellAt(game.board, seat.r, seat.c);
+  // §5.3/§8: a denizen you were transported onto must be approached first, and you cannot move after.
+  if (seat.mustApproach) {
+    seat.mustApproach = false;
+    if (from.card && !(DEN[from.card].king && seat.knight === "britomart" && !anyKing(game))) {
+      const den = DEN[from.card];
+      if (den.cls === "beast" || den.cls === "warrior" || den.cls === "magic") resolveChallenge(game, seat, from);
+      else resolveGreet(game, seat, from);
+      return;
+    }
+  }
   // Sit tight on a winning square (hold the Gate/Castle to win next turn).
   if ((seat.questDone && from.name === "xgate") || (seat.isKing && from.name === "castle")) return;
   // Hold position to accrue a multi-turn objective (Cave vigil / Bishop prayer).

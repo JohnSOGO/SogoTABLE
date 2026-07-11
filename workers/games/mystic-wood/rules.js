@@ -135,6 +135,13 @@ function beginSeatTurn(game, seat) {
     // prayer completes, `praying` is now false and the seat plays on (with the Ring).
     if (seat.praying) return "skip";
   }
+  // §5.3/§8: a denizen sitting on your area (you were transported onto it) must be approached BEFORE any
+  // move. Humans get the encounter opened here; bots resolve it in playBotTurn.
+  if (seat.mustApproach && !seat.is_bot) {
+    seat.mustApproach = false;
+    const t = cellAt(game.board, seat.r, seat.c);
+    if (t && t.card && openEncounter(game, seat, t)) return "act";
+  }
   return "act";
 }
 function advanceTurn(game) {

@@ -660,6 +660,17 @@ test("Joust after moving is allowed; unhorsing a player-King eliminates him and 
   assert.equal(g.players.P1.isKing, true, "the victor takes the crown");
 });
 
+test("Transport-meets-denizen: relocate flags an approach when a denizen waits (§5.3/§8)", () => {
+  const g = moveGame({ r: 8, c: 3 });
+  const dest = cellAt(g.board, 0, 3); dest.revealed = true; dest.card = "troll";
+  relocate(g, g.players.P1, 0, 3);
+  assert.equal(g.players.P1.mustApproach, true, "must approach the denizen at the destination next turn");
+  const empty = cellAt(g.board, 1, 3); empty.revealed = true; empty.card = null;
+  g.players.P2.mustApproach = false;
+  relocate(g, g.players.P2, 1, 3);
+  assert.ok(!g.players.P2.mustApproach, "no approach flagged for an empty destination");
+});
+
 test("contract: id predicate, seat count, distinct knights, projection shape", () => {
   setMysticWoodRandom(mulberry32(1));
   const g = newMysticWoodGame();
