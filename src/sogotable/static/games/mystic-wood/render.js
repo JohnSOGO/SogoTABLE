@@ -154,18 +154,20 @@ function actionsHtml(ctx, game, me) {
   // modal (stale-dice replay, reload, mis-tap) can never dead-end the turn.
   // The server carries the article ("Merlin", but "the Witch") — he is a person, not a species.
   const denizen = (p) => E(p.denPhrase || `the ${p.denName || (DEN[p.card] && DEN[p.card].name) || "denizen"}`);
+  // §8: withdraw from a met denizen (unless you arrived by transport) — the server sends `canWithdraw`.
+  const withdraw = (jp && jp.canWithdraw) ? `<button data-act="withdraw">↩︎ Withdraw</button>` : "";
   if (jp && jp.type === "greet_pick" && jp.mark === me) {
-    return `<button class="primary" data-act="greetpick">🤝 Greet ${denizen(jp)}</button>`;
+    return `<button class="primary" data-act="greetpick">🤝 Greet ${denizen(jp)}</button>${withdraw}`;
   }
   if (jp && jp.type === "combat_pick" && jp.mark === me) {
-    return `<button class="primary" data-act="combatpick">⚔️ Fight ${denizen(jp)}</button>`;
+    return `<button class="primary" data-act="combatpick">⚔️ Fight ${denizen(jp)}</button>${withdraw}`;
   }
   // Imprisonment keeps an actionable button in the bar, so a dismissed escape modal can't dead-end the turn.
   if (jp && jp.type === "escape_pick" && jp.mark === me) {
     return `<button class="primary" data-act="escapepick">${jp.mode === "capture" ? "✦ Break the Enchantress's song" : "⛓ Try to escape the Tower"}</button>`;
   }
   if (jp && jp.type === "encounter" && jp.mark === me) {
-    return `<button class="primary" data-act="encounter">${jp.combat ? "⚔️ Challenge" : "🤝 Greet"} ${denizen(jp)}</button>`;
+    return `<button class="primary" data-act="encounter">${jp.combat ? "⚔️ Challenge" : "🤝 Greet"} ${denizen(jp)}</button>${withdraw}`;
   }
   let btns = "";
   if (mine && meSeat && !meSeat.tower && !meSeat.captured && !game.pending) {
@@ -175,7 +177,7 @@ function actionsHtml(ctx, game, me) {
     const has = (id) => (meSeat.things || []).some((t) => t.id === id);
     const comp = (id) => (meSeat.companions || []).some((c) => c.id === id);
     const foes = game.players.filter((p) => p.mark !== me && !p.won && !p.tower && !p.captured && p.r === meSeat.r && p.c === meSeat.c);
-    if (foes.length && !meSeat.moved && !(tile && tile.name === "tower")) btns += `<button data-act="joust">⚔️ Joust</button>`;
+    if (foes.length && !(tile && tile.name === "tower")) btns += `<button data-act="joust">⚔️ Joust</button>`;   // §12: before OR after moving
     if (tile && tile.name === "fountain") btns += `<button data-act="drink">⛲ Drink</button>`;
     if (has("crystal")) btns += `<button data-act="scry">🔮 Scry</button>`;
     if (has("wand")) btns += `<button data-act="rotate">🔄 Rotate</button>`;
@@ -382,6 +384,7 @@ function wireBoard(root, ctx, game, me) {
     else if (a === "storm") { stormMode = true; renderMysticWoodGame(ctx); }
     else if (a === "stormcancel") { stormMode = false; renderMysticWoodGame(ctx); }
     else if (a === "joust") openJoust(root, ctx, game, me);
+    else if (a === "withdraw") ctx.makeMove({ type: "withdraw" });
     else if (a === "encounter") showEncounter(ctx, game);
     else if (a === "greetpick") showGreetPick(ctx, game);
     else if (a === "combatpick") showCombatPick(ctx, game);

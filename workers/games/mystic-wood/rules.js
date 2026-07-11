@@ -13,7 +13,7 @@ import {
   resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
-  denPhrase, denIntro, escapeOutcomes, resolveEscape, raiseStorm, decayStorms,
+  denPhrase, denIntro, escapeOutcomes, resolveEscape, raiseStorm, decayStorms, becomeKing,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -84,7 +84,9 @@ function winGame(game, seat, reason) {
 }
 // Runs at the start of a seat's turn: victory checks, then escape rolls. Returns "act" | "skip".
 function beginSeatTurn(game, seat) {
-  seat.moved = false; seat.stormed = false; game.pending = null; game.scry_reveal = null;
+  if (seat.out) return "skip";   // §18.10: a player unhorsed as King is out of the game
+  seat.moved = false; seat.stormed = false; seat.freeMove = false; seat.moveCount = 0;
+  game.pending = null; game.scry_reveal = null;
   const name = seat.name;
   if (seat.atGate) {
     if (seat.questDone && tileNameAt(game, seat) === "xgate") { winGame(game, seat, "gate"); return "skip"; }
@@ -188,20 +190,23 @@ function afterEncounter(game, seat, tile) {
   if (tile && !tile.card && tile.card2 && openEncounter(game, seat, tile)) return;
   passTurn(game);
 }
+// Returns a movement disposition: "end" (a spell/gate ended the turn), "encounter" (a denizen pending
+// is open — resolving/withdrawing ends the turn), or "open" (an empty area — the turn stays OPEN: the
+// seat may take a free move on, joust, or End turn, §5.2). Callers decide whether to passTurn.
 function enterTile(game, seat, tile) {
   const name = seat.name;
   if (tile.pendingSpell) {
     const sp = tile.pendingSpell; tile.pendingSpell = null;
     const res = resolveSpell(game, seat, tile, sp);
-    if (res.endTurn) { passTurn(game); return; }
+    if (res.endTurn) return "end";
   }
   if (tile.name === "xgate" && seat.questDone && !seat.atGate) {
     seat.atGate = true;
     logEvent(game, `${name} stands in the Enchanted Gate, quest fulfilled — hold it to your next turn to leave in triumph.`, "g");
+    return "end";   // §5.2: you cannot enter the Enchanted Gate and leave the Wood on the same turn
   }
   if (tile.name === "cave" && seat.q === "cave" && !seat.questDone) logEvent(game, `${name} enters the Cave — keep vigil here for 3 full turns.`);
-  if (openEncounter(game, seat, tile)) return;
-  passTurn(game);
+  return openEncounter(game, seat, tile) ? "encounter" : "open";
 }
 // Open a combat "pick one of six": the foe's (red) die is rolled now and stored; the player taps a
 // white face. groups carry the win/lose(/tie) counts; faceMap + red stay server-side (the answer key).
@@ -228,14 +233,26 @@ function requireThing(seat, thing) { if (!seat.things.includes(thing)) throw new
 function requireComp(seat, cid) { if (!seat.companions.includes(cid)) throw new Error("You lack that companion."); }
 
 function doHumanMove(game, seat, action) {
-  if (seat.moved) throw new Error("You have already moved this turn.");
   if (game.pending) throw new Error("Resolve the encounter first.");
+  // One normal move per turn, PLUS a free continuation whenever the last landing was a previously-
+  // explored EMPTY area (§5.2). `seat.freeMove` carries that permission between moves.
+  if (seat.moved && !seat.freeMove) throw new Error("You have already moved this turn.");
+  if ((seat.moveCount || 0) >= 12) throw new Error("No more moves this turn.");   // safety vs bouncing between empty areas
   const from = cellAt(game.board, seat.r, seat.c);
   const to = cellAt(game.board, action.r, action.c);
   if (!to) throw new Error("No such tile.");
   if (!reachableFrom(game.board, seat, from).includes(to)) throw new Error("That tile is not reachable from here.");
+  const wasRevealed = to.revealed;
+  seat.fromR = from.r; seat.fromC = from.c; seat.arrivedByTransport = false;   // record the retreat path for a withdraw
   applyMoveTo(game, seat, from, to);
-  enterTile(game, seat, to);
+  seat.moveCount = (seat.moveCount || 0) + 1;
+  const disp = enterTile(game, seat, to);
+  if (disp === "end") { passTurn(game); return; }
+  if (disp === "encounter") { seat.freeMove = false; return; }   // a denizen pending is open; resolving/withdrawing ends the turn
+  // "open": an empty area. A free continuation is allowed only through a PREVIOUSLY-explored empty area.
+  const occupied = game.seat_order.some((m) => m !== seat.mark && !game.players[m].won && game.players[m].r === to.r && game.players[m].c === to.c);
+  seat.freeMove = wasRevealed && !to.card && !to.card2 && !occupied;
+  // turn stays OPEN — the client re-renders with reachable cells + Joust / End turn.
 }
 // The shell-free "pick one of six" greeting: the player taps a face (1-6); we map it
 // through the hidden shuffle to a die face and resolve the greet exactly as a roll would.
@@ -316,8 +333,10 @@ function doTransport(game, seat, action) {
   seat.companions = seat.companions.filter((c) => c !== "archmage");
   if (from && !from.card && !from.fixed && from.name !== "tower") { from.card = "archmage"; logEvent(game, "The Arch-Mage remains in the glade he opened.", "a"); }
   else logEvent(game, `The Arch-Mage parts ways with ${seat.name}.`, "a");
+  seat.arrivedByTransport = true;   // §8: you cannot withdraw from a denizen you were transported onto
   relocate(game, seat, to.r, to.c);
-  enterTile(game, seat, to);
+  const disp = enterTile(game, seat, to);
+  if (disp !== "encounter") passTurn(game);   // transport ends the turn; a destination encounter resolves then passes
 }
 // Magician's Storm (§18.11): a free power on your turn (does not end it, does not spend your move).
 // Never from or at the Tower; one storm per turn.
@@ -334,24 +353,46 @@ function doStorm(game, seat, action) {
   raiseStorm(game, seat, to);
   seat.stormed = true;
 }
+// §12: a joust may be issued at the START of a turn OR AFTER moving (no `moved` guard). Either way the
+// challenger's turn ends once it resolves.
 function doJoust(game, seat, action) {
   if (game.pending) throw new Error("Resolve the encounter first.");
-  if (seat.moved) throw new Error("You have already acted this turn.");
-  if (seat.tower || seat.captured) throw new Error("You cannot joust from here.");
+  if (seat.tower) throw new Error("You cannot joust from here.");
   const tile = cellAt(game.board, seat.r, seat.c);
   if (tile && tile.name === "tower") throw new Error("There is no jousting in the Tower.");
   const def = game.players[action && action.target];
   if (!def || def.mark === seat.mark) throw new Error("Choose a knight to joust.");
-  if (def.won || def.tower || def.captured) throw new Error("That knight cannot be jousted.");
+  if (def.won || def.tower || def.out) throw new Error("That knight cannot be jousted.");
   if (def.r !== seat.r || def.c !== seat.c) throw new Error("That knight is not in your area.");
   const res = resolveJoust(game, seat, def);
+  const winner = res.chWon ? seat : def, loser = res.chWon ? def : seat;
+  // §18.10: unhorse a player-King and he is OUT of the game; the victor takes the crown outright.
+  if (loser.isKing) {
+    loser.out = true; loser.isKing = false;
+    logEvent(game, `${loser.name} is unhorsed and cast from the game — the crown passes to ${winner.name}!`, "r");
+    becomeKing(game, winner);
+    passTurn(game);
+    return;
+  }
   if (res.chWon) {
-    seat.moved = true;                                        // won → pick the prize (turn stays open for it)
-    game.pending = { type: "joust-prize", mark: seat.mark, loser: def.mark };
+    game.pending = { type: "joust-prize", mark: seat.mark, loser: def.mark };   // won → choose the prize
   } else {
     joustPrize(game, def, seat, "tower");                     // lost → the defender unhorses you to the Tower
     passTurn(game);
   }
+}
+// §8: withdraw from a met denizen — step back to the area you came from; your turn ends. Barred if you
+// arrived by transportation (or, per the rulebook, if Fog blocked the retreat — not modelled here).
+function doWithdraw(game, seat) {
+  const p = game.pending;
+  if (!p || !["encounter", "greet_pick", "combat_pick"].includes(p.type) || p.mark !== seat.mark) throw new Error("There is nothing to withdraw from.");
+  if (seat.arrivedByTransport) throw new Error("You cannot withdraw after being transported here.");
+  const back = seat.fromR === undefined ? null : cellAt(game.board, seat.fromR, seat.fromC);
+  if (!back) throw new Error("There is nowhere to withdraw to.");
+  game.pending = null;
+  seat.r = back.r; seat.c = back.c;
+  logEvent(game, `${seat.name} withdraws from ${denPhrase(p.card)} back to ${back.label || "the path"}.`);
+  passTurn(game);
 }
 function doJoustPrize(game, seat, action) {
   const p = game.pending;
@@ -387,6 +428,7 @@ export function makeMysticWoodMove(game, mark, action) {
     case "transport": doTransport(game, seat, action); break;
     case "storm": doStorm(game, seat, action); break;
     case "joust": doJoust(game, seat, action); break;
+    case "withdraw": doWithdraw(game, seat); break;
     case "joust-prize": doJoustPrize(game, seat, action); break;
     case "end-turn": passTurn(game); break;
     default: throw new Error(`Unknown Mystic Wood action "${type}".`);
@@ -406,7 +448,7 @@ function seatToDict(s) {
     things: s.things.map((t) => ({ id: t, name: THINGS[t].name })),
     prowess: s.prowess.map((x) => x.name),
     companions: s.companions.map((cid) => ({ id: cid, name: DEN[cid].name })),
-    horse: !!s.horse, tower: !!s.tower, captured: !!s.captured,
+    horse: !!s.horse, tower: !!s.tower, captured: !!s.captured, out: !!s.out,
     questDone: !!s.questDone, isKing: !!s.isKing, atGate: !!s.atGate, won: !!s.won,
     caveTurns: s.caveTurns || 0,
     totalP: totalP(s), totalS: totalS(s),
@@ -427,13 +469,16 @@ function pendingToDict(game) {
     // Never send the faceMap (the answer key) — only the grouped odds, the mode, and the attempt count.
     return { type: p.type, mark: p.mark, mode: p.mode, tries: p.tries, groups: p.groups };
   }
-  const knightName = game.players[p.mark].name;   // the intro/first-sight line names the meeting player (human name, or the knight for a bot)
+  const meeter = game.players[p.mark];
+  const knightName = meeter.name;   // the intro/first-sight line names the meeting player (human name, or the knight for a bot)
+  // §8: you may withdraw from a met denizen unless you arrived by transportation (no retreat path).
+  const canWithdraw = !meeter.arrivedByTransport && meeter.fromR !== undefined;
   if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
-    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "",
+    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "", canWithdraw,
       denName: den ? den.name : "", denPhrase: denPhrase(p.card), denClass: den ? den.cls : "", intro: denIntro(p.card, knightName) };
   }
-  const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat };
+  const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat, canWithdraw };
   const den = DEN[p.card];
   if (den) {
     out.denName = den.name; out.denPhrase = denPhrase(p.card); out.denClass = den.cls; out.denS = den.S || 0; out.denP = den.P || 0;

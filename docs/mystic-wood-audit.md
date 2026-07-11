@@ -33,16 +33,16 @@ the documented choice. This is the maintenance backlog; check items off as fixed
 
 ## 2. Missing (in rulebook, absent from code)
 
-- [ ] **2.1 No "withdraw" option.** §8 — on meeting a denizen you may withdraw to the prior area
+- [x] **2.1 Withdraw option** — a "↩︎ Withdraw" button steps you back to the area you came from and ends the turn (barred after transport). FIXED. §8 — on meeting a denizen you may withdraw to the prior area
   (barred only after transport-arrival / Fog / empty area). `enterTile` forces the encounter. *Not*
   in the deviations list — a core tactical choice is absent.
-- [ ] **2.2 No free second move through an explored empty area.** §5.2 — entering a revealed cardless/
+- [x] **2.2 Free second move** through an explored empty area (§5.2) — a move no longer auto-ends the turn; you may continue through empty explored areas, then End turn. FIXED. §5.2 — entering a revealed cardless/
   knightless area grants one more move. `enterTile` always `passTurn`s.
 - [ ] **2.3 Transport skips the destination denizen.** §5.3/§17.4 — after transport/Fountain you
   interact with cards on the arrival tile next turn. `relocate` sets up no pending; you can walk away.
-- [ ] **2.4 Joust only before moving.** §12 — joust "at the beginning of a turn OR after moving."
+- [x] **2.4 Joust before OR after moving** (§12) — the `moved` guard is gone. FIXED. §12 — joust "at the beginning of a turn OR after moving."
   `doJoust` throws if `moved`, and moving ends the turn → can't chase-then-joust.
-- [ ] **2.5 Other joust/endgame rules.** Player-King joust loss = elimination + succession (§18.10);
+- [~] **2.5 Joust/endgame:** **player-King succession DONE** (§18.10: unhorse a player-King → he is out, victor takes the crown). Re-challenge lockout / voluntary Thing drop / card exchange still pending. Player-King joust loss = elimination + succession (§18.10);
   re-challenge lockout (§12); voluntary Thing drop (§11); card exchange between knights (§13). None exist.
 - [ ] **2.6 Chivalry / Boy-Damsel / Pilgrim / Crone obligation subsystem** (§15, §18.21/26). **Already
   documented as deferred** — the largest missing block, its own future slice.

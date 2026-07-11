@@ -48,14 +48,15 @@ export function showEncounter(ctx, game) {
     <h2>${denEmoji(p.card)} ${E(p.denName || (den && den.name) || "")}</h2>
     ${introHtml(p)}
     ${denboxHtml(p, den, tile)}
-    <div class="row">${p.combat ? `<button class="primary" data-enc="challenge">Challenge</button>` : `<button class="primary" data-enc="greet">Greet</button>`}</div>
+    <div class="row">${p.combat ? `<button class="primary" data-enc="challenge">Challenge</button>` : `<button class="primary" data-enc="greet">Greet</button>`}${p.canWithdraw ? `<button data-enc="withdraw">↩︎ Withdraw</button>` : ""}</div>
   </div></div>`;
   host.querySelectorAll("[data-enc]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     // Keep this card covering the map while the server resolves — the result modal then swaps in on the
     // next render (showDice closePortals+opens in one tick), so the map is never seen in between.
     const row = host.querySelector(".row"); if (row) row.innerHTML = `<div class="hint">Resolving…</div>`;
-    ctx.makeMove({ type: "encounter", choice: b.getAttribute("data-enc") });
+    const act = b.getAttribute("data-enc");
+    ctx.makeMove(act === "withdraw" ? { type: "withdraw" } : { type: "encounter", choice: act });
   }));
 }
 // A greeting whose outcome varies is a "pick one of six" — six identical denizen faces, shuffled
@@ -81,7 +82,10 @@ function pickCard(ctx, game, moveType, verb) {
     <h2>${emoji} Pick one</h2>
     <div class="mw-pickodds">${odds}</div>
     <div class="mw-pickgrid">${faces}</div>
+    ${p.canWithdraw ? `<div class="row"><button data-pick-withdraw="1">↩︎ Withdraw instead</button></div>` : ""}
   </div></div>`;
+  const wb = host.querySelector("[data-pick-withdraw]");
+  if (wb) wb.addEventListener("click", () => { if (!(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "withdraw" }); });
   host.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });

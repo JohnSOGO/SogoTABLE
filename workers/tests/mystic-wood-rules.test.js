@@ -615,6 +615,51 @@ test("Power limit: keeps the quest-critical Golden Bough", () => {
   assert.ok(capTotal(s) <= 10, "power is brought back within the limit");
 });
 
+// Turn-flow (§5.2 / §8 / §12 / §18.10): a move no longer auto-ends the turn — you may take a free move
+// through an empty explored area, withdraw from a denizen, joust after moving, and unhorse a player-King.
+function moveGame(overrides = {}) {
+  setMysticWoodRandom(mulberry32(5));
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.current_player = "P1"; Object.assign(g.players.P1, overrides);
+  return g;
+}
+
+test("Free move: entering an empty explored area keeps the turn open (may move again)", () => {
+  const g = moveGame({ r: 8, c: 3 });
+  const dest = cellAt(g.board, 8, 2); dest.revealed = true; dest.card = null; dest.card2 = null; dest.open = { N: 1, E: 1, S: 1, W: 1 };
+  cellAt(g.board, 8, 3).open = { N: 1, E: 1, S: 1, W: 1 };
+  makeMysticWoodMove(g, "P1", { type: "move", r: 8, c: 2 });
+  assert.equal(g.current_player, "P1", "an empty explored area does not end the turn");
+  assert.equal(g.players.P1.freeMove, true, "a free continuation is granted");
+  assert.equal(g.pending, null);
+});
+
+test("Withdraw: step back from a met denizen and end the turn", () => {
+  const g = moveGame({ r: 8, c: 3 });
+  const dest = cellAt(g.board, 8, 2); dest.revealed = true; dest.card = "troll"; dest.open = { N: 1, E: 1, S: 1, W: 1 };
+  cellAt(g.board, 8, 3).open = { N: 1, E: 1, S: 1, W: 1 };
+  makeMysticWoodMove(g, "P1", { type: "move", r: 8, c: 2 });
+  assert.ok(g.pending, "a denizen opens an encounter");
+  // Withdrawing returns P1 to (8,3) and ends the turn.
+  const before = g.turn_seq;
+  // Force it back to P1 for a clean assert on position (turn may have advanced through bots).
+  makeMysticWoodMove(g, "P1", { type: "withdraw" });
+  assert.deepEqual([g.players.P1.r, g.players.P1.c], [8, 3], "withdrew to the area it came from");
+  assert.equal(g.players.P1.tower, false);
+});
+
+test("Joust after moving is allowed; unhorsing a player-King eliminates him and passes the crown", () => {
+  const g = moveGame({ r: 5, c: 5 });
+  const foe = g.players.P2; foe.r = 5; foe.c = 5; foe.isKing = true; foe.knight = "king" in KNIGHTS ? foe.knight : foe.knight;
+  g.players.P1.moved = true;   // already moved this turn — a joust must still be allowed
+  setMysticWoodRandom(seq([0.99, 0.0]));   // challenger rolls high → wins
+  makeMysticWoodMove(g, "P1", { type: "joust", target: "P2" });
+  assert.equal(foe.out, true, "the unhorsed player-King is out of the game");
+  assert.equal(foe.isKing, false);
+  assert.equal(g.players.P1.isKing, true, "the victor takes the crown");
+});
+
 test("contract: id predicate, seat count, distinct knights, projection shape", () => {
   setMysticWoodRandom(mulberry32(1));
   const g = newMysticWoodGame();
@@ -662,6 +707,9 @@ test("integration: seeded bot-heavy games run to completion with a valid winner"
         else makeMysticWoodMove(g, g.current_player, { type: "encounter", choice: g.pending.combat ? "challenge" : "greet" });
         continue;
       }
+      // A move no longer auto-ends the turn (§5.2 free move); this harness takes ONE move then ends,
+      // so it exercises the machine without chasing the optional free-move chain.
+      if (seat.moved) { makeMysticWoodMove(g, g.current_player, { type: "end-turn" }); continue; }
       const from = cellAt(g.board, seat.r, seat.c);
       const reach = reachableFrom(g.board, seat, from);
       if (!reach.length) { makeMysticWoodMove(g, g.current_player, { type: "end-turn" }); continue; }
