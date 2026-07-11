@@ -86,7 +86,7 @@ function winGame(game, seat, reason) {
 // Runs at the start of a seat's turn: victory checks, then escape rolls. Returns "act" | "skip".
 function beginSeatTurn(game, seat) {
   if (seat.out) return "skip";   // §18.10: a player unhorsed as King is out of the game
-  seat.moved = false; seat.stormed = false; seat.freeMove = false; seat.moveCount = 0;
+  seat.moved = false; seat.stormed = false; seat.freeMove = false; seat.usedFreeMove = false;
   game.pending = null; game.scry_reveal = null;
   const name = seat.name;
   if (seat.atGate) {
@@ -249,25 +249,26 @@ function requireComp(seat, cid) { if (!seat.companions.includes(cid)) throw new 
 
 function doHumanMove(game, seat, action) {
   if (game.pending) throw new Error("Resolve the encounter first.");
-  // One normal move per turn, PLUS a free continuation whenever the last landing was a previously-
-  // explored EMPTY area (§5.2). `seat.freeMove` carries that permission between moves.
   if (seat.moved && !seat.freeMove) throw new Error("You have already moved this turn.");
-  if ((seat.moveCount || 0) >= 12) throw new Error("No more moves this turn.");   // safety vs bouncing between empty areas
   const from = cellAt(game.board, seat.r, seat.c);
   const to = cellAt(game.board, action.r, action.c);
   if (!to) throw new Error("No such tile.");
   if (!reachableFrom(game.board, seat, from).includes(to)) throw new Error("That tile is not reachable from here.");
-  const wasRevealed = to.revealed;
+  const wasRevealed = to.revealed, wasFreeContinuation = !!seat.freeMove;
   seat.fromR = from.r; seat.fromC = from.c; seat.arrivedByTransport = false;   // record the retreat path for a withdraw
-  applyMoveTo(game, seat, from, to);
-  seat.moveCount = (seat.moveCount || 0) + 1;
+  applyMoveTo(game, seat, from, to);   // sets seat.moved = true
+  seat.freeMove = false;               // consume any granted continuation
   const disp = enterTile(game, seat, to);
+  if (disp === "encounter") return;    // a denizen pending — resolving/withdrawing ends the turn
   if (disp === "end") { passTurn(game); return; }
-  if (disp === "encounter") { seat.freeMove = false; return; }   // a denizen pending is open; resolving/withdrawing ends the turn
-  // "open": an empty area. A free continuation is allowed only through a PREVIOUSLY-explored empty area.
-  const occupied = game.seat_order.some((m) => m !== seat.mark && !game.players[m].won && game.players[m].r === to.r && game.players[m].c === to.c);
-  seat.freeMove = wasRevealed && !to.card && !to.card2 && !occupied;
-  // turn stays OPEN — the client re-renders with reachable cells + Joust / End turn.
+  // "open": an empty area. §5.2 grants ONE free move through a PREVIOUSLY-explored empty area, taken
+  // before your normal move — so only the FIRST move can be free, and it keeps the turn open for one more.
+  // Otherwise a move ENDS the turn (the common case), so the game passes to the next player as expected.
+  const occupied = game.seat_order.some((m) => m !== seat.mark && !game.players[m].won && !game.players[m].out && game.players[m].r === to.r && game.players[m].c === to.c);
+  const emptyExplored = wasRevealed && !to.card && !to.card2 && !occupied;
+  if (emptyExplored && !wasFreeContinuation && !seat.usedFreeMove) { seat.usedFreeMove = true; seat.freeMove = true; return; }  // free move → turn stays open for one more
+  if (occupied) return;   // §12: stay open so you may joust the knight in this area (or End turn)
+  passTurn(game);         // a normal move ends the turn
 }
 // The shell-free "pick one of six" greeting: the player taps a face (1-6); we map it
 // through the hidden shuffle to a die face and resolve the greet exactly as a roll would.
@@ -297,6 +298,7 @@ function doCombatPick(game, seat, action) {
   if (white + pv.mine === p.red + pv.foe) {   // tie → reroll (new red, pick again)
     logEvent(game, "A tie — the fates are cast again.");
     openCombatPick(game, seat, tile);
+    if (game.pending && game.pending.type === "combat_pick") game.pending.reroll = true;   // tell the client it re-opened (bug mrgigq4l)
     return;
   }
   game.pending = null;
@@ -464,6 +466,7 @@ function seatToDict(s) {
     prowess: s.prowess.map((x) => x.name),
     companions: s.companions.map((cid) => ({ id: cid, name: DEN[cid].name })),
     horse: !!s.horse, tower: !!s.tower, captured: !!s.captured, out: !!s.out, saved: s.saved || {},
+    moved: !!s.moved, freeMove: !!s.freeMove,   // client shows an "open turn" prompt after a move
     questDone: !!s.questDone, isKing: !!s.isKing, atGate: !!s.atGate, won: !!s.won,
     caveTurns: s.caveTurns || 0,
     totalP: totalP(s), totalS: totalS(s),
@@ -490,7 +493,7 @@ function pendingToDict(game) {
   const canWithdraw = !meeter.arrivedByTransport && meeter.fromR !== undefined;
   if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
-    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "", canWithdraw,
+    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "", canWithdraw, reroll: !!p.reroll,
       groupsNoBonus: p.groupsNoBonus, guyonOptional: !!p.guyonOptional,   // §8.2 Guyon's optional +1 (greet only)
       denName: den ? den.name : "", denPhrase: denPhrase(p.card), denClass: den ? den.cls : "", intro: denIntro(p.card, knightName) };
   }

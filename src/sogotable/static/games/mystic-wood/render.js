@@ -187,6 +187,9 @@ function actionsHtml(ctx, game, me) {
     if (stormMode) return `<span class="mw-prompt">🌩️ Tap an area to storm</span><button data-act="stormcancel">Cancel</button>`;
     const has = (id) => (meSeat.things || []).some((t) => t.id === id);
     const comp = (id) => (meSeat.companions || []).some((c) => c.id === id);
+    // After a move the turn stays open only for a free move or a joust — make that OBVIOUS so it never
+    // looks stuck (the reason the bots seemed frozen: you had to End turn).
+    if (meSeat.moved) btns += `<span class="mw-prompt">${meSeat.freeMove ? "Free move — step on, or" : "Your move is done —"} End turn ▶</span>`;
     const foes = game.players.filter((p) => p.mark !== me && !p.won && !p.tower && !p.captured && p.r === meSeat.r && p.c === meSeat.c);
     if (foes.length && !(tile && tile.name === "tower")) btns += `<button data-act="joust">⚔️ Joust</button>`;   // §12: before OR after moving
     if (tile && tile.name === "fountain") btns += `<button data-act="drink">⛲ Drink</button>`;

@@ -19,6 +19,7 @@ import { playMysticHorn } from "../../sound.js";
 
 export const HORN_MS = 2000;   // the token tour, start to final cell
 const READ_MS = 6000;          // how long the tale then lingers, readable, before it clears itself
+const FLASH_MS = 700;          // the banner flashes for this long when it arrives (after the tour)
 
 let seenSeq = 0;      // highest horn seq already played — a re-render/reload must not replay it
 let dismissed = true; // the banner has been closed (or auto-cleared) for the current seq
@@ -29,6 +30,7 @@ let tourStart = 0;    // ms timestamp the tour began — the resume clock
 let tour = null;      // { cells: { mark: [{r,c}, …] }, segMs } captured at horn time; survives re-renders
 let tourTimers = [];  // pending per-segment step timers (cancelled/rebuilt each render)
 let bannerTimer = null; // the single self-clear timer
+let bannerShowTimer = null; // fires at tour-end to raise the banner (the tour steps without a render)
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
 const reducedMotion = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -41,6 +43,7 @@ export function hornOwnsTokens() { return Date.now() < animUntil; }
 export function resetHorn(seq) {
   clearTourTimers();
   clearTimeout(bannerTimer); bannerTimer = null;
+  clearTimeout(bannerShowTimer); bannerShowTimer = null;
   seenSeq = seq || 0; dismissed = true;
   animUntil = 0; flashUntil = 0; bannerUntil = 0; tour = null;
 }
@@ -57,10 +60,13 @@ export function syncHorn(root, game, opts) {
     clearTourTimers();
     tourStart = Date.now();
     animUntil = tourStart + (reducedMotion() ? 0 : HORN_MS);   // reduced motion: no tour, render.js glides
-    flashUntil = animUntil;
+    // The tale is a herald, not a curtain: the tokens travel FIRST (you watch them move), and only
+    // once the tour lands does the banner flash up and hold. It never overlaps the movement.
+    flashUntil = animUntil + (reducedMotion() ? 0 : FLASH_MS);
     bannerUntil = animUntil + READ_MS;
     buildTour(game, horn, opts);
     playMysticHorn();
+    scheduleBannerShow(horn);
     scheduleBannerClear();
   }
   if (horn.seq !== seenSeq) return;
@@ -68,7 +74,8 @@ export function syncHorn(root, game, opts) {
   if (Date.now() < animUntil && tour) applyTour(root, opts);
   // The banner clears itself; once its window has passed, stop re-mounting it.
   if (Date.now() >= bannerUntil) dismissed = true;
-  if (!dismissed) mountBanner(root, horn);
+  // Hold the banner back until the token tour has landed — movement first, then the tale.
+  if (!dismissed && Date.now() >= animUntil) mountBanner(root, horn);
 }
 
 /* ------------------------------ the tour -------------------------------- */
@@ -156,6 +163,16 @@ function mountBanner(root, horn) {
   log.appendChild(el);
   // Flashing stops with the tour; the tale then stays static until it clears itself.
   if (flashing) tourTimers.push(setTimeout(() => el.classList.remove("mw-horn-flash"), flashUntil - Date.now()));
+}
+// The tour steps the tokens with bare timers (no re-render), so a render may never land exactly at
+// tour-end to raise the banner. This timer does it: the tale appears the moment the tokens settle.
+function scheduleBannerShow(horn) {
+  clearTimeout(bannerShowTimer);
+  bannerShowTimer = setTimeout(() => {
+    if (dismissed || Date.now() >= bannerUntil) return;
+    const root = document.querySelector(".mystic-wood-root");
+    if (root) mountBanner(root, horn);
+  }, Math.max(0, animUntil - Date.now()));
 }
 // The herald clears itself so the chronicle returns — the Horn's message must not linger across
 // later turns (it once sat there until manually silenced, and read as a phantom re-trigger).

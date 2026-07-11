@@ -20,6 +20,16 @@ export function closePortals() { document.querySelectorAll(".mw-portal").forEach
 // The first-sight narrative the server writes for a met card (server-owned prose, no user input) —
 // shown on both the encounter card and the pick grid so EVERY card type is met with its own line.
 function introHtml(p) { return p && p.intro ? `<p class="mw-enc-intro">${sanitizeLog(p.intro)}</p>` : ""; }
+// A glance-emoji for each pick outcome, so a face's result reads without reading (bug mrghtdqr).
+const ODDS_EMOJI = { win: "⚔️✨", lose: "💀", tie: "🎲", captured: "✦", free: "🔓", held: "🔒",
+  remains: "😐", transport: "💨", transportYou: "🌀", befriend: "🤝", tower: "⛓️", run: "🐎💨", catch: "🐎",
+  grail: "🏆", flee: "🏃", attack: "⚔️", imprison: "👑⛓️", nothing: "🚫" };
+const THING_EMOJI = { wand: "🪄", crystal: "💎", key: "🗝️", armour: "🛡️", potion: "🧪", ring: "💍", blessing: "✨", shield: "🛡️", golden_bough: "🌿", lance: "🗡️" };
+function oddsEmoji(key) {
+  if (ODDS_EMOJI[key]) return ODDS_EMOJI[key];
+  if (key && key.startsWith("give:")) return THING_EMOJI[key.slice(5)] || "🎁";
+  return "";
+}
 
 /* ------------------------------- intro ---------------------------------- */
 export function showIntro(ctx, game, me) {
@@ -54,9 +64,10 @@ export function showEncounter(ctx, game) {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     // Keep this card covering the map while the server resolves — the result modal then swaps in on the
     // next render (showDice closePortals+opens in one tick), so the map is never seen in between.
-    const row = host.querySelector(".row"); if (row) row.innerHTML = `<div class="hint">Resolving…</div>`;
     const act = b.getAttribute("data-enc");
-    ctx.makeMove(act === "withdraw" ? { type: "withdraw" } : { type: "encounter", choice: act });
+    if (act === "withdraw") { closePortals(); ctx.makeMove({ type: "withdraw" }); return; }   // close the card so a withdraw can't soft-lock
+    const row = host.querySelector(".row"); if (row) row.innerHTML = `<div class="hint">Resolving…</div>`;
+    ctx.makeMove({ type: "encounter", choice: act });
   }));
 }
 // A greeting whose outcome varies is a "pick one of six" — six identical denizen faces, shuffled
@@ -72,7 +83,8 @@ function pickCard(ctx, game, moveType, verb) {
   const emoji = denEmoji(p.card);
   // The server carries the article ("Merlin", but "the Witch") — he is a person, not a species.
   const name = E(p.denPhrase || `the ${p.denName || (den && den.name) || "denizen"}`);
-  const oddsHtml = (groups) => (groups || []).map((g) => `<div class="mw-pickodd mw-odd-${E(g.key)}"><span class="mw-pickn">${g.count}</span> ${E(g.label)}</div>`).join("");
+  // A result-related emoji on each odds row, so a face's outcome reads at a glance (bug mrghtdqr).
+  const oddsHtml = (groups) => (groups || []).map((g) => `<div class="mw-pickodd mw-odd-${E(g.key)}"><span class="mw-pickn">${g.count}</span> ${oddsEmoji(g.key)} ${E(g.label)}</div>`).join("");
   const faces = [1, 2, 3, 4, 5, 6].map((n) => `<button class="mw-pickface" data-pick="${n}" aria-label="pick ${n}">${emoji}</button>`).join("");
   // §8.2: Guyon may add or decline his +1 after seeing the odds — a toggle that swaps the two odds sets.
   let useGuyon = true;
@@ -82,6 +94,7 @@ function pickCard(ctx, game, moveType, verb) {
     ${tileHeaderHtml(tile)}
     ${introHtml(p)}
     <h2>${emoji} Pick one</h2>
+    ${p.reroll ? `<div class="mw-prompt" style="text-align:center">🎲 A tie — cast again. Pick one.</div>` : ""}
     <div class="mw-pickodds">${oddsHtml(p.groups)}</div>
     ${p.guyonOptional ? `<div class="row"><button data-guyon="1" class="mw-guyon">Guyon's +1: ON</button></div>` : ""}
     <div class="mw-pickgrid">${faces}</div>
@@ -94,7 +107,7 @@ function pickCard(ctx, game, moveType, verb) {
     const od = host.querySelector(".mw-pickodds"); if (od) od.innerHTML = oddsHtml(useGuyon ? p.groups : p.groupsNoBonus);
   });
   const wb = host.querySelector("[data-pick-withdraw]");
-  if (wb) wb.addEventListener("click", () => { if (!(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "withdraw" }); });
+  if (wb) wb.addEventListener("click", () => { if (ctx.isMovePending && ctx.isMovePending()) return; closePortals(); ctx.makeMove({ type: "withdraw" }); });
   host.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
