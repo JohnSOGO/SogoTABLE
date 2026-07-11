@@ -230,34 +230,34 @@ test("Challenge result detail: another knight beating the Dragon is told it fled
   assert.ok(game.discard.includes("dragon"));                     // recycled — George's quest stays possible
 });
 
-test("Enchantress captures on a loss (escape on a 6), not the Tower", () => {
+// §18.7 / §8 exception: the Enchantress never imprisons. Vanquished by her, you REMAIN in her area
+// (not the Tower) — no capture, no escape roll — and your companions become independent.
+test("Enchantress: a loss keeps you in her area (not the Tower), and scatters companions", () => {
   const game = { board: buildBoard(), deck: [], discard: [], log: [], seat_order: ["P1"], players: {} };
-  const s = seatLit("george"); game.players.P1 = s;
-  const tile = cellAt(game.board, s.r, s.c); tile.card = "enchantress"; tile.revealed = true; // magic P6
-  setMysticWoodRandom(seq([0.0, 0.99])); // white=1, red=6 → george P1+1 vs 6+6 → lose
+  const s = seatLit("george", { r: 5, c: 5, companions: ["sage"] }); game.players.P1 = s;
+  const tile = cellAt(game.board, 5, 5); tile.card = "enchantress"; tile.revealed = true; // magic P6
+  setMysticWoodRandom(seq([0.0, 0.99])); // white=1, red=6 → george loses
   const res = resolveChallenge(game, s, tile);
-  assert.equal(res.result, "captured");
-  assert.equal(s.captured, true);
-  assert.equal(s.tower, false);
+  assert.equal(res.result, "lose");
+  assert.equal(s.tower, false, "not sent to the Tower");
+  assert.equal(s.captured, false, "no capture state — she doesn't imprison");
+  assert.deepEqual([s.r, s.c], [5, 5], "remains in her area");
+  assert.deepEqual(s.companions, [], "companions become independent");
 });
 
-// The escape rule is unchanged (5–6, auto-free on the 4th try, Enchantress needs a 6) — but it must be
-// a VISIBLE pick each turn, not an invisible auto-roll. These pin the rule and the surfacing.
-test("escape rule: Tower frees on 5–6 or the 4th attempt; the Enchantress needs a 6", () => {
+// Tower escape (§17.7): frees on 5–6, and the 4th attempt frees you no matter the die — surfaced as a
+// VISIBLE pick each turn, not an invisible auto-roll. (The Enchantress no longer jails; §18.7.)
+test("escape rule: the Tower frees on 5–6 or the 4th attempt", () => {
   assert.equal(escapeFrees("tower", 4, 1), false);
   assert.equal(escapeFrees("tower", 5, 1), true);
   assert.equal(escapeFrees("tower", 1, 4), true, "the 4th attempt frees you no matter the die");
-  assert.equal(escapeFrees("capture", 5, 9), false);
-  assert.equal(escapeFrees("capture", 6, 1), true);
 });
 
-test("escape odds: the projected groups match the rule (2/6 free from the Tower, 1/6 from the Enchantress)", () => {
+test("escape odds: the projected groups match the rule (2/6 free from the Tower)", () => {
   const tower = escapeOutcomes("tower", 1).groups;
   assert.deepEqual(tower.map((g) => [g.key, g.count]), [["free", 2], ["held", 4]]);
   const last = escapeOutcomes("tower", 4).groups;   // the 4th dawn: every face frees you
   assert.deepEqual(last.map((g) => [g.key, g.count]), [["free", 6]]);
-  const ench = escapeOutcomes("capture", 1).groups;
-  assert.deepEqual(ench.map((g) => [g.key, g.count]), [["free", 1], ["held", 5]]);
 });
 
 test("resolveEscape: a freeing face releases and records a viewable roll; a held one records a failure", () => {
@@ -553,16 +553,6 @@ test("Prince: departs after lending aid; no prowess from a Prince-assisted kill"
   resolveChallenge(game, s, tile);
   assert.ok(!s.companions.includes("prince"), "the Prince leaves after aiding");
   assert.ok(!s.prowess.some((p) => p.name === "Troll-slayer"), "no prowess from a Prince-assisted kill");
-});
-
-// §8: a knight the Enchantress captures loses their companions (they become independent).
-test("Enchantress: capture scatters the victim's companions", () => {
-  setMysticWoodRandom(seq([0.0, 0.99]));   // white 1 vs red 6 → captured
-  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1"], players: {} };
-  const s = seatLit("roland", { companions: ["princess"] }); game.players.P1 = s;
-  const tile = cellAt(game.board, s.r, s.c); tile.card = "enchantress"; tile.revealed = true;
-  assert.equal(resolveChallenge(game, s, tile).result, "captured");
-  assert.deepEqual(s.companions, [], "companions scatter on capture");
 });
 
 // §18.1: Arch-Mage transport is one-shot — he leaves you after use (no infinite teleport).

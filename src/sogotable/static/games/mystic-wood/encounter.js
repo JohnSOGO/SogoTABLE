@@ -133,8 +133,8 @@ function denboxHtml(p, den, tile) {
     const diff = p.preview.mine - p.preview.foe, cls = diff > 0 ? "good" : diff < 0 ? "bad" : "muted";
     h += `<div class="denrow denvs"><b>${E(p.preview.label)}</b> — <span class="num">${p.preview.mine}</span> vs <span class="num">${p.preview.foe}</span> <span class="${cls}" style="font-weight:700">(${diff >= 0 ? "+" : "−"}${Math.abs(diff)})</span></div>`;
     if (den.dragon) h += `<div class="denrow">Only <b>George</b> can slay the Dragon.</div>`;
-    if (den.captures) h += `<div class="denrow bad">If it wins, it <b>captures</b> you (escape on a 6).</div>`;
-    if (tile && tile.name === "chapel") h += `<div class="denrow good">Chapel +2 Prowess to you — included.</div>`;
+    if (den.captures) h += `<div class="denrow bad">If she wins, you're <b>ensnared</b> — you stay in her glade and lose your companions (no Tower).</div>`;
+    if (tile && tile.name === "chapel") h += `<div class="denrow good">Chapel +1 Prowess to you — included.</div>`;
     if (tile && tile.name === "castle" && den.S) h += `<div class="denrow bad">Castle +2 to the foe — included.</div>`;
     if (tile && tile.name === "grove" && den.P) h += `<div class="denrow bad">Sacred Grove +1 to the foe — included.</div>`;
   } else {
@@ -197,7 +197,7 @@ export function showDice(ctx, roll) {
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else {
     const res = roll.outcome === "win" ? `<span class="g">⚔️✨ Victory! — ${roll.mine} vs ${roll.foe}</span>`
-      : roll.outcome === "captured" ? `<span class="r">✦ Captured by the Enchantress! — ${roll.mine} vs ${roll.foe}</span>`
+      : roll.bound ? `<span class="r">✦ Ensnared by the Enchantress! — ${roll.mine} vs ${roll.foe}<br>You remain in her glade; your companions wander free.</span>`
       : `<span class="r">💀 Defeated — ${roll.mine} vs ${roll.foe}<br>⛓️ To the Tower — companions lost.</span>`;
     // What the fight actually did — the Dragon slain, a Thing taken, the crown claimed. Without it a
     // win reads as "you rolled higher" and the player never learns what they gained.

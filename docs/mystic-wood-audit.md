@@ -62,9 +62,9 @@ the documented choice. This is the maintenance backlog; check items off as fixed
   `pendingSpell`, so a Palace/Altar second spell overwrites the first.
 - [ ] **3.6 Queen greeting forced.** §18.17/§21 — asking a boon is optional; a player may ignore her.
   (Once-per-game / target-choice / send-self-to-Tower are documented fast-follows.)
-- [ ] **3.7 Enchantress "jail" divergence.** §18.7 — she doesn't jail; she ignores you until you leave
+- [x] **3.7 Enchantress "jail" divergence.** FIXED — she no longer captures/jails; a loss keeps you in her glade and scatters your companions (§18.7). §18.7 — she doesn't jail; she ignores you until you leave
   by any path. Our "captured, roll a 6" is surfaced as an intended mechanic in game-mystic-wood.md.
-- [ ] **3.8 Chapel +2 vs rulebook +1.** DOCUMENTED intended deviation — noted so the +2 is known-deliberate.
+- [x] **3.8 Chapel +2 vs rulebook +1.** FIXED — Chapel is now +1 Prowess in a challenge/greeting (§17.2). DOCUMENTED intended deviation — noted so the +2 is known-deliberate.
 
 ## Top 5 to fix first
 1. Implement Mystic Fog & Mystic Wind (§18.12/§18.14) — two spells inert.

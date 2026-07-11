@@ -73,7 +73,7 @@ export const COMP_DESC = {
 };
 export const AREA_NAMES = { cave: "Cave", chapel: "Chapel", castle: "Castle", fountain: "Fountain", grove: "Sacred Grove", island: "Island", palace: "Palace", altar: "Altar", tower: "Tower", egate: "Earthly Gate", xgate: "Enchanted Gate" };
 export const AREA_FX = {
-  chapel: "+2 Prowess to you in a magic/warrior contest fought here.",
+  chapel: "+1 Prowess to you in any challenge or greeting fought here (no effect on jousts).",
   castle: "+2 Strength to a denizen that has Strength; the King's seat and a victory spot.",
   grove: "+1 Prowess to a denizen that has Prowess.",
   fountain: "Drink to be swept away to the Tower or a Gate.",

@@ -29,8 +29,9 @@ entry and may hold a denizen: **fight** beasts (Strength), magic-users (Prowess)
 (both), or **greet** the rest and roll for their reaction. Gather **Things** and **companions**,
 finish your quest, then **hold the Enchanted Gate through a full turn** to win — or vanquish the
 **King** and **hold the Castle** a full turn to win as King (not Britomart). Losing a fight sends
-you to the **Tower** (companions return to the wood); the **Enchantress** captures instead
-(escape on a 6). Combined Prowess+Strength may not exceed **10** (Prince & Sage are exempt).
+you to the **Tower** (companions return to the wood); the **Enchantress** never jails — vanquished by
+her you **remain in her glade** and your companions scatter (§18.7). Combined Prowess+Strength may not
+exceed **10** (Prince & Sage are exempt).
 
 Powers activate from the action bar when held: **🔮 Scry** (Crystal), **🔄 Rotate** (Wand),
 **⛲ Drink** (on the Fountain), **✨ Transport** (Arch-Mage companion). Tap a tile to zoom
@@ -83,12 +84,21 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   (`stormMode` in render.js), mirroring the block in its own `reachableSet`. Bots don't raise storms
   yet (a fast-follow) but handle being storm-blocked (no reachable → they pass).
 
-## Intended deviations from the rulebook (product decisions, not bugs)
+## Rulebook alignment (2026-07-11: the code follows the rulebook — prior "deviations" were bugs)
 
-- **Nymph → Crystal → Scry** (an extension item) is deliberately included.
-- **Chapel +2 is Prowess-only** (helps magic/warrior fights & companion greeting rolls).
-- **Dragon flees → recycles** (only George's kill removes it) and **fight-loss returns companions
-  to the deck** — both keep quests always completable (they closed real unwinnable-state stalls).
+Per MojoSOGO, the previously-documented "intended deviations" were mistakes. The rules audit
+(`docs/mystic-wood-audit.md`) is authoritative; the code now follows the rulebook. Corrected:
+**Chapel is +1 Prowess** in a challenge/greeting (§17.2, was +2); the **Enchantress never captures** —
+you remain in her glade and lose companions (§18.7, was jail-with-escape-on-a-6).
+
+Still faithful to the rulebook (not deviations, just noted):
+- **Dragon flees → recycles** when defeated by a non-George knight (only George's kill removes it);
+  **fight-loss sends companions back to the wood** (§10: they become independent) — both match §18.4/§10.
+- **A greeting rolls only when the die can change the outcome** — a UX choice; the outcome is identical
+  to rolling, so it doesn't diverge from the rules (just skips theatre rolls).
+
+Flagged for MojoSOGO's call (an ADDITION, not in the base rulebook — keep or remove):
+- **Nymph → Crystal → Scry** is an extension item.
 - **Bishop** grants the Ring after a 3-turn prayer (see below); **Dwarf** gives Armour directly;
   **Ring/Potion/Shield** bonuses are placeholders (source `[TBD]`). Generic tiles orient on reveal
   to stay connected.
@@ -143,18 +153,16 @@ decision or detail only Sogo can give** — a future AI should surface these to 
 answer, then take the close-out path. Do **not** guess the rules; per doctrine, published
 rules win. (Report IDs are the in-app `bugreports` slugs.)
 
-1. **[mrc1f6xw] Combat: opposed roll, or roll-vs-fixed?** — Today `resolveChallenge`
-   (`engine.js`) rolls a d6 for **both** the knight and the denizen (yourP+die vs foeP+die).
-   Sogo questions whether the Enchantress fight should be opposed at all. **Ask:** does the
-   rulebook have the denizen use a **fixed** value you roll against, or does it also roll?
-   **Close-out (if fixed):** drop the foe's die in `resolveChallenge`, set `foe = foe stat
-   total` (no `red` die), update `combatPreview`, the dice-reveal card (`showDice`), and the
-   unit tests; `deploy:brain`. This affects **all** combat, not just the Enchantress.
+1. ~~**[mrc1f6xw] Combat: opposed roll, or roll-vs-fixed?**~~ — **CLOSED 2026-07-11 by the rulebook.**
+   §8.1: *"Roll the two dice. The white die gives your basic score, and the red die gives the Denizen's
+   basic score."* Combat **is opposed** — both roll. `resolveChallenge` (both dice) was already correct;
+   no change. (The Enchantress is opposed like every foe; she just doesn't jail on a loss — §18.7.)
 2. ~~**[mrc1uwxb] Tower/capture escape roll is invisible.**~~ — **CLOSED 2026-07-10.** Sogo
    confirmed the ask ("make it obvious every turn I am trying to escape and whether it succeeds;
    use the pick one of the six emoji screens"). No rules change — escape is still 5–6 / auto-free
    on the 4th turn / Key frees at once (Tower) and a 6 (Enchantress); the answer to "am I forced to
-   stay three turns?" is **no** (any 5–6 frees you, the 4th turn is the guaranteed release). The fix
+   stay three turns?" is **no** (any 5–6 frees you, the 4th turn is the guaranteed release). (The
+   Enchantress no longer jails at all — §18.7; escape is Tower-only now.) The fix
    is purely surfacing: a HUMAN's imprisoned turn now stops on a **player-triggered `escape_pick`**
    (the same "pick one of six" as combat/greet), resolved in `doEscapePick` (`rules.js`) via
    `resolveEscape`/`escapeOutcomes` (`engine.js`), which `recordRoll`s the attempt so the client

@@ -96,23 +96,20 @@ function beginSeatTurn(game, seat) {
     if (onCastle && seat.castleHold >= 2) { winGame(game, seat, "castle"); return "skip"; }
     if (onCastle) logEvent(game, `${name} holds the Castle as King — stay through your next turn to win the crown.`);
   }
-  // Imprisonment: the escape used to auto-roll here and only reach the chronicle — invisible to the
-  // player. A HUMAN now taps a visible "pick one of six" each turn (resolved in doEscapePick); bots
-  // still auto-roll. The Key frees at once (no roll) from the Tower. On success the seat may still move.
-  if (seat.captured || seat.tower) {
-    if (seat.tower && hasThing(seat, "key")) {
+  // Imprisonment (Tower only — the Enchantress never jails, §18.7). The escape used to auto-roll here
+  // and only reach the chronicle. A HUMAN now taps a visible "pick one of six" each turn (resolved in
+  // doEscapePick); bots still auto-roll. The Key frees at once (no roll). On success the seat may move.
+  if (seat.tower) {
+    if (hasThing(seat, "key")) {
       seat.tower = false; logEvent(game, `${name} unlocks the Tower with the Key and walks free.`, "g");
     } else if (seat.is_bot) {
-      const mode = seat.captured ? "capture" : "tower";
-      if (mode === "tower") seat.towerTries += 1;
-      const tries = mode === "tower" ? seat.towerTries : 1;
-      const { freed } = resolveEscape(game, seat, rollDie(), mode, tries);
+      seat.towerTries += 1;
+      const { freed } = resolveEscape(game, seat, rollDie(), "tower", seat.towerTries);
       if (!freed) return "skip";
     } else {
-      const mode = seat.captured ? "capture" : "tower";
-      const tries = mode === "tower" ? seat.towerTries + 1 : 1;
-      game.pending = { type: "escape_pick", mark: seat.mark, mode, tries,
-        groups: escapeOutcomes(mode, tries).groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
+      const tries = seat.towerTries + 1;
+      game.pending = { type: "escape_pick", mark: seat.mark, mode: "tower", tries,
+        groups: escapeOutcomes("tower", tries).groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
       return "act";
     }
   }

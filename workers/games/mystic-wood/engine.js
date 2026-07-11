@@ -407,7 +407,7 @@ export function combatPreview(seat, tile) {
   let mine = 0, foe = 0;
   if (den.cls === "beast" || den.cls === "warrior") mine += totalS(seat);
   if (den.cls === "magic" || den.cls === "warrior") mine += totalP(seat) - princessVsKing(seat, den);
-  if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mine += 2;
+  if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mine += 1;
   if (princeAids(seat, den)) {
     if (den.cls === "beast" || den.cls === "warrior") mine += DEN.prince.S;
     if (den.cls === "magic" || den.cls === "warrior") mine += DEN.prince.P;
@@ -431,11 +431,11 @@ export function combatOutcomes(game, seat, tile) {
   const faces = [];
   for (let f = 1; f <= 6; f += 1) {
     const mine = f + pv.mine;
-    faces.push({ face: f, result: mine > foeTotal ? "win" : (mine === foeTotal ? "tie" : (den.captures ? "captured" : "lose")) });
+    faces.push({ face: f, result: mine > foeTotal ? "win" : (mine === foeTotal ? "tie" : "lose") });
   }
-  const labels = { win: "you win", lose: "you lose", captured: "she captures you", tie: "a tie — reroll" };
+  const labels = { win: "you win", lose: "you lose", tie: "a tie — reroll" };
   const groups = [];
-  for (const key of ["win", "lose", "captured", "tie"]) {
+  for (const key of ["win", "lose", "tie"]) {
     const count = faces.filter((x) => x.result === key).length;
     if (count) groups.push({ key, label: labels[key], count });
   }
@@ -450,7 +450,7 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   const mineParts = [], foeParts = [];
   if (den.cls === "beast" || den.cls === "warrior") mineParts.push({ l: "Strength", v: totalS(seat) });
   if (den.cls === "magic" || den.cls === "warrior") mineParts.push({ l: "Prowess", v: totalP(seat) - princessVsKing(seat, den) });
-  if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mineParts.push({ l: "Chapel", v: 2 }); // +2 Prowess only
+  if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mineParts.push({ l: "Chapel", v: 1 }); // §17.2: +1 Prowess in a challenge/greeting here
   if (princeAids(seat, den)) {
     seat._princeAiding = true;
     if (den.cls === "beast" || den.cls === "warrior") mineParts.push({ l: "Prince", v: DEN.prince.S });
@@ -474,9 +474,12 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   // claimed, a companion spent) are logged by the branches below, and the result modal must show them —
   // "Victory! 9 vs 7" alone leaves the player guessing what they actually won.
   let result;
-  const outcome = mine > foe ? "win" : (den.captures ? "captured" : "lose");
+  const outcome = mine > foe ? "win" : "lose";
+  // §8 exception / §18.7: the Enchantress never imprisons — vanquished by her, you REMAIN in her area
+  // (she ignores you until you leave); every other foe sends you to the Tower.
+  const bound = outcome === "lose" && den.captures;
   if (outcome === "win") logEvent(game, `${seat.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
-  else if (outcome === "captured") logEvent(game, `The Enchantress captures ${seat.name}! (escape on a 6) — ${mine} vs ${foe}`, "r");
+  else if (bound) logEvent(game, `The Enchantress overpowers ${seat.name} (${mine} vs ${foe}) — you remain in her glade, ensnared.`, "r");
   else logEvent(game, `${seat.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
   const before = logMark(game);   // headline is already on the modal; capture only what follows
 
@@ -486,14 +489,14 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
     result = "win";
   } else {
     useSage(game, seat); usePrince(game, seat);
-    if (outcome === "captured") {
-      seat.captured = true; result = "captured";
-      // §8: a knight the Enchantress captures loses their Companions — they become independent again.
+    result = "lose";
+    if (bound) {
+      // §8: her song scatters your Companions — they become independent. You stay put (no Tower).
       if (seat.companions.length) { seat.companions.forEach((c) => game.discard.push(c)); seat.companions = []; logEvent(game, "Her song scatters the knight's companions — they wander free.", "a"); }
-    } else { toTower(game, seat); result = "lose"; }   // fight loss → companions lost (they return to the wood)
+    } else { toTower(game, seat); }   // fight loss → the Tower; companions lost (they return to the wood)
   }
   // Record the decisive roll so the client can show the dice-reveal modal.
-  recordRoll(game, seat.mark, { white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome,
+  recordRoll(game, seat.mark, { white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome, bound,
     picked: forcedWhite != null, detail: logSince(game, before) });
   return { result, endTurn: true };
 }
@@ -539,7 +542,7 @@ export function greetOutcomes(game, seat, tile) {
   const id = tile.card;
   if (!greetNeedsDie(den, id)) return null;
   const guyon = seat.knight === "guyon" ? 1 : 0;
-  const chapel = tile.name === "chapel" ? 2 : 0;
+  const chapel = tile.name === "chapel" ? 1 : 0;
   const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
   const faces = [];
   for (let f = 1; f <= 6; f += 1) faces.push({ face: f, ...greetFaceOutcome(game, seat, tile, den, id, f, guyon, chapel, isPComp) });
@@ -585,7 +588,7 @@ export function resolveGreet(game, seat, tile, forcedDie) {
     const guyon = seat.knight === "guyon" ? 1 : 0;
     const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
     if (isPComp) {
-      const total = die + totalP(seat) + guyon + (tile.name === "chapel" ? 2 : 0);
+      const total = die + totalP(seat) + guyon + (tile.name === "chapel" ? 1 : 0);
       if (den.grail) {
         if (total >= 9) takeGrail(game, seat, tile);
         else { logEvent(game, "The Grail slips away."); clearCard(game, tile); }
