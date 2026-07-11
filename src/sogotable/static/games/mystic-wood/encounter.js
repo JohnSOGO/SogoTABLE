@@ -95,6 +95,8 @@ function pickCard(ctx, game, moveType, verb) {
     ${introHtml(p)}
     <h2>${emoji} Pick one</h2>
     ${p.reroll ? `<div class="mw-prompt" style="text-align:center">🎲 A tie — cast again. Pick one.</div>` : ""}
+    ${p.noMatch ? `<div class="mw-prompt" style="text-align:center;color:var(--good,#2e7d32)">⚔️✨ ${name} is no match — you cannot lose here.</div>` : ""}
+    ${p.hopeless ? `<div class="mw-prompt" style="text-align:center;color:var(--bad,#c62828)">💀 ${name} mocks you — you cannot best him here.${p.canWithdraw ? " Withdraw, or meet your fate." : ""}</div>` : ""}
     <div class="mw-pickodds">${oddsHtml(p.groups)}</div>
     ${p.guyonOptional ? `<div class="row"><button data-guyon="1" class="mw-guyon">Guyon's +1: ON</button></div>` : ""}
     <div class="mw-pickgrid">${faces}</div>
@@ -112,6 +114,9 @@ function pickCard(ctx, game, moveType, verb) {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
     b.classList.add("mw-chosen");
+    // Morph the tapped face toward its outcome (bug mrgkd4uw): a sure win / sure loss reads at once; a
+    // real roll shows a die until the result modal lands a beat later.
+    b.textContent = p.noMatch ? "⚔️✨" : p.hopeless ? "💀" : "🎲";
     // The result modal swaps in on the next render (dice suppressed — this was a pick, not a roll).
     ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")), useGuyon });
   }));
@@ -164,12 +169,18 @@ function denboxHtml(p, den, tile) {
     if (tile && tile.name === "castle" && den.S) h += `<div class="denrow bad">Castle +2 to the foe — included.</div>`;
     if (tile && tile.name === "grove" && den.P) h += `<div class="denrow bad">Sacred Grove +1 to the foe — included.</div>`;
   } else {
-    if (den.grail) h += `<div class="denrow">Add your Prowess to the die: <b>9+</b> takes the Grail.</div>`;
+    // The Bishop and Sage don't roll — their single-effect tables read as "gives a Ring" / nothing, which
+    // hides the real cost (GY3B mrgkgq6j: "tell me it's three turns"; mrgke23d: "why is the Sage free?").
+    if (p.card === "bishop") h += `<div class="denrow">Kneel and <b>pray 3 full turns</b> here to earn the <b>Ring</b> — if the prayer is interrupted, it is lost.</div>`;
+    else if (p.card === "sage") h += `<div class="denrow">A <b>Companion</b>: he joins freely, and once lends <b>+2 Prowess</b> to a fight or greeting before departing.</div>`;
+    else if (den.grail) h += `<div class="denrow">Add your Prowess to the die: <b>9+</b> takes the Grail.</div>`;
     else if (p.card === "princess") h += `<div class="denrow">Add your Prowess to the die: <b>9+</b> she befriends you.</div>`;
     else if (p.card === "prince") h += `<div class="denrow">Add your Prowess to the die: <b>8+</b> he befriends you.</div>`;
-    const rr = tblRows(den.tbl);
-    if (rr && rr.length === 1) h += `<div class="denrow">Greet → ${rr[0].effect}.</div>`;
-    else if (rr) { h += `<div class="denrow"><b>Reactions</b> — greet, then roll a die:</div><table class="rtbl">${rr.map((r) => `<tr><td class="rroll">${r.range}</td><td>${r.effect}</td></tr>`).join("")}</table>`; }
+    else {
+      const rr = tblRows(den.tbl);
+      if (rr && rr.length === 1) h += `<div class="denrow">Greet → ${rr[0].effect}.</div>`;
+      else if (rr) { h += `<div class="denrow"><b>Reactions</b> — greet, then roll a die:</div><table class="rtbl">${rr.map((r) => `<tr><td class="rroll">${r.range}</td><td>${r.effect}</td></tr>`).join("")}</table>`; }
+    }
   }
   h += `</div>`;
   return h;

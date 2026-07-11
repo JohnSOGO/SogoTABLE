@@ -140,8 +140,14 @@ test("combat: a foregone win (no losing face) is declared no match — no pick, 
   // against which every white face wins — the no-match short-circuit takes over.
   g.pending = { type: "combat_pick", mark: "P1", r: t.r, c: t.c, card: "ox", red: 6, label: "Strength", groups: [], faceMap: [4, 4, 4, 4, 4, 4] };
   makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 1 });
-  assert.equal(g.pending, null, "no second pick is opened for a foregone win");
+  // The tie rerolls into a foregone win: a human now SEES the no-match encounter (GY3B mrgkkwi4) rather
+  // than having it settled behind his back — flagged noMatch, with the sure win carried so no tap loses.
+  assert.equal(g.pending.type, "combat_pick", "the reroll re-opens the pick as a no-match screen");
+  assert.equal(g.pending.noMatch, true, "flagged no match — a foregone win");
+  assert.notEqual(g.pending.forcedWin, null, "the sure win is carried");
   assert.ok(g.log.some((e) => /is no match for/.test(e.text)), "the fight is announced as no match");
+  makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 1 });   // any face acknowledges the sure win
+  assert.equal(g.pending, null, "the acknowledged win closes the encounter");
   assert.ok(s.prowess.some((p) => p.name === "Ox-slayer"), "the win is applied (Ox-slayer gained)");
   assert.equal(g.results.P1.outcome, "win");
   assert.equal(g.results.P1.picked, true);         // resolved via a forced (picked) white, dice hidden on reveal

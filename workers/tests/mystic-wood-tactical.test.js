@@ -99,3 +99,35 @@ test("Chivalry: a King is exempt from the rescue obligation (§15/§18.10)", () 
   becomeKing(g, g.players.P1);
   assert.equal(g.chivalry.boy, null, "the crown sets aside the Save Boy obligation");
 });
+
+// GY3B mrgkkwi4: a no-match fight no longer settles behind the player's back — the human still sees
+// the encounter screen (flagged noMatch), and whichever face he taps yields the sure win. The lone
+// tie face can never reroll a losable red and steal the win (that was mrfr29hn).
+test("No-match fight: the human sees the screen, and any face taken wins", () => {
+  const g = moveGame({ r: 8, c: 3, things: ["armour", "lance"] });   // +3 Strength — a boar can't touch him
+  const dest = cellAt(g.board, 8, 2); dest.revealed = true; dest.card = "boar"; dest.open = { N: 1, E: 1, S: 1, W: 1 };
+  cellAt(g.board, 8, 3).open = { N: 1, E: 1, S: 1, W: 1 };
+  setMysticWoodRandom(() => 0);   // the boar's red = 1
+  makeMysticWoodMove(g, "P1", { type: "move", r: 8, c: 2 });
+  assert.ok(g.pending && g.pending.type === "combat_pick", "the encounter screen still opens for a human");
+  assert.equal(g.pending.noMatch, true);
+  assert.notEqual(g.pending.forcedWin, null, "the sure win is carried, so no tap can lose");
+  assert.equal(g.current_player, "P1", "the turn waits for the player to acknowledge");
+  makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 3 });
+  assert.ok(g.players.P1.prowess.some((x) => x.name === "Boar-slayer"), "the boar is slain — no match");
+});
+
+// GY3B mrgkjm4p: when every face loses, the fight is hopeless — flag it so the client can have the foe
+// mock the knight, and keep withdraw open so he can still retreat rather than be forced onto the Tower.
+test("Hopeless fight: flagged as hopeless, no sure win, and withdraw stays available", () => {
+  const g = moveGame({ r: 8, c: 3 });   // a bare knight against the Enchantress (Prowess 6)
+  const dest = cellAt(g.board, 8, 2); dest.revealed = true; dest.card = "enchantress"; dest.open = { N: 1, E: 1, S: 1, W: 1 };
+  cellAt(g.board, 8, 3).open = { N: 1, E: 1, S: 1, W: 1 };
+  setMysticWoodRandom(() => 0.99);   // her red = 6 — unbeatable by a bare knight
+  makeMysticWoodMove(g, "P1", { type: "move", r: 8, c: 2 });
+  assert.ok(g.pending && g.pending.type === "combat_pick", "the fight screen opens");
+  assert.equal(g.pending.hopeless, true, "every face loses — a hopeless fight");
+  assert.equal(g.pending.forcedWin, null, "there is no sure win to grant");
+  const dict = mysticWoodGameToDict(g, "P1");
+  assert.equal(dict.pending.canWithdraw, true, "the knight may still withdraw from a hopeless fight");
+});

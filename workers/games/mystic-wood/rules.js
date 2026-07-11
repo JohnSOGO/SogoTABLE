@@ -227,20 +227,23 @@ function enterTile(game, seat, tile) {
 // white face. groups carry the win/lose(/tie) counts; faceMap + red stay server-side (the answer key).
 function openCombatPick(game, seat, tile) {
   const co = combatOutcomes(game, seat, tile);
-  // No match: when every white face wins or ties — the knight cannot lose this roll — there is no real
-  // choice to make. Forcing a pick is empty ceremony, and worse: landing on the lone tie face rerolls a
-  // FRESH red that could be losable, so the ceremony can actually cost you the sure thing. Declare the
-  // foe no match and take the win outright. (bug mrfr29hn-yv3t9s)
+  // No match: every white face wins or ties — the knight cannot lose this roll. A bot needs no ceremony,
+  // so settle it outright. A human still SEES the encounter (GY3B mrgkkwi4: "show the screen, say no
+  // match, then the result"), but any face taken yields the sure win — never the lone tie face's FRESH
+  // red that could be losable. So we carry forcedWin: the pick is display, the outcome is already decided.
   const win = co.faces.find((f) => f.result === "win");
-  if (win && !co.faces.some((f) => f.result === "lose" || f.result === "captured")) {
-    logEvent(game, `${denPhrase(tile.card)} is no match for ${seat.name}.`);
+  const noMatch = !!win && !co.faces.some((f) => f.result === "lose" || f.result === "captured");
+  const hopeless = !win;   // every face loses or captures — he mocks the knight (mrgkjm4p); withdraw stays open
+  if (noMatch) logEvent(game, `${denPhrase(tile.card)} is no match for ${seat.name}.`);
+  if (noMatch && seat.is_bot) {   // a bot needs no ceremony — settle the sure win outright
     game.pending = null;
     resolveChallenge(game, seat, tile, win.face, co.red);
     afterEncounter(game, seat, tile);
     return;
   }
   game.pending = { type: "combat_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
-    red: co.red, label: co.label, groups: co.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
+    red: co.red, label: co.label, groups: co.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]),
+    noMatch, hopeless, forcedWin: noMatch ? win.face : null };
 }
 
 /* ------------------------------- moves ---------------------------------- */
@@ -293,6 +296,9 @@ function doCombatPick(game, seat, action) {
   if (!(pick >= 1 && pick <= 6)) throw new Error("Pick one of the six.");
   const tile = cellAt(game.board, p.r, p.c);
   if (!tile || !tile.card) { game.pending = null; passTurn(game); return; }
+  // A no-match encounter is display only: whichever face the player taps, the sure win stands (no tie
+  // reroll can steal it back — that was mrfr29hn). The screen was shown for feel, not for a real roll.
+  if (p.forcedWin != null) { game.pending = null; resolveChallenge(game, seat, tile, p.forcedWin, p.red); afterEncounter(game, seat, tile); return; }
   const white = p.faceMap[pick - 1];
   const pv = combatPreview(seat, tile);
   if (white + pv.mine === p.red + pv.foe) {   // tie → reroll (new red, pick again)
@@ -494,6 +500,7 @@ function pendingToDict(game) {
   if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
     return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "", canWithdraw, reroll: !!p.reroll,
+      noMatch: !!p.noMatch, hopeless: !!p.hopeless,   // GY3B: "no match" (sure win) / "he mocks you" (cannot win — withdraw)
       groupsNoBonus: p.groupsNoBonus, guyonOptional: !!p.guyonOptional,   // §8.2 Guyon's optional +1 (greet only)
       denName: den ? den.name : "", denPhrase: denPhrase(p.card), denClass: den ? den.cls : "", intro: denIntro(p.card, knightName) };
   }
