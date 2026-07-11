@@ -10,23 +10,23 @@ the documented choice. This is the maintenance backlog; check items off as fixed
 
 ## 1. Implemented INCORRECTLY (rule violations — highest priority)
 
-- [ ] **1.1 Fog & Wind are no-ops.** §18.12 Fog rotates each face-up arrow tile 180°; §18.14 Wind
+- [x] **1.1 Fog & Wind are no-ops.** §18.12 Fog rotates each face-up arrow tile 180°; §18.14 Wind
   strips all Things *held by Knights*. `resolveSpell` (engine.js ~205-206) only logs flavour for both;
   Wind's text is also backwards ("loose" → should be "held"). Only Horn does anything.
-- [ ] **1.2 Palace/Altar second denizen discarded.** Two-card areas (§5.1/§9) draw `card`+`card2`, but
+- [ ] **1.2 Palace/Altar second denizen discarded.** _(remaining — the one core-flow fix, done next in its own change)_ Two-card areas (§5.1/§9) draw `card`+`card2`, but
   `enterTile` only opens an encounter for `card`, and `clearCard` nulls *both* — the second denizen
   vanishes unencountered. §9 multi-denizen ordering unimplemented.
-- [ ] **1.3 Arch-Mage transport is infinite.** §18.1 — he "remains in the area where you used it" (a
+- [x] **1.3 Arch-Mage transport is infinite.** §18.1 — he "remains in the area where you used it" (a
   one-shot; you lose him). `doTransport` (rules.js) never drops `archmage` from companions → teleport
   every turn forever.
-- [ ] **1.4 Prince kept after aid + still grants prowess.** §10 Prince is transported (leaves) after
+- [x] **1.4 Prince kept after aid + still grants prowess.** §10 Prince is transported (leaves) after
   helping; §18.15 no prowess from a Prince-assisted kill. `usePrince` keeps him; `applyWin` still pushes
   the slayer card. (Sage is correctly consumed.)
-- [ ] **1.5 Joust companion-prize is a free steal.** §12 — taking a Companion needs the usual approach
+- [x] **1.5 Joust companion-prize is a free steal.** §12 — taking a Companion needs the usual approach
   roll ("remains" keeps them loyal; Prince may counter-attack); only Boy/Damsel/Sage go outright. The
   Thing option also includes a prowess card. `joustPrize` shifts a companion over with no roll and can't
   take prowess cards.
-- [ ] **1.6 Enchantress capture keeps companions.** §8 — a knight vanquished by the Enchantress has
+- [x] **1.6 Enchantress capture keeps companions.** §8 — a knight vanquished by the Enchantress has
   "Companions become independent." `resolveChallenge` captured-branch leaves them attached.
 
 ## 2. Missing (in rulebook, absent from code)

@@ -146,6 +146,7 @@ function actionsHtml(ctx, game, me) {
     let b = `<span class="mw-prompt">Won vs ${E(jp.loserName)} — your prize:</span>`;
     b += `<button data-jp="tower">⛓ To the Tower</button>`;
     if (jp.spoils && jp.spoils.things) b += `<button data-jp="thing">🎁 Take a Thing</button>`;
+    if (jp.spoils && jp.spoils.prowess) b += `<button data-jp="prowess">🎖 Take Prowess</button>`;
     if (jp.spoils && jp.spoils.companions) b += `<button data-jp="companion">🤝 Take a Companion</button>`;
     return b;
   }

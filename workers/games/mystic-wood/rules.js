@@ -302,6 +302,12 @@ function doTransport(game, seat, action) {
     throw new Error("Another knight holds that place.");
   }
   logEvent(game, `The Arch-Mage sends ${seat.name} to the ${to.label || to.name}.`, "a");
+  // §18.1: "he remains in the area where you used it" — a one-shot. He leaves you (returns to the origin
+  // tile to be greeted again if it's free), so the power is not infinitely reusable.
+  const from = cellAt(game.board, seat.r, seat.c);
+  seat.companions = seat.companions.filter((c) => c !== "archmage");
+  if (from && !from.card && !from.fixed && from.name !== "tower") { from.card = "archmage"; logEvent(game, "The Arch-Mage remains in the glade he opened.", "a"); }
+  else logEvent(game, `The Arch-Mage parts ways with ${seat.name}.`, "a");
   relocate(game, seat, to.r, to.c);
   enterTile(game, seat, to);
 }

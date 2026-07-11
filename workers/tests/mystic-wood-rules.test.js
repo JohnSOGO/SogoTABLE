@@ -8,6 +8,7 @@ import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
   resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes, combatOutcomes,
   logEvent, escapeOutcomes, escapeFrees, resolveEscape, raiseStorm, decayStorms,
+  joustSpoils, joustPrize,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN, DEN_TALES, DEN_INTRO } from "../games/mystic-wood/data.js";
 
@@ -528,6 +529,64 @@ test("Storm: requires the Magician, never from/at the Tower, one per turn", () =
   assert.equal(g.current_player, "P1", "raising a storm does not end the turn");
   const t2 = cellAt(g.board, 5, 5); t2.revealed = true;
   assert.throws(() => makeMysticWoodMove(g, "P1", { type: "storm", r: 5, c: 5 }), /already raised/i);
+});
+
+// §18.12 Fog rotates every revealed non-fixed area 180°; §18.14 Wind sweeps all Things held by knights.
+test("Spells: Fog rotates the wood; Wind sweeps held Things", () => {
+  const game = { board: buildBoard(), log: [], seat_order: ["P1", "P2"], players: {} };
+  const t = cellAt(game.board, 5, 5); t.revealed = true; t.open = { N: 1, S: 0, E: 1, W: 0 };
+  resolveSpell(game, { name: "Sogo" }, t, "fog");
+  assert.deepEqual(t.open, { N: 0, S: 1, E: 0, W: 1 }, "Fog rotates the area 180°");
+  game.players.P1 = seatLit("george", { things: ["lance", "armour"] });
+  game.players.P2 = seatLit("roland", { things: ["shield"] });
+  resolveSpell(game, game.players.P1, cellAt(game.board, 0, 0), "wind");
+  assert.deepEqual(game.players.P1.things, [], "Wind sweeps P1's Things");
+  assert.deepEqual(game.players.P2.things, [], "Wind sweeps every knight's Things");
+});
+
+// §18.15: the Prince leaves after aiding, and a Prince-assisted kill grants no prowess.
+test("Prince: departs after lending aid; no prowess from a Prince-assisted kill", () => {
+  setMysticWoodRandom(seq([0.99, 0.0]));   // white 6 vs red 1 → a win
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1"], players: {} };
+  const s = seatLit("perceval", { companions: ["prince"] }); game.players.P1 = s;   // q=grail, so the Prince may aid
+  const tile = cellAt(game.board, s.r, s.c); tile.card = "troll"; tile.revealed = true;
+  resolveChallenge(game, s, tile);
+  assert.ok(!s.companions.includes("prince"), "the Prince leaves after aiding");
+  assert.ok(!s.prowess.some((p) => p.name === "Troll-slayer"), "no prowess from a Prince-assisted kill");
+});
+
+// §8: a knight the Enchantress captures loses their companions (they become independent).
+test("Enchantress: capture scatters the victim's companions", () => {
+  setMysticWoodRandom(seq([0.0, 0.99]));   // white 1 vs red 6 → captured
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1"], players: {} };
+  const s = seatLit("roland", { companions: ["princess"] }); game.players.P1 = s;
+  const tile = cellAt(game.board, s.r, s.c); tile.card = "enchantress"; tile.revealed = true;
+  assert.equal(resolveChallenge(game, s, tile).result, "captured");
+  assert.deepEqual(s.companions, [], "companions scatter on capture");
+});
+
+// §18.1: Arch-Mage transport is one-shot — he leaves you after use (no infinite teleport).
+test("Arch-Mage: transport spends the companion", () => {
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.current_player = "P1"; const s = g.players.P1; s.companions = ["archmage"];
+  const dest = cellAt(g.board, 1, 1); dest.revealed = true;   // Grove (a named glade), unoccupied
+  makeMysticWoodMove(g, "P1", { type: "transport", r: 1, c: 1 });
+  assert.ok(!s.companions.includes("archmage"), "the Arch-Mage is spent after one transport");
+});
+
+// §12: a joust winner may take a prowess card; a Companion must be APPROACHED, not simply stolen.
+test("Joust prize: prowess card takeable; companion needs an approach roll", () => {
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1", "P2"], players: {} };
+  const w = seatLit("george", { mark: "P1" });
+  const l = seatLit("roland", { mark: "P2", prowess: [{ name: "Ox-slayer", P: 1 }], companions: ["grail"] });
+  game.players.P1 = w; game.players.P2 = l;
+  assert.deepEqual(joustSpoils(l), { things: false, prowess: true, companions: true });
+  joustPrize(game, w, l, "prowess");
+  assert.ok(w.prowess.some((p) => p.name === "Ox-slayer") && l.prowess.length === 0, "winner takes the prowess card");
+  setMysticWoodRandom(seq([0.0]));   // die 1 → roll = 1 + P(george 1) = 2, well under the 9 the Grail needs
+  joustPrize(game, w, l, "companion");
+  assert.deepEqual(l.companions, ["grail"], "a failed approach leaves the companion loyal to the foe");
 });
 
 test("contract: id predicate, seat count, distinct knights, projection shape", () => {

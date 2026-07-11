@@ -202,8 +202,22 @@ function recordHorn(game, byName, scattered) {
 // Returns { endTurn } — Mystic Horn ends the drawer's turn.
 export function resolveSpell(game, seat, tile, spellId) {
   const name = seat.name;
-  if (spellId === "fog") { logEvent(game, "Mystic Fog rolls through — the wood shifts."); return {}; }
-  if (spellId === "wind") { logEvent(game, "Mystic Wind blows — loose Things are swept away."); return {}; }
+  if (spellId === "fog") {
+    // §18.12: every face-up arrow area rotates 180°. Fixed areas (Gates/Tower) don't turn.
+    let n = 0;
+    for (const t of game.board) {
+      if (t.revealed && !t.fixed) { const o = t.open; t.open = { N: o.S, S: o.N, E: o.W, W: o.E }; n += 1; }
+    }
+    logEvent(game, `Mystic Fog rolls through — ${n} area${n === 1 ? "" : "s"} of the wood turn about.`);
+    return {};
+  }
+  if (spellId === "wind") {
+    // §18.14: sweeps every Thing HELD by a Knight (not Companions, not the Grail, not the mount Horse).
+    let swept = 0;
+    for (const m of game.seat_order) { const q = game.players[m]; swept += q.things.length; q.things = []; }
+    logEvent(game, swept ? "Mystic Wind blows — every Thing held by the knights is swept away!" : "Mystic Wind blows, but no knight holds a Thing to lose.", swept ? "r" : "");
+    return {};
+  }
   if (spellId === "horn") {
     logEvent(game, `Mystic Horn sounds — the knights are scattered!`, "a");
     const scattered = [];
@@ -358,13 +372,24 @@ export function resolveEscape(game, seat, face, mode, tries) {
 
 /* ------------------------------- combat --------------------------------- */
 function princeAids(seat, den) {
-  return seat.companions.includes("prince") && !seat._princeUsed && !den.king && !(den.dragon && seat.q === "dragon");
+  // Britomart never spends her quest-companion Prince as a mere fighter (using his help loses him, §18.15).
+  return seat.companions.includes("prince") && !seat._princeUsed && seat.q !== "prince"
+    && !den.king && !(den.dragon && seat.q === "dragon");
 }
 function useSage(game, seat) {
   if (seat.companions.includes("sage")) { seat.companions = seat.companions.filter((c) => c !== "sage"); logEvent(game, "The Sage's counsel is spent — he departs.", "a"); }
 }
 function usePrince(game, seat) {
-  if (seat.companions.includes("prince") && seat._princeAiding) { seat._princeAiding = false; seat._princeUsed = true; logEvent(game, "The Prince has lent his arm; he fights no more, but travels on.", "a"); }
+  // §18.15: "After giving his help, Prince transports himself." He LEAVES the knight (no longer counts
+  // for the power limit or Britomart's quest) and returns to the wood to be greeted again.
+  if (seat.companions.includes("prince") && seat._princeAiding) {
+    seat._princeAiding = false; seat._princeUsed = true;
+    seat.companions = seat.companions.filter((c) => c !== "prince");
+    const spots = game.board.filter((t) => t.revealed && !t.card && t.name !== "tower"
+      && !game.seat_order.some((m) => game.players[m].r === t.r && game.players[m].c === t.c));
+    if (spots.length) spots[rnd(spots.length)].card = "prince";
+    logEvent(game, "The Prince has lent his arm; he transports himself back into the wood.", "a");
+  }
 }
 // The "6 vs 4" preview shown to the player before a challenge (same bonuses as the fight, minus the dice).
 export function combatPreview(seat, tile) {
@@ -452,8 +477,11 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
     result = "win";
   } else {
     useSage(game, seat); usePrince(game, seat);
-    if (outcome === "captured") { seat.captured = true; result = "captured"; }
-    else { toTower(game, seat); result = "lose"; }   // fight loss → companions lost (they return to the wood)
+    if (outcome === "captured") {
+      seat.captured = true; result = "captured";
+      // §8: a knight the Enchantress captures loses their Companions — they become independent again.
+      if (seat.companions.length) { seat.companions.forEach((c) => game.discard.push(c)); seat.companions = []; logEvent(game, "Her song scatters the knight's companions — they wander free.", "a"); }
+    } else { toTower(game, seat); result = "lose"; }   // fight loss → companions lost (they return to the wood)
   }
   // Record the decisive roll so the client can show the dice-reveal modal.
   recordRoll(game, seat.mark, { white, red, mine, foe, mineParts, foeParts, foeName: den.name, outcome,
@@ -464,7 +492,11 @@ function applyWin(game, seat, tile, den, id) {
   if (den.dragon) {
     if (seat.q === "dragon") { seat.questDone = true; logEvent(game, `The Dragon is SLAIN — ${seat.name}'s quest is done! Reach the Enchanted Gate to win.`, "g"); clearCard(game, tile, false); }
     else { logEvent(game, "The Dragon flees to the far wood."); clearCard(game, tile, true); } // stays in play so George's quest remains possible
-  } else if (den.slay) { seat.prowess.push({ name: den.slay, P: 1 }); logEvent(game, `${seat.name} gains ${den.slay} (+1 Prowess).`, "g"); clearCard(game, tile); }
+  } else if (den.slay) {
+    // §18.15: no prowess is gained for a Prince-assisted kill, and the slain denizen is removed (no recycle).
+    if (seat._princeAiding) { logEvent(game, `The ${den.name} falls to the Prince's arm — no glory won.`, "muted"); clearCard(game, tile, false); }
+    else { seat.prowess.push({ name: den.slay, P: 1 }); logEvent(game, `${seat.name} gains ${den.slay} (+1 Prowess).`, "g"); clearCard(game, tile); }
+  }
   else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${seat.name} takes the ${THINGS[den.gives].name}.`, "g"); clearCard(game, tile); }
   else if (den.king) { becomeKing(game, seat); clearCard(game, tile, false); }
   else if (id === "wizard") { seat.things.push("lance"); logEvent(game, `${seat.name} takes the Lance (+1 Strength).`, "g"); clearCard(game, tile); }
@@ -620,7 +652,11 @@ export function resolveJoust(game, ch, def) {
 }
 // Whether the loser has anything worth taking (so the client only offers valid prizes).
 export function joustSpoils(loser) {
-  return { things: (loser.things.length > 0 || loser.horse), companions: loser.companions.length > 0 };
+  return {
+    things: (loser.things.length > 0 || loser.horse),
+    prowess: loser.prowess.length > 0,           // §12: a prowess card is a valid spoil
+    companions: loser.companions.length > 0,
+  };
 }
 // Apply the winner's chosen prize. "tower" imprisons the loser (keeps cards); "thing" takes their
 // best Thing/Horse; "companion" takes one companion. Falls back to Tower if the picked spoil is gone.
@@ -633,14 +669,38 @@ export function joustPrize(game, winner, loser, prize) {
       const t = loser.things.shift(); winner.things.push(t); logEvent(game, `${wn} takes ${ln}'s ${THINGS[t].name}.`, "g"); enforcePower(game, winner); return;
     }
   }
-  if (prize === "companion" && loser.companions.length) {
-    const c = loser.companions.shift(); winner.companions.push(c);
-    logEvent(game, `${wn} wins ${ln}'s ${DEN[c].name}.`, "g");
-    if ((winner.q === "princess" && c === "princess") || (winner.q === "prince" && c === "prince")) { winner.questDone = true; logEvent(game, `${wn}'s quest companion is won — leave by the Enchanted Gate!`, "g"); }
-    enforcePower(game, winner); return;
+  if (prize === "prowess" && loser.prowess.length) {   // §12: take one extra prowess card
+    loser.prowess.sort((a, b) => (b.P || 1) - (a.P || 1));
+    const pc = loser.prowess.shift(); winner.prowess.push(pc);
+    logEvent(game, `${wn} takes ${ln}'s ${pc.name} (+${pc.P || 1} Prowess).`, "g"); enforcePower(game, winner); return;
   }
+  if (prize === "companion" && loser.companions.length) { joustTakeCompanion(game, winner, loser); return; }
   logEvent(game, `${wn} unhorses ${ln} — away to the Tower!`, "r");
   toTower(game, loser, false);   // sent by a joust → keeps all cards
+}
+// §12: Sage (and Boy/Damsel) come outright; every other Companion must be APPROACHED with a die roll —
+// "remains" leaves them loyal to the foe, and the Prince fights back (winning, he stays and jails you).
+function joustTakeCompanion(game, winner, loser) {
+  const wn = winner.name, ln = loser.name, cid = loser.companions[0];
+  const take = () => {
+    loser.companions.shift(); winner.companions.push(cid);
+    logEvent(game, `${wn} wins ${ln}'s ${DEN[cid].name}.`, "g");
+    if ((winner.q === "princess" && cid === "princess") || (winner.q === "prince" && cid === "prince")) { winner.questDone = true; logEvent(game, `${wn}'s quest companion is won — leave by the Enchanted Gate!`, "g"); }
+    enforcePower(game, winner);
+  };
+  if (cid === "sage") { take(); return; }
+  if (cid === "prince") {
+    let cw, pw, guard = 0;
+    do { cw = d6() + totalS(winner) + totalP(winner); pw = d6() + DEN.prince.S + DEN.prince.P; } while (cw === pw && guard++ < 50);
+    logEvent(game, `The Prince fights ${wn} for his loyalty — ${cw} vs ${pw}.`, "a");
+    if (cw > pw) take();
+    else { logEvent(game, `The Prince stays loyal to ${ln} and strikes ${wn} down — away to the Tower!`, "r"); toTower(game, winner, false); }
+    return;
+  }
+  const need = (cid === "grail" || cid === "princess") ? 9 : 8, roll = d6() + totalP(winner);
+  logEvent(game, `${wn} approaches ${ln}'s ${DEN[cid].name} — ${roll} (need ${need}).`, "a");
+  if (roll >= need) take();
+  else logEvent(game, `The ${DEN[cid].name} remains loyal to ${ln}.`);
 }
 
 /* ------------------------------- powers --------------------------------- */
