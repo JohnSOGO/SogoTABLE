@@ -10,10 +10,12 @@ the documented choice. This is the maintenance backlog; check items off as fixed
 
 ## 1. Implemented INCORRECTLY (rule violations — highest priority)
 
+**ALL SIX FIXED (2026-07-10).**
+
 - [x] **1.1 Fog & Wind are no-ops.** §18.12 Fog rotates each face-up arrow tile 180°; §18.14 Wind
   strips all Things *held by Knights*. `resolveSpell` (engine.js ~205-206) only logs flavour for both;
   Wind's text is also backwards ("loose" → should be "held"). Only Horn does anything.
-- [ ] **1.2 Palace/Altar second denizen discarded.** _(remaining — the one core-flow fix, done next in its own change)_ Two-card areas (§5.1/§9) draw `card`+`card2`, but
+- [x] **1.2 Palace/Altar second denizen discarded.** FIXED — clearCard clears only the active card; `openEncounter`/`afterEncounter` meet the second the same visit. Edge left: if the first *remains*, its partner waits for a later entry (not same-visit) — minor, tracked. Two-card areas (§5.1/§9) draw `card`+`card2`, but
   `enterTile` only opens an encounter for `card`, and `clearCard` nulls *both* — the second denizen
   vanishes unencountered. §9 multi-denizen ordering unimplemented.
 - [x] **1.3 Arch-Mage transport is infinite.** §18.1 — he "remains in the area where you used it" (a

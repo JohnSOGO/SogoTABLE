@@ -162,6 +162,35 @@ function passTurn(game) { advanceTurn(game); beginAndAdvance(game); }
 
 // Landing on a tile: resolve a spell, apply location effects, then either open an encounter
 // (await the player's Greet/Challenge choice) or end the turn.
+// Open the encounter for the denizen on this tile. In a two-card area (Palace/Altar §9) the second
+// denizen waits in `card2` and becomes the active one once the first is gone. Returns true if a pending
+// was opened (there is a denizen to meet), false if there is nothing to approach.
+function openEncounter(game, seat, tile) {
+  if (!tile.card && tile.card2) { tile.card = tile.card2; tile.card2 = null; }   // meet the second of a two-card area
+  if (!tile.card) return false;
+  if (DEN[tile.card].king && seat.knight === "britomart" && !anyKing(game)) {
+    logEvent(game, "Britomart pays the King no heed and passes by."); return false;
+  }
+  const den = DEN[tile.card];
+  const combat = den.cls === "beast" || den.cls === "warrior" || den.cls === "magic";
+  // Both greeting and combat become "pick one of six": the player taps one of six identical denizen
+  // faces (shuffled here, hidden) instead of watching a die roll.
+  if (combat) { openCombatPick(game, seat, tile); return true; }
+  const outcomes = greetOutcomes(game, seat, tile);
+  if (outcomes) {
+    game.pending = { type: "greet_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
+      groups: outcomes.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
+    return true;
+  }
+  game.pending = { type: "encounter", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card, combat };  // single-effect greet: one confirm button
+  return true;
+}
+// After a denizen resolves, a two-card area may still hold a second to approach THIS visit — meet it
+// (only once the first is gone; a "remained" first keeps the tile and its partner waits for a later entry).
+function afterEncounter(game, seat, tile) {
+  if (tile && !tile.card && tile.card2 && openEncounter(game, seat, tile)) return;
+  passTurn(game);
+}
 function enterTile(game, seat, tile) {
   const name = seat.name;
   if (tile.pendingSpell) {
@@ -174,25 +203,7 @@ function enterTile(game, seat, tile) {
     logEvent(game, `${name} stands in the Enchanted Gate, quest fulfilled — hold it to your next turn to leave in triumph.`, "g");
   }
   if (tile.name === "cave" && seat.q === "cave" && !seat.questDone) logEvent(game, `${name} enters the Cave — keep vigil here for 3 full turns.`);
-  if (tile.card && DEN[tile.card].king && seat.knight === "britomart" && !anyKing(game)) {
-    logEvent(game, "Britomart pays the King no heed and passes by.");
-    passTurn(game); return;
-  }
-  if (tile.card) {
-    const den = DEN[tile.card];
-    const combat = den.cls === "beast" || den.cls === "warrior" || den.cls === "magic";
-    // Both greeting and combat become "pick one of six": the player taps one of six identical
-    // denizen faces (shuffled here, hidden) instead of watching a die roll.
-    if (combat) { openCombatPick(game, seat, tile); return; }
-    const outcomes = greetOutcomes(game, seat, tile);
-    if (outcomes) {
-      game.pending = { type: "greet_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
-        groups: outcomes.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
-      return;
-    }
-    game.pending = { type: "encounter", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card, combat };
-    return;   // a single-effect greet: one confirm button, no pick
-  }
+  if (openEncounter(game, seat, tile)) return;
   passTurn(game);
 }
 // Open a combat "pick one of six": the foe's (red) die is rolled now and stored; the player taps a
@@ -208,7 +219,7 @@ function openCombatPick(game, seat, tile) {
     logEvent(game, `${denPhrase(tile.card)} is no match for ${seat.name}.`);
     game.pending = null;
     resolveChallenge(game, seat, tile, win.face, co.red);
-    passTurn(game);
+    afterEncounter(game, seat, tile);
     return;
   }
   game.pending = { type: "combat_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
@@ -241,7 +252,7 @@ function doGreetPick(game, seat, action) {
   game.pending = null;
   if (!tile || !tile.card) { passTurn(game); return; }
   resolveGreet(game, seat, tile, face);
-  passTurn(game);
+  afterEncounter(game, seat, tile);   // a two-card area may still hold a second denizen to meet
 }
 // Combat "pick one of six": the tapped face maps through the hidden shuffle to a white die,
 // fought against the stored red die. A tie reopens the pick with a fresh red (the rulebook reroll).
@@ -261,7 +272,7 @@ function doCombatPick(game, seat, action) {
   }
   game.pending = null;
   resolveChallenge(game, seat, tile, white, p.red);
-  passTurn(game);
+  afterEncounter(game, seat, tile);
 }
 // The visible "pick one of six" escape: the captive taps a face; we map it through the hidden shuffle
 // to a die and resolve the escape rule exactly as an auto-roll would. Success → the seat may still move
@@ -290,7 +301,7 @@ function doEncounterChoice(game, seat, action) {
   const choice = action && action.choice;
   if (combat) { if (choice && choice !== "challenge") throw new Error("This denizen must be challenged."); resolveChallenge(game, seat, tile); }
   else { if (choice && choice !== "greet") throw new Error("This denizen can only be greeted."); resolveGreet(game, seat, tile); }
-  passTurn(game);
+  afterEncounter(game, seat, tile);
 }
 function doTransport(game, seat, action) {
   requireComp(seat, "archmage");

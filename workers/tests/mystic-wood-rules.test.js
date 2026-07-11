@@ -589,6 +589,22 @@ test("Joust prize: prowess card takeable; companion needs an approach roll", () 
   assert.deepEqual(l.companions, ["grail"], "a failed approach leaves the companion loyal to the foe");
 });
 
+// §9: a two-card area (Palace/Altar) holds two denizens — you must meet BOTH. The second used to be
+// silently discarded when the first was cleared; now it opens a fresh encounter the same visit.
+test("Two-card area: the second denizen is met, not discarded", () => {
+  setMysticWoodRandom(() => 0.5);   // neutral: the follow-on Boar fight is losable (not an auto-win), so it opens a pick
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.current_player = "P1"; const s = g.players.P1;
+  s.knight = "george"; s.q = "dragon"; s.things = []; s.prowess = []; s.companions = []; s.horse = false;
+  const tile = cellAt(g.board, s.r, s.c); tile.revealed = true; tile.card = "ox"; tile.card2 = "boar";
+  g.pending = { type: "combat_pick", mark: "P1", r: tile.r, c: tile.c, card: "ox", red: 1, label: "Strength", faceMap: [6, 6, 6, 6, 6, 6] };
+  makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 1 });   // white 6 vs red 1 → the Ox is slain
+  assert.equal(g.pending && g.pending.type, "combat_pick", "the second denizen opens a fresh encounter");
+  assert.equal(g.pending.card, "boar", "the second denizen (Boar) is met, not discarded");
+  assert.equal(g.current_player, "P1", "both are met this visit — the turn hasn't passed");
+});
+
 test("contract: id predicate, seat count, distinct knights, projection shape", () => {
   setMysticWoodRandom(mulberry32(1));
   const g = newMysticWoodGame();

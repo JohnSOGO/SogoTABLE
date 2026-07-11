@@ -111,8 +111,10 @@ export function refillDeck(game) {
 // A denizen leaves a tile. recycle=true → it wanders back into the deck later (keeps encounters coming
 // on the ~60-tile board). Unique slain bosses (Dragon/King) don't recycle.
 export function clearCard(game, tile, recycle = true) {
+  // Clears ONLY the active denizen. In a two-card area (Palace/Altar §9) the second waits in `card2`
+  // until it becomes the active card (see rules.js openEncounter) — clearing the first must never
+  // discard the second unencountered.
   if (tile.card) { if (recycle) game.discard.push(tile.card); tile.card = null; }
-  if (tile.card2) { if (recycle) game.discard.push(tile.card2); tile.card2 = null; }
 }
 export function drawCardFor(game, tile) {
   if (tile.fixed) return;
