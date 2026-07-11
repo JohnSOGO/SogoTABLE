@@ -358,6 +358,35 @@ test("Greet: the Sage and the Bishop have fixed reactions and roll no die", () =
   assert.equal(bishop.game.results.P1.die, null);
 });
 
+// Report mrfof9ip-to1swn: "Bishop doesn't make me wait three turns. It starts but doesn't count."
+// A bot HOLDS while praying (ai.js), so its prayer counts every round — but a human used to be
+// handed a normal, active turn, and any move silently LAPSED the prayer, so a human playing
+// naturally never accumulated the count. Kneeling is a commitment: the Bishop must hold the human
+// the same three turns hands-free. After the kneel turn ends, the turn machine must auto-skip the
+// still-praying seat (counting the prayer) until the Ring is earned — no further input required.
+test("Bishop: kneeling holds a human for three turns and earns the Ring hands-free", () => {
+  setMysticWoodRandom(mulberry32(42));
+  const game = newMysticWoodGame();
+  initMysticWoodSeats(game, [human("P1"), bot("P2"), bot("P3")]);
+  assert.equal(game.current_player, "P1");
+  const p1 = game.players.P1;
+
+  // Kneel: put the Bishop under the human and start the prayer, then end the kneel turn once.
+  const tile = cellAt(game.board, p1.r, p1.c);
+  tile.card = "bishop"; tile.revealed = true;
+  resolveGreet(game, p1, tile);
+  assert.equal(p1.praying, true);
+  assert.equal(p1.prayerTurns, 0);
+
+  makeMysticWoodMove(game, "P1", { type: "end-turn" });   // one input — the Bishop takes it from here
+
+  assert.equal(game.status, "playing");
+  assert.equal(p1.prayerTurns, 3, "the prayer must count to three unattended");
+  assert.equal(p1.praying, false, "the prayer completes and releases the knight");
+  assert.ok(p1.things.includes("ring"), "three turns of prayer earn the Ring");
+  assert.equal(game.current_player, "P1", "the freed knight gets its turn back");
+});
+
 test("Greet: a varying reaction table still rolls (Merlin: 1-2 transports, 5-6 gives the Shield)", () => {
   const low = greetGame("george", "merlin");
   setMysticWoodRandom(seq([0.0]));   // die = 1 → transports away, no Thing

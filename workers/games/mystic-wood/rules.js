@@ -130,6 +130,11 @@ function beginSeatTurn(game, seat) {
       logEvent(game, `${name} prays before the Bishop (${seat.prayerTurns}/3).`);
       if (seat.prayerTurns >= 3) { seat.things.push("ring"); seat.praying = false; clearCard(game, t, false); logEvent(game, `The Bishop blesses ${name} with the Ring (+1 Prowess).`, "g"); enforcePower(game, seat); }
     } else { seat.praying = false; logEvent(game, `${name} leaves the Bishop; the prayer lapses.`); }
+    // Kneeling commits the knight: the Bishop holds them here, so a still-praying seat misses
+    // its turn (the prayer just counted above) instead of being handed a move that would lapse it.
+    // Bots already hold in ai.js; this makes a human wait the same three turns. On the turn the
+    // prayer completes, `praying` is now false and the seat plays on (with the Ring).
+    if (seat.praying) return "skip";
   }
   return "act";
 }

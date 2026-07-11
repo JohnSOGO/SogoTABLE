@@ -76,8 +76,9 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
 - **Chapel +2 is Prowess-only** (helps magic/warrior fights & companion greeting rolls).
 - **Dragon flees → recycles** (only George's kill removes it) and **fight-loss returns companions
   to the deck** — both keep quests always completable (they closed real unwinnable-state stalls).
-- **Bishop** gives the Ring instantly; **Dwarf** gives Armour directly; **Ring/Potion/Shield**
-  bonuses are placeholders (source `[TBD]`). Generic tiles orient on reveal to stay connected.
+- **Bishop** grants the Ring after a 3-turn prayer (see below); **Dwarf** gives Armour directly;
+  **Ring/Potion/Shield** bonuses are placeholders (source `[TBD]`). Generic tiles orient on reveal
+  to stay connected.
 - **A greeting rolls only when the die can change the outcome.** The Dwarf (→ Armour), the Nymph
   (→ Crystal), the Sage (always befriends) and the Bishop (always kneels to pray) have one fixed
   reaction, so `resolveGreet` rolls no die and the result card shows none (`greetNeedsDie`,
@@ -87,6 +88,12 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   vanquish him and he joins); Bishop's 3-turn prayer for the Ring; Guyon's Cave now counts
   3 turns *spent* (not entries); Illusion "does your bidding" → relocates to an empty glade;
   Queen's boon (5–6 casts a rival into the Tower).
+- **Bishop prayer holds the knight (2026-07-10, report `mrfof9ip-to1swn`).** Kneeling is a
+  commitment: while `praying`, `beginSeatTurn` (`rules.js`) returns `"skip"`, so the turn machine
+  auto-holds the seat and counts the prayer each round until the Ring is earned (bots already held
+  via `ai.js`). Previously a human was handed a normal, active turn and any move silently *lapsed*
+  the prayer, so a human playing naturally never accumulated the count — "it starts but doesn't
+  count." On the turn the prayer completes, `praying` is false and the freed knight plays on.
 - **The Mystic Horn is staged, not silent (2026-07-08; hardened 2026-07-10).** A scatter used to
   look like a teleport, so knights lost their own token. `horn.js` plays it: a horn call, every
   token touring each knight's landing place in turn before it settles (~2s, one-shot per
