@@ -26,6 +26,9 @@ export function appendBugReport(data, payload) {
     room_code: String(payload.room_code || "").slice(0, 12),
     user_agent: String(payload.user_agent || "").slice(0, 400),
     description: description.slice(0, 4000),
+    // Bounded JSON snapshot of the game at report time (Tier 1 capture) — lets the fix agent see the
+    // actual state, not just the text. Capped so one report can't bloat the D1 row.
+    game_state: String(payload.game_state || "").slice(0, 40000),
   };
   data.bug_reports.push(report);
   data.bug_reports = data.bug_reports.slice(-BUG_REPORT_LIMIT);

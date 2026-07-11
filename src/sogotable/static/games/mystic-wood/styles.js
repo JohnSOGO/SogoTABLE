@@ -31,6 +31,8 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-topbar{display:flex;align-items:center;gap:6px;height:46px;padding:0 8px;background:var(--panel);border-bottom:1px solid var(--rule);border-radius:10px 10px 0 0}
 .mystic-wood-root .mw-topbar button{padding:7px 9px;font-size:12px;white-space:nowrap}
 .mystic-wood-root .mw-tb-turn{flex:1;min-width:0;text-align:center;font-family:var(--serif);font-size:15px;font-variant:small-caps;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--gold2)}
+/* Turn counter pinned at the front of the banner so it never ellipsizes away (report mrfoq90c). */
+.mystic-wood-root .mw-turnno{font-variant:normal;font-size:12px;color:var(--gold);letter-spacing:.02em}
 .mystic-wood-root .mw-status{background:var(--panel);border-bottom:1px solid var(--rule);padding:6px 8px}
 .mystic-wood-root .mw-boardwrap{position:relative;overflow:hidden;width:100%;min-height:120px;flex:none;touch-action:none;background:#0f1409;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
 :root[data-theme="light"] .mystic-wood-root .mw-boardwrap{background:#c9d0b4}

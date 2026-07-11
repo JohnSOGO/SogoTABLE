@@ -72,6 +72,9 @@ function reportToText(r) {
   if (r.room_code) lines.push(`Room: ${r.room_code}`);
   if (r.player_name) lines.push(`Reported by: ${r.player_name}`);
   lines.push("", "Issue:", String(r.description || "").trim());
+  // A snapshot of the game at report time (Tier 1 capture) — the real board/seats/pending/chronicle,
+  // so the agent can see the state that produced the bug instead of reconstructing it blind.
+  if (r.game_state) lines.push("", "Game state at report time (JSON — board, seats, pending, chronicle):", String(r.game_state));
   return lines.join("\n");
 }
 

@@ -779,7 +779,24 @@ function bugReportContext() {
     room_code: currentRoom ? currentRoom.code : "",
     player_id: player ? player.id : (getDeviceSelectedPlayerId() || ""),
     player_name: player ? player.name : "",
+    game_state: captureGameState(),
   };
+}
+
+// A bounded JSON snapshot of the live game projection, attached to a bug report so the fix agent
+// sees the actual board/seat/pending state + chronicle instead of reasoning blind (Tier 1 capture,
+// docs/observability-and-debug.md). Bounded so a long game can't bloat a D1 row: drop the heavy
+// board, then trim, before ever exceeding the cap.
+function captureGameState() {
+  try {
+    const g = currentRoom && currentRoom.game;
+    if (!g) return "";
+    const CAP = 40000;
+    let s = JSON.stringify(g);
+    if (s.length > CAP) s = JSON.stringify({ ...g, board: "(omitted — snapshot too large)" });
+    if (s.length > CAP && Array.isArray(g.log)) s = JSON.stringify({ ...g, board: "(omitted)", log: g.log.slice(-80) });
+    return s.length > CAP ? "" : s;   // give up rather than store a truncated, unparseable blob
+  } catch (_e) { return ""; }
 }
 
 function roomSummarySignature(room) {

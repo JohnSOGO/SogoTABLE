@@ -19,7 +19,10 @@ export function pickIndex(n) { return rnd(n); }
 export function shuffle(a) { for (let i = a.length - 1; i > 0; i -= 1) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
 /* ------------------------------- logging -------------------------------- */
-const LOG_CAP = 80;
+// Retained history. Deep enough to audit a long game (the chronicle IS the audit log, and the
+// bug-report snapshot draws from it), still bounded so room state / the projection stay a
+// reasonable size on a phone. See docs/observability-and-debug.md (Slice 1).
+const LOG_CAP = 300;
 export function logEvent(game, text, cls = "") {
   if (!game.log) game.log = [];
   game.log.push({ text, cls });
@@ -146,8 +149,8 @@ export function princessVsKing(seat, den) { return (den && den.king && seat.comp
 export function enforcePower(game, seat) {
   let guard = 0;
   while (capTotal(seat) > POWER_LIMIT && guard++ < 12) {
-    if (seat.things.length) { const t = seat.things.pop(); logEvent(game, `${knightOf(seat).name} sheds the ${THINGS[t].name} (power limit).`); }
-    else if (seat.prowess.length) { seat.prowess.pop(); logEvent(game, `${knightOf(seat).name} sheds a prowess card (power limit).`); }
+    if (seat.things.length) { const t = seat.things.pop(); logEvent(game, `${seat.name} sheds the ${THINGS[t].name} (power limit).`); }
+    else if (seat.prowess.length) { seat.prowess.pop(); logEvent(game, `${seat.name} sheds a prowess card (power limit).`); }
     else break;
   }
 }
@@ -196,7 +199,7 @@ function recordHorn(game, byName, scattered) {
 }
 // Returns { endTurn } — Mystic Horn ends the drawer's turn.
 export function resolveSpell(game, seat, tile, spellId) {
-  const name = knightOf(seat).name;
+  const name = seat.name;
   if (spellId === "fog") { logEvent(game, "Mystic Fog rolls through — the wood shifts."); return {}; }
   if (spellId === "wind") { logEvent(game, "Mystic Wind blows — loose Things are swept away."); return {}; }
   if (spellId === "horn") {
@@ -244,7 +247,7 @@ export function denIntro(id, name) {
 }
 // Apply a greeted denizen's reaction. Returns { endTurn, befriended }.
 export function applyReaction(game, seat, tile, act) {
-  const name = knightOf(seat).name;
+  const name = seat.name;
   const id = tile.card;
   if (act === "remains") { tile.remains = true; logEvent(game, tale(id, act, name) || `${denPhrase(id)} remains, ignoring ${name}.`); return {}; }
   if (act === "transport") { logEvent(game, tale(id, act, name) || `${denPhrase(id)} transports away.`); clearCard(game, tile); return {}; }
@@ -290,19 +293,19 @@ export function horseRunsTo(game, tile, dir) {
 }
 export function befriend(game, seat, tile, id) {
   seat.companions.push(id);
-  logEvent(game, `The ${DEN[id].name} befriends ${knightOf(seat).name}!`, "a");
+  logEvent(game, `The ${DEN[id].name} befriends ${seat.name}!`, "a");
   const q = seat.q;
   if ((q === "princess" && id === "princess") || (q === "prince" && id === "prince")) {
     seat.questDone = true;
-    logEvent(game, `${knightOf(seat).name}'s quest companion is won — now leave by the Enchanted Gate!`, "g");
+    logEvent(game, `${seat.name}'s quest companion is won — now leave by the Enchanted Gate!`, "g");
   }
   clearCard(game, tile, false); enforcePower(game, seat);
   return { befriended: true };
 }
 export function takeGrail(game, seat, tile) {
   seat.companions.push("grail");
-  logEvent(game, `${knightOf(seat).name} takes up the Holy Grail!`, "a");
-  if (seat.q === "grail") { seat.questDone = true; logEvent(game, `${knightOf(seat).name} bears the Grail — reach the Enchanted Gate to win!`, "g"); }
+  logEvent(game, `${seat.name} takes up the Holy Grail!`, "a");
+  if (seat.q === "grail") { seat.questDone = true; logEvent(game, `${seat.name} bears the Grail — reach the Enchanted Gate to win!`, "g"); }
   clearCard(game, tile, false);
 }
 
@@ -336,7 +339,7 @@ export function escapeOutcomes(mode, tries) {
 // the seat's OWN mark so the client pops its result modal (a following bot turn records elsewhere and
 // can't clobber it). `tries` is the attempt count already reflected in the pending projection.
 export function resolveEscape(game, seat, face, mode, tries) {
-  const name = knightOf(seat).name;
+  const name = seat.name;
   const freed = escapeFrees(mode, face, tries);
   if (mode === "capture") {
     if (freed) { seat.captured = false; logEvent(game, `${name} breaks free of the Enchantress!`, "g"); }
@@ -408,7 +411,6 @@ export function combatOutcomes(game, seat, tile) {
 export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   const den = DEN[tile.card];
   const id = tile.card;
-  const k = knightOf(seat);
   const mineParts = [], foeParts = [];
   if (den.cls === "beast" || den.cls === "warrior") mineParts.push({ l: "Strength", v: totalS(seat) });
   if (den.cls === "magic" || den.cls === "warrior") mineParts.push({ l: "Prowess", v: totalP(seat) - princessVsKing(seat, den) });
@@ -437,9 +439,9 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   // "Victory! 9 vs 7" alone leaves the player guessing what they actually won.
   let result;
   const outcome = mine > foe ? "win" : (den.captures ? "captured" : "lose");
-  if (outcome === "win") logEvent(game, `${k.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
-  else if (outcome === "captured") logEvent(game, `The Enchantress captures ${k.name}! (escape on a 6) — ${mine} vs ${foe}`, "r");
-  else logEvent(game, `${k.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
+  if (outcome === "win") logEvent(game, `${seat.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
+  else if (outcome === "captured") logEvent(game, `The Enchantress captures ${seat.name}! (escape on a 6) — ${mine} vs ${foe}`, "r");
+  else logEvent(game, `${seat.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
   const before = logMark(game);   // headline is already on the modal; capture only what follows
 
   if (outcome === "win") {
@@ -457,21 +459,20 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   return { result, endTurn: true };
 }
 function applyWin(game, seat, tile, den, id) {
-  const k = knightOf(seat);
   if (den.dragon) {
-    if (seat.q === "dragon") { seat.questDone = true; logEvent(game, `The Dragon is SLAIN — ${k.name}'s quest is done! Reach the Enchanted Gate to win.`, "g"); clearCard(game, tile, false); }
+    if (seat.q === "dragon") { seat.questDone = true; logEvent(game, `The Dragon is SLAIN — ${seat.name}'s quest is done! Reach the Enchanted Gate to win.`, "g"); clearCard(game, tile, false); }
     else { logEvent(game, "The Dragon flees to the far wood."); clearCard(game, tile, true); } // stays in play so George's quest remains possible
-  } else if (den.slay) { seat.prowess.push({ name: den.slay, P: 1 }); logEvent(game, `${k.name} gains ${den.slay} (+1 Prowess).`, "g"); clearCard(game, tile); }
-  else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${k.name} takes the ${THINGS[den.gives].name}.`, "g"); clearCard(game, tile); }
+  } else if (den.slay) { seat.prowess.push({ name: den.slay, P: 1 }); logEvent(game, `${seat.name} gains ${den.slay} (+1 Prowess).`, "g"); clearCard(game, tile); }
+  else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${seat.name} takes the ${THINGS[den.gives].name}.`, "g"); clearCard(game, tile); }
   else if (den.king) { becomeKing(game, seat); clearCard(game, tile, false); }
-  else if (id === "wizard") { seat.things.push("lance"); logEvent(game, `${k.name} takes the Lance (+1 Strength).`, "g"); clearCard(game, tile); }
+  else if (id === "wizard") { seat.things.push("lance"); logEvent(game, `${seat.name} takes the Lance (+1 Strength).`, "g"); clearCard(game, tile); }
   else if (id === "illusion") { sendIllusion(game, tile); }
   else clearCard(game, tile);
 }
 export function becomeKing(game, seat) {
   if (seat.knight === "britomart") { logEvent(game, "Britomart will not seize the crown."); return; }
   seat.isKing = true; seat.q = "king";
-  logEvent(game, `${knightOf(seat).name} strikes down the King and claims the crown!`, "g");
+  logEvent(game, `${seat.name} strikes down the King and claims the crown!`, "g");
 }
 
 /* -------------------------------- greet --------------------------------- */
@@ -569,7 +570,7 @@ export function resolveGreet(game, seat, tile, forcedDie) {
 
 // Prince attacks on a low greet: a S+P fight. Vanquish him → he yields and joins; lose → the Tower.
 function princeAttack(game, seat, tile) {
-  const name = knightOf(seat).name;
+  const name = seat.name;
   let white, red, mine, foe, guard = 0;
   do { white = d6(); red = d6(); mine = white + totalS(seat) + totalP(seat); foe = red + DEN.prince.S + DEN.prince.P; } while (mine === foe && guard++ < 50);
   logEvent(game, `The Prince attacks — ${mine} vs ${foe}.`, "a");
@@ -579,19 +580,19 @@ function princeAttack(game, seat, tile) {
 // Bishop: kneel to pray; 3 full turns on the tile earns the Ring (counted in beginSeatTurn).
 function startPrayer(game, seat, tile) {
   seat.praying = true; seat.prayerTurns = 0;
-  logEvent(game, `${knightOf(seat).name} kneels to pray before the Bishop (0/3).`);
+  logEvent(game, `${seat.name} kneels to pray before the Bishop (0/3).`);
 }
 // Queen: on a 5-6 she casts a rival into the Tower (auto-picks the leading free opponent — she keeps
 // her seat). One-boon-per-game and player-chosen target are documented fast-follows.
 function queenBoon(game, seat, die) {
-  logEvent(game, `${knightOf(seat).name} kneels before the Queen (rolled ${die}).`);
+  logEvent(game, `${seat.name} kneels before the Queen (rolled ${die}).`);
   if (die < 5) { logEvent(game, "The Queen grants no boon this time."); return; }
   const rivals = game.seat_order.map((m) => game.players[m])
     .filter((p) => p.mark !== seat.mark && !p.tower && !p.captured && !p.won && tileNameAt(game, p) !== "tower");
   if (!rivals.length) { logEvent(game, "The Queen offers a boon, but no rival is within reach."); return; }
   rivals.sort((a, b) => (Number(b.questDone) - Number(a.questDone)) || ((totalS(b) + totalP(b)) - (totalS(a) + totalP(a))));
   const t = rivals[0];
-  logEvent(game, `The Queen grants a boon — ${knightOf(t).name} is cast into the Tower!`, "a");
+  logEvent(game, `The Queen grants a boon — ${t.name} is cast into the Tower!`, "a");
   toTower(game, t, false);
 }
 // Illusion "does your bidding": relocate its card to a random revealed, unoccupied, non-Tower glade.
@@ -607,7 +608,7 @@ function sendIllusion(game, tile) {
 // The contest only: both knights add full S+P + a die; ties reroll. Records the roll for the
 // challenger so they see the result, and returns who won. The prize is applied separately.
 export function resolveJoust(game, ch, def) {
-  const cName = knightOf(ch).name, dName = knightOf(def).name;
+  const cName = ch.name, dName = def.name;
   let cw, dw, guard = 0;
   do { cw = d6() + totalS(ch) + totalP(ch); dw = d6() + totalS(def) + totalP(def); } while (cw === dw && guard++ < 50);
   const chWon = cw > dw;
@@ -622,7 +623,7 @@ export function joustSpoils(loser) {
 // Apply the winner's chosen prize. "tower" imprisons the loser (keeps cards); "thing" takes their
 // best Thing/Horse; "companion" takes one companion. Falls back to Tower if the picked spoil is gone.
 export function joustPrize(game, winner, loser, prize) {
-  const wn = knightOf(winner).name, ln = knightOf(loser).name;
+  const wn = winner.name, ln = loser.name;
   if (prize === "thing") {
     if (loser.horse && !winner.horse) { loser.horse = false; winner.horse = true; logEvent(game, `${wn} wins ${ln}'s Horse (+2 Strength).`, "g"); enforcePower(game, winner); return; }
     if (loser.things.length) {
@@ -645,14 +646,14 @@ export function powerScry(game, seat) {
   refillDeck(game);
   if (!game.deck.length) { logEvent(game, "The Crystal clouds over — the deck is empty.", "a"); return { next: null }; }
   const id = game.deck[game.deck.length - 1];
-  logEvent(game, `${knightOf(seat).name} scries the Crystal — next card: ${DEN[id].name}.`, "a");
+  logEvent(game, `${seat.name} scries the Crystal — next card: ${DEN[id].name}.`, "a");
   return { next: id };
 }
 export function powerRotate(game, seat) {
   const t = cellAt(game.board, seat.r, seat.c);
   const o = t.open;
   t.open = { N: o.S, S: o.N, E: o.W, W: o.E };
-  logEvent(game, `${knightOf(seat).name} raises the Wand — the tile turns about.`, "a");
+  logEvent(game, `${seat.name} raises the Wand — the tile turns about.`, "a");
 }
 // Fountain: 1–2 Tower · 3–4 Earthly Gate · 5–6 Enchanted Gate. Ends the turn.
 export function powerDrink(game, seat, tile) {
@@ -660,7 +661,7 @@ export function powerDrink(game, seat, tile) {
   const r = d6();
   const dest = r <= 2 ? [4, 3] : r <= 4 ? [8, 3] : [0, 3];
   const where = r <= 2 ? "the Tower" : r <= 4 ? "the Earthly Gate" : "the Enchanted Gate";
-  logEvent(game, `${knightOf(seat).name} drinks — the waters sweep them to ${where}. (rolled ${r})`, "a");
+  logEvent(game, `${seat.name} drinks — the waters sweep them to ${where}. (rolled ${r})`, "a");
   relocate(game, seat, dest[0], dest[1]);
   return { endTurn: true };
 }

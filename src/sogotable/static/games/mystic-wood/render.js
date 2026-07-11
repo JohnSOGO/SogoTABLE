@@ -93,11 +93,11 @@ function markIntroSeen(key) { try { localStorage.setItem("mw.intro." + key, "1")
 /* ------------------------------- layout --------------------------------- */
 function boardScreenHtml(ctx, game, me) {
   const cur = game.players.find((p) => p.mark === game.current_player);
-  const turn = cur ? (cur.mark === me ? "Your turn" : `${E(cur.name)}'s turn`) : "—";
+  const turn = cur ? (cur.mark === me ? "Your turn" : `${E(cur.label || cur.name)}'s turn`) : "—";
   return `
     <div class="mw-topbar">
       <button data-top="knights">≡ Knights</button>
-      <span class="mw-tb-turn">${turn}</span>
+      <span class="mw-tb-turn"><b class="mw-turnno">Turn ${game.turn_seq || 0}</b> · ${turn}</span>
       <button data-top="zoom">🔍</button>
       <button data-top="chron">📜</button>
     </div>
@@ -195,10 +195,11 @@ function endHtml(ctx, game) {
       <p style="color:var(--muted)">${w ? E(w.name) : "The victor"} ${reason} and rules the Mystic Wood.</p>
     </div>`;
 }
-// name→emoji for the chronicle's leading column: match the canonical knight name the log always writes.
+// name→emoji for the chronicle's leading column: match the display name the log writes (seat.name —
+// the human's name, or the knight for a bot). Longest-first so "Sogo the Bold" beats a stray "Sogo".
 function logEmojiMap(ctx, game) {
   const meta = roomMeta(ctx);
-  return (game.players || []).map((p) => ({ name: (KNIGHTS[p.knight] || {}).name || p.name || "", emoji: (meta[p.mark] || {}).icon || "" }))
+  return (game.players || []).map((p) => ({ name: p.name || (KNIGHTS[p.knight] || {}).name || "", emoji: (meta[p.mark] || {}).icon || "" }))
     .filter((x) => x.name && x.emoji).sort((a, b) => b.name.length - a.name.length);
 }
 function logEmojiFor(text, map) {
@@ -474,17 +475,18 @@ function openPanel(root, ctx, game, me, which) {
   requestAnimationFrame(() => panel.classList.add("open"));
   panel.querySelectorAll("[data-peek]").forEach((el) => { const show = (ev) => { ev.stopPropagation(); const pt = ev.touches ? ev.touches[0] : ev; const c = peekContent(game, el.getAttribute("data-peek")); if (c) showPop(pt.clientX, pt.clientY, c.title, c.body); }; el.addEventListener("mousedown", show); el.addEventListener("touchstart", show, { passive: false }); });
 }
-// Canonical knight name — the log always writes knightOf(seat).name, so filtering matches on it.
-function knightName(p) { return (KNIGHTS[p.knight] || {}).name || p.name || ""; }
+// The name the log writes for a player (seat.name — human name, or the knight for a bot), so the
+// per-player filter matches log lines. Chips DISPLAY the fuller label ("Sogo (Roland's quest)").
+function logName(p) { return p.name || (KNIGHTS[p.knight] || {}).name || ""; }
 function chronicleHtml(game) {
   const chips = [`<button class="mw-cf${chronFilter == null ? " on" : ""}" data-cf="all">All</button>`]
-    .concat(game.players.map((p) => `<button class="mw-cf${chronFilter === p.mark ? " on" : ""}" data-cf="${p.mark}" style="--cf:${E(p.color)}">${E(knightName(p))}</button>`));
+    .concat(game.players.map((p) => `<button class="mw-cf${chronFilter === p.mark ? " on" : ""}" data-cf="${p.mark}" style="--cf:${E(p.color)}">${E(p.label || logName(p))}</button>`));
   let rows = game.log || [];
-  if (chronFilter) { const p = game.players.find((q) => q.mark === chronFilter); const nm = p && knightName(p); rows = nm ? rows.filter((e) => String(e.text || "").includes(nm)) : rows; }
-  rows = rows.slice(-60).reverse();
+  if (chronFilter) { const p = game.players.find((q) => q.mark === chronFilter); const nm = p && logName(p); rows = nm ? rows.filter((e) => String(e.text || "").includes(nm)) : rows; }
+  rows = rows.slice().reverse();   // the ENTIRE (bounded) history, newest first — report mrfoq90c
   const list = rows.length ? rows.map((e) => `<div class="le"><span class="${E(e.cls || "")}">${sanitizeLog(e.text)}</span></div>`).join("")
-    : `<div class="le muted">No entries${chronFilter ? " for this knight" : ""} yet.</div>`;
-  return `<h2 style="font-size:22px;margin-bottom:8px">Chronicle</h2><div class="mw-cfrow">${chips.join("")}</div><div class="mw-chronlist">${list}</div>`;
+    : `<div class="le muted">No entries${chronFilter ? " for this player" : ""} yet.</div>`;
+  return `<h2 style="font-size:22px;margin-bottom:8px">Chronicle <span style="font-size:14px;color:var(--muted)">· Turn ${game.turn_seq || 0} · ${(game.log || []).length} entries</span></h2><div class="mw-cfrow">${chips.join("")}</div><div class="mw-chronlist">${list}</div>`;
 }
 function wireChron(panel, game) {
   panel.querySelectorAll("[data-cf]").forEach((b) => b.addEventListener("click", () => {
@@ -496,7 +498,7 @@ function closePanel() { document.querySelectorAll(".mw-panelover,.mw-backdrop").
 function knightCard(p, active) {
   return `<div class="card pl${active ? " active" : ""}">
     <div class="plhead"><span class="crest" style="background:${E(p.color)}">${E((p.name || "?")[0])}</span>
-      <span class="plname" style="color:${E(p.color)}">${E(p.name)}${p.is_bot ? " 🤖" : ""}</span>${p.isKing ? `<span class="chip">👑 King</span>` : ""}</div>
+      <span class="plname" style="color:${E(p.color)}">${E(p.label || p.name)}${p.is_bot ? " 🤖" : ""}</span>${p.isKing ? `<span class="chip">👑 King</span>` : ""}</div>
     ${statsHtml(p)}
     <div class="quest">${p.questDone ? "✓ " : ""}${E(p.quest || "")}</div>
     <div class="inv">${invHtml(p)}</div>

@@ -80,12 +80,12 @@ export function initMysticWoodSeats(game, players) {
 function winGame(game, seat, reason) {
   game.status = "complete"; game.winner = seat.mark; seat.won = true;
   game.end_reason = { mark: seat.mark, reason };
-  logEvent(game, `${KNIGHTS[seat.knight].name} has won the Mystic Wood!`, "g");
+  logEvent(game, `${seat.name} has won the Mystic Wood!`, "g");
 }
 // Runs at the start of a seat's turn: victory checks, then escape rolls. Returns "act" | "skip".
 function beginSeatTurn(game, seat) {
   seat.moved = false; game.pending = null; game.scry_reveal = null;
-  const name = KNIGHTS[seat.knight].name;
+  const name = seat.name;
   if (seat.atGate) {
     if (seat.questDone && tileNameAt(game, seat) === "xgate") { winGame(game, seat, "gate"); return "skip"; }
     seat.atGate = false;
@@ -162,7 +162,7 @@ function passTurn(game) { advanceTurn(game); beginAndAdvance(game); }
 // Landing on a tile: resolve a spell, apply location effects, then either open an encounter
 // (await the player's Greet/Challenge choice) or end the turn.
 function enterTile(game, seat, tile) {
-  const name = KNIGHTS[seat.knight].name;
+  const name = seat.name;
   if (tile.pendingSpell) {
     const sp = tile.pendingSpell; tile.pendingSpell = null;
     const res = resolveSpell(game, seat, tile, sp);
@@ -288,7 +288,7 @@ function doTransport(game, seat, action) {
   if (game.seat_order.some((m) => m !== seat.mark && !game.players[m].won && game.players[m].r === to.r && game.players[m].c === to.c)) {
     throw new Error("Another knight holds that place.");
   }
-  logEvent(game, `The Arch-Mage sends ${KNIGHTS[seat.knight].name} to the ${to.label || to.name}.`, "a");
+  logEvent(game, `The Arch-Mage sends ${seat.name} to the ${to.label || to.name}.`, "a");
   relocate(game, seat, to.r, to.c);
   enterTile(game, seat, to);
 }
@@ -355,7 +355,10 @@ export function makeMysticWoodMove(game, mark, action) {
 function seatToDict(s) {
   const k = KNIGHTS[s.knight];
   return {
-    mark: s.mark, name: s.name, is_bot: s.is_bot, knight: s.knight, color: k.color, quest: k.quest,
+    // `label` identifies the player the way the reports asked: the human's name with the knight's
+    // quest in parens — "Sogo (Roland's quest)". A bot IS its knight, so it just reads "Roland".
+    mark: s.mark, name: s.name, label: s.is_bot ? k.name : `${s.name} (${k.name}'s quest)`,
+    is_bot: s.is_bot, knight: s.knight, color: k.color, quest: k.quest,
     r: s.r, c: s.c,
     things: s.things.map((t) => ({ id: t, name: THINGS[t].name })),
     prowess: s.prowess.map((x) => x.name),
@@ -373,7 +376,7 @@ function pendingToDict(game) {
   if (!p) return null;
   if (p.type === "joust-prize") {
     const loser = game.players[p.loser];
-    return { type: p.type, mark: p.mark, loser: p.loser, loserName: KNIGHTS[loser.knight].name, spoils: joustSpoils(loser) };
+    return { type: p.type, mark: p.mark, loser: p.loser, loserName: loser.name, spoils: joustSpoils(loser) };
   }
   // "pick one of six" greeting/combat: send the grouped odds, NEVER the face-map or the red die
   // (they're the answer key).
@@ -381,7 +384,7 @@ function pendingToDict(game) {
     // Never send the faceMap (the answer key) — only the grouped odds, the mode, and the attempt count.
     return { type: p.type, mark: p.mark, mode: p.mode, tries: p.tries, groups: p.groups };
   }
-  const knightName = KNIGHTS[game.players[p.mark].knight].name;   // the intro/first-sight line names the meeting knight
+  const knightName = game.players[p.mark].name;   // the intro/first-sight line names the meeting player (human name, or the knight for a bot)
   if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
     return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "",
@@ -416,6 +419,9 @@ export function mysticWoodGameToDict(game) {
     scry_reveal: game.scry_reveal || null,
     results: game.results || {},
     horn: game.horn || null,
-    log: (game.log || []).slice(-40),
+    // Send the full retained chronicle (bounded by LOG_CAP) so the client can show the ENTIRE history
+    // (report mrfoq90c) and a bug-report snapshot captures a real audit trail. turn_seq above is the
+    // turn count shown near the top.
+    log: (game.log || []).slice(-300),
   };
 }

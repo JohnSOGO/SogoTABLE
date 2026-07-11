@@ -19,7 +19,7 @@ const human = (mark) => ({ mark, name: mark, kind: "human" });
 const bot = (mark) => ({ mark, name: mark, kind: "bot", bot_level: 2 });
 function seatLit(knight, over = {}) {
   return {
-    mark: "P1", name: knight, is_bot: false, knight, q: KNIGHTS[knight].q, r: 1, c: 1,
+    mark: "P1", name: KNIGHTS[knight].name, is_bot: false, knight, q: KNIGHTS[knight].q, r: 1, c: 1,
     things: [], prowess: [], companions: [], horse: false, tower: false, towerTries: 0,
     captured: false, caveTurns: 0, questDone: false, isKing: false, castleHold: 0, atGate: false,
     _princeUsed: false, _princeAiding: false, moved: false, won: false, ...over,
@@ -419,14 +419,14 @@ test("Greet: the result narrates the reaction, and Merlin takes no article", () 
   assert.match(detail, /Potion — \+1 Strength/, "the bookkeeping follows");
 });
 
-// The chronicle is capped at 80 lines. An encounter that read its own outcome back by INDEX went
+// The chronicle is capped (LOG_CAP=300). An encounter that read its own outcome back by INDEX went
 // silent the moment the cap began trimming the front — every greet result and fight detail from
 // then on collapsed to the "…reacts." fallback. Report mrdvkkfp-j59jyf: "it just says 'the Merlin
 // reacts'… a few interactions". Pin it: a full chronicle must not mute the narration.
 test("Greet: the result survives a full chronicle (log-cap regression)", () => {
   const { game, s, tile } = greetGame("george", "merlin");
-  for (let i = 0; i < 200; i += 1) logEvent(game, `filler ${i}`);
-  assert.equal(game.log.length, 80, "the chronicle is trimmed to its cap");
+  for (let i = 0; i < 400; i += 1) logEvent(game, `filler ${i}`);   // exceed the cap so trimming actually occurs
+  assert.equal(game.log.length, 300, "the chronicle is trimmed to its cap");
   setMysticWoodRandom(seq([0.4]));   // die = 3 → remains
   resolveGreet(game, s, tile);
   assert.match(game.results.P1.result, /Merlin turns a page/);
@@ -462,7 +462,7 @@ test("Encounter: every denizen you can meet has a first-sight intro", () => {
 
 test("Challenge: the detail survives a full chronicle (log-cap regression)", () => {
   const { game, s, tile } = greetGame("george", "troll");
-  for (let i = 0; i < 200; i += 1) logEvent(game, `filler ${i}`);
+  for (let i = 0; i < 400; i += 1) logEvent(game, `filler ${i}`);   // exceed the cap so trimming actually occurs
   setMysticWoodRandom(seq([0.99, 0.0]));   // white 6 vs red 1 → George wins
   resolveChallenge(game, s, tile);
   assert.match(game.results.P1.detail, /Troll-slayer/, "the win must still say what was gained");
