@@ -7,7 +7,7 @@ import {
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
   resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes, combatOutcomes,
-  logEvent, escapeOutcomes, escapeFrees, resolveEscape,
+  logEvent, escapeOutcomes, escapeFrees, resolveEscape, raiseStorm, decayStorms,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN, DEN_TALES, DEN_INTRO } from "../games/mystic-wood/data.js";
 
@@ -487,6 +487,47 @@ test("Challenge: the detail survives a full chronicle (log-cap regression)", () 
   setMysticWoodRandom(seq([0.99, 0.0]));   // white 6 vs red 1 → George wins
   resolveChallenge(game, s, tile);
   assert.match(game.results.P1.detail, /Troll-slayer/, "the win must still say what was gained");
+});
+
+// Magician's Storm (§18.11): bars NORMAL movement in and out of the stormy area; magical movement
+// (relocate) bypasses; lasts three full turns after the creating turn, then clears.
+test("Storm: bars entering and leaving; magical movement bypasses", () => {
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], seat_order: ["P1"], players: {} };
+  const s = seatLit("george", { r: 8, c: 3 }); game.players.P1 = s;
+  const here = cellAt(game.board, 8, 3); here.revealed = true;
+  const nb = cellAt(game.board, 8, 2); nb.revealed = true;
+  raiseStorm(game, s, nb);
+  assert.ok(!reachableFrom(game.board, s, here).includes(nb), "cannot enter a stormy area");
+  raiseStorm(game, s, here);
+  assert.deepEqual(reachableFrom(game.board, s, here), [], "cannot leave a stormy area by normal movement");
+  relocate(game, s, 0, 3);
+  assert.deepEqual([s.r, s.c], [0, 3], "magical movement (relocate) ignores the storm");
+});
+
+test("Storm: three full turns after the creating turn, then clears", () => {
+  const game = { board: buildBoard(), log: [] };
+  const t = cellAt(game.board, 5, 5); t.revealed = true;
+  raiseStorm(game, { name: "Sogo" }, t);
+  assert.equal(t.storm.turns, 3);
+  decayStorms(game); assert.equal(t.storm.turns, 3, "the creating turn is free (fresh)");
+  decayStorms(game); assert.equal(t.storm.turns, 2);
+  decayStorms(game); assert.equal(t.storm.turns, 1);
+  decayStorms(game); assert.equal(t.storm, null, "cleared after three full turns");
+});
+
+test("Storm: requires the Magician, never from/at the Tower, one per turn", () => {
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.current_player = "P1"; const s = g.players.P1;
+  const gen = cellAt(g.board, 3, 3); gen.revealed = true;   // generic tile; Tower sits at 4,3
+  assert.throws(() => makeMysticWoodMove(g, "P1", { type: "storm", r: 3, c: 3 }), /companion|lack/i);
+  s.companions = ["magician"];
+  assert.throws(() => makeMysticWoodMove(g, "P1", { type: "storm", r: 4, c: 3 }), /Tower/i);
+  makeMysticWoodMove(g, "P1", { type: "storm", r: 3, c: 3 });
+  assert.ok(cellAt(g.board, 3, 3).storm, "storm raised on a valid area");
+  assert.equal(g.current_player, "P1", "raising a storm does not end the turn");
+  const t2 = cellAt(g.board, 5, 5); t2.revealed = true;
+  assert.throws(() => makeMysticWoodMove(g, "P1", { type: "storm", r: 5, c: 5 }), /already raised/i);
 });
 
 test("contract: id predicate, seat count, distinct knights, projection shape", () => {

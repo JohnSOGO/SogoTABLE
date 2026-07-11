@@ -3,6 +3,11 @@
 A digital re-creation of Terence Donnelly's 1980s tabletop **The Mystic Wood** (base game),
 as SogoTable's first game with a bespoke **explorable-board** display. Category: **Board Games**.
 
+> **Authoritative rules:** `docs/mystic-wood-rulebook.md` (extracted from the official Version 2.0
+> rulebook; PDF at `docs/reference/mystic-wood-rules-v2.0.pdf`). When code or this doc conflicts with
+> it, the rulebook wins. It arrived 2026-07-10 and unblocks features previously deferred for lack of
+> the text.
+
 - **Seating:** host-start, **3–5 knights** (only five knights exist), bots fill empty seats.
 - **Coupling:** shared-table, **turn-based** (Move/Turn-Locked). No hidden information.
 - **Lobby:** the shared host-start lobby; knights are dealt **at random** at start (v1).
@@ -69,6 +74,14 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   and a greet denizen are each introduced in the same voice, not just the greet denizens. Spells are
   never "met" (they resolve on arrival) and are exempt; a test pins coverage of the rest. A missing
   key falls back to engine's plain "{k} comes upon …".
+- **The Magician's Storm** (§18.11) is a `tile.storm = { turns, fresh }` on the board. `raiseStorm`
+  sets it (rules `doStorm`: Magician companion, one/turn, never from/at the Tower); `decayStorms` ages
+  every storm once per `advanceTurn` (`fresh` frees the creating turn, then 3 more). `reachableFrom`
+  returns `[]` from a stormy tile and skips stormy neighbours — so *normal* movement is barred both
+  ways, while `relocate`-based magical movement (transport/horn) bypasses it entirely. The projection
+  sends `tile.storm` = turns left; the client shows a badge and a tap-to-target "Storm" mode
+  (`stormMode` in render.js), mirroring the block in its own `reachableSet`. Bots don't raise storms
+  yet (a fast-follow) but handle being storm-blocked (no reachable → they pass).
 
 ## Intended deviations from the rulebook (product decisions, not bugs)
 
@@ -114,9 +127,12 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   turns and read as a phantom re-trigger (e.g. it appeared to "sound" while a knight was being
   beaten by a beast). The **Silence** button still dismisses it early. The server never triggers a
   Horn on a defeat; `resolveSpell` is the only source, and a Horn always ends the drawer's turn.
+- **Magician's Storm — NOW IMPLEMENTED (2026-07-10)** once the rulebook arrived (§18.11): the
+  Magician companion's owner may, on their turn, raise a storm on any area (not from/at the Tower);
+  for three full turns after, no one may enter or leave it by *normal* movement (magical movement —
+  transport/horn/relocate — bypasses).
 - **Still not implemented:** the **obligation/rescue subsystem** (Boy/Damsel/Child + chivalry
-  cards + delivery — a dedicated feature), and **Magician's Storm** (the recovered rules never
-  state what a Storm *does* — blocked pending the rulebook text; won't be invented). Knight
+  cards + delivery — a dedicated feature; now unblocked by the rulebook, a future slice). Knight
   selection is random at start; per-seat interactive picking is a planned fast-follow. Joust
   refinements (once-per-game Queen boon, player-chosen boon target, Castle defender +2) pending.
 

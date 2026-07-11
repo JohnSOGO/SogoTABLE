@@ -68,7 +68,7 @@ export const THING_DESC = {
 export const COMP_DESC = {
   sage: "Adds +2 Prowess to one contest, then departs.", princess: "+1 Prowess. Won't aid against the King. (Roland's quest companion.)",
   prince: "Lends +3 Strength & +3 Prowess to ONE fight (never vs the King, nor George vs the Dragon), then just travels on. (Britomart's quest companion.)", grail: "+1 Strength and +1 Prowess. Not a Thing. (Perceval's quest object.)",
-  magician: "Just travels with you — no button to press, no stat bonus. In the full game his one power is to raise a Storm on a tile, but that rule isn't in this build, so there's nothing to activate.",
+  magician: "On your turn, press <b>🌩️ Storm</b> beneath the board, then tap an area: for three full turns no one may enter or leave it by normal movement (magical movement — transport/horn — still passes). Never from or at the Tower. No stat bonus.",
   archmage: "On your turn, press <b>✨ Transport</b> beneath the board to send yourself to any revealed place.",
 };
 export const AREA_NAMES = { cave: "Cave", chapel: "Chapel", castle: "Castle", fountain: "Fountain", grove: "Sacred Grove", island: "Island", palace: "Palace", altar: "Altar", tower: "Tower", egate: "Earthly Gate", xgate: "Enchanted Gate" };

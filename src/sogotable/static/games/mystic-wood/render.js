@@ -20,6 +20,7 @@ let clickTimer = null; // deferred single-tap move (cancelled when a 2nd tap mak
 let lastTapAt = 0;      // timestamp of the previous board tap, for pointer-based double-tap detection
 let gesture = null;     // active board pointer gesture (tap / double-tap / drag-pan), from pointer events
 let chronFilter = null; // Chronicle: mark of the knight whose entries are shown (null = all)
+let stormMode = false;  // Magician storm-targeting: cells become storm targets and a tap raises a storm
 let encTimer = null;    // deferred encounter reveal (waits for the mover's token glide)
 let introShownFor = null; // gameKey whose start-of-game knight send-off has been shown this session
 
@@ -47,7 +48,7 @@ export function renderMysticWoodGame(ctx) {
   const game = ctx.game || {};
   const gameKey = `${(ctx.room && ctx.room.code) || "?"}`;
   const justInit = view.gameKey !== gameKey;
-  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; resetHorn(game.horn ? game.horn.seq : 0); }
+  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; stormMode = false; resetHorn(game.horn ? game.horn.seq : 0); }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
   const me = localMark(ctx);
   let root = host.querySelector(".mystic-wood-root");
@@ -168,6 +169,8 @@ function actionsHtml(ctx, game, me) {
   let btns = "";
   if (mine && meSeat && !meSeat.tower && !meSeat.captured && !game.pending) {
     const tile = tileAt(game, meSeat.r, meSeat.c);
+    // Storm-targeting mode: the whole bar becomes a prompt — tap an area on the board to storm it.
+    if (stormMode) return `<span class="mw-prompt">🌩️ Tap an area to storm</span><button data-act="stormcancel">Cancel</button>`;
     const has = (id) => (meSeat.things || []).some((t) => t.id === id);
     const comp = (id) => (meSeat.companions || []).some((c) => c.id === id);
     const foes = game.players.filter((p) => p.mark !== me && !p.won && !p.tower && !p.captured && p.r === meSeat.r && p.c === meSeat.c);
@@ -176,6 +179,8 @@ function actionsHtml(ctx, game, me) {
     if (has("crystal")) btns += `<button data-act="scry">🔮 Scry</button>`;
     if (has("wand")) btns += `<button data-act="rotate">🔄 Rotate</button>`;
     if (comp("archmage")) btns += `<button data-act="transport">✨ Transport</button>`;
+    // Magician companion (§18.11): raise a storm over any area — never from the Tower.
+    if (comp("magician") && !(tile && tile.name === "tower")) btns += `<button data-act="storm">🌩️ Storm</button>`;
     btns += `<button class="primary" data-act="end">End turn</button>`;
     if (game.scry_reveal) btns += `<button disabled>🔮 Next: ${denEmoji(game.scry_reveal)} ${E((DEN[game.scry_reveal] || {}).name || game.scry_reveal)}</button>`;
   } else if (mine && meSeat && (meSeat.tower || meSeat.captured)) {
@@ -220,6 +225,7 @@ function edgeBetween(from, to) {
 function reachableSet(game, seat) {
   const set = new Set(); if (!seat) return set;
   const from = tileAt(game, seat.r, seat.c); if (!from || !from.open) return set;
+  if (from.storm) return set;                                  // a storm bars normal movement OUT (mirrors reachableFrom)
   const bough = (seat.things || []).some((t) => t.id === "golden_bough");
   [[from.r - 1, from.c], [from.r + 1, from.c], [from.r, from.c - 1], [from.r, from.c + 1]].forEach(([r, c]) => {
     const n = tileAt(game, r, c); if (!n) return;
@@ -227,6 +233,7 @@ function reachableSet(game, seat) {
     if (!from.open[e[0]]) return;
     if (n.revealed && !(n.open && n.open[e[1]])) return;
     if (n.revealed && n.name === "cave" && !bough) return;
+    if (n.storm) return;                                       // ...and bars normal movement IN
     set.add(r * 7 + c);
   });
   return set;
@@ -241,9 +248,12 @@ function cellsHtml(ctx, game, me) {
     const cls = ["cell"];
     if (meSeat && meSeat.r === r && meSeat.c === c) cls.push("current");
     if (reach.has(idx)) cls.push("reachable");
+    // Storm-targeting mode: any revealed non-Tower area with no storm yet is a valid target to tap.
+    if (stormMode && t.revealed && t.name !== "tower" && !t.storm) cls.push("storm-target");
     h += `<div class="${cls.join(" ")}" data-cell="${pc}">`;
     if (t.revealed) {
       h += tileSvg(t, idx + 1);
+      if (t.storm) h += `<div class="mw-storm" title="Storm — ${t.storm} turn${t.storm === 1 ? "" : "s"} left">🌩️<b>${t.storm}</b></div>`;
       if (t.name && AREA_NAMES[t.name]) h += `<div class="infomark holdable" data-peek="area:${pc}">ⓘ</div>`;
       if (t.card) h += `<div class="cardmark holdable${pulseCell === pc ? " mw-pulse" : ""}" data-peek="card:${pc}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</div>`;
     } else { h += `<div class="facedown"></div>`; }
@@ -368,6 +378,8 @@ function wireBoard(root, ctx, game, me) {
     else if (a === "rotate") ctx.makeMove({ type: "rotate" });
     else if (a === "drink") ctx.makeMove({ type: "drink" });
     else if (a === "transport") openTransport(root, ctx, game, me);
+    else if (a === "storm") { stormMode = true; renderMysticWoodGame(ctx); }
+    else if (a === "stormcancel") { stormMode = false; renderMysticWoodGame(ctx); }
     else if (a === "joust") openJoust(root, ctx, game, me);
     else if (a === "encounter") showEncounter(ctx, game);
     else if (a === "greetpick") showGreetPick(ctx, game);
@@ -455,7 +467,12 @@ function onBoardUp(e) {
   clickTimer = setTimeout(() => {                             // deferred single-tap move (a 2nd tap cancels it)
     clickTimer = null;
     const el = uiRoot && uiRoot.querySelector(`.cell[data-cell="${r},${c}"]`);
-    if (el && el.classList.contains("reachable") && !(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "move", r, c });
+    if (!el || (ctx.isMovePending && ctx.isMovePending())) return;
+    if (stormMode) {                                          // targeting a storm: tap a valid area to raise it
+      if (el.classList.contains("storm-target")) { stormMode = false; ctx.makeMove({ type: "storm", r, c }); }
+      return;
+    }
+    if (el.classList.contains("reachable")) ctx.makeMove({ type: "move", r, c });
   }, 400);
 }
 function onBoardCancel(e) { if (gesture && e.pointerId === gesture.id) gesture = null; }

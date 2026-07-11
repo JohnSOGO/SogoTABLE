@@ -13,7 +13,7 @@ import {
   resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
-  denPhrase, denIntro, escapeOutcomes, resolveEscape,
+  denPhrase, denIntro, escapeOutcomes, resolveEscape, raiseStorm, decayStorms,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -84,7 +84,7 @@ function winGame(game, seat, reason) {
 }
 // Runs at the start of a seat's turn: victory checks, then escape rolls. Returns "act" | "skip".
 function beginSeatTurn(game, seat) {
-  seat.moved = false; game.pending = null; game.scry_reveal = null;
+  seat.moved = false; seat.stormed = false; game.pending = null; game.scry_reveal = null;
   const name = seat.name;
   if (seat.atGate) {
     if (seat.questDone && tileNameAt(game, seat) === "xgate") { winGame(game, seat, "gate"); return "skip"; }
@@ -144,6 +144,7 @@ function advanceTurn(game) {
   if (next === 0) game.round += 1;
   game.current_player = game.seat_order[next];
   game.turn_seq += 1;
+  decayStorms(game);   // one turn of every active Magician storm elapses (§18.11)
 }
 // Begin the current seat; auto-run any bot/skip seats until a human must act or the game ends.
 function beginAndAdvance(game) {
@@ -304,6 +305,21 @@ function doTransport(game, seat, action) {
   relocate(game, seat, to.r, to.c);
   enterTile(game, seat, to);
 }
+// Magician's Storm (§18.11): a free power on your turn (does not end it, does not spend your move).
+// Never from or at the Tower; one storm per turn.
+function doStorm(game, seat, action) {
+  requireComp(seat, "magician");
+  if (game.pending) throw new Error("Resolve the encounter first.");
+  if (seat.stormed) throw new Error("You have already raised a storm this turn.");
+  const from = cellAt(game.board, seat.r, seat.c);
+  if (from && from.name === "tower") throw new Error("The Magician's power cannot be used from the Tower.");
+  const to = cellAt(game.board, action.r, action.c);
+  if (!to || !to.revealed) throw new Error("Choose a revealed area to storm.");
+  if (to.name === "tower") throw new Error("The Tower cannot be stormed.");
+  if (to.storm) throw new Error("A storm already rages there.");
+  raiseStorm(game, seat, to);
+  seat.stormed = true;
+}
 function doJoust(game, seat, action) {
   if (game.pending) throw new Error("Resolve the encounter first.");
   if (seat.moved) throw new Error("You have already acted this turn.");
@@ -355,6 +371,7 @@ export function makeMysticWoodMove(game, mark, action) {
       break;
     }
     case "transport": doTransport(game, seat, action); break;
+    case "storm": doStorm(game, seat, action); break;
     case "joust": doJoust(game, seat, action); break;
     case "joust-prize": doJoustPrize(game, seat, action); break;
     case "end-turn": passTurn(game); break;
@@ -416,6 +433,7 @@ function tileToDict(t) {
   return {
     r: t.r, c: t.c, half: t.half, revealed: true, name: t.name || null, label: t.label || null,
     fixed: !!t.fixed, open: { ...t.open }, card: t.card || null, card2: t.card2 || null, remains: !!t.remains,
+    storm: t.storm ? t.storm.turns : 0,   // turns of Magician's storm remaining (0 = clear)
   };
 }
 export function mysticWoodGameToDict(game) {

@@ -88,12 +88,14 @@ export function neighborsOf(board, t) {
   return [cellAt(board, t.r - 1, t.c), cellAt(board, t.r + 1, t.c), cellAt(board, t.r, t.c - 1), cellAt(board, t.r, t.c + 1)].filter(Boolean);
 }
 export function reachableFrom(board, seat, tile) {
+  if (tile.storm) return [];                                     // a storm bars NORMAL movement out of the area (§18.11)
   return neighborsOf(board, tile).filter((n) => {
     const e = edgeBetween(tile, n);
     if (!e) return false;
     if (!tile.open[e[0]]) return false;
     if (n.revealed && !n.open[e[1]]) return false;               // explored & no matching road
     if (n.revealed && n.name === "cave" && !hasThing(seat, "golden_bough")) return false; // Cave needs the Golden Bough
+    if (n.storm) return false;                                   // ...and bars normal movement INTO a stormy area
     return true;
   });
 }
@@ -655,6 +657,26 @@ export function powerRotate(game, seat) {
   t.open = { N: o.S, S: o.N, E: o.W, W: o.E };
   logEvent(game, `${seat.name} raises the Wand — the tile turns about.`, "a");
 }
+/* ------------------------------- storm ---------------------------------- */
+// Magician companion (rulebook §18.11): on your turn you may raise a storm over any area — never from
+// or at the Tower. For the three full turns AFTER this one, no one may enter or leave it by NORMAL
+// movement; magical movement (transport / horn / relocate, which bypass reachableFrom) still passes.
+// `fresh` skips the first decay so the creating turn itself doesn't count against the three.
+function stormWhere(t) { return t.label || (t.name ? t.name : "the glade"); }
+export function raiseStorm(game, seat, tile) {
+  tile.storm = { turns: 3, fresh: true };
+  logEvent(game, `${seat.name} calls up the Magician's storm over ${stormWhere(tile)} — none may enter or leave it for three turns.`, "a");
+}
+// Age every active storm once per turn (called from advanceTurn). The creating turn is free (`fresh`).
+export function decayStorms(game) {
+  for (const t of game.board) {
+    if (!t.storm) continue;
+    if (t.storm.fresh) { t.storm.fresh = false; continue; }
+    t.storm.turns -= 1;
+    if (t.storm.turns <= 0) { t.storm = null; logEvent(game, `The storm over ${stormWhere(t)} blows itself out.`, "muted"); }
+  }
+}
+
 // Fountain: 1–2 Tower · 3–4 Earthly Gate · 5–6 Enchanted Gate. Ends the turn.
 export function powerDrink(game, seat, tile) {
   tile._used = true;

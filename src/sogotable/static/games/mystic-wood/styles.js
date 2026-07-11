@@ -42,6 +42,12 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .cell.reachable{outline-color:var(--gold);cursor:pointer}
 .mystic-wood-root .cell.reachable:hover{outline-color:var(--gold2)}
 .mystic-wood-root .cell.current{outline-color:var(--crimson)}
+/* Magician's Storm: a badge on a stormy area (turns left), and the dashed targets while aiming one. */
+.mystic-wood-root .mw-storm{position:absolute;left:3px;top:3px;z-index:3;display:flex;align-items:center;gap:1px;font-size:12px;line-height:1;padding:1px 3px;border-radius:5px;background:#0009;border:1px solid #7fb0e0;color:#cfe3ff}
+.mystic-wood-root .mw-storm b{font-size:11px;color:#fff}
+.mystic-wood-root .cell.storm-target{outline:2px dashed #7fb0e0;cursor:pointer;animation:mw-stormpulse 1s ease-in-out infinite}
+.mystic-wood-root .cell.storm-target:hover{outline-color:#c7e0ff}
+@keyframes mw-stormpulse{0%,100%{outline-color:#7fb0e0}50%{outline-color:#3f6fa0}}
 .mystic-wood-root .tok{position:absolute;width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px #000a;display:grid;place-items:center;font-family:var(--serif);font-weight:700;font-size:15px;color:#fff;z-index:3;will-change:transform}
 .mystic-wood-root .cardmark{position:absolute;right:3px;bottom:3px;background:#0009;border:1px solid var(--gold);border-radius:4px;font-size:9px;padding:1px 4px;color:var(--gold2);z-index:2;max-width:88%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .mystic-wood-root .infomark{position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#000a;border:1px solid var(--gold);color:var(--gold2);font-size:10px;display:grid;place-items:center;z-index:3;line-height:1;cursor:help}
