@@ -176,6 +176,7 @@ export function relocate(game, seat, r, c) {
   // skipped. Already-revealed tiles keep whatever card lingers on them.
   if (!d.revealed) { revealTile(d); drawCardFor(game, d); }
   seat.r = d.r; seat.c = d.c;
+  seat.arrivedByTransport = true;   // §8: you cannot withdraw from a denizen you were transported onto
   // §5.3/§8: a denizen already in the destination must be approached — on your NEXT turn if you were
   // transported here (the caller ends the turn), before any normal move. Cleared once approached.
   if (d.card) seat.mustApproach = true;
