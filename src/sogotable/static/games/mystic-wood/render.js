@@ -12,7 +12,8 @@ import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapeP
 const ZOOM_WIDTHS = [7, 5, 3, 2];
 const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + gap 3)
 const GLIDE_MS = 450;        // token move glide duration; encounter reveal waits this out
-let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0, uiRoot = null;
+const ROTATE_MS = 2000;      // a tile "turns about" (Fog/Wand) — spin it 180° over this long (bug mrgkf242)
+let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0, uiRoot = null, seenRotation = 0;
 let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 let prevPos = {};      // mark -> {r,c}, for gliding tokens between tiles
 let pulseCell = null;  // "r,c" of the legend/map badge currently highlighted
@@ -48,7 +49,7 @@ export function renderMysticWoodGame(ctx) {
   const game = ctx.game || {};
   const gameKey = `${(ctx.room && ctx.room.code) || "?"}`;
   const justInit = view.gameKey !== gameKey;
-  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; stormMode = false; resetHorn(game.horn ? game.horn.seq : 0); }
+  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; stormMode = false; seenRotation = game.rotation ? game.rotation.seq : 0; resetHorn(game.horn ? game.horn.seq : 0); }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
   const me = localMark(ctx);
   let root = host.querySelector(".mystic-wood-root");
@@ -68,6 +69,7 @@ export function renderMysticWoodGame(ctx) {
   // re-render can't strand it, and re-mounting its self-clearing herald over the chronicle);
   // it reads prevPos, so it runs BEFORE animateTokens.
   syncHorn(root, game, { cw: CW, ch: CH, prevPos });
+  syncRotation(root, game);
   animateTokens(root, game);
   // overlays: my own most-recent roll result (kept per-seat so bot turns can't clobber it), else a pending encounter.
   const myRoll = (game.results && me) ? game.results[me] : null;
@@ -317,6 +319,28 @@ function animateTokens(root, game) {
       requestAnimationFrame(() => requestAnimationFrame(() => { tok.style.transition = `transform ${GLIDE_MS}ms ease`; tok.style.transform = "translate(0,0)"; }));
     }
     prevPos[p.mark] = { r: p.r, c: p.c };
+  });
+}
+// §18.12 Fog / the Wand: when areas "turn about", spin exactly those tiles 180° once. The board is a
+// snapshot rebuild, so the fresh <svg> already shows the NEW doors; we start it flipped 180° (which reads
+// as the OLD orientation) and ease back to 0, so the doors visibly sweep round. Seq-guarded — a re-render
+// mid-spin won't restart it, and a reconnect adopts the seq without replaying (seenRotation in justInit).
+function syncRotation(root, game) {
+  const rot = game.rotation;
+  if (!rot || !rot.seq || rot.seq <= seenRotation) return;
+  seenRotation = rot.seq;
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  (rot.cells || []).forEach(([r, c]) => {
+    const cell = root.querySelector(`.cell[data-cell="${r},${c}"]`);
+    const svg = cell && cell.querySelector("svg");
+    if (!svg) return;
+    svg.style.transition = "none";
+    svg.style.transformOrigin = "50% 50%";
+    svg.style.transform = "rotate(180deg)";
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      svg.style.transition = `transform ${ROTATE_MS}ms ease`;
+      svg.style.transform = "rotate(0deg)";
+    }));
   });
 }
 /* -------------------------------- peeks --------------------------------- */

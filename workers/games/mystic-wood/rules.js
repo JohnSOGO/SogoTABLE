@@ -32,7 +32,7 @@ export function newMysticWoodGame() {
     status: "playing", winner: null, end_reason: null,
     seat_order: [], players: {}, current_player: null,
     board: [], deck: [], discard: [], log: [], pending: null, scry_reveal: null, results: {},
-    horn: null, horn_seq: 0, chivalry: { boy: null, damsel: null },
+    horn: null, horn_seq: 0, rotation: null, rotation_seq: 0, chivalry: { boy: null, damsel: null },
     turn_seq: 0, round: 1, roll_seq: 0, knight_setup: "auto",
   };
 }
@@ -62,7 +62,7 @@ export function initMysticWoodSeats(game, players) {
   game.status = "playing"; game.winner = null; game.end_reason = null;
   game.seat_order = []; game.players = {}; game.log = []; game.pending = null; game.scry_reveal = null;
   game.results = {}; game.turn_seq = 0; game.round = 1; game.roll_seq = 0;
-  game.horn = null; game.horn_seq = 0; game.chivalry = { boy: null, damsel: null };
+  game.horn = null; game.horn_seq = 0; game.rotation = null; game.rotation_seq = 0; game.chivalry = { boy: null, damsel: null };
   game.board = buildBoard();
   game.deck = shuffle(DECK_IDS.slice()); game.discard = [];
   const pool = shuffle(KNIGHT_ORDER.slice());   // distinct knights, randomly assigned (v1 — see PLAN.md)
@@ -534,6 +534,7 @@ export function mysticWoodGameToDict(game) {
     scry_reveal: game.scry_reveal || null,
     results: game.results || {},
     horn: game.horn || null,
+    rotation: game.rotation || null,   // §18.12 Fog / Wand: cells that just turned about, for the spin animation
     chivalry: game.chivalry || { boy: null, damsel: null },   // §15: who currently bears each rescue obligation
     // Send the full retained chronicle (bounded by LOG_CAP) so the client can show the ENTIRE history
     // (report mrfoq90c) and a bug-report snapshot captures a real audit trail. turn_seq above is the

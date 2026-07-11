@@ -25,7 +25,8 @@ export function shuffle(a) { for (let i = a.length - 1; i > 0; i -= 1) { const j
 const LOG_CAP = 300;
 export function logEvent(game, text, cls = "") {
   if (!game.log) game.log = [];
-  game.log.push({ text, cls });
+  // `t` = turn counter at write time — a debug anchor (not shown to players) so a snapshot's chronicle reads turn-by-turn.
+  game.log.push({ text, cls, t: game.turn_seq || 0 });
   game.log_n = (game.log_n || 0) + 1;
   if (game.log.length > LOG_CAP) game.log.splice(0, game.log.length - LOG_CAP);
 }
@@ -212,15 +213,21 @@ function recordHorn(game, byName, scattered) {
     tour: scattered.map((s) => [s.r, s.c]),
   };
 }
+// A tile-turn to animate: record which cells spun + bump the seq so the renderer spins those tiles 180°
+// once (§18.12 Fog / the Wand's single-tile turn — bug mrgkf242).
+function recordRotation(game, cells) {
+  if (!cells.length) return;
+  game.rotation = { seq: (game.rotation_seq = (game.rotation_seq || 0) + 1), cells: cells.map((t) => [t.r, t.c]) };
+}
 // Returns { endTurn } — Mystic Horn ends the drawer's turn.
 export function resolveSpell(game, seat, tile, spellId) {
   const name = seat.name;
   if (spellId === "fog") {
     // §18.12: every face-up arrow area rotates 180°. Fixed areas (Gates/Tower) don't turn.
-    let n = 0;
-    for (const t of game.board) {
-      if (t.revealed && !t.fixed) { const o = t.open; t.open = { N: o.S, S: o.N, E: o.W, W: o.E }; n += 1; }
-    }
+    const spun = [];
+    for (const t of game.board) if (t.revealed && !t.fixed) { const o = t.open; t.open = { N: o.S, S: o.N, E: o.W, W: o.E }; spun.push(t); }
+    recordRotation(game, spun);
+    const n = spun.length;
     logEvent(game, `Mystic Fog rolls through — ${n} area${n === 1 ? "" : "s"} of the wood turn about.`);
     return {};
   }
@@ -386,8 +393,7 @@ export function resolveEscape(game, seat, face, mode, tries) {
 /* ------------------------------- combat --------------------------------- */
 function princeAids(seat, den) {
   // Britomart never spends her quest-companion Prince as a mere fighter (using his help loses him, §18.15).
-  return seat.companions.includes("prince") && !seat._princeUsed && seat.q !== "prince"
-    && !den.king && !(den.dragon && seat.q === "dragon");
+  return seat.companions.includes("prince") && !seat._princeUsed && seat.q !== "prince" && !den.king && !(den.dragon && seat.q === "dragon");
 }
 function useSage(game, seat) {
   if (seat.companions.includes("sage")) { seat.companions = seat.companions.filter((c) => c !== "sage"); logEvent(game, "The Sage's counsel is spent — he departs.", "a"); }
@@ -605,11 +611,7 @@ function greetFaceOutcome(game, seat, tile, den, id, face, guyon, chapel, isPCom
   if (act === "befriend") return { key: "befriend", label: "befriends you" };
   if (act === "tower") return { key: "tower", label: "sends you to the Tower" };
   if (act.startsWith("give:")) { const th = act.slice(5); return { key: act, label: `gives the ${THINGS[th].name}` }; }
-  if (act.startsWith("run")) {
-    return horseRunsTo(game, tile, act.slice(3))
-      ? { key: "run", label: "the Horse bolts to the next glade" }
-      : { key: "catch", label: "you catch the Horse (+2 S)" };
-  }
+  if (act.startsWith("run")) return horseRunsTo(game, tile, act.slice(3)) ? { key: "run", label: "the Horse bolts to the next glade" } : { key: "catch", label: "you catch the Horse (+2 S)" };
   return { key: "remains", label: "ignores you" };
 }
 // Resolve a Greet. Returns { endTurn:true } (a greeting always ends the turn, like the standalone).
@@ -661,17 +663,16 @@ function princeAttack(game, seat, tile) {
   else { logEvent(game, `The Prince strikes ${name} down — away to the Tower!`, "r"); toTower(game, seat); }
 }
 // Bishop: kneel to pray; 3 full turns on the tile earns the Ring (counted in beginSeatTurn).
-function startPrayer(game, seat, tile) {
+function startPrayer(game, seat) {
   seat.praying = true; seat.prayerTurns = 0;
   logEvent(game, `${seat.name} kneels to pray before the Bishop (0/3).`);
 }
-// Queen: on a 5-6 she casts a rival into the Tower (auto-picks the leading free opponent — she keeps
-// her seat). One-boon-per-game and player-chosen target are documented fast-follows.
+// Queen: on a 5-6 she casts the leading free rival into the Tower (she keeps her seat). One-boon-per-game
+// and a player-chosen target are documented fast-follows.
 function queenBoon(game, seat, die) {
   logEvent(game, `${seat.name} kneels before the Queen (rolled ${die}).`);
   if (die < 5) { logEvent(game, "The Queen grants no boon this time."); return; }
-  const rivals = game.seat_order.map((m) => game.players[m])
-    .filter((p) => p.mark !== seat.mark && !p.tower && !p.captured && !p.won && tileNameAt(game, p) !== "tower");
+  const rivals = game.seat_order.map((m) => game.players[m]).filter((p) => p.mark !== seat.mark && !p.tower && !p.captured && !p.won && tileNameAt(game, p) !== "tower");
   if (!rivals.length) { logEvent(game, "The Queen offers a boon, but no rival is within reach."); return; }
   rivals.sort((a, b) => (Number(b.questDone) - Number(a.questDone)) || ((totalS(b) + totalP(b)) - (totalS(a) + totalP(a))));
   const t = rivals[0];
@@ -681,8 +682,7 @@ function queenBoon(game, seat, die) {
 // Illusion "does your bidding": relocate its card to a random revealed, unoccupied, non-Tower glade.
 function sendIllusion(game, tile) {
   const id = tile.card; tile.card = null;
-  const spots = game.board.filter((t) => t.revealed && !t.card && t.name !== "tower"
-    && !game.seat_order.some((m) => game.players[m].r === t.r && game.players[m].c === t.c));
+  const spots = game.board.filter((t) => t.revealed && !t.card && t.name !== "tower" && !game.seat_order.some((m) => game.players[m].r === t.r && game.players[m].c === t.c));
   if (spots.length) { spots[rnd(spots.length)].card = id; logEvent(game, "The Illusion does your bidding and drifts off to another glade."); }
   else logEvent(game, "The Illusion does your bidding and fades away.");
 }
@@ -764,6 +764,7 @@ export function powerRotate(game, seat) {
   const t = cellAt(game.board, seat.r, seat.c);
   const o = t.open;
   t.open = { N: o.S, S: o.N, E: o.W, W: o.E };
+  recordRotation(game, [t]);
   logEvent(game, `${seat.name} raises the Wand — the tile turns about.`, "a");
 }
 /* ------------------------------- storm ---------------------------------- */
