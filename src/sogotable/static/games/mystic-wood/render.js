@@ -119,12 +119,23 @@ function stripHtml(ctx, game, me) {
       ${statsHtml(seat)}
       <span class="pstrip-quest">${seat.questDone ? "✓ " : ""}${E(seat.quest || "")}</span>
     </div>
-    <div class="pstrip-badges">${invHtml(seat)}</div>
+    <div class="pstrip-badges">${invHtml(seat)}${chivalryHtml(game, me)}</div>
   </div>`;
+}
+// §15: who currently bears each rescue obligation (Save Boy / Rescue Damsel). Peekable like any badge.
+function chivalryHtml(game, me) {
+  const ch = game.chivalry || {};
+  const badge = (id, icon) => {
+    const holder = ch[id]; if (!holder) return "";
+    const p = (game.players || []).find((q) => q.mark === holder);
+    const mine = holder === me;
+    return `<span class="badge holdable mw-oblig${mine ? " mw-oblig-me" : ""}" data-peek="chivalry:${id}">${icon} ${mine ? "rescue!" : E(p ? p.name : "?")}</span>`;
+  };
+  return badge("boy", "👦") + badge("damsel", "👧");
 }
 function statsHtml(seat) {
   const cap = (seat.totalP + seat.totalS) >= 10 ? ` <span style="color:var(--muted)">(cap 10)</span>` : "";
-  return `<span class="stats" data-peek="stats:${seat.mark}"><span class="pP">P ${seat.totalP}</span><span class="pS">S ${seat.totalS}</span>${cap}</span>`;
+  return `<span class="stats holdable" data-peek="stats:${seat.mark}"><span class="pP">P ${seat.totalP}</span><span class="pS">S ${seat.totalS}</span>${cap}</span>`;
 }
 function invHtml(seat) {
   let h = "";
@@ -256,7 +267,7 @@ function cellsHtml(ctx, game, me) {
     h += `<div class="${cls.join(" ")}" data-cell="${pc}">`;
     if (t.revealed) {
       h += tileSvg(t, idx + 1);
-      if (t.storm) h += `<div class="mw-storm" title="Storm — ${t.storm} turn${t.storm === 1 ? "" : "s"} left">🌩️<b>${t.storm}</b></div>`;
+      if (t.storm) h += `<div class="mw-storm holdable" data-peek="storm:${pc}">🌩️<b>${t.storm}</b></div>`;
       if (t.name && AREA_NAMES[t.name]) h += `<div class="infomark holdable" data-peek="area:${pc}">ⓘ</div>`;
       if (t.card) h += `<div class="cardmark holdable${pulseCell === pc ? " mw-pulse" : ""}" data-peek="card:${pc}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</div>`;
     } else { h += `<div class="facedown"></div>`; }
@@ -330,6 +341,16 @@ function peekContent(game, spec) {
   if (type === "tower") return { title: "Imprisoned in the Tower", body: "Each turn roll a die — escape on 5–6, or freed on the 4th turn. The Key frees you at once." };
   if (type === "captured") return { title: "Captured by the Enchantress", body: "Each turn, roll — escape on a 6." };
   if (type === "king") return { title: "👑 King of the Wood", body: "You struck down the King and wear the crown. <b>Hold the Castle through a full turn to win as King.</b> (Britomart never takes the crown.)" };
+  if (type === "storm") { const [r, c] = arg.split(",").map(Number); const t = tileAt(game, r, c); const n = t && t.storm; return { title: "🌩️ Magician's Storm", body: `No one may enter or leave this area by normal movement${n ? ` — ${n} turn${n === 1 ? "" : "s"} left` : ""}. Magical movement (transport / horn) still passes.` }; }
+  if (type === "chivalry") {
+    const holder = (game.chivalry || {})[arg];
+    const p = (game.players || []).find((q) => q.mark === holder);
+    const who = p ? E(p.label || p.name) : "someone";
+    const one = arg === "boy" ? "the Boy" : "the Damsel", them = arg === "boy" ? "him" : "her";
+    const dest = arg === "boy" ? "the Earthly Gate" : "the Queen's area (wherever the Queen is)";
+    return { title: arg === "boy" ? "👦 Save Boy" : "👧 Rescue Damsel",
+      body: `${who} bears this obligation of chivalry (§15). Greet ${one} to take ${them} as a companion, then deliver ${them} to <b>${dest}</b> to fulfil it. Seeing them passes the duty to the last knight to enter their area.` };
+  }
   return null;
 }
 function denizenSummary(id) {
