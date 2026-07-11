@@ -14,6 +14,7 @@ import {
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
   denPhrase, denIntro, escapeOutcomes, resolveEscape, raiseStorm, decayStorms, becomeKing,
+  takeChivalry, deliverRescue,
 } from "./engine.js";
 import { playBotTurn } from "./ai.js";
 
@@ -31,7 +32,7 @@ export function newMysticWoodGame() {
     status: "playing", winner: null, end_reason: null,
     seat_order: [], players: {}, current_player: null,
     board: [], deck: [], discard: [], log: [], pending: null, scry_reveal: null, results: {},
-    horn: null, horn_seq: 0,
+    horn: null, horn_seq: 0, chivalry: { boy: null, damsel: null },
     turn_seq: 0, round: 1, roll_seq: 0, knight_setup: "auto",
   };
 }
@@ -61,7 +62,7 @@ export function initMysticWoodSeats(game, players) {
   game.status = "playing"; game.winner = null; game.end_reason = null;
   game.seat_order = []; game.players = {}; game.log = []; game.pending = null; game.scry_reveal = null;
   game.results = {}; game.turn_seq = 0; game.round = 1; game.roll_seq = 0;
-  game.horn = null; game.horn_seq = 0;
+  game.horn = null; game.horn_seq = 0; game.chivalry = { boy: null, damsel: null };
   game.board = buildBoard();
   game.deck = shuffle(DECK_IDS.slice()); game.discard = [];
   const pool = shuffle(KNIGHT_ORDER.slice());   // distinct knights, randomly assigned (v1 — see PLAN.md)
@@ -213,6 +214,8 @@ function enterTile(game, seat, tile) {
     return "end";   // §5.2: you cannot enter the Enchanted Gate and leave the Wood on the same turn
   }
   if (tile.name === "cave" && seat.q === "cave" && !seat.questDone) logEvent(game, `${name} enters the Cave — keep vigil here for 3 full turns.`);
+  takeChivalry(game, seat, tile);    // §15: seeing a Boy/Damsel here lays the obligation of rescue on you
+  deliverRescue(game, seat, tile);   // §15: arriving in the Queen's area with the Damsel rescues her
   return openEncounter(game, seat, tile) ? "encounter" : "open";
 }
 // Open a combat "pick one of six": the foe's (red) die is rolled now and stored; the player taps a
@@ -515,6 +518,7 @@ export function mysticWoodGameToDict(game) {
     scry_reveal: game.scry_reveal || null,
     results: game.results || {},
     horn: game.horn || null,
+    chivalry: game.chivalry || { boy: null, damsel: null },   // §15: who currently bears each rescue obligation
     // Send the full retained chronicle (bounded by LOG_CAP) so the client can show the ENTIRE history
     // (report mrfoq90c) and a bug-report snapshot captures a real audit trail. turn_seq above is the
     // turn count shown near the top.

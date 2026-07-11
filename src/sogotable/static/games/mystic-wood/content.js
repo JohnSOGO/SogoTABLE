@@ -53,10 +53,12 @@ export const DEN = {
   dwarf: { name: "Dwarf", cls: "greet", tbl: { 1: "give:armour", 2: "give:armour", 3: "give:armour", 4: "give:armour", 5: "give:armour", 6: "give:armour" } },
   queen: { name: "Queen", cls: "special" },
   nymph: { name: "Nymph", cls: "greet", tbl: { 1: "give:crystal", 2: "give:crystal", 3: "give:crystal", 4: "give:crystal", 5: "give:crystal", 6: "give:crystal" } },
+  boy: { name: "Boy", cls: "companion", befriendAlways: true, chivalry: "boy" },
+  damsel: { name: "Damsel", cls: "companion", befriendAlways: true, chivalry: "damsel" },
   fog: { name: "Mystic Fog", cls: "spell" }, horn: { name: "Mystic Horn", cls: "spell" }, wind: { name: "Mystic Wind", cls: "spell" },
 };
 export const DEN_CLASS = { beast: "Beast", warrior: "Warrior", magic: "Magic-user", greet: "Denizen", companion: "Companion", special: "Denizen" };
-export const DEN_EMOJI = { dragon: "🐉", ox: "🐂", boar: "🐗", troll: "👹", giant: "🗿", orc: "👺", saracen: "⚔️", king: "👑", wizard: "🧙", illusion: "🌀", enchantress: "🧝‍♀️", horse: "🐎", rogue: "🗡️", witch: "🧙‍♀️", druid: "🌿", elf: "🏹", merlin: "🔮", hermit: "🧓", bishop: "⛪", archmage: "✨", magician: "🌩️", sage: "📜", princess: "👸", prince: "🤴", grail: "🏆", dwarf: "⛏️", queen: "👸", nymph: "💧", fog: "🌫️", horn: "📯", wind: "🌬️" };
+export const DEN_EMOJI = { dragon: "🐉", ox: "🐂", boar: "🐗", troll: "👹", giant: "🗿", orc: "👺", saracen: "⚔️", king: "👑", wizard: "🧙", illusion: "🌀", enchantress: "🧝‍♀️", horse: "🐎", rogue: "🗡️", witch: "🧙‍♀️", druid: "🌿", elf: "🏹", merlin: "🔮", hermit: "🧓", bishop: "⛪", archmage: "✨", magician: "🌩️", sage: "📜", princess: "👸", prince: "🤴", grail: "🏆", dwarf: "⛏️", queen: "👸", nymph: "💧", boy: "👦", damsel: "👧", fog: "🌫️", horn: "📯", wind: "🌬️" };
 export const THING_DESC = {
   lance: "+1 Strength. (Given by the Wizard.)", shield: "+1 Strength. (Given by Merlin.)",
   armour: "+2 Strength. (Revealed by the Dwarf.)", golden_bough: "Lets you enter the Cave.",
@@ -70,6 +72,8 @@ export const COMP_DESC = {
   prince: "Lends +3 Strength & +3 Prowess to ONE fight (never vs the King, nor George vs the Dragon), then just travels on. (Britomart's quest companion.)", grail: "+1 Strength and +1 Prowess. Not a Thing. (Perceval's quest object.)",
   magician: "On your turn, press <b>🌩️ Storm</b> beneath the board, then tap an area: for three full turns no one may enter or leave it by normal movement (magical movement — transport/horn — still passes). Never from or at the Tower. No stat bonus.",
   archmage: "On your turn, press <b>✨ Transport</b> beneath the board to send yourself to any revealed place.",
+  boy: "Rescued, not fought — greeting him makes him your Companion, and seeing him obliges you to rescue him. (Chivalry §15.)",
+  damsel: "Rescued, not fought — greet her to take her as a Companion, then deliver her to the Queen's area to rescue her. (Chivalry §15.)",
 };
 export const AREA_NAMES = { cave: "Cave", chapel: "Chapel", castle: "Castle", fountain: "Fountain", grove: "Sacred Grove", island: "Island", palace: "Palace", altar: "Altar", tower: "Tower", egate: "Earthly Gate", xgate: "Enchanted Gate" };
 export const AREA_FX = {

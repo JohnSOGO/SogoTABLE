@@ -44,7 +44,8 @@ the documented choice. This is the maintenance backlog; check items off as fixed
   `doJoust` throws if `moved`, and moving ends the turn → can't chase-then-joust.
 - [~] **2.5 Joust/endgame:** **player-King succession DONE** (§18.10: unhorse a player-King → he is out, victor takes the crown). Re-challenge lockout / voluntary Thing drop / card exchange still pending. Player-King joust loss = elimination + succession (§18.10);
   re-challenge lockout (§12); voluntary Thing drop (§11); card exchange between knights (§13). None exist.
-- [ ] **2.6 Chivalry / Boy-Damsel / Pilgrim / Crone obligation subsystem** (§15, §18.21/26). **Already
+- [x] **2.6 Chivalry / Boy-Damsel obligation subsystem** (base game) IMPLEMENTED — Boy/Damsel denizens (greet → auto-Companion); the obligation of rescue is taken on sight and passes to the last to see (game.chivalry); a King is exempt; delivery rescues (Damsel → the Queen's area, Boy → the Earthly Gate). OPEN GAP: the rulebook never states the rescue REWARD value, so none is invented (a rescue is logged + tallied). Pilgrim/Crone are expansion denizens, out of scope.
+- [ ] ~~**2.6 (old wording)**~~ (§15, §18.21/26). **Already
   documented as deferred** — the largest missing block, its own future slice.
 
 ## 3. Minor / ambiguous

@@ -522,7 +522,39 @@ function applyWin(game, seat, tile, den, id) {
 export function becomeKing(game, seat) {
   if (seat.knight === "britomart") { logEvent(game, "Britomart will not seize the crown."); return; }
   seat.isKing = true; seat.q = "king";
+  // §15: a King is no longer bound by chivalry — any Save Boy / Rescue Damsel card is set aside.
+  if (game.chivalry) for (const t of ["boy", "damsel"]) if (game.chivalry[t] === seat.mark) game.chivalry[t] = null;
   logEvent(game, `${seat.name} strikes down the King and claims the crown!`, "g");
+}
+
+/* ------------------------------ chivalry -------------------------------- */
+// §15: merely SEEING a Boy or Damsel (revealed in an area you enter) lays the obligation of rescue on
+// you — you take the Save Boy / Rescue Damsel card, whether or not you can greet them this turn. The
+// card passes to the LAST knight to see them; game.chivalry holds the current bearer's mark.
+export function takeChivalry(game, seat, tile) {
+  if (!game.chivalry) game.chivalry = { boy: null, damsel: null };
+  for (const id of [tile.card, tile.card2]) {
+    const c = id && DEN[id] && DEN[id].chivalry;
+    if (c && !seat.isKing && game.chivalry[c] !== seat.mark) {
+      game.chivalry[c] = seat.mark;
+      logEvent(game, `The sight of the ${DEN[id].name} lays the obligation of rescue on ${seat.name}.`, "a");
+    }
+  }
+}
+// §15 delivery (destinations per MojoSOGO): the Damsel is rescued in the Queen's area (wherever the
+// Queen card currently is); the Boy is rescued at the Earthly Gate. Greeting the Queen is optional, so
+// delivery is by arrival, not by a boon. The reward VALUE is still undefined in the rulebook, so none
+// is invented — a rescue is logged, the obligation cleared, and a tally kept (mechanical reward TBD).
+export function deliverRescue(game, seat, tile) {
+  const deliveries = [];
+  if (seat.companions.includes("damsel") && (tile.card === "queen" || tile.card2 === "queen")) deliveries.push(["damsel", "the Queen"]);
+  if (seat.companions.includes("boy") && tile.name === "egate") deliveries.push(["boy", "the Earthly Gate"]);
+  for (const [id, where] of deliveries) {
+    seat.companions = seat.companions.filter((c) => c !== id);
+    if (game.chivalry) game.chivalry[id] = null;
+    seat.rescued = (seat.rescued || 0) + 1;
+    logEvent(game, `${seat.name} delivers the ${DEN[id].name} safely to ${where} — rescued! Chivalry fulfilled.`, "g");
+  }
 }
 
 /* -------------------------------- greet --------------------------------- */

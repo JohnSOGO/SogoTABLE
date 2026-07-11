@@ -4,7 +4,7 @@
 import { DEN } from "./data.js";
 import {
   cellAt, reachableFrom, applyMoveTo, resolveSpell, resolveChallenge, resolveGreet,
-  anyKing, pickIndex,
+  anyKing, pickIndex, takeChivalry, deliverRescue,
 } from "./engine.js";
 
 // Play one bot seat's whole turn. Turn-start rolls/win-checks already ran in beginSeatTurn.
@@ -39,6 +39,7 @@ function botEnter(game, seat, tile) {
   if (tile.pendingSpell) { const sp = tile.pendingSpell; tile.pendingSpell = null; resolveSpell(game, seat, tile, sp); }
   if (tile.name === "xgate" && seat.questDone && !seat.atGate) seat.atGate = true;
   if (tile.name === "cave" && seat.q === "cave") { seat.caveTurns += 1; if (seat.caveTurns >= 3) seat.questDone = true; }
+  takeChivalry(game, seat, tile); deliverRescue(game, seat, tile);   // §15 obligation / delivery
   if (tile.card && DEN[tile.card].king && seat.knight === "britomart" && !anyKing(game)) return; // Britomart ignores the King
   if (!tile.card) return;
   const den = DEN[tile.card];

@@ -60,6 +60,10 @@ export const DEN = {
   dwarf:       { name: "Dwarf",       cls: "greet",   tbl: { 1: "give:armour", 2: "give:armour", 3: "give:armour", 4: "give:armour", 5: "give:armour", 6: "give:armour" } },
   queen:       { name: "Queen",       cls: "special" },
   nymph:       { name: "Nymph",       cls: "greet",   tbl: { 1: "give:crystal", 2: "give:crystal", 3: "give:crystal", 4: "give:crystal", 5: "give:crystal", 6: "give:crystal" } },
+  // Chivalry (§15): Boy & Damsel are rescued, not fought — greeting one makes it your Companion, and
+  // merely SEEING one lays the obligation of rescue on you (the Save Boy / Rescue Damsel card).
+  boy:         { name: "Boy",         cls: "companion", befriendAlways: true, chivalry: "boy" },
+  damsel:      { name: "Damsel",      cls: "companion", befriendAlways: true, chivalry: "damsel" },
   fog:         { name: "Mystic Fog",  cls: "spell" },
   horn:        { name: "Mystic Horn", cls: "spell" },
   wind:        { name: "Mystic Wind", cls: "spell" },
@@ -154,13 +158,16 @@ export const DEN_INTRO = {
   grail:       "A cold light stands in the clearing where no light should fall: the Holy Grail, waiting to see if {k} is worthy to bear it.",
   // The Queen holds court and may grant a boon.
   queen:       "A queen holds court beneath a canopy of leaves, and inclines her head, curious what boon {k} will ask.",
+  // Chivalry — the sight of them lays the obligation of rescue on {k}.
+  boy:         "A frightened boy huddles among the roots, lost and far from home — the sight of him lays a duty on {k}.",
+  damsel:      "A damsel stands pale among the thorns, lost in the Wood; {k} cannot in honour leave her here.",
 };
 
 // The denizen deck: one of each, plus a couple of duplicate beasts as filler. Recycled via a discard.
 export const DECK_IDS = [
   "ox", "boar", "troll", "giant", "orc", "dragon", "saracen", "king", "wizard", "illusion", "enchantress",
   "horse", "rogue", "witch", "druid", "elf", "merlin", "hermit", "bishop", "archmage", "magician", "sage",
-  "princess", "prince", "grail", "dwarf", "queen", "nymph", "fog", "horn", "wind", "ox", "boar",
+  "princess", "prince", "grail", "dwarf", "queen", "nymph", "boy", "damsel", "fog", "horn", "wind", "ox", "boar",
 ];
 
 // Passive Prowess a companion lends while travelling with you. Prince is a one-shot aid applied
