@@ -358,6 +358,11 @@ export function resolveEscape(game, seat, face, mode, tries) {
   recordRoll(game, seat.mark, { escape: true, mode, freed, tries });
   return { freed };
 }
+// The Key opens the Tower with no roll (in beginSeatTurn). Record a result so the player gets a modal that
+// tells them WHY they walked free, rather than only a log line they might miss (1WSQ mrgsicpz).
+export function recordKeyUnlock(game, seat) {
+  recordRoll(game, seat.mark, { escape: true, mode: "key", freed: true, tries: seat.towerTries || 0 });
+}
 
 /* ------------------------------- combat --------------------------------- */
 function princeAids(seat, den) {
@@ -366,6 +371,12 @@ function princeAids(seat, den) {
 }
 function useSage(game, seat) {
   if (seat.companions.includes("sage")) { seat.companions = seat.companions.filter((c) => c !== "sage"); logEvent(game, "The Sage's counsel is spent — he departs.", "a"); }
+}
+// §18.19: the Sage aids ONE approach "whenever the player chooses" — so spend him only when his +2 Prowess
+// was actually DECISIVE (turned a tie/loss into the win/success). A beast fight ignores Prowess entirely,
+// and a fight won comfortably didn't need him — in both he stays. (1WSQ mrgqqkdt: he departed too soon.)
+function useSageIfDecisive(game, seat, prowessInPlay, succeeded, margin) {
+  if (prowessInPlay && succeeded && margin - 2 <= 0) useSage(game, seat);
 }
 function usePrince(game, seat) {
   // §18.15: "After giving his help, Prince transports himself." He LEAVES the knight (no longer counts
@@ -462,12 +473,13 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   else logEvent(game, `${seat.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
   const before = logMark(game);   // headline is already on the modal; capture only what follows
 
+  const prowessInPlay = den.cls === "magic" || den.cls === "warrior";   // a beast fight ignores Prowess (so the Sage did nothing)
   if (outcome === "win") {
     applyWin(game, seat, tile, den, id);
-    useSage(game, seat); usePrince(game, seat); enforcePower(game, seat);
+    useSageIfDecisive(game, seat, prowessInPlay, true, mine - foe); usePrince(game, seat); enforcePower(game, seat);
     result = "win";
   } else {
-    useSage(game, seat); usePrince(game, seat);
+    useSageIfDecisive(game, seat, prowessInPlay, false, mine - foe); usePrince(game, seat);   // a loss never spends him
     result = "lose";
     if (bound) {
       // §8: her song scatters your Companions — they become independent, left on the board. You stay put.
@@ -590,12 +602,19 @@ export function resolveGreet(game, seat, tile, forcedDie, useGuyon = true) {
   const id = tile.card;
   const before = logMark(game);        // capture the outcome lines for the result card
   const die = forcedDie != null ? forcedDie : (greetNeedsDie(den, id) ? d6() : null);
+  const guyon = (useGuyon && seat.knight === "guyon") ? 1 : 0;   // §8.2: Guyon may decline his +1 after seeing the roll
+  const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
+  // The outcome key (befriend / give:potion / transport / tower …) — recorded so the client can flash the
+  // matching emoji onto the tapped face and in the result (1WSQ mrgqugkb / mrgqs7rw). Mirrors the branches below.
+  const resultKey = den.befriendAlways ? "befriend"
+    : id === "bishop" ? "pray"
+    : id === "queen" ? (die >= 5 ? "imprison" : "nothing")
+    : greetFaceOutcome(game, seat, tile, den, id, die == null ? 1 : die, guyon, tile.name === "chapel" ? 1 : 0, isPComp).key;
   if (den.befriendAlways) { befriend(game, seat, tile, id); } // Sage / Boy / Damsel
   else {
-    const guyon = (useGuyon && seat.knight === "guyon") ? 1 : 0;   // §8.2: Guyon may decline his +1 after seeing the roll
-    const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
     if (isPComp) {
       const total = die + totalP(seat) + guyon + (tile.name === "chapel" ? 1 : 0);
+      const thresh = id === "prince" ? 8 : 9;
       if (den.grail) {
         if (total >= 9) takeGrail(game, seat, tile);
         else { logEvent(game, "The Grail slips away."); clearCard(game, tile); }
@@ -606,7 +625,7 @@ export function resolveGreet(game, seat, tile, forcedDie, useGuyon = true) {
         if (total >= 8) befriend(game, seat, tile, id);
         else princeAttack(game, seat, tile);
       }
-      useSage(game, seat);   // §18.19: the Sage aids ONE approach — a challenge OR a greeting — then departs
+      useSageIfDecisive(game, seat, true, total >= thresh, total - thresh);   // §18.19: spend him only if his +2 made it
     } else if (id === "bishop") {
       startPrayer(game, seat, tile);            // pray 3 full turns → Ring (counted at turn start)
     } else if (id === "queen") {
@@ -617,7 +636,7 @@ export function resolveGreet(game, seat, tile, forcedDie, useGuyon = true) {
       applyReaction(game, seat, tile, act);
     }
   }
-  recordRoll(game, seat.mark, { greet: true, die, picked: forcedDie != null, foeName: den.name,
+  recordRoll(game, seat.mark, { greet: true, die, resultKey, picked: forcedDie != null, foeName: den.name,
     foePhrase: denPhrase(id), result: logSince(game, before) || `${denPhrase(id)} reacts.` });
   return { endTurn: true };
 }

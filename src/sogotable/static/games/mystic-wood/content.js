@@ -58,7 +58,7 @@ export const DEN = {
   fog: { name: "Mystic Fog", cls: "spell" }, horn: { name: "Mystic Horn", cls: "spell" }, wind: { name: "Mystic Wind", cls: "spell" },
 };
 export const DEN_CLASS = { beast: "Beast", warrior: "Warrior", magic: "Magic-user", greet: "Denizen", companion: "Companion", special: "Denizen" };
-export const DEN_EMOJI = { dragon: "🐉", ox: "🐂", boar: "🐗", troll: "👹", giant: "🗿", orc: "👺", saracen: "⚔️", king: "👑", wizard: "🧙", illusion: "🌀", enchantress: "🧝‍♀️", horse: "🐎", rogue: "🗡️", witch: "🧙‍♀️", druid: "🌿", elf: "🏹", merlin: "🔮", hermit: "🧓", bishop: "⛪", archmage: "✨", magician: "🌩️", sage: "📜", princess: "👸", prince: "🤴", grail: "🏆", dwarf: "⛏️", queen: "👸", nymph: "💧", boy: "👦", damsel: "👧", fog: "🌫️", horn: "📯", wind: "🌬️" };
+export const DEN_EMOJI = { dragon: "🐉", ox: "🐂", boar: "🐗", troll: "👹", giant: "🗿", orc: "👺", saracen: "⚔️", king: "👑", wizard: "🧙", illusion: "🌀", enchantress: "🧝‍♀️", horse: "🐎", rogue: "🗡️", witch: "🧙‍♀️", druid: "🌿", elf: "🏹", merlin: "🔮", hermit: "🧓", bishop: "⛪", archmage: "✨", magician: "🎩", sage: "📜", princess: "👸", prince: "🤴", grail: "🏆", dwarf: "⛏️", queen: "👸", nymph: "💧", boy: "👦", damsel: "👧", fog: "🌫️", horn: "📯", wind: "🌬️" };
 export const THING_DESC = {
   lance: "+1 Strength. (Given by the Wizard.)", shield: "+1 Strength. (Given by Merlin.)",
   armour: "+2 Strength. (Revealed by the Dwarf.)", golden_bough: "Lets you enter the Cave.",

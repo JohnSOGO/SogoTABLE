@@ -13,7 +13,7 @@ import {
   resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
-  denPhrase, denIntro, escapeOutcomes, resolveEscape, becomeKing,
+  denPhrase, denIntro, escapeOutcomes, resolveEscape, recordKeyUnlock, becomeKing,
   takeChivalry, deliverRescue,
 } from "./engine.js";
 import { resolveSpell, raiseStorm, decayStorms } from "./spells.js";
@@ -106,6 +106,7 @@ function beginSeatTurn(game, seat) {
   if (seat.tower) {
     if (hasThing(seat, "key")) {
       seat.tower = false; logEvent(game, `${name} unlocks the Tower with the Key and walks free.`, "g");
+      if (!seat.is_bot) recordKeyUnlock(game, seat);   // §? give the human a result modal explaining the free exit
     } else if (seat.is_bot) {
       seat.towerTries += 1;
       const { freed } = resolveEscape(game, seat, rollDie(), "tower", seat.towerTries);

@@ -603,12 +603,32 @@ test("Two-card area: the second denizen is met, not discarded", () => {
 });
 
 // §18.19: the Sage aids ONE approach — a challenge OR a greeting — then departs (was: persisted through greets).
-test("Sage: departs after aiding a greeting, not just a challenge", () => {
-  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {} };
-  const s = seatLit("roland", { companions: ["sage"] });
-  const tile = cellAt(game.board, s.r, s.c); tile.revealed = true; tile.card = "princess";
-  resolveGreet(game, s, tile, 3);   // approaching the Princess uses prowess (incl. the Sage's +2)
-  assert.ok(!s.companions.includes("sage"), "the Sage is spent after aiding a greeting");
+// §18.19 / 1WSQ mrgqqkdt: the Sage aids "whenever the player chooses" — so he is spent ONLY when his +2
+// Prowess was decisive (tipped a greeting/fight to success), never on a fight he wasn't needed for.
+test("Sage: departs from a greeting only when his +2 was decisive", () => {
+  // Decisive — die 6 + George's Prowess 1 + the Sage's +2 = 9 exactly; without him (7) the Princess flees.
+  const g1 = { board: buildBoard(), deck: [], discard: [], log: [], results: {} };
+  const s1 = seatLit("george", { companions: ["sage"] });
+  const t1 = cellAt(g1.board, s1.r, s1.c); t1.revealed = true; t1.card = "princess";
+  resolveGreet(g1, s1, t1, 6);
+  assert.ok(s1.companions.includes("princess"), "she befriends — the Sage's +2 tipped it to 9");
+  assert.ok(!s1.companions.includes("sage"), "and the Sage, having been decisive, departs");
+
+  // Not decisive — a prowess card carries the greeting comfortably (12, and 10 without him), so he stays.
+  const g2 = { board: buildBoard(), deck: [], discard: [], log: [], results: {} };
+  const s2 = seatLit("george", { companions: ["sage"], prowess: [{ name: "x", P: 3 }] });
+  const t2 = cellAt(g2.board, s2.r, s2.c); t2.revealed = true; t2.card = "princess";
+  resolveGreet(g2, s2, t2, 6);
+  assert.ok(s2.companions.includes("sage"), "won comfortably — the Sage was not needed, so he stays");
+});
+
+// A beast fight ignores Prowess entirely, so the Sage can never be decisive there — he must survive it.
+test("Sage: a beast fight (Strength only) never spends him", () => {
+  const g = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1"], players: {} };
+  const s = seatLit("george", { companions: ["sage"] }); g.players.P1 = s;
+  const t = cellAt(g.board, s.r, s.c); t.revealed = true; t.card = "ox";   // beast: Strength only
+  resolveChallenge(g, s, t, 6, 1);   // clear win on Strength
+  assert.ok(s.companions.includes("sage"), "the Sage stays — his Prowess was irrelevant to a beast fight");
 });
 
 // §14: the auto power-limit shed must never drop a still-needed quest item (Guyon's Golden Bough).

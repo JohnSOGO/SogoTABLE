@@ -21,7 +21,8 @@ function resultEmojiForRoll(roll) {
   if (roll.escape) return roll.freed ? "🗝️" : "🔒";     // the Key when you break free, the lock when the bars hold
   if (roll.outcome === "win") return "⚔️✨";
   if (roll.outcome === "lose") return roll.bound ? "🧝‍♀️" : "💀";
-  return null;   // greet / joust: no single-face outcome to reveal
+  if (roll.greet && roll.resultKey) return oddsEmoji(roll.resultKey) || null;   // befriend 🤝, give:potion 🧪, transport 💨 … (mrgsh5me)
+  return null;   // joust: no single-face outcome to reveal
 }
 
 /* ------------------------------- portal --------------------------------- */
@@ -33,7 +34,7 @@ function introHtml(p) { return p && p.intro ? `<p class="mw-enc-intro">${sanitiz
 // A glance-emoji for each pick outcome, so a face's result reads without reading (bug mrghtdqr).
 const ODDS_EMOJI = { win: "⚔️✨", lose: "💀", tie: "🎲", captured: "✦", free: "🔓", held: "🔒",
   remains: "😐", transport: "💨", transportYou: "🌀", befriend: "🤝", tower: "⛓️", run: "🐎💨", catch: "🐎",
-  grail: "🏆", flee: "🏃", attack: "⚔️", imprison: "👑⛓️", nothing: "🚫" };
+  grail: "🏆", flee: "🏃", attack: "⚔️", imprison: "👑⛓️", nothing: "🚫", pray: "🙏" };
 const THING_EMOJI = { wand: "🪄", crystal: "💎", key: "🗝️", armour: "🛡️", potion: "🧪", ring: "💍", blessing: "✨", shield: "🛡️", golden_bough: "🌿", lance: "🗡️" };
 function oddsEmoji(key) {
   if (ODDS_EMOJI[key]) return ODDS_EMOJI[key];
@@ -124,13 +125,12 @@ function pickCard(ctx, game, moveType, verb) {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
     b.classList.add("mw-chosen");
-    // A fight's face reveals its TRUE result when the roll lands (mrgkd4uw / mrgls3o2). A sure win/loss
-    // reads at once; a real roll leaves the face until the verdict morphs on via pendingReveal — never a
-    // die (a die is only for a reroll). Greets carry no single-face outcome, so their face stays put.
-    if (moveType === "combat_pick") {
-      if (p.noMatch) b.textContent = "⚔️✨"; else if (p.hopeless) b.textContent = "💀";
-      pendingReveal = { el: b };
-    }
+    // Every pick face reveals its TRUE result when the roll lands (mrgkd4uw / mrgls3o2 / mrgsh5me — ALL
+    // picks, greet included). A sure win/loss reads at once; otherwise the face waits until the verdict
+    // morphs on via pendingReveal — never a die (a die is only ever a reroll).
+    if (moveType === "combat_pick" && p.noMatch) b.textContent = "⚔️✨";
+    else if (moveType === "combat_pick" && p.hopeless) b.textContent = "💀";
+    if (moveType === "combat_pick" || moveType === "greet_pick") pendingReveal = { el: b };
     // The result modal swaps in on the next render (dice suppressed — this was a pick, not a roll).
     ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")), useGuyon });
   }));
@@ -232,12 +232,12 @@ function renderDiceModal(ctx, roll) {
   let inner;
   if (roll.escape) {
     // The picked escape shows no die (the pick stood in for the roll); the headline says free or held.
-    const capture = roll.mode === "capture";
+    const capture = roll.mode === "capture", key = roll.mode === "key";
     const res = roll.freed
-      ? `<span class="g">${capture ? "🕊️ Free of the Enchantress!" : "🔓 Free of the Tower!"}</span>`
+      ? `<span class="g">${capture ? "🕊️ Free of the Enchantress!" : key ? "🗝️ The Key unlocks the Tower!" : "🔓 Free of the Tower!"}</span>`
       : `<span class="r">${capture ? "✦ Her song still holds you." : "⛓️ The bars hold — still imprisoned."}</span>`;
     const sub = roll.freed
-      ? "You may move this turn."
+      ? (key ? "The Key you carry opened the door — you walk free, and may move this turn." : "You may move this turn.")
       : capture ? "Try again next turn — break free on a 6."
       : roll.tries >= 3 ? "The fourth dawn will open the door." : "Try again next turn — or find the Key.";
     inner = `<div class="tag">${capture ? "The Enchantress" : "The Tower"}</div>
@@ -257,8 +257,9 @@ function renderDiceModal(ctx, roll) {
     // stats now) drops to the detail line, as a fight's consequences do. Same shape, quieter voice.
     const [scene, ...rest] = String(roll.result || "The denizen reacts.").split("<br>");
     const detail = rest.length ? `<div class="mw-result-detail">${sanitizeLog(rest.join("<br>"))}</div>` : "";
+    const oe = oddsEmoji(roll.resultKey);   // the item/outcome glyph (a Potion 🧪, befriend 🤝 …) on the result (mrgqs7rw)
     inner = `<div class="tag">You greet ${E(roll.foePhrase || `the ${roll.foeName}`)}</div>
-      <div class="result mw-result-big mw-result-tale">${sanitizeLog(scene)}</div>
+      <div class="result mw-result-big mw-result-tale">${oe ? oe + " " : ""}${sanitizeLog(scene)}</div>
       ${detail}
       ${dice}
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;

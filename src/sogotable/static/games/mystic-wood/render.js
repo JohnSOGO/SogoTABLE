@@ -374,9 +374,9 @@ function peekContent(game, spec) {
     const p = (game.players || []).find((q) => q.mark === holder);
     const who = p ? E(p.label || p.name) : "someone";
     const one = arg === "boy" ? "the Boy" : "the Damsel", them = arg === "boy" ? "him" : "her";
-    const dest = arg === "boy" ? "the Earthly Gate" : "the Queen's area (wherever the Queen is)";
+    const dest = arg === "boy" ? "the <b>Earthly Gate</b>" : "the <b>Queen</b> — a denizen you must FIND by exploring (she is not at a gate; deliver to whatever area her card is in)";
     return { title: arg === "boy" ? "👦 Save Boy" : "👧 Rescue Damsel",
-      body: `${who} bears this obligation of chivalry (§15). Greet ${one} to take ${them} as a companion, then deliver ${them} to <b>${dest}</b> to fulfil it. Seeing them passes the duty to the last knight to enter their area.` };
+      body: `${who} bears this obligation of chivalry (§15). Greet ${one} to take ${them} as a companion, then deliver ${them} to ${dest} to fulfil it. Seeing them passes the duty to the last knight to enter their area.` };
   }
   return null;
 }
