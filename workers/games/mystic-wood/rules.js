@@ -198,6 +198,18 @@ function enterTile(game, seat, tile) {
 // white face. groups carry the win/lose(/tie) counts; faceMap + red stay server-side (the answer key).
 function openCombatPick(game, seat, tile) {
   const co = combatOutcomes(game, seat, tile);
+  // No match: when every white face wins or ties — the knight cannot lose this roll — there is no real
+  // choice to make. Forcing a pick is empty ceremony, and worse: landing on the lone tie face rerolls a
+  // FRESH red that could be losable, so the ceremony can actually cost you the sure thing. Declare the
+  // foe no match and take the win outright. (bug mrfr29hn-yv3t9s)
+  const win = co.faces.find((f) => f.result === "win");
+  if (win && !co.faces.some((f) => f.result === "lose" || f.result === "captured")) {
+    logEvent(game, `${denPhrase(tile.card)} is no match for ${seat.name}.`);
+    game.pending = null;
+    resolveChallenge(game, seat, tile, win.face, co.red);
+    passTurn(game);
+    return;
+  }
   game.pending = { type: "combat_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
     red: co.red, label: co.label, groups: co.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
 }

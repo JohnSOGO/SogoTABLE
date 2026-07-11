@@ -106,7 +106,7 @@ test("combat pick: combatOutcomes marks the six white faces vs the rolled red, a
 });
 
 test("combat pick: a tie reopens the pick with a fresh red (rulebook reroll)", () => {
-  setMysticWoodRandom(mulberry32(9));
+  setMysticWoodRandom(seq([0.99]));   // the reroll's fresh red = 6 → still a losable fight, so a pick reopens
   const g = newMysticWoodGame();
   initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
   const s = g.players.P1; s.knight = "george"; s.things = []; s.prowess = []; s.companions = []; s.horse = false;
@@ -123,6 +123,27 @@ test("combat pick: a tie reopens the pick with a fresh red (rulebook reroll)", (
   assert.equal(dict.pending.red, undefined);
   assert.equal(dict.pending.faceMap, undefined);
   assert.ok(Array.isArray(dict.pending.groups));
+});
+
+// A fight the knight cannot lose (every white face wins or ties) is empty ceremony — and worse, landing
+// on the lone tie face would reroll a FRESH red that could be losable. So it is declared "no match" and
+// won outright, no pick. Here a rigged first pick ties, and the reroll's low red leaves no losing face.
+test("combat: a foregone win (no losing face) is declared no match — no pick, straight to victory", () => {
+  setMysticWoodRandom(seq([0.0]));                 // every reroll red = 1
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  const s = g.players.P1; s.knight = "george"; s.things = []; s.prowess = []; s.companions = []; s.horse = false;
+  const t = cellAt(g.board, s.r, s.c); t.card = "ox"; t.revealed = true;   // George S3 vs Wild Ox S1
+  g.current_player = "P1";
+  // First pick is rigged to a tie (white 4 + S3 == red 6 + S1 == 7); the tie rerolls a fresh red of 1,
+  // against which every white face wins — the no-match short-circuit takes over.
+  g.pending = { type: "combat_pick", mark: "P1", r: t.r, c: t.c, card: "ox", red: 6, label: "Strength", groups: [], faceMap: [4, 4, 4, 4, 4, 4] };
+  makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 1 });
+  assert.equal(g.pending, null, "no second pick is opened for a foregone win");
+  assert.ok(g.log.some((e) => /is no match for/.test(e.text)), "the fight is announced as no match");
+  assert.ok(s.prowess.some((p) => p.name === "Ox-slayer"), "the win is applied (Ox-slayer gained)");
+  assert.equal(g.results.P1.outcome, "win");
+  assert.equal(g.results.P1.picked, true);         // resolved via a forced (picked) white, dice hidden on reveal
 });
 
 test("greet_pick projection sends the odds but never the face-map", () => {

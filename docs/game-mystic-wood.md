@@ -94,6 +94,13 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   via `ai.js`). Previously a human was handed a normal, active turn and any move silently *lapsed*
   the prayer, so a human playing naturally never accumulated the count — "it starts but doesn't
   count." On the turn the prayer completes, `praying` is false and the freed knight plays on.
+- **A foregone fight is "no match" — no pick (2026-07-10, report `mrfr29hn-yv3t9s`).** When the
+  rolled red leaves *every* white face a win-or-tie (no `lose`/`captured` face), the "pick one of
+  six" is empty ceremony — and worse, landing on the lone tie face rerolls a *fresh* red that could
+  be losable, so the ceremony could cost you the sure thing. `openCombatPick` (`rules.js`) now detects
+  the no-losing-face case, logs "*<foe>* is no match for *<knight>*", and resolves the win outright on
+  a winning face — straight to the victory reveal, no pending pick. Fights that can still be lost are
+  unchanged; bots already auto-resolve via `resolveChallenge`.
 - **The Mystic Horn is staged, not silent (2026-07-08; hardened 2026-07-10).** A scatter used to
   look like a teleport, so knights lost their own token. `horn.js` plays it: a horn call, every
   token touring each knight's landing place in turn before it settles (~2s, one-shot per
