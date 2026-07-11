@@ -346,9 +346,11 @@ async function doAutoShip(job) {
 }
 
 // The shared "land this branch on origin/main" core, used by both auto-ship and the
-// manual Ship button. It runs ENTIRELY from the job's worktree: fetch the current remote
-// main, merge it into the fix branch there, run the test suite on the merged result, and
-// push the branch tip straight to origin/main. Nothing here touches the shared primary
+// manual Ship button. It runs ENTIRELY from the job's worktree: run the test suite, then
+// push the branch tip straight to origin/main — a fast-forward when main is unchanged (the
+// common case), so there's no fetch/merge to lose to a lock race in this shared clone. Only
+// if the push is REJECTED because main advanced does it fetch + merge current main and push
+// again (real-conflict / transient handling there). Nothing here touches the shared primary
 // working tree — depending on that tree (dirty / on another branch because several
 // sessions share this clone) is exactly what used to strand fixes. A genuine content
 // conflict (two sessions edited the same lines) is now the only thing that parks a fix,
@@ -362,36 +364,37 @@ async function landOnMain(job) {
   const touchesWorker = (await git(["diff", "--name-only", `main...${job.branch}`], wt)).out
     .split("\n").some((f) => f.startsWith("workers/"));
 
-  // Catch the branch up to the CURRENT remote main so the push fast-forwards cleanly. A merge can
-  // fail for two very different reasons: a REAL content conflict (two edits to the same lines — only a
-  // human can resolve), or a TRANSIENT git error (an index.lock held by a concurrent op in this shared
-  // clone, a flaky fetch). Only the first should park the fix. Tell them apart by whether git actually
-  // left conflicted paths, and retry a transient failure once before giving up — a spurious "conflict"
-  // park (which is what stranded a clean fix) is exactly what we're preventing.
-  let merged = false;
-  for (let attempt = 1; attempt <= 2 && !merged; attempt += 1) {
+  // Safety gate: never push a red suite. The branch was cut from fresh origin/main, so in the common
+  // case (main unchanged during the run) this tests the fix against live main.
+  log(`  running the test suite before pushing…\n`);
+  let test = await runNpm(["test"], wt);
+  if (test.code !== 0) return { ok: false, touchesWorker, error: "tests failed — not pushed; the fix is safe on the branch." };
+
+  // Let the PUSH be the source of truth. A direct push fast-forwards origin/main when main hasn't moved
+  // (the common case) — no fetch, no merge, so nothing to lose to a lock race. Git only accepts a
+  // fast-forward, so if main advanced under us the push is REJECTED as non-fast-forward; ONLY THEN do we
+  // fetch + merge current main in and push again. This is what stops a clean fix parking on a phantom
+  // merge failure: in the overwhelmingly common case there is no merge step at all.
+  const isNonFF = (r) => /non-fast-forward|fetch first|\[rejected\]|tip of your current branch is behind/i.test((r.err || "") + (r.out || ""));
+  let push = await git(["push", "origin", "HEAD:main"], wt);
+  if (push.code !== 0 && isNonFF(push)) {
+    log(`  main advanced under us — merging it in and retrying the push…\n`);
     await git(["fetch", "origin", "main"], wt);
     const merge = await git(["merge", "--no-ff", "FETCH_HEAD", "-m", `Merge origin/main into ${job.branch}`], wt);
-    if (merge.code === 0) { merged = true; break; }
-    const conflicted = (await git(["diff", "--name-only", "--diff-filter=U"], wt)).out;
-    await git(["merge", "--abort"], wt);   // harmless if there was no merge to abort
-    if (conflicted) {
-      const n = conflicted.split("\n").filter(Boolean).length;
-      return { ok: false, touchesWorker, error: `conflicts with the current main (${n} file${n === 1 ? "" : "s"}) — resolve on the branch, then Ship.` };
+    if (merge.code !== 0) {
+      const conflicted = (await git(["diff", "--name-only", "--diff-filter=U"], wt)).out;
+      await git(["merge", "--abort"], wt);   // harmless if there was no merge in progress
+      if (conflicted) {
+        const n = conflicted.split("\n").filter(Boolean).length;
+        return { ok: false, touchesWorker, error: `conflicts with the current main (${n} file${n === 1 ? "" : "s"}) — resolve on the branch, then Ship.` };
+      }
+      return { ok: false, touchesWorker, error: "transient git error merging the advanced main — Ship to retry." };
     }
-    log(`  merge hit a transient git error (attempt ${attempt}/2): ${(merge.err || merge.out || "").split("\n")[0]} — retrying…\n`);
-    await new Promise((r) => setTimeout(r, 500));   // let a concurrent index.lock clear
+    test = await runNpm(["test"], wt);   // re-test against the just-merged main
+    if (test.code !== 0) return { ok: false, touchesWorker, error: "tests failed after merging the advanced main — the fix is safe on the branch." };
+    push = await git(["push", "origin", "HEAD:main"], wt);
   }
-  if (!merged) return { ok: false, touchesWorker, error: "transient git error merging main (likely a lock in the shared clone) — Ship to retry." };
-
-  // Safety gate: never push a red suite. Tests run against the merged worktree state.
-  log(`  running the test suite before pushing…\n`);
-  const test = await runNpm(["test"], wt);
-  if (test.code !== 0) return { ok: false, touchesWorker, error: "tests failed after merging main — not pushed; the fix is safe on the branch." };
-
-  // Push the branch tip straight onto origin/main (Cloudflare Pages auto-deploys static).
-  const push = await git(["push", "origin", "HEAD:main"], wt);
-  if (push.code !== 0) return { ok: false, touchesWorker, error: "push rejected: " + (push.err || push.out).slice(0, 200) + " — Ship to retry." };
+  if (push.code !== 0) return { ok: false, touchesWorker, error: "push failed: " + (push.err || push.out).slice(0, 200) + " — Ship to retry." };
   job.shippedHash = (await git(["rev-parse", "--short", "HEAD"], wt)).out;
 
   // Keep the clone's local main ref current when it's safe, so future fix branches start fresh.
