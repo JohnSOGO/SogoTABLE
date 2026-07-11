@@ -72,18 +72,27 @@ function pickCard(ctx, game, moveType, verb) {
   const emoji = denEmoji(p.card);
   // The server carries the article ("Merlin", but "the Witch") — he is a person, not a species.
   const name = E(p.denPhrase || `the ${p.denName || (den && den.name) || "denizen"}`);
-  const odds = (p.groups || []).map((g) => `<div class="mw-pickodd mw-odd-${E(g.key)}"><span class="mw-pickn">${g.count}</span> ${E(g.label)}</div>`).join("");
+  const oddsHtml = (groups) => (groups || []).map((g) => `<div class="mw-pickodd mw-odd-${E(g.key)}"><span class="mw-pickn">${g.count}</span> ${E(g.label)}</div>`).join("");
   const faces = [1, 2, 3, 4, 5, 6].map((n) => `<button class="mw-pickface" data-pick="${n}" aria-label="pick ${n}">${emoji}</button>`).join("");
+  // §8.2: Guyon may add or decline his +1 after seeing the odds — a toggle that swaps the two odds sets.
+  let useGuyon = true;
   const host = portal();
   host.innerHTML = `<div class="overlay"><div class="modal">
     <div class="tag">${verb} ${name}</div>
     ${tileHeaderHtml(tile)}
     ${introHtml(p)}
     <h2>${emoji} Pick one</h2>
-    <div class="mw-pickodds">${odds}</div>
+    <div class="mw-pickodds">${oddsHtml(p.groups)}</div>
+    ${p.guyonOptional ? `<div class="row"><button data-guyon="1" class="mw-guyon">Guyon's +1: ON</button></div>` : ""}
     <div class="mw-pickgrid">${faces}</div>
     ${p.canWithdraw ? `<div class="row"><button data-pick-withdraw="1">↩︎ Withdraw instead</button></div>` : ""}
   </div></div>`;
+  const gt = host.querySelector("[data-guyon]");
+  if (gt) gt.addEventListener("click", () => {
+    useGuyon = !useGuyon;
+    gt.textContent = `Guyon's +1: ${useGuyon ? "ON" : "OFF"}`;
+    const od = host.querySelector(".mw-pickodds"); if (od) od.innerHTML = oddsHtml(useGuyon ? p.groups : p.groupsNoBonus);
+  });
   const wb = host.querySelector("[data-pick-withdraw]");
   if (wb) wb.addEventListener("click", () => { if (!(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "withdraw" }); });
   host.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
@@ -91,7 +100,7 @@ function pickCard(ctx, game, moveType, verb) {
     host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
     b.classList.add("mw-chosen");
     // The result modal swaps in on the next render (dice suppressed — this was a pick, not a roll).
-    ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")) });
+    ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")), useGuyon });
   }));
 }
 // The imprisoned-escape "pick one of six": each turn the captive taps a face to try the lock. The odds

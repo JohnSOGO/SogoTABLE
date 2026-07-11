@@ -44,24 +44,24 @@ the documented choice. This is the maintenance backlog; check items off as fixed
   `doJoust` throws if `moved`, and moving ends the turn → can't chase-then-joust.
 - [~] **2.5 Joust/endgame:** **player-King succession DONE** (§18.10: unhorse a player-King → he is out, victor takes the crown). Re-challenge lockout / voluntary Thing drop / card exchange still pending. Player-King joust loss = elimination + succession (§18.10);
   re-challenge lockout (§12); voluntary Thing drop (§11); card exchange between knights (§13). None exist.
-- [x] **2.6 Chivalry / Boy-Damsel obligation subsystem** (base game) IMPLEMENTED — Boy/Damsel denizens (greet → auto-Companion); the obligation of rescue is taken on sight and passes to the last to see (game.chivalry); a King is exempt; delivery rescues (Damsel → the Queen's area, Boy → the Earthly Gate). OPEN GAP: the rulebook never states the rescue REWARD value, so none is invented (a rescue is logged + tallied). Pilgrim/Crone are expansion denizens, out of scope.
+- [x] **2.6 Chivalry / Boy-Damsel obligation subsystem** (base game) IMPLEMENTED — Boy/Damsel denizens (greet → auto-Companion); the obligation of rescue is taken on sight and passes to the last to see (game.chivalry); a King is exempt; delivery rescues (Damsel → the Queen's area, Boy → the Earthly Gate). REWARD (resolved 2026-07-11 by MojoSOGO): no stat — a permanent Boy-saver / Damsel-rescuer status (seat.saved); the honour is the reward. Pilgrim/Crone are expansion denizens, out of scope.
 - [ ] ~~**2.6 (old wording)**~~ (§15, §18.21/26). **Already
   documented as deferred** — the largest missing block, its own future slice.
 
 ## 3. Minor / ambiguous
 
-- [ ] **3.1 Guyon greet bonus unconditional.** §8.2 — he chooses whether to add +1 *after* rolling
+- [x] **3.1 Guyon greet bonus is now optional** (§8.2) — a "Guyon's +1: ON/OFF" toggle on his greet pick; the server sends both odds sets and honours the choice. FIXED. §8.2 — he chooses whether to add +1 *after* rolling
   (matters for steering the Horse). Code always adds it.
 - [x] **3.2 Power-limit shedding auto-picks and deletes.** FIXED (partial): never sheds a still-needed Golden Bough; full player-choice + return-to-board is a larger follow-up. §14 — player chooses which cards to shed;
   Things stay in the area, prowess cards return to the deck as denizens. `enforcePower` auto-pops the
   last and deletes it (could drop the Golden Bough).
 - [x] **3.3 Sage persists through greetings.** FIXED — the Sage now departs after aiding a companion-greeting too. §18.19 one-shot in a challenge *or* greeting; `useSage`
   only runs from `resolveChallenge`, so a greeting-only knight keeps +2 Prowess forever.
-- [ ] **3.4 "Remains" is cosmetic.** §8.2.1 — can't re-greet until you act elsewhere, but may pass
+- [x] **3.4 "Remains" free-pass** — you're no longer forced to re-greet a denizen you stand on; you move on freely (free-move). FIXED (via turn-flow). §8.2.1 — can't re-greet until you act elsewhere, but may pass
   freely. `tile.remains` is set but re-entry still forces a fresh greet; free-pass absent.
 - [ ] **3.5 Multiple spells on a tile overwrite.** §9 orders Horn→Wind→Fog; `drawCardFor` keeps a single
   `pendingSpell`, so a Palace/Altar second spell overwrites the first.
-- [ ] **3.6 Queen greeting forced.** §18.17/§21 — asking a boon is optional; a player may ignore her.
+- [x] **3.6 Ignoring the Queen** — greeting her is a pick with a Withdraw button, so you can decline her. FIXED (via the withdraw feature). §18.17/§21 — asking a boon is optional; a player may ignore her.
   (Once-per-game / target-choice / send-self-to-Tower are documented fast-follows.)
 - [x] **3.7 Enchantress "jail" divergence.** FIXED — she no longer captures/jails; a loss keeps you in her glade and scatters your companions (§18.7). §18.7 — she doesn't jail; she ignores you until you leave
   by any path. Our "captured, roll a 6" is surfaced as an intended mechanic in game-mystic-wood.md.

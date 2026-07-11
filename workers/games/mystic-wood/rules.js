@@ -185,8 +185,13 @@ function openEncounter(game, seat, tile) {
   if (combat) { openCombatPick(game, seat, tile); return true; }
   const outcomes = greetOutcomes(game, seat, tile);
   if (outcomes) {
-    game.pending = { type: "greet_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
+    const gp = { type: "greet_pick", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card,
       groups: outcomes.groups, faceMap: shuffle([1, 2, 3, 4, 5, 6]) };
+    if (seat.knight === "guyon") {   // §8.2: Guyon may decline his +1 — carry the alternate odds + a toggle
+      const alt = greetOutcomes(game, seat, tile, false);
+      if (alt) { gp.groupsNoBonus = alt.groups; gp.guyonOptional = true; }
+    }
+    game.pending = gp;
     return true;
   }
   game.pending = { type: "encounter", mark: seat.mark, r: tile.r, c: tile.c, card: tile.card, combat };  // single-effect greet: one confirm button
@@ -275,7 +280,7 @@ function doGreetPick(game, seat, action) {
   const face = p.faceMap[pick - 1];
   game.pending = null;
   if (!tile || !tile.card) { passTurn(game); return; }
-  resolveGreet(game, seat, tile, face);
+  resolveGreet(game, seat, tile, face, action.useGuyon !== false);   // §8.2: Guyon's +1 unless he declined it
   afterEncounter(game, seat, tile);   // a two-card area may still hold a second denizen to meet
 }
 // Combat "pick one of six": the tapped face maps through the hidden shuffle to a white die,
@@ -458,7 +463,7 @@ function seatToDict(s) {
     things: s.things.map((t) => ({ id: t, name: THINGS[t].name })),
     prowess: s.prowess.map((x) => x.name),
     companions: s.companions.map((cid) => ({ id: cid, name: DEN[cid].name })),
-    horse: !!s.horse, tower: !!s.tower, captured: !!s.captured, out: !!s.out,
+    horse: !!s.horse, tower: !!s.tower, captured: !!s.captured, out: !!s.out, saved: s.saved || {},
     questDone: !!s.questDone, isKing: !!s.isKing, atGate: !!s.atGate, won: !!s.won,
     caveTurns: s.caveTurns || 0,
     totalP: totalP(s), totalS: totalS(s),
@@ -486,6 +491,7 @@ function pendingToDict(game) {
   if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
     return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "", canWithdraw,
+      groupsNoBonus: p.groupsNoBonus, guyonOptional: !!p.guyonOptional,   // §8.2 Guyon's optional +1 (greet only)
       denName: den ? den.name : "", denPhrase: denPhrase(p.card), denClass: den ? den.cls : "", intro: denIntro(p.card, knightName) };
   }
   const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat, canWithdraw };

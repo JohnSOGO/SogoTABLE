@@ -550,10 +550,10 @@ export function deliverRescue(game, seat, tile) {
   if (seat.companions.includes("damsel") && (tile.card === "queen" || tile.card2 === "queen")) deliveries.push(["damsel", "the Queen"]);
   if (seat.companions.includes("boy") && tile.name === "egate") deliveries.push(["boy", "the Earthly Gate"]);
   for (const [id, where] of deliveries) {
-    seat.companions = seat.companions.filter((c) => c !== id);
+    seat.companions = seat.companions.filter((c) => c !== id);   // the card no longer functions as a companion
     if (game.chivalry) game.chivalry[id] = null;
-    seat.rescued = (seat.rescued || 0) + 1;
-    logEvent(game, `${seat.name} delivers the ${DEN[id].name} safely to ${where} — rescued! Chivalry fulfilled.`, "g");
+    seat.saved = seat.saved || {}; seat.saved[id] = true;        // permanent Boy-saver / Damsel-rescuer status — the reward is the honour, no stat (per the rulebook)
+    logEvent(game, `${seat.name} delivers the ${DEN[id].name} safely to ${where} — ${id === "boy" ? "Boy-saver" : "Damsel-rescuer"}, chivalry fulfilled!`, "g");
   }
 }
 
@@ -573,11 +573,11 @@ function greetNeedsDie(den, id) {
 // single-effect tables — they resolve at once). Otherwise a per-face list plus the
 // grouped counts the client shows ("2 give a Potion, 2 ignore you, 2 transport away").
 // It mirrors resolveGreet's branching exactly; the parity test pins them together.
-export function greetOutcomes(game, seat, tile) {
+export function greetOutcomes(game, seat, tile, useGuyon = true) {
   const den = DEN[tile.card];
   const id = tile.card;
   if (!greetNeedsDie(den, id)) return null;
-  const guyon = seat.knight === "guyon" ? 1 : 0;
+  const guyon = (useGuyon && seat.knight === "guyon") ? 1 : 0;   // §8.2: Guyon may decline his +1
   const chapel = tile.name === "chapel" ? 1 : 0;
   const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
   const faces = [];
@@ -614,14 +614,14 @@ function greetFaceOutcome(game, seat, tile, den, id, face, guyon, chapel, isPCom
 }
 // Resolve a Greet. Returns { endTurn:true } (a greeting always ends the turn, like the standalone).
 // forcedDie (1-6) lets a shell pick drive the face instead of an internal d6 roll.
-export function resolveGreet(game, seat, tile, forcedDie) {
+export function resolveGreet(game, seat, tile, forcedDie, useGuyon = true) {
   const den = DEN[tile.card];
   const id = tile.card;
   const before = logMark(game);        // capture the outcome lines for the result card
   const die = forcedDie != null ? forcedDie : (greetNeedsDie(den, id) ? d6() : null);
-  if (den.befriendAlways) { befriend(game, seat, tile, id); } // Sage
+  if (den.befriendAlways) { befriend(game, seat, tile, id); } // Sage / Boy / Damsel
   else {
-    const guyon = seat.knight === "guyon" ? 1 : 0;
+    const guyon = (useGuyon && seat.knight === "guyon") ? 1 : 0;   // §8.2: Guyon may decline his +1 after seeing the roll
     const isPComp = den.cls === "companion" && (den.grail || id === "princess" || id === "prince");
     if (isPComp) {
       const total = die + totalP(seat) + guyon + (tile.name === "chapel" ? 1 : 0);

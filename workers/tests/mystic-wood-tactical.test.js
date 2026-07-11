@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   newMysticWoodGame, initMysticWoodSeats, makeMysticWoodMove, mysticWoodGameToDict, setMysticWoodRandom,
 } from "../games/mystic-wood/rules.js";
-import { cellAt, relocate, takeChivalry, deliverRescue, becomeKing } from "../games/mystic-wood/engine.js";
+import { cellAt, relocate, takeChivalry, deliverRescue, becomeKing, greetOutcomes } from "../games/mystic-wood/engine.js";
 import { KNIGHTS } from "../games/mystic-wood/data.js";
 
 function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -79,10 +79,18 @@ test("Chivalry: obligation on sight passes to the last to see; delivery rescues"
   g.players.P1.companions = ["damsel"];
   deliverRescue(g, g.players.P1, (() => { const q = cellAt(g.board, 2, 5); q.revealed = true; q.card = "queen"; return q; })());
   assert.ok(!g.players.P1.companions.includes("damsel"), "the Damsel is delivered to the Queen — rescued");
-  assert.equal(g.players.P1.rescued, 1);
+  assert.equal(g.players.P1.saved.damsel, true, "Damsel-rescuer status recorded (no stat reward)");
   g.players.P1.companions = ["boy"];
   deliverRescue(g, g.players.P1, cellAt(g.board, 8, 3));   // (8,3) is the Earthly Gate
   assert.ok(!g.players.P1.companions.includes("boy"), "the Boy is delivered to the Earthly Gate — rescued");
+});
+
+test("Guyon's +1 greet bonus is optional — the odds differ with and without it (§8.2)", () => {
+  const g = moveGame({ knight: "guyon", q: "cave" });
+  const t = cellAt(g.board, g.players.P1.r, g.players.P1.c); t.revealed = true; t.card = "witch"; t.card2 = null;
+  const withB = greetOutcomes(g, g.players.P1, t, true).groups;
+  const noB = greetOutcomes(g, g.players.P1, t, false).groups;
+  assert.notDeepEqual(withB, noB, "declining Guyon's +1 changes the greet odds");
 });
 
 test("Chivalry: a King is exempt from the rescue obligation (§15/§18.10)", () => {
