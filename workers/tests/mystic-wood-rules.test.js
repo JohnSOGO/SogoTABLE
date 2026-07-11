@@ -8,7 +8,7 @@ import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
   resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes, combatOutcomes,
   logEvent, escapeOutcomes, escapeFrees, resolveEscape, raiseStorm, decayStorms,
-  joustSpoils, joustPrize,
+  joustSpoils, joustPrize, enforcePower,
 } from "../games/mystic-wood/engine.js";
 import { KNIGHTS, DEN, DEN_TALES, DEN_INTRO } from "../games/mystic-wood/data.js";
 
@@ -603,6 +603,26 @@ test("Two-card area: the second denizen is met, not discarded", () => {
   assert.equal(g.pending && g.pending.type, "combat_pick", "the second denizen opens a fresh encounter");
   assert.equal(g.pending.card, "boar", "the second denizen (Boar) is met, not discarded");
   assert.equal(g.current_player, "P1", "both are met this visit — the turn hasn't passed");
+});
+
+// §18.19: the Sage aids ONE approach — a challenge OR a greeting — then departs (was: persisted through greets).
+test("Sage: departs after aiding a greeting, not just a challenge", () => {
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {} };
+  const s = seatLit("roland", { companions: ["sage"] });
+  const tile = cellAt(game.board, s.r, s.c); tile.revealed = true; tile.card = "princess";
+  resolveGreet(game, s, tile, 3);   // approaching the Princess uses prowess (incl. the Sage's +2)
+  assert.ok(!s.companions.includes("sage"), "the Sage is spent after aiding a greeting");
+});
+
+// §14: the auto power-limit shed must never drop a still-needed quest item (Guyon's Golden Bough).
+test("Power limit: keeps the quest-critical Golden Bough", () => {
+  const game = { log: [] };
+  const s = seatLit("guyon", { things: ["golden_bough", "armour", "lance", "shield"],
+    prowess: [{ name: "a", P: 1 }, { name: "b", P: 1 }, { name: "c", P: 1 }, { name: "d", P: 1 }] });
+  assert.ok(capTotal(s) > 10, "starts over the power limit");
+  enforcePower(game, s);
+  assert.ok(s.things.includes("golden_bough"), "the Golden Bough is kept while the Cave quest is unfinished");
+  assert.ok(capTotal(s) <= 10, "power is brought back within the limit");
 });
 
 test("contract: id predicate, seat count, distinct knights, projection shape", () => {

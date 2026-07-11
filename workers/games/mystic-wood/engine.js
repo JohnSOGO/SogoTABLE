@@ -151,10 +151,17 @@ export function capTotal(seat) { return totalP(seat) + totalS(seat) - (seat.comp
 // The Princess won't aid vs the King — her +1 Prowess is withheld in that fight only.
 export function princessVsKing(seat, den) { return (den && den.king && seat.companions.includes("princess")) ? 1 : 0; }
 export function enforcePower(game, seat) {
+  // Never shed a quest-critical Thing (Guyon's Golden Bough, needed to enter the Cave) while it's still
+  // needed — that could strand the quest. Shed a sparable Thing, then a prowess card, and only as a last
+  // resort the quest item itself. (§14 lets the player choose which cards to surrender; this auto-picks.)
+  const questCritical = (t) => t === "golden_bough" && seat.q === "cave" && !seat.questDone;
   let guard = 0;
   while (capTotal(seat) > POWER_LIMIT && guard++ < 12) {
-    if (seat.things.length) { const t = seat.things.pop(); logEvent(game, `${seat.name} sheds the ${THINGS[t].name} (power limit).`); }
+    let i = seat.things.length - 1;
+    while (i >= 0 && questCritical(seat.things[i])) i -= 1;
+    if (i >= 0) { const t = seat.things.splice(i, 1)[0]; logEvent(game, `${seat.name} sheds the ${THINGS[t].name} (power limit).`); }
     else if (seat.prowess.length) { seat.prowess.pop(); logEvent(game, `${seat.name} sheds a prowess card (power limit).`); }
+    else if (seat.things.length) { const t = seat.things.pop(); logEvent(game, `${seat.name} sheds the ${THINGS[t].name} (power limit).`); }
     else break;
   }
 }
@@ -589,6 +596,7 @@ export function resolveGreet(game, seat, tile, forcedDie) {
         if (total >= 8) befriend(game, seat, tile, id);
         else princeAttack(game, seat, tile);
       }
+      useSage(game, seat);   // §18.19: the Sage aids ONE approach — a challenge OR a greeting — then departs
     } else if (id === "bishop") {
       startPrayer(game, seat, tile);            // pray 3 full turns → Ring (counted at turn start)
     } else if (id === "queen") {

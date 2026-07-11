@@ -51,10 +51,10 @@ the documented choice. This is the maintenance backlog; check items off as fixed
 
 - [ ] **3.1 Guyon greet bonus unconditional.** §8.2 — he chooses whether to add +1 *after* rolling
   (matters for steering the Horse). Code always adds it.
-- [ ] **3.2 Power-limit shedding auto-picks and deletes.** §14 — player chooses which cards to shed;
+- [x] **3.2 Power-limit shedding auto-picks and deletes.** FIXED (partial): never sheds a still-needed Golden Bough; full player-choice + return-to-board is a larger follow-up. §14 — player chooses which cards to shed;
   Things stay in the area, prowess cards return to the deck as denizens. `enforcePower` auto-pops the
   last and deletes it (could drop the Golden Bough).
-- [ ] **3.3 Sage persists through greetings.** §18.19 one-shot in a challenge *or* greeting; `useSage`
+- [x] **3.3 Sage persists through greetings.** FIXED — the Sage now departs after aiding a companion-greeting too. §18.19 one-shot in a challenge *or* greeting; `useSage`
   only runs from `resolveChallenge`, so a greeting-only knight keeps +2 Prowess forever.
 - [ ] **3.4 "Remains" is cosmetic.** §8.2.1 — can't re-greet until you act elsewhere, but may pass
   freely. `tile.remains` is set but re-entry still forces a fresh greet; free-pass absent.
