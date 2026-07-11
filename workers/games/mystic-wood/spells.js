@@ -1,0 +1,72 @@
+// The Mystic Wood — spells & storms (pure: no DOM, no I/O, no timers).
+// The three Mystic spell cards (Fog / Wind / Horn) resolve on arrival, and the
+// Magician companion's storm bars an area. Extracted from engine.js to keep it
+// under the god-file cap. Shared primitives (logEvent, relocate, recordRotation)
+// flow in from engine.js; this module is a leaf — engine never imports it back.
+import { logEvent, relocate, recordRotation } from "./engine.js";
+
+/* ------------------------------- spells --------------------------------- */
+// The scatter is a discrete, one-shot presentation event (like a roll): the client tours the tokens
+// across the wood exactly once, keyed off the seq. A re-render, a reconnect, or a reload must never
+// replay it, so the seq only ever advances — it is never cleared.
+function recordHorn(game, byName, scattered) {
+  game.horn_seq = (game.horn_seq || 0) + 1;
+  game.horn = {
+    seq: game.horn_seq, byName,
+    marks: scattered.map((s) => s.mark),
+    tour: scattered.map((s) => [s.r, s.c]),
+  };
+}
+// Returns { endTurn } — Mystic Horn ends the drawer's turn.
+export function resolveSpell(game, seat, tile, spellId) {
+  const name = seat.name;
+  if (spellId === "fog") {
+    // §18.12: every face-up arrow area rotates 180°. Fixed areas (Gates/Tower) don't turn.
+    const spun = [];
+    for (const t of game.board) if (t.revealed && !t.fixed) { const o = t.open; t.open = { N: o.S, S: o.N, E: o.W, W: o.E }; spun.push(t); }
+    recordRotation(game, spun);
+    const n = spun.length;
+    logEvent(game, `Mystic Fog rolls through — ${n} area${n === 1 ? "" : "s"} of the wood turn about.`);
+    return {};
+  }
+  if (spellId === "wind") {
+    // §18.14: sweeps every Thing HELD by a Knight (not Companions, not the Grail, not the mount Horse).
+    let swept = 0;
+    for (const m of game.seat_order) { const q = game.players[m]; swept += q.things.length; q.things = []; }
+    logEvent(game, swept ? "Mystic Wind blows — every Thing held by the knights is swept away!" : "Mystic Wind blows, but no knight holds a Thing to lose.", swept ? "r" : "");
+    return {};
+  }
+  if (spellId === "horn") {
+    logEvent(game, `Mystic Horn sounds — the knights are scattered!`, "a");
+    const scattered = [];
+    game.seat_order.forEach((m) => {
+      const q = game.players[m];
+      if (q.tower || q.captured) return;          // the imprisoned and the bound never hear the horn
+      relocate(game, q, 8 - q.r, 6 - q.c);
+      scattered.push({ mark: m, r: q.r, c: q.c });
+    });
+    recordHorn(game, name, scattered);
+    return { endTurn: true };
+  }
+  return {};
+}
+
+/* ------------------------------- storm ---------------------------------- */
+// Magician companion (rulebook §18.11): on your turn you may raise a storm over any area — never from
+// or at the Tower. For the three full turns AFTER this one, no one may enter or leave it by NORMAL
+// movement; magical movement (transport / horn / relocate, which bypass reachableFrom) still passes.
+// `fresh` skips the first decay so the creating turn itself doesn't count against the three.
+function stormWhere(t) { return t.label || (t.name ? t.name : "the glade"); }
+export function raiseStorm(game, seat, tile) {
+  tile.storm = { turns: 3, fresh: true };
+  logEvent(game, `${seat.name} calls up the Magician's storm over ${stormWhere(tile)} — none may enter or leave it for three turns.`, "a");
+}
+// Age every active storm once per turn (called from advanceTurn). The creating turn is free (`fresh`).
+export function decayStorms(game) {
+  for (const t of game.board) {
+    if (!t.storm) continue;
+    if (t.storm.fresh) { t.storm.fresh = false; continue; }
+    t.storm.turns -= 1;
+    if (t.storm.turns <= 0) { t.storm = null; logEvent(game, `The storm over ${stormWhere(t)} blows itself out.`, "muted"); }
+  }
+}

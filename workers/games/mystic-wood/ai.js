@@ -3,9 +3,10 @@
 // (no pending-choice pause). Called in-process by the turn machine (resolvesBotsInternally).
 import { DEN } from "./data.js";
 import {
-  cellAt, reachableFrom, applyMoveTo, resolveSpell, resolveChallenge, resolveGreet,
+  cellAt, reachableFrom, applyMoveTo, resolveChallenge, resolveGreet,
   anyKing, pickIndex, takeChivalry, deliverRescue,
 } from "./engine.js";
+import { resolveSpell } from "./spells.js";
 
 // Play one bot seat's whole turn. Turn-start rolls/win-checks already ran in beginSeatTurn.
 export function playBotTurn(game, seat) {

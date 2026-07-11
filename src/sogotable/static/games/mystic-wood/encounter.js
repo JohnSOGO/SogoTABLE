@@ -13,6 +13,16 @@ import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
 // dependency one-way: render.js -> encounter.js, never back.
 let rerender = () => {};
 export function initEncounter(fn) { rerender = fn; }
+// The face a player just tapped in a combat/escape pick. When the result lands, the TRUE outcome emoji
+// morphs onto it for a beat before the result modal (UHKO mrgls3o2 / mrglq3yx) — a die 🎲 is only ever
+// shown for a reroll, never a resolution.
+let pendingReveal = null;
+function resultEmojiForRoll(roll) {
+  if (roll.escape) return roll.freed ? "🗝️" : "🔒";     // the Key when you break free, the lock when the bars hold
+  if (roll.outcome === "win") return "⚔️✨";
+  if (roll.outcome === "lose") return roll.bound ? "🧝‍♀️" : "💀";
+  return null;   // greet / joust: no single-face outcome to reveal
+}
 
 /* ------------------------------- portal --------------------------------- */
 function portal() { const p = document.createElement("div"); p.className = "mystic-wood-root mw-portal"; document.body.appendChild(p); return p; }
@@ -114,9 +124,13 @@ function pickCard(ctx, game, moveType, verb) {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
     b.classList.add("mw-chosen");
-    // Morph the tapped face toward its outcome (bug mrgkd4uw): a sure win / sure loss reads at once; a
-    // real roll shows a die until the result modal lands a beat later.
-    b.textContent = p.noMatch ? "⚔️✨" : p.hopeless ? "💀" : "🎲";
+    // A fight's face reveals its TRUE result when the roll lands (mrgkd4uw / mrgls3o2). A sure win/loss
+    // reads at once; a real roll leaves the face until the verdict morphs on via pendingReveal — never a
+    // die (a die is only for a reroll). Greets carry no single-face outcome, so their face stays put.
+    if (moveType === "combat_pick") {
+      if (p.noMatch) b.textContent = "⚔️✨"; else if (p.hopeless) b.textContent = "💀";
+      pendingReveal = { el: b };
+    }
     // The result modal swaps in on the next render (dice suppressed — this was a pick, not a roll).
     ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")), useGuyon });
   }));
@@ -144,6 +158,7 @@ export function showEscapePick(ctx, game) {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     host.querySelectorAll(".mw-pickface").forEach((f) => { f.disabled = true; if (f !== b) f.classList.add("mw-faded"); });
     b.classList.add("mw-chosen");
+    pendingReveal = { el: b };   // the Key 🗝️ (free) or the lock 🔒 (held) morphs onto this face when it lands (mrglq3yx)
     // The result modal swaps in on the next render (no die — the pick stood in for the roll).
     ctx.makeMove({ type: "escape_pick", pick: Number(b.getAttribute("data-pick")) });
   }));
@@ -197,6 +212,21 @@ function diceRow(label, cls, die, parts, total) {
     + (bons ? `<div class="drbons">${bons}</div>` : "") + `</div></div>`;
 }
 export function showDice(ctx, roll) {
+  // If a pick face is awaiting its verdict, morph the TRUE outcome onto it first, hold a beat, then
+  // swap in the result modal. The pressed face lives in a body-level portal, so a board re-render in
+  // between can't destroy it. No pending face (or no single-face outcome) → straight to the modal.
+  const face = pendingReveal && pendingReveal.el && pendingReveal.el.isConnected ? pendingReveal.el : null;
+  const emoji = resultEmojiForRoll(roll);
+  pendingReveal = null;
+  if (face && emoji) {
+    face.textContent = emoji;
+    face.classList.add("mw-revealed");
+    setTimeout(() => renderDiceModal(ctx, roll), 780);
+    return;
+  }
+  renderDiceModal(ctx, roll);
+}
+function renderDiceModal(ctx, roll) {
   closePortals();
   const host = portal();
   let inner;

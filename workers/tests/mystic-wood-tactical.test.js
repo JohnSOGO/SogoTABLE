@@ -119,6 +119,26 @@ test("No-match fight: the human sees the screen, and any face taken wins", () =>
 
 // GY3B mrgkjm4p: when every face loses, the fight is hopeless — flag it so the client can have the foe
 // mock the knight, and keep withdraw open so he can still retreat rather than be forced onto the Tower.
+// UHKO mrgm4a84 (§10): a Knight vanquished in a challenge leaves all Companions in the area — they go
+// back onto the BOARD as independent denizens (a Damsel stays visible, re-rescuable), not into the
+// discard out of sight. The carrier keeps none; the obligation resets so a re-sighting can re-lay it.
+test("Companions left behind on a challenge loss are placed on the board, not discarded", () => {
+  const g = moveGame({ r: 8, c: 3, companions: ["damsel"] });
+  g.chivalry = { boy: null, damsel: "P1" };
+  const foe = cellAt(g.board, 8, 2); foe.revealed = true; foe.card = "enchantress"; foe.open = { N: 1, E: 1, S: 1, W: 1 };
+  cellAt(g.board, 8, 3).open = { N: 1, E: 1, S: 1, W: 1 };
+  // Reveal an open glade nearby so the stranded Damsel has somewhere to land.
+  const glade = cellAt(g.board, 7, 3); glade.revealed = true; glade.card = null;
+  setMysticWoodRandom(() => 0.99);   // her red = 6 — the bare knight loses
+  makeMysticWoodMove(g, "P1", { type: "move", r: 8, c: 2 });
+  makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 1 });   // resolve the (hopeless) fight → a loss
+  assert.deepEqual(g.players.P1.companions, [], "the carrier keeps no companions after the loss");
+  assert.ok(!g.discard.includes("damsel"), "the Damsel is not discarded out of play");
+  const onBoard = g.board.some((t) => t.card === "damsel");
+  assert.ok(onBoard, "the Damsel is placed back on the board as an independent denizen");
+  assert.equal(g.chivalry.damsel, null, "the rescue obligation resets — a re-sighting re-lays it");
+});
+
 test("Hopeless fight: flagged as hopeless, no sure win, and withdraw stays available", () => {
   const g = moveGame({ r: 8, c: 3 });   // a bare knight against the Enchantress (Prowess 6)
   const dest = cellAt(g.board, 8, 2); dest.revealed = true; dest.card = "enchantress"; dest.open = { N: 1, E: 1, S: 1, W: 1 };

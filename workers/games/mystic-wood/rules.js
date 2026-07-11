@@ -10,12 +10,13 @@ import {
 } from "./data.js";
 import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
-  resolveSpell, resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
+  resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
-  denPhrase, denIntro, escapeOutcomes, resolveEscape, raiseStorm, decayStorms, becomeKing,
+  denPhrase, denIntro, escapeOutcomes, resolveEscape, becomeKing,
   takeChivalry, deliverRescue,
 } from "./engine.js";
+import { resolveSpell, raiseStorm, decayStorms } from "./spells.js";
 import { playBotTurn } from "./ai.js";
 
 export const MYSTIC_WOOD_GAME_ID = GAME_IDS.mysticWood;

@@ -6,10 +6,11 @@ import {
 } from "../games/mystic-wood/rules.js";
 import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
-  resolveChallenge, resolveGreet, hasThing, relocate, resolveSpell, greetOutcomes, combatOutcomes,
-  logEvent, escapeOutcomes, escapeFrees, resolveEscape, raiseStorm, decayStorms,
+  resolveChallenge, resolveGreet, hasThing, relocate, greetOutcomes, combatOutcomes,
+  logEvent, escapeOutcomes, escapeFrees, resolveEscape,
   joustSpoils, joustPrize, enforcePower, takeChivalry, deliverRescue, becomeKing,
 } from "../games/mystic-wood/engine.js";
+import { resolveSpell, raiseStorm, decayStorms } from "../games/mystic-wood/spells.js";
 import { KNIGHTS, DEN, DEN_TALES, DEN_INTRO } from "../games/mystic-wood/data.js";
 
 // deterministic PRNG

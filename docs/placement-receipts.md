@@ -694,3 +694,24 @@ PLACEMENT RECEIPT
 - Verification:  workers/tests/bug-reports.test.js pins resolve/update; full suite green.
                  Advisor: placement-advisor (2026-07-08). Retroactive log: 2026-07-09.
 ```
+
+## 2026-07-11 — REORG: extract Mystic spells/storm from engine.js
+
+```
+REORG RECEIPT
+- Trigger:      workers/games/mystic-wood/engine.js hit 812 lines, over the 800-line GLOBAL_FILE_CAP,
+                after the legitimate strandCompanions (§10 companion-stranding) feature landed; the
+                architecture test failed until engine.js dropped back under 800.
+- Seam moved:   Mystic spells (Fog/Wind/Horn) + Magician storm — resolveSpell, recordHorn, raiseStorm,
+                decayStorms, stormWhere — from engine.js to workers/games/mystic-wood/spells.js
+                [EXISTING owner via the workers/games/ owned-directory pattern — no new module-ownership row].
+- Room opened:  engine.js 812 → 748 lines (52 under the cap); spells.js is 72 lines. GLOBAL_FILE_CAP
+                unchanged (shared backstop, not a per-file ceiling).
+- Behavior:     PRESERVED — pure move, no logic/signature/name changes. recordRotation stays exported in
+                engine.js (shared by the Wand's powerRotate); sendIllusion stays (a combat/applyWin helper).
+                spells.js is a one-way leaf: imports { logEvent, relocate, recordRotation } from engine.js,
+                engine imports nothing back — no cycle.
+- Files rewired: rules.js, ai.js, workers/tests/mystic-wood-rules.test.js, src/sogotable/static/review-export.js.
+- Verification:  node --test workers/tests/*.test.js → 374 pass, 0 fail (incl. architecture.test.js).
+                 Reorganizer: reorganizer agent (2026-07-11).
+```

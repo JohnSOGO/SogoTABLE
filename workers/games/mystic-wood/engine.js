@@ -187,11 +187,23 @@ export function relocate(game, seat, r, c) {
 // into the deck) so quest companions (Grail/Prince/Princess) can't be permanently locked away by the
 // wrong knight. Being sent by the Rogue/Queen keeps your companions (loseCompanions=false).
 export function toTower(game, seat, loseCompanions = true) {
+  if (loseCompanions) strandCompanions(game, seat);   // §10: left in the area (back on the board), not discarded
   seat.tower = true; seat.towerTries = 0; seat.r = 4; seat.c = 3;
-  if (loseCompanions && seat.companions.length) {
-    seat.companions.forEach((c) => game.discard.push(c));
-    seat.companions = [];
-  }
+}
+// §10: a Knight vanquished in a challenge "leaves all Companions in the area" — they become independent
+// Denizens again, to be re-approached (and a Boy/Damsel re-rescued). So place each back on the board —
+// the nearest open revealed glade to the challenge — rather than discarding it out of sight (bug mrgm4a84).
+function strandCompanions(game, seat) {
+  if (!seat.companions.length) return;
+  const occ = (t) => game.seat_order.some((m) => { const p = game.players[m]; return !p.tower && !p.won && p.r === t.r && p.c === t.c; });
+  const open = game.board.filter((t) => t.revealed && !t.card && !t.fixed && t.name !== "tower" && !occ(t))
+    .sort((a, b) => (Math.abs(a.r - seat.r) + Math.abs(a.c - seat.c)) - (Math.abs(b.r - seat.r) + Math.abs(b.c - seat.c)));
+  seat.companions.forEach((id, i) => {
+    if (open[i]) { open[i].card = id; logEvent(game, `${DEN[id].name} is left behind in the wood.`, "muted"); }
+    else game.discard.push(id);   // no open glade in reach — last resort
+    if (game.chivalry && (id === "boy" || id === "damsel")) game.chivalry[id] = null;   // obligation resets; re-seeing re-lays it
+  });
+  seat.companions = [];
 }
 export function anyKing(game) { return game.seat_order.some((m) => game.players[m].isKing); }
 export function tileNameAt(game, seat) { const t = cellAt(game.board, seat.r, seat.c); return t ? t.name : null; }
@@ -201,56 +213,13 @@ export function applyMoveTo(game, seat, from, to) {
   seat.r = to.r; seat.c = to.c; seat.moved = true;
 }
 
-/* ------------------------------- spells --------------------------------- */
-// The scatter is a discrete, one-shot presentation event (like a roll): the client tours the tokens
-// across the wood exactly once, keyed off the seq. A re-render, a reconnect, or a reload must never
-// replay it, so the seq only ever advances — it is never cleared.
-function recordHorn(game, byName, scattered) {
-  game.horn_seq = (game.horn_seq || 0) + 1;
-  game.horn = {
-    seq: game.horn_seq, byName,
-    marks: scattered.map((s) => s.mark),
-    tour: scattered.map((s) => [s.r, s.c]),
-  };
-}
+/* ---------------------- animation record (shared) ----------------------- */
 // A tile-turn to animate: record which cells spun + bump the seq so the renderer spins those tiles 180°
-// once (§18.12 Fog / the Wand's single-tile turn — bug mrgkf242).
-function recordRotation(game, cells) {
+// once (§18.12 Fog / the Wand's single-tile turn — bug mrgkf242). Shared by resolveSpell (spells.js)
+// and the Wand power (powerRotate) below — the one seq the renderer keys the spin off.
+export function recordRotation(game, cells) {
   if (!cells.length) return;
   game.rotation = { seq: (game.rotation_seq = (game.rotation_seq || 0) + 1), cells: cells.map((t) => [t.r, t.c]) };
-}
-// Returns { endTurn } — Mystic Horn ends the drawer's turn.
-export function resolveSpell(game, seat, tile, spellId) {
-  const name = seat.name;
-  if (spellId === "fog") {
-    // §18.12: every face-up arrow area rotates 180°. Fixed areas (Gates/Tower) don't turn.
-    const spun = [];
-    for (const t of game.board) if (t.revealed && !t.fixed) { const o = t.open; t.open = { N: o.S, S: o.N, E: o.W, W: o.E }; spun.push(t); }
-    recordRotation(game, spun);
-    const n = spun.length;
-    logEvent(game, `Mystic Fog rolls through — ${n} area${n === 1 ? "" : "s"} of the wood turn about.`);
-    return {};
-  }
-  if (spellId === "wind") {
-    // §18.14: sweeps every Thing HELD by a Knight (not Companions, not the Grail, not the mount Horse).
-    let swept = 0;
-    for (const m of game.seat_order) { const q = game.players[m]; swept += q.things.length; q.things = []; }
-    logEvent(game, swept ? "Mystic Wind blows — every Thing held by the knights is swept away!" : "Mystic Wind blows, but no knight holds a Thing to lose.", swept ? "r" : "");
-    return {};
-  }
-  if (spellId === "horn") {
-    logEvent(game, `Mystic Horn sounds — the knights are scattered!`, "a");
-    const scattered = [];
-    game.seat_order.forEach((m) => {
-      const q = game.players[m];
-      if (q.tower || q.captured) return;          // the imprisoned and the bound never hear the horn
-      relocate(game, q, 8 - q.r, 6 - q.c);
-      scattered.push({ mark: m, r: q.r, c: q.c });
-    });
-    recordHorn(game, name, scattered);
-    return { endTurn: true };
-  }
-  return {};
 }
 
 /* ----------------------------- reactions -------------------------------- */
@@ -501,8 +470,8 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
     useSage(game, seat); usePrince(game, seat);
     result = "lose";
     if (bound) {
-      // §8: her song scatters your Companions — they become independent. You stay put (no Tower).
-      if (seat.companions.length) { seat.companions.forEach((c) => game.discard.push(c)); seat.companions = []; logEvent(game, "Her song scatters the knight's companions — they wander free.", "a"); }
+      // §8: her song scatters your Companions — they become independent, left on the board. You stay put.
+      if (seat.companions.length) { strandCompanions(game, seat); logEvent(game, "Her song scatters the knight's companions — they wander free.", "a"); }
     } else { toTower(game, seat); }   // fight loss → the Tower; companions lost (they return to the wood)
   }
   // Record the decisive roll so the client can show the dice-reveal modal.
@@ -676,7 +645,7 @@ function queenBoon(game, seat, die) {
   if (!rivals.length) { logEvent(game, "The Queen offers a boon, but no rival is within reach."); return; }
   rivals.sort((a, b) => (Number(b.questDone) - Number(a.questDone)) || ((totalS(b) + totalP(b)) - (totalS(a) + totalP(a))));
   const t = rivals[0];
-  logEvent(game, `The Queen grants a boon — ${t.name} is cast into the Tower!`, "a");
+  logEvent(game, `The Queen heeds ${seat.name} and casts ${t.name} into the Tower!`, "a");
   toTower(game, t, false);
 }
 // Illusion "does your bidding": relocate its card to a random revealed, unoccupied, non-Tower glade.
@@ -767,26 +736,6 @@ export function powerRotate(game, seat) {
   recordRotation(game, [t]);
   logEvent(game, `${seat.name} raises the Wand — the tile turns about.`, "a");
 }
-/* ------------------------------- storm ---------------------------------- */
-// Magician companion (rulebook §18.11): on your turn you may raise a storm over any area — never from
-// or at the Tower. For the three full turns AFTER this one, no one may enter or leave it by NORMAL
-// movement; magical movement (transport / horn / relocate, which bypass reachableFrom) still passes.
-// `fresh` skips the first decay so the creating turn itself doesn't count against the three.
-function stormWhere(t) { return t.label || (t.name ? t.name : "the glade"); }
-export function raiseStorm(game, seat, tile) {
-  tile.storm = { turns: 3, fresh: true };
-  logEvent(game, `${seat.name} calls up the Magician's storm over ${stormWhere(tile)} — none may enter or leave it for three turns.`, "a");
-}
-// Age every active storm once per turn (called from advanceTurn). The creating turn is free (`fresh`).
-export function decayStorms(game) {
-  for (const t of game.board) {
-    if (!t.storm) continue;
-    if (t.storm.fresh) { t.storm.fresh = false; continue; }
-    t.storm.turns -= 1;
-    if (t.storm.turns <= 0) { t.storm = null; logEvent(game, `The storm over ${stormWhere(t)} blows itself out.`, "muted"); }
-  }
-}
-
 // Fountain: 1–2 Tower · 3–4 Earthly Gate · 5–6 Enchanted Gate. Ends the turn.
 export function powerDrink(game, seat, tile) {
   tile._used = true;
