@@ -173,6 +173,18 @@ test("taking the crown swaps the projected quest and label (4T6D mrhzg94z)", () 
   assert.match(after.label, /Sogo \(King\)/, "and he is named for what he now is");
   assert.match(game.log.map((e) => e.text).join("\n"), /quest changes with the crown/, "the swap is announced, not silent");
 });
+// Review finding (4T6D): the crown must set aside a quest ALREADY fulfilled, not just relabel it — or a
+// knight who finished his quest and THEN took the crown keeps questDone and could still leave by the
+// Enchanted Gate. A King's only road is the Castle (§18.10).
+test("taking the crown voids a quest already fulfilled — set aside in state, not just relabelled", () => {
+  const s = seatLit("george", { name: "Sogo" });
+  const g = openWood({ P1: s });
+  s.q = "dragon"; s.questDone = true; s.atGate = true;   // he slew the Dragon and stood in the Gate BEFORE the crown
+  becomeKing(g, s);
+  assert.equal(s.isKing, true);
+  assert.equal(s.questDone, false, "§18.10: the crown replaces the quest — a fulfilment already banked is set aside with it");
+  assert.equal(s.atGate, false, "so a former quest-holder cannot slip out the Enchanted Gate; a King's road is the Castle");
+});
 // §18.4 read against §18.10: only George kills the Dragon — and a George who wears the crown is not George
 // any more. The engine already had this right (it gates on seat.q, not on the knight's name); this pins it,
 // because it is the behaviour the report called a bug and it is staying.

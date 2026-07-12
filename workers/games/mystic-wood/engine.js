@@ -539,6 +539,11 @@ function applyWin(game, seat, tile, den, id) {
 export function becomeKing(game, seat) {
   if (seat.knight === "britomart") { logEvent(game, "Britomart will not seize the crown."); return; }
   seat.isKing = true; seat.q = "king";
+  // §18.10: the crown REPLACES the Knight card and its quest — so a quest already fulfilled is set aside
+  // WITH it. Clear the completion state, not just the label (seatToDict): otherwise a knight who finished
+  // his quest and THEN took the crown keeps questDone and could still slip out the Enchanted Gate. A King's
+  // only road is the Castle. (questDone cannot re-arm once King — q is "king", and no quest sets it then.)
+  seat.questDone = false; seat.atGate = false;
   // §15: a King is no longer bound by chivalry — any Save Boy / Rescue Damsel card is set aside.
   if (game.chivalry) for (const t of ["boy", "damsel"]) if (game.chivalry[t] === seat.mark) game.chivalry[t] = null;
   logEvent(game, `${seat.name} strikes down the King and claims the crown!`, "g");

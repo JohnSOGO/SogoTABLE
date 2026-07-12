@@ -101,7 +101,9 @@ function beginSeatTurn(game, seat) {
   // of the gate without his Princess (bug mrh9klnb).
   syncQuestCompanion(game, seat);
   if (seat.atGate) {
-    if (seat.questDone && tileNameAt(game, seat) === "xgate") { winGame(game, seat, "gate"); return "skip"; }
+    // §18.10: a King never leaves by the Gate — his road is the Castle. becomeKing clears questDone, so
+    // this is belt-and-suspenders that encodes the invariant at the one place the game is won.
+    if (seat.questDone && !seat.isKing && tileNameAt(game, seat) === "xgate") { winGame(game, seat, "gate"); return "skip"; }
     seat.atGate = false;
   }
   if (seat.isKing) {
