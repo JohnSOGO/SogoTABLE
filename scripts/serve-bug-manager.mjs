@@ -152,15 +152,18 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
       const launcher = join(repoRoot, "bugreport", "START-bug-manager.cmd");
-      console.log("\nRestart requested — a fresh manager window opens in ~2s…");
+      console.log("\nRestart requested — a fresh manager window is opening…");
       try {
         if (process.platform === "win32" && existsSync(launcher)) {
-          spawn("cmd", ["/c", `timeout /t 2 /nobreak >nul & start "" "${launcher}"`], { detached: true, stdio: "ignore" }).unref();
+          // Args as SEPARATE tokens (not one quoted string) so Windows doesn't mangle the path's
+          // backslashes. `start "" <launcher>` opens the .cmd in its own new console window.
+          spawn(process.env.ComSpec || "cmd.exe", ["/c", "start", "", launcher], { cwd: repoRoot, detached: true, stdio: "ignore" }).unref();
         } else {
           spawn(process.execPath, [fileURLToPath(import.meta.url), ...argv], { detached: true, stdio: "ignore" }).unref();
         }
       } catch (e) { console.error("Relaunch failed: " + e.message); }
-      setTimeout(() => process.exit(0), 250);
+      // Brief delay so the new console spawns before this process frees the port.
+      setTimeout(() => process.exit(0), 500);
       return;
     }
     // Local agent routes — spawn/track fix agents in isolated worktrees.
@@ -220,8 +223,11 @@ const server = createServer(async (req, res) => {
 // If a manager is already running on this port, don't crash with a stack trace —
 // just open the existing one and exit cleanly. (Common when double-clicking the
 // launcher again without closing the previous window.)
+let bindRetries = 0;
 server.on("error", (err) => {
   if (err && err.code === "EADDRINUSE") {
+    // A ♻ Restart may still be releasing the port — retry for ~5s before concluding another manager owns it.
+    if (bindRetries < 10) { bindRetries += 1; setTimeout(() => server.listen(port, "127.0.0.1"), 500); return; }
     const target = `http://localhost:${port}/`;
     console.log(`\nA bug manager is already running at ${target} — opening it.`);
     console.log(`To run a fresh copy, close the other manager window first (or set BUG_MANAGER_PORT to a different port).`);
