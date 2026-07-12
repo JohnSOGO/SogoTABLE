@@ -241,6 +241,33 @@ export function showEscapePick(ctx, game) {
     ctx.makeMove({ type: "escape_pick", pick: Number(b.getAttribute("data-pick")) });
   }));
 }
+// §14/§18 Power Limit: the local knight is over 10 and chooses which card to surrender. One tap per
+// card; if still over the limit, the server re-opens a fresh power_shed and the next render re-shows this
+// (so we close on tap, like withdraw — nothing lingers when the turn finally passes). The server owns the
+// legality; this only captures which card. `choices`/`terms` are prepared server-side (informed consent).
+export function showPowerShed(ctx, game) {
+  closePortals();
+  const p = game.pending || {}, t = p.terms || {};
+  const cards = (p.choices || []).map((c) => {
+    const cost = [c.s ? `${c.s} ⚔️` : "", c.p ? `${c.p} ✨` : ""].filter(Boolean).join("  ") || "—";
+    const warn = c.critical ? ` · <span style="color:var(--crimson)">⚠️ quest item</span>` : "";
+    return `<button class="mw-shedcard" data-kind="${E(c.kind)}" data-idx="${c.idx}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left">
+      <span>${E(c.name)}</span><span style="color:var(--muted);white-space:nowrap">${cost}${warn}</span></button>`;
+  }).join("");
+  const host = portal();
+  host.innerHTML = `<div class="overlay"><div class="modal">
+    <div class="tag">${E(t.tag || "Power Limit")}</div>
+    <h2>${t.emoji || "⚖️"} Over the limit</h2>
+    <p class="mw-enc-intro">${t.body || `Your power is ${p.total} — surrender cards until your Strength + Prowess is ${p.limit} or less. (§18)`}</p>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">${cards}</div>
+  </div></div>`;
+  host.querySelectorAll("[data-idx]").forEach((b) => b.addEventListener("click", () => {
+    if (ctx.isMovePending && ctx.isMovePending()) return;
+    closePortals();   // close now; a follow-up shed re-opens on the next render, and the turn-pass leaves nothing
+    signalWorking();
+    ctx.makeMove({ type: "power_shed", kind: b.getAttribute("data-kind"), idx: Number(b.getAttribute("data-idx")) });
+  }));
+}
 function tileHeaderHtml(t) {
   if (!t) return "";
   const half = t.half === "ench" ? "Enchanted Wood" : "Earthly Wood";

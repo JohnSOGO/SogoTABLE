@@ -798,3 +798,37 @@ PLACEMENT RECEIPT
   subsystem (showPop/hidePop/requestHide/peekContent/denizenSummary/playerPeek) to mystic-wood/peek.js.
   Pre-named seam; deliberately NOT opened in this batch.
 ```
+
+## 2026-07-12 — Power-Limit player choice (§14/§18): first Informed-Consent slice
+
+```
+PLACEMENT RECEIPT (advisor: placement-advisor)
+- Ask:          Make the power-limit (S+P≤10) surrender an interactive human choice at end of
+                turn; bots keep auto-resolving; disposal-to-tile stays a follow-up.
+- Verdict (5 pieces, per stage):
+    1. enforcePower → bot-only guard ....... engine.js        [EXISTING] (1 line; every inline
+                                                                caller becomes bot-only at once)
+    2. end-of-turn over-limit check + pending  rules.js       [EXISTING] (gate at the single
+                                                                passTurn chokepoint, human-only)
+    3. power_shed move (doPowerShed + case +   rules.js       [EXISTING] (mirrors doEscapePick)
+       pendingToDict projection)
+    4. shedCard + powerShedChoices (pure) ... workers/games/mystic-wood/power.js  [NEW leaf —
+                                                covered by workers/games/ dir pattern, NO owner row]
+    5. power_shed pick modal (showPowerShed)   encounter.js   [EXISTING] (modal family home);
+       render.js [EXISTING] gets ONLY wiring (import + dispatch whitelist + bar button + data-act)
+- Why the new leaf: engine.js 751/800 — the ~40 new pure lines would cross the global 800 cap, and
+                enforcePower can't be extracted cleanly (engine calls it internally → import cycle).
+                So NEW pure pieces go to power.js (imports engine+data; engine never imports back →
+                clean DAG; joust.js/spells.js precedent). Keeps engine.js at ~752.
+- render.js 743/800: modal routed to encounter.js (~403/800), NOT render.js — render gets ~10 wiring
+                lines only. The pre-named peek-subsystem seam is still NOT opened (deferred).
+- CI trap handled: rules.js is in REVIEW_EXPORT_FILES and imports ./power.js, so power.js was added
+                to the allowlist (review-export.js) — import-closure test stays green.
+- Reorganizer:  NONE (new leaf is normal implementer work under the games/ pattern).
+- Scope: the CHOICE only. Disposal (Thing→tile, slayer→beast revert, §18) is the documented follow-up.
+- Sibling paths: bot vs human — enforcePower still auto-sheds bots inline; bots never reach passTurn's
+                human-only gate. Golden-Bough heuristic test retargeted to a bot seat.
+- Verification: node --test workers/tests/*.test.js → 411 pass, 0 fail. New: human power_shed flow
+                (hold turn → choose → pass; spoofed index throws); the 24-seed integration harness now
+                drives power_shed too. On-device modal check remains for MojoSOGO.
+```

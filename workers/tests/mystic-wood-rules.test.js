@@ -669,10 +669,11 @@ test("Sage: a beast fight (Strength only) never spends him", () => {
   assert.ok(s.companions.includes("sage"), "the Sage stays — his Prowess was irrelevant to a beast fight");
 });
 
-// §14: the auto power-limit shed must never drop a still-needed quest item (Guyon's Golden Bough).
-test("Power limit: keeps the quest-critical Golden Bough", () => {
+// §14: the BOT auto power-limit shed must never drop a still-needed quest item (Guyon's Golden Bough).
+// (enforcePower is bot-only now — humans choose via the power_shed pending; see the encounters suite.)
+test("Power limit: the bot auto-shed keeps the quest-critical Golden Bough", () => {
   const game = { log: [] };
-  const s = seatLit("guyon", { things: ["golden_bough", "armour", "lance", "shield"],
+  const s = seatLit("guyon", { is_bot: true, things: ["golden_bough", "armour", "lance", "shield"],
     prowess: [{ name: "a", P: 1 }, { name: "b", P: 1 }, { name: "c", P: 1 }, { name: "d", P: 1 }] });
   assert.ok(capTotal(s) > 10, "starts over the power limit");
   enforcePower(game, s);
@@ -724,6 +725,7 @@ test("integration: seeded bot-heavy games run to completion with a valid winner"
       assert.equal(seat.is_bot, false, "advance loop must stop only on a human");
       if (g.pending) {
         if (g.pending.type === "greet_pick" || g.pending.type === "combat_pick" || g.pending.type === "escape_pick") makeMysticWoodMove(g, g.current_player, { type: g.pending.type, pick: 1 + Math.floor(rr() * 6) });
+        else if (g.pending.type === "power_shed") makeMysticWoodMove(g, g.current_player, { type: "power_shed", kind: g.pending.choices[0].kind, idx: 0 });
         else makeMysticWoodMove(g, g.current_player, { type: "encounter", choice: g.pending.combat ? "challenge" : "greet" });
         continue;
       }

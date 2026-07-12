@@ -7,7 +7,7 @@ import {
   newMysticWoodGame, initMysticWoodSeats, makeMysticWoodMove, mysticWoodGameToDict, setMysticWoodRandom,
 } from "../games/mystic-wood/rules.js";
 import {
-  buildBoard, cellAt, reachableFrom, resolveGreet, resolveChallenge, befriend, deliverRescue, toTower, snubbedBy,
+  buildBoard, cellAt, reachableFrom, resolveGreet, resolveChallenge, befriend, deliverRescue, toTower, snubbedBy, capTotal,
 } from "../games/mystic-wood/engine.js";
 import { resolveJoust, recordJoust, joustPrize } from "../games/mystic-wood/joust.js";
 import { botEnter } from "../games/mystic-wood/ai.js";
@@ -351,4 +351,37 @@ test("a Prince re-befriended after being spent lends his arm once more (§18.15)
   glade.card = "troll";
   resolveChallenge(game, s, glade, 2, 5);
   assert.deepEqual(s.companions, [], "…and he can be spent a second time on a fight that needs him");
+});
+
+// §14/§18 Power Limit — the first "informed consent" slice: a HUMAN over the limit CHOOSES which
+// card to surrender at end of turn (bots still auto-shed inline via enforcePower). The turn is held
+// until the choice is made; the server owns legality (a spoofed index throws).
+test("§14/§18 Power Limit: a human over the limit chooses what to surrender before the turn passes", () => {
+  setMysticWoodRandom(() => 0.5);
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.current_player = "P1"; g.pending = null;
+  const s = g.players.P1;
+  s.knight = "george"; s.q = "dragon"; s.isKing = false; s.tower = false; s.captured = false;
+  s.things = ["armour", "lance", "shield"];                                   // +2 / +1 / +1 Strength
+  s.prowess = [{ name: "Ox-slayer", P: 1 }, { name: "Boar-slayer", P: 1 }, { name: "Saracen-vanquisher", P: 1 }, { name: "Orc-slayer", P: 1 }, { name: "Troll-slayer", P: 1 }];
+  assert.ok(capTotal(s) > 10, "starts over the Power Limit");
+
+  const seq0 = g.turn_seq;
+  makeMysticWoodMove(g, "P1", { type: "end-turn" });
+  assert.equal(g.pending && g.pending.type, "power_shed", "over the limit → the surrender choice rises");
+  assert.equal(g.pending.mark, "P1");
+  assert.equal(g.pending.choices.length, 8, "offered his own Things and prowess-cards (3 + 5)");
+  assert.ok(g.pending.terms && /Power Limit/.test(g.pending.terms.tag), "carries the terms (informed)");
+  assert.equal(g.turn_seq, seq0, "and the turn is HELD until it is resolved (§18: at the end of the turn)");
+
+  assert.throws(() => makeMysticWoodMove(g, "P1", { type: "power_shed", kind: "thing", idx: 99 }),
+    /not yours to surrender/, "the server rejects a card the seat does not hold");
+
+  let guard = 0;
+  while (g.pending && g.pending.type === "power_shed" && guard++ < 12) {
+    makeMysticWoodMove(g, "P1", { type: "power_shed", kind: g.pending.choices[0].kind, idx: 0 });
+  }
+  assert.ok(capTotal(s) <= 10, "brought within the limit — by cards the PLAYER picked, not an auto-shed");
+  assert.ok(g.turn_seq > seq0, "and only then does the turn pass");
 });

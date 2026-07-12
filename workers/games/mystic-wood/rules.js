@@ -6,16 +6,17 @@ import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
 import { cleanGameId } from "../../game-catalog.js";
 import { isBotSeat } from "../bots.js";
 import {
-  KNIGHTS, KNIGHT_ORDER, KING_QUEST, THINGS, DEN, DECK_IDS, START_CELL, MIN_PLAYERS, MAX_PLAYERS,
+  KNIGHTS, KNIGHT_ORDER, KING_QUEST, THINGS, DEN, DECK_IDS, START_CELL, MIN_PLAYERS, MAX_PLAYERS, POWER_LIMIT,
 } from "./data.js";
 import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
   resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
-  relocate, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
+  relocate, totalP, totalS, capTotal, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   clearCard, enforcePower, greetOutcomes, combatOutcomes,
   escapeOutcomes, resolveEscape, recordKeyUnlock, becomeKing, snubbedBy,
   takeChivalry, deliverRescue, syncQuestCompanion, recordRoll,
 } from "./engine.js";
+import { powerShedChoices, shedCard } from "./power.js";   // §14/§18 power-limit surrender (pure leaf)
 import { logEvent, logMark, logSince, denPhrase, denIntro } from "./narration.js";   // the chronicle + its phrasing (pure leaf)
 import { resolveJoust, recordJoust, joustPrize, joustSpoils } from "./joust.js";   // knight-vs-knight combat (pure leaf)
 import { resolveSpell, raiseStorm, decayStorms } from "./spells.js";
@@ -199,7 +200,29 @@ function beginAndAdvance(game) {
     return;   // a human must act
   }
 }
-function passTurn(game) { advanceTurn(game); beginAndAdvance(game); }
+// §18: the Power Limit (S+P ≤ 10) is resolved at the END of any turn — and every turn-end funnels
+// through here, so this is the one place to enforce it. A HUMAN over the limit chooses what to
+// surrender (§14): raise the power_shed pending and HOLD the turn; doPowerShed re-enters passTurn once
+// they are back within 10. Bots never reach this (they auto-shed inline via enforcePower, and their
+// turns advance without passTurn). The `things || prowess` guard avoids an empty, dead-end pending when
+// a knight is over the limit with nothing sheddable (only companions/base) — then the turn just passes,
+// exactly as the auto-shedder gives up.
+function passTurn(game) {
+  const seat = game.players[game.current_player];
+  if (seat && !seat.is_bot && !seat.out && capTotal(seat) > POWER_LIMIT && (seat.things.length || seat.prowess.length)) {
+    game.pending = powerShedPending(seat);
+    return;
+  }
+  advanceTurn(game); beginAndAdvance(game);
+}
+function powerShedPending(seat) {
+  const total = capTotal(seat);
+  return { type: "power_shed", mark: seat.mark, total, limit: POWER_LIMIT, over: total - POWER_LIMIT,
+    choices: powerShedChoices(seat),
+    terms: { tag: "Power Limit", emoji: "⚖️",
+      head: `Your power is ${total} — over the limit of ${POWER_LIMIT}.`,
+      body: `Surrender ${total - POWER_LIMIT === 1 ? "a card" : "cards"} until your Strength + Prowess is ${POWER_LIMIT} or less. (§18)` } };
+}
 
 // Landing on a tile: resolve a spell, apply location effects, then either open an encounter
 // (await the player's Greet/Challenge choice) or end the turn.
@@ -403,6 +426,17 @@ function doEscapePick(game, seat, action) {
   const { freed } = resolveEscape(game, seat, face, mode, tries);
   if (!freed) passTurn(game);   // still imprisoned → the turn ends; a freed knight keeps the turn to move
 }
+// §14/§18: the player picks ONE card to surrender to the Power Limit, then we re-enter passTurn — which
+// raises a fresh power_shed if still over, or passes the turn once within 10. shedCard is authoritative
+// over the pick (a spoofed/stale index throws); the client only names which card.
+function doPowerShed(game, seat, action) {
+  const p = game.pending;
+  if (!p || p.type !== "power_shed" || p.mark !== seat.mark) throw new Error("There is nothing to surrender.");
+  const name = shedCard(game, seat, action);
+  logEvent(game, `${seat.name} surrenders the ${name} to the Power Limit. (§18)`);
+  game.pending = null;
+  passTurn(game);
+}
 function doEncounterChoice(game, seat, action) {
   const p = game.pending;
   if (!p || p.type !== "encounter" || p.mark !== seat.mark) throw new Error("There is no encounter to resolve.");
@@ -538,6 +572,7 @@ export function makeMysticWoodMove(game, mark, action) {
     case "greet_pick": doGreetPick(game, seat, action); break;
     case "combat_pick": doCombatPick(game, seat, action); break;
     case "escape_pick": doEscapePick(game, seat, action); break;
+    case "power_shed": doPowerShed(game, seat, action); break;
     case "scry": { requireThing(seat, "crystal"); const res = powerScry(game, seat); game.scry_reveal = res.next; break; }
     case "rotate": { requireThing(seat, "wand"); powerRotate(game, seat); break; }
     case "drink": {
@@ -595,6 +630,10 @@ function pendingToDict(game) {
   if (p.type === "escape_pick") {
     // Never send the faceMap (the answer key) — only the grouped odds, the mode, and the attempt count.
     return { type: p.type, mark: p.mark, mode: p.mode, tries: p.tries, groups: p.groups };
+  }
+  if (p.type === "power_shed") {
+    // The choices are the player's OWN cards — no answer key to hide; send them and the terms as-is.
+    return { type: p.type, mark: p.mark, total: p.total, limit: p.limit, over: p.over, choices: p.choices, terms: p.terms };
   }
   const meeter = game.players[p.mark];
   const knightName = meeter.name;   // the intro/first-sight line names the meeting player (human name, or the knight for a bot)

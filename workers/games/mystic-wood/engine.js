@@ -132,6 +132,11 @@ export function capTotal(seat) { return totalP(seat) + totalS(seat) - (seat.comp
 // The Princess won't aid vs the King — her +1 Prowess is withheld in that fight only.
 export function princessVsKing(seat, den) { return (den && den.king && seat.companions.includes("princess")) ? 1 : 0; }
 export function enforcePower(game, seat) {
+  // §14/§18: a HUMAN chooses which cards to surrender, resolved at the end-of-turn chokepoint in
+  // rules.js (passTurn → power_shed pending). So this inline auto-shedder is BOTS ONLY now — a single
+  // guard here makes every inline caller (befriend / give / horse / applyWin / joust prize) bot-only at
+  // once, instead of gating each site. Over-limit mid-turn is legal (the rule bites at end of turn).
+  if (!seat.is_bot) return;
   // Never shed a quest-critical Thing (Guyon's Golden Bough, needed to enter the Cave) while it's still
   // needed — that could strand the quest. Shed a sparable Thing, then a prowess card, and only as a last
   // resort the quest item itself. (§14 lets the player choose which cards to surrender; this auto-picks.)

@@ -8,7 +8,7 @@ import { syncHorn, resetHorn, hornOwnsTokens, hornRemainingMs } from "./horn.js"
 import { syncHerald, resetHeralds, raiseHerald } from "./herald.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX, EVENT_TALE } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
-import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showDice, showIntro, initEncounter, signalWorking, clearWorking } from "./encounter.js";
+import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showPowerShed, showDice, showIntro, initEncounter, signalWorking, clearWorking } from "./encounter.js";
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
 const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + gap 3)
@@ -101,11 +101,11 @@ export function renderMysticWoodGame(ctx) {
     seenRoll = myRoll.seq;
     if (hornWait) encTimer = setTimeout(() => { encTimer = null; showDice(ctx, myRoll); }, hornWait);
     else showDice(ctx, myRoll);
-  } else if (game.pending && ["encounter", "greet_pick", "combat_pick", "escape_pick"].includes(game.pending.type) && game.pending.mark === me) {
+  } else if (game.pending && ["encounter", "greet_pick", "combat_pick", "escape_pick", "power_shed"].includes(game.pending.type) && game.pending.mark === me) {
     // Let the token finish gliding onto the tile BEFORE the card covers it; on a fresh mount
     // (no glide) reveal at once. A newer render clears this timer, so a stale card can't pop.
     const show = game.pending.type === "greet_pick" ? showGreetPick : game.pending.type === "combat_pick" ? showCombatPick
-      : game.pending.type === "escape_pick" ? showEscapePick : showEncounter;
+      : game.pending.type === "escape_pick" ? showEscapePick : game.pending.type === "power_shed" ? showPowerShed : showEncounter;
     const wait = hornWait || (iMoved ? GLIDE_MS + 60 : 0);
     if (wait) encTimer = setTimeout(() => { encTimer = null; show(ctx, game); }, wait);
     else show(ctx, game);
@@ -208,6 +208,10 @@ function actionsHtml(ctx, game, me) {
   }
   if (jp && jp.type === "encounter" && jp.mark === me) {
     return `<button class="primary" data-act="encounter">${jp.combat ? "⚔️ Challenge" : "🤝 Greet"} ${denizen(jp)}</button>${withdraw}`;
+  }
+  // Power Limit keeps an actionable button in the bar, so a dismissed shed modal can't dead-end the turn.
+  if (jp && jp.type === "power_shed" && jp.mark === me) {
+    return `<button class="primary" data-act="powershed">⚖️ Surrender to the Power Limit (${jp.total}/${jp.limit})</button>`;
   }
   let btns = "";
   if (mine && meSeat && !meSeat.tower && !meSeat.captured && !game.pending) {
@@ -531,6 +535,7 @@ function wireBoard(root, ctx, game, me) {
     else if (a === "greetpick") showGreetPick(ctx, game);
     else if (a === "combatpick") showCombatPick(ctx, game);
     else if (a === "escapepick") showEscapePick(ctx, game);
+    else if (a === "powershed") showPowerShed(ctx, game);
   }));
   root.querySelectorAll("[data-jp]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;
