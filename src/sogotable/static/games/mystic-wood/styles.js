@@ -75,7 +75,7 @@ export const MYSTIC_WOOD_CSS = `
 
 /* Herald: an event's tale takes over the chronicle strip (herald.js) — it flashes as it arrives,
    holds the tale to be read, then clears itself. Generic chrome; each event adds its own modifier
-   (`.mw-herald-horn` — the Mystic Horn's four-hued flash, the wood answering). */
+   (.mw-herald-horn — the Mystic Horn's four-hued flash, the wood answering). */
 .mystic-wood-root .mw-herald{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;gap:3px;padding:6px 10px;background:var(--panel);overflow-y:auto;box-shadow:inset 0 0 0 2px var(--gold)}
 .mystic-wood-root .mw-herald-title{font-family:var(--serif);font-variant:small-caps;letter-spacing:.04em;font-size:14px;color:var(--gold2);flex:none}
 .mystic-wood-root .mw-herald-tale{font-size:11.5px;line-height:1.45;color:var(--ink)}
