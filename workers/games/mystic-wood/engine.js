@@ -4,10 +4,12 @@
 // through one swappable module seam so tests can inject a deterministic RNG.
 // The turn machine + platform contract live in rules.js; the bot in ai.js.
 import {
-  KNIGHTS, THINGS, DEN, DEN_TALES, DEN_INTRO, DECK_IDS, COMP_P, ROWS, COLS, POWER_LIMIT,
-  NAMED_TILES,
+  KNIGHTS, THINGS, DEN, DECK_IDS, COMP_P, ROWS, COLS, POWER_LIMIT, NAMED_TILES,
 } from "./data.js";
 import { recordRotation } from "./events.js";   // seq'd board-event descriptors the client heralds
+// The chronicle + every phrase written into it (narration.js) — a pure leaf; the engine passes it the
+// already-derived totals rather than being imported back, so the wording can never reach into the rules.
+import { logEvent, logMark, logSince, denPhrase, denIntro, tale, thingEffect, compEffect } from "./narration.js";
 
 /* ------------------------------- RNG seam ------------------------------- */
 let mysticWoodRandom = Math.random;
@@ -18,29 +20,6 @@ const d6 = () => rnd(6) + 1;
 export function rollDie() { return d6(); }
 export function pickIndex(n) { return rnd(n); }
 export function shuffle(a) { for (let i = a.length - 1; i > 0; i -= 1) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-
-/* ------------------------------- logging -------------------------------- */
-// Retained history. Deep enough to audit a long game (the chronicle IS the audit log, and the
-// bug-report snapshot draws from it), still bounded so room state / the projection stay a
-// reasonable size on a phone. See docs/observability-and-debug.md (Slice 1).
-const LOG_CAP = 300;
-export function logEvent(game, text, cls = "") {
-  if (!game.log) game.log = [];
-  // `t` = turn counter at write time — a debug anchor (not shown to players) so a snapshot's chronicle reads turn-by-turn.
-  game.log.push({ text, cls, t: game.turn_seq || 0 });
-  game.log_n = (game.log_n || 0) + 1;
-  if (game.log.length > LOG_CAP) game.log.splice(0, game.log.length - LOG_CAP);
-}
-// An encounter narrates itself by reading back the lines its own resolution logged. An INDEX into
-// game.log cannot do that: once the log reaches LOG_CAP the trim drops the front, so the index a
-// resolution captured before it ran still points at the end afterwards and the read comes back
-// empty — the result modal then falls through to "the Merlin reacts." mid-game, and only mid-game.
-// `log_n` counts every event ever logged and never shrinks, so the read stays anchored.
-function logMark(game) { return game.log_n || 0; }
-function logSince(game, mark) {
-  const n = (game.log_n || 0) - mark;
-  return n > 0 ? game.log.slice(-n).map((e) => e.text).join("<br>") : "";
-}
 
 /* ------------------------------- board ---------------------------------- */
 const DIR_DELTA = { N: [-1, 0], S: [1, 0], E: [0, 1], W: [0, -1] };
@@ -232,42 +211,11 @@ export function applyMoveTo(game, seat, from, to) {
 }
 
 /* ----------------------------- reactions -------------------------------- */
-// A short "what did this Thing do to me" note for the result card / chronicle: the stat/power it grants
-// and the seat's resulting totals, so a player sees the buff and their updated stats when they receive it.
-const POWER_NOTE = { cave: "lets you enter the Cave", key: "escapes the Tower once", wand: "rotates your tile", scry: "scries the deck" };
-// The same courtesy for a COMPANION won: "whenever you receive something tell me what the buff is"
-// (bug mrh964kp — the Grail joined you with no word of what it did). Read AFTER enforcePower, so the
-// totals quoted are the ones the knight actually walks away with.
-const COMP_NOTE = { grail: "+1 Prowess, +1 Strength", princess: "+1 Prowess (never against the King)", sage: "lends +2 Prowess to one contest, then departs",
-  prince: "lends +3 Strength & +3 Prowess to ONE fight", archmage: "transports you on your turn", magician: "raises a storm on your turn",
-  boy: "deliver him to the Earthly Gate", damsel: "deliver her to the Queen" };
-function compEffect(seat, id) {
-  return `${COMP_NOTE[id] || "travels at your side"} (now S ${totalS(seat)} · P ${totalP(seat)})`;
-}
-function thingEffect(seat, id) {
-  const t = THINGS[id] || {}; const parts = [];
-  if (t.S) parts.push(`+${t.S} Strength`);
-  if (t.P) parts.push(`+${t.P} Prowess`);
-  if (t.power) parts.push(POWER_NOTE[t.power] || "a special power");
-  return `${parts.join(", ") || "no bonus"} (now S ${totalS(seat)} · P ${totalP(seat)})`;
-}
-// "the Merlin" reads as a typo: he is a person, not a species. `proper` denizens take no article.
-export function denPhrase(id) {
-  const den = DEN[id];
-  if (!den) return "the denizen";
-  return den.proper ? den.name : `the ${den.name}`;
-}
-// The story a reaction tells, with the knight written into it. Falls back to plain narration.
-function tale(id, act, name) {
-  const t = DEN_TALES[id] && DEN_TALES[id][act];
-  return t ? t.replace(/\{k\}/g, name) : null;
-}
-// The first-sight line for an encountered denizen, the knight written in. Falls back to a plain
-// meeting so a denizen with no written intro still says who {k} has come upon.
-export function denIntro(id, name) {
-  const t = DEN_INTRO[id];
-  return t ? t.replace(/\{k\}/g, name) : `${name} comes upon ${denPhrase(id)}.`;
-}
+// The effect notes ("+2 Strength … now S 5 · P 5") are written by narration.js; the totals it quotes
+// are derived HERE and passed in, and are read AFTER enforcePower so they are the ones the knight
+// actually walks away with.
+const thingNote = (seat, id) => thingEffect(id, totalS(seat), totalP(seat));
+const compNote = (seat, id) => compEffect(id, totalS(seat), totalP(seat));
 // Apply a greeted denizen's reaction. Returns { endTurn, befriended }.
 export function applyReaction(game, seat, tile, act) {
   const name = seat.name;
@@ -283,7 +231,7 @@ export function applyReaction(game, seat, tile, act) {
     clearCard(game, tile); enforcePower(game, seat);
     // The tale first, then the bookkeeping — the player wants the scene, and then the numbers.
     logEvent(game, tale(id, act, name) || `${denPhrase(id)} gives ${name} the ${THINGS[th].name}.`, "a");
-    logEvent(game, `${name} takes the ${THINGS[th].name} — ${thingEffect(seat, th)}.`, "a");
+    logEvent(game, `${name} takes the ${THINGS[th].name} — ${thingNote(seat, th)}.`, "a");
     return {};
   }
   if (act && act.startsWith("run")) {
@@ -318,7 +266,7 @@ export function befriend(game, seat, tile, id) {
   seat.companions.push(id);
   logEvent(game, `The ${DEN[id].name} befriends ${seat.name}!`, "a");
   clearCard(game, tile, false); enforcePower(game, seat);
-  logEvent(game, `${seat.name} is joined by the ${DEN[id].name} — ${compEffect(seat, id)}.`, "a");   // say the buff (mrh964kp)
+  logEvent(game, `${seat.name} is joined by the ${DEN[id].name} — ${compNote(seat, id)}.`, "a");   // say the buff (mrh964kp)
   const q = seat.q;
   if ((q === "princess" && id === "princess") || (q === "prince" && id === "prince")) {
     seat.questDone = true;
@@ -340,7 +288,7 @@ export function takeGrail(game, seat, tile) {
   seat.companions.push("grail");
   logEvent(game, `${seat.name} takes up the Holy Grail!`, "a");
   clearCard(game, tile, false);
-  logEvent(game, `${seat.name} bears the Holy Grail — ${compEffect(seat, "grail")}.`, "a");   // say the buff (mrh964kp)
+  logEvent(game, `${seat.name} bears the Holy Grail — ${compNote(seat, "grail")}.`, "a");   // say the buff (mrh964kp)
   if (seat.q === "grail") { seat.questDone = true; logEvent(game, `${seat.name} bears the Grail — reach the Enchanted Gate to win, still holding it!`, "g"); }
 }
 
@@ -531,7 +479,7 @@ function applyWin(game, seat, tile, den, id) {
     if (seat._princeAiding) { logEvent(game, `The ${den.name} falls to the Prince's arm — no glory won.`, "muted"); clearCard(game, tile, false); }
     else { seat.prowess.push({ name: den.slay, P: 1 }); logEvent(game, `${seat.name} gains ${den.slay} (+1 Prowess).`, "g"); clearCard(game, tile); }
   }
-  else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${seat.name} takes the ${THINGS[den.gives].name} — ${thingEffect(seat, den.gives)}.`, "g"); clearCard(game, tile); }
+  else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${seat.name} takes the ${THINGS[den.gives].name} — ${thingNote(seat, den.gives)}.`, "g"); clearCard(game, tile); }
   else if (den.king) { becomeKing(game, seat); clearCard(game, tile, false); }
   else if (id === "wizard") { seat.things.push("lance"); logEvent(game, `${seat.name} takes the Lance (+1 Strength).`, "g"); clearCard(game, tile); }
   else if (id === "illusion") { sendIllusion(game, tile); }

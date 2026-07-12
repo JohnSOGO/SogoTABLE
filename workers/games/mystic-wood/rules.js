@@ -11,11 +11,12 @@ import {
 import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
   resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
-  relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
+  relocate, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
-  denPhrase, denIntro, escapeOutcomes, resolveEscape, recordKeyUnlock, becomeKing,
+  escapeOutcomes, resolveEscape, recordKeyUnlock, becomeKing,
   takeChivalry, deliverRescue, syncQuestCompanion, recordRoll,
 } from "./engine.js";
+import { logEvent, denPhrase, denIntro } from "./narration.js";   // the chronicle + its phrasing (pure leaf)
 import { resolveSpell, raiseStorm, decayStorms } from "./spells.js";
 import { playBotTurn } from "./ai.js";
 

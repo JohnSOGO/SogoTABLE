@@ -63,7 +63,7 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   the resolution produced — `detail` for a challenge, `result` for a greet — so the modal says *what
   happened* (the Dragon slain, a Thing taken, the crown claimed), not just who rolled higher. Resolve
   first, `recordRoll` last; the headline (`Victory! — 9 vs 6`) is not repeated in the detail.
-  A resolution reads its own lines back through `logMark`/`logSince` (`engine.js`), which count
+  A resolution reads its own lines back through `logMark`/`logSince` (`narration.js`), which count
   events (`game.log_n`) rather than index into `game.log` — the chronicle is capped at 80 lines, and
   an index goes stale the instant the cap starts trimming the front. **Never `game.log.slice(n)`.**
 - **A greeting tells a story.** `DEN_TALES` (`data.js`) gives every reaction a greet table can roll

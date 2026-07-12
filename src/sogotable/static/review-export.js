@@ -62,6 +62,7 @@ const REVIEW_EXPORT_FILES = [
   "workers/games/mystic-wood/data.js",
   "workers/games/mystic-wood/engine.js",
   "workers/games/mystic-wood/events.js",
+  "workers/games/mystic-wood/narration.js",
   "workers/games/mystic-wood/spells.js",
   "workers/games/mystic-wood/rules.js",
   "workers/games/mystic-wood/ai.js",

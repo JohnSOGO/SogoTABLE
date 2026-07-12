@@ -1,10 +1,11 @@
 // The Mystic Wood — spells & storms (pure: no DOM, no I/O, no timers).
 // The three Mystic spell cards (Fog / Wind / Horn) resolve on arrival, and the
 // Magician companion's storm bars an area. Extracted from engine.js to keep it
-// under the god-file cap. Shared primitives (logEvent, relocate) flow in from
-// engine.js; the seq'd board-event descriptors the client heralds (recordRotation /
-// recordHorn) come from the pure events.js leaf, which imports nothing back.
-import { logEvent, relocate } from "./engine.js";
+// under the god-file cap. relocate flows in from engine.js; the chronicle (logEvent)
+// from the pure narration.js leaf; the seq'd board-event descriptors the client heralds
+// (recordRotation / recordHorn) from the pure events.js leaf. Neither leaf imports back.
+import { relocate } from "./engine.js";
+import { logEvent } from "./narration.js";
 import { recordRotation, recordHorn, recordWind } from "./events.js";
 
 /* ------------------------------- spells --------------------------------- */

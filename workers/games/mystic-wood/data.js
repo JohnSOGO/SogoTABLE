@@ -72,7 +72,7 @@ export const DEN = {
 // How a greeting reads. The rulebook prints a reaction table and no story, so — as with
 // KNIGHT_INTRO on the client — this is original chivalric-romance flavour, one line per reaction
 // each denizen's table can actually produce. `{k}` is the greeting knight's name. A missing key
-// falls back to engine.js's plain narration, so an unwritten reaction still says what happened.
+// falls back to narration.js's plain wording, so an unwritten reaction still says what happened.
 // Keys match the `tbl` actions: remains | transport | transportYou | tower | give:<thing> | run | catch.
 export const DEN_TALES = {
   merlin: {
@@ -122,7 +122,7 @@ export const DEN_TALES = {
 // it, before Greet or Challenge. Same original chivalric-romance voice as DEN_TALES / KNIGHT_INTRO
 // (the rulebook prints stats, not story); one unique line per denizen that can be encountered. `{k}`
 // is the meeting knight's name. Spells are never "met" — they resolve on arrival (see resolveSpell) —
-// so they are absent here; a missing key falls back to engine.js's plain "{k} comes upon …".
+// so they are absent here; a missing key falls back to narration.js's plain "{k} comes upon …".
 export const DEN_INTRO = {
   // Beasts — a fight of Strength.
   ox:          "A wild ox stands hock-deep in the fern and swings its great head to fix {k} with one black eye.",
