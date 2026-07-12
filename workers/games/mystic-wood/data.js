@@ -13,6 +13,9 @@ export const KNIGHTS = {
 };
 // Deterministic knight-assignment order (seat 0 gets the first available, etc.) before any shuffle.
 export const KNIGHT_ORDER = ["george", "perceval", "roland", "guyon", "britomart"];
+// §18.10: taking the crown REPLACES the Knight card, and with it the quest — "his quest is now to occupy
+// the Castle rather than to visit the cave". Kept out of KNIGHTS (the parity test pins that key set).
+export const KING_QUEST = "Hold the Castle as King through a full turn";
 
 // Things (magical items): flat bonus (P/S) and/or a named power.
 export const THINGS = {

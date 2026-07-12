@@ -756,3 +756,45 @@ PLACEMENT RECEIPT
   mirrors legality instead of consuming it, which is the root class of the soft-lock. The durable fix is for
   rules.js to publish the legal target set in the projection. That is a projection-contract change = a second hat.
 ```
+
+## 2026-07-12 — Mystic Wood playtest room 4T6D (7 reports)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Place five Mystic Wood playtest fixes — the crown's quest text (§18.10), the Prince spent
+                only when decisive (§18.15/§12), a modal for delivering the Boy/Damsel (§15), the second
+                denizen of a §9 glade drawn on the board, and the combat-tie reveal — and say whether any
+                needs a reorganizer pass or a new owner row.
+- Verdict:      workers/games/mystic-wood/{rules.js, engine.js, data.js} +
+                src/sogotable/static/games/mystic-wood/{render.js, encounter.js, styles.js}
+                [ALL EXISTING owners; covered by the two games/ directory rows]
+- Flow stage:   quest text = projection (broadcast) + record; Prince = validate/apply (pure rules);
+                rescue modal = record; §9 glyph + tie reveal = render.
+- New owner row: none. Reorganizer: none.
+- Considerations:
+    - Caps (GLOBAL_FILE_CAP 800): engine 708→739, rules 630→647, render 733→743, encounter 372→400,
+      data 203→206. Nothing crosses a cap, so modularity.md's objective trigger for a preparatory
+      refactor is not met and its restraint clause forbids a speculative one.
+    - The advisor CORRECTED two of the five plans, both of which would have silently not worked:
+      (1) the crown's notice — game.results[mark] is a SINGLE SLOT, and both becomeKing callers
+      (engine.js applyWin → recordRoll; rules.js doJoust → recordJoust) record immediately after, so a
+      notice there is overwritten and never seen. Routed through logEvent instead, which BOTH result
+      modals already surface via their `detail: logSince(...)` capture — one line, both sibling paths.
+      (2) the Prince — applyWin runs BEFORE usePrince and reads _princeAiding to deny the §18.15 prowess,
+      so a decisiveness check inside usePrince fires too late: he'd be kept AND the prowess still stripped.
+      The verdict is now computed before applyWin.
+    - CI trap surfaced by the advisor: mystic-wood-parity.test.js pins the KNIGHTS key set across
+      data.js/content.js, so the King's quest text is a separate export (KING_QUEST), not a KNIGHTS row.
+    - Rejected: a shared notice() helper for item 3 (one new call site; retrofitting the three existing
+      notices is a behaviour-preserving refactor and must not ride in a fix commit — Two Hats).
+    - Rejected: the §9 badge CSS in styles-games.css (ratcheted at 1700 in CEILINGS). Per-game injected
+      styles.js owns it and is uncapped.
+- Sibling paths: bot vs human — the Prince change rides resolveChallenge, which bots share (parity is
+                automatic); the rescue modal is guarded !is_bot, and ai.js calls the same deliverRescue.
+                greet_pick shares pickCard with combat_pick, so the tie reveal covers both by construction.
+                combatPreview is unchanged: the Prince still AIDS, only the SPENDING changed.
+- Verification: node --test workers/tests/*.test.js → 408 pass, 0 fail (was 407 before; +6 new, 1 retargeted).
+- FLAG (next client change): render.js is 743/800. The next feature of any size must first extract the peek
+  subsystem (showPop/hidePop/requestHide/peekContent/denizenSummary/playerPeek) to mystic-wood/peek.js.
+  Pre-named seam; deliberately NOT opened in this batch.
+```

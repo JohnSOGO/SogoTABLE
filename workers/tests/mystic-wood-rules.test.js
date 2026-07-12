@@ -557,9 +557,11 @@ test("Spells: Fog rotates the wood; Wind sweeps held Things", () => {
   assert.deepEqual(game.players.P2.things, [], "Wind sweeps every knight's Things");
 });
 
-// §18.15: the Prince leaves after aiding, and a Prince-assisted kill grants no prowess.
-test("Prince: departs after lending aid; no prowess from a Prince-assisted kill", () => {
-  setMysticWoodRandom(seq([0.99, 0.0]));   // white 6 vs red 1 → a win
+// §18.15: the Prince leaves after aiding, and a Prince-assisted kill grants no prowess. Both bite only on
+// the fight his arm DECIDED — §12 lets a knight choose whether to use a companion's aid, so a fight won
+// without him leaves him unspent (4T6D mrhzdu0s; the two branches are pinned in mystic-wood-encounters).
+test("Prince: departs after lending decisive aid; no prowess from a Prince-assisted kill", () => {
+  setMysticWoodRandom(seq([0.2, 0.2]));   // white 2 vs red 2 → 6 vs 4: won by 2, inside the 3 he lent
   const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1"], players: {} };
   const s = seatLit("perceval", { companions: ["prince"] }); game.players.P1 = s;   // q=grail, so the Prince may aid
   const tile = cellAt(game.board, s.r, s.c); tile.card = "troll"; tile.revealed = true;

@@ -287,6 +287,11 @@ export function horseRunsTo(game, tile, dir) {
 }
 export function befriend(game, seat, tile, id) {
   seat.companions.push(id);
+  // §18.15: "After giving his help, Prince transports himself. If you approach him again, you must greet
+  // him in the usual way" — so a fresh greeting buys his arm again. `_princeUsed` was a once-a-GAME latch
+  // the rules never asked for: a knight could re-win the Prince and find him a dead weight who would never
+  // fight (4T6D chronicle: Sogo befriended him three more times after spending him, to no effect).
+  if (id === "prince") seat._princeUsed = false;
   logEvent(game, `The ${DEN[id].name} befriends ${seat.name}!`, "a");
   clearCard(game, tile, false); enforcePower(game, seat);
   logEvent(game, `${seat.name} is joined by the ${DEN[id].name} — ${compNote(seat, id)}.`, "a");   // say the buff (mrh964kp)
@@ -444,11 +449,14 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   if (den.cls === "beast" || den.cls === "warrior") mineParts.push({ l: "Strength", v: totalS(seat) });
   if (den.cls === "magic" || den.cls === "warrior") mineParts.push({ l: "Prowess", v: totalP(seat) - princessVsKing(seat, den) });
   if (tile.name === "chapel" && (den.cls === "magic" || den.cls === "warrior")) mineParts.push({ l: "Chapel", v: 1 }); // §17.2: +1 Prowess in a challenge/greeting here
+  // The Prince stands with you in every eligible fight, but whether he is SPENT is decided after the roll
+  // (below) — his aid is only billed when it was needed. What he adds depends on the foe: his Strength
+  // against a beast, his Prowess against a magic-user, both against a warrior.
+  let princeAid = 0;
   if (princeAids(seat, den)) {
-    seat._princeAiding = true;
-    if (den.cls === "beast" || den.cls === "warrior") mineParts.push({ l: "Prince", v: DEN.prince.S });
-    if (den.cls === "magic" || den.cls === "warrior") mineParts.push({ l: "Prince", v: DEN.prince.P });
-    logEvent(game, "The Prince lends his arm to this fight.", "a");
+    if (den.cls === "beast" || den.cls === "warrior") princeAid += DEN.prince.S;
+    if (den.cls === "magic" || den.cls === "warrior") princeAid += DEN.prince.P;
+    if (princeAid) mineParts.push({ l: "Prince", v: princeAid });
   }
   if (den.S) foeParts.push({ l: "Strength", v: den.S });
   if (den.P) foeParts.push({ l: "Prowess", v: den.P });
@@ -478,11 +486,21 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
 
   const prowessInPlay = den.cls === "magic" || den.cls === "warrior";   // a beast fight ignores Prowess (so the Sage did nothing)
   if (outcome === "win") {
+    // §12 says a knight MAY use a companion's aid, and §18.15 spends the Prince for "giving his help" —
+    // so he is spent only when his arm actually DECIDED the fight, exactly as the Sage already is. Spent
+    // on a fight already won, he cost the knight both the Prince AND (per §18.15) the glory of the kill,
+    // with no way to hold him back for the fight that needed him (4T6D mrhzdu0s). The verdict must be
+    // settled HERE, before applyWin — that is what reads _princeAiding to deny the prowess.
+    const princeDecisive = princeAid > 0 && (mine - foe) - princeAid <= 0;
+    seat._princeAiding = princeDecisive;
     applyWin(game, seat, tile, den, id);
-    useSageIfDecisive(game, seat, prowessInPlay, true, mine - foe); usePrince(game, seat); enforcePower(game, seat);
+    useSageIfDecisive(game, seat, prowessInPlay, true, mine - foe); usePrince(game, seat);
+    if (princeAid > 0 && !princeDecisive) logEvent(game, `The Prince rode at your side (+${princeAid}), but the day was yours without him — he keeps his place, for a harder fight.`, "a");
+    enforcePower(game, seat);
     result = "win";
   } else {
-    useSageIfDecisive(game, seat, prowessInPlay, false, mine - foe); usePrince(game, seat);   // a loss never spends him
+    seat._princeAiding = false;   // he gave no help that turned the fight, so §18.15 does not spend him
+    useSageIfDecisive(game, seat, prowessInPlay, false, mine - foe);
     result = "lose";
     if (bound) {
       // §8: her song scatters your Companions — they become independent, left on the board. You stay put.
@@ -518,6 +536,11 @@ export function becomeKing(game, seat) {
   // §15: a King is no longer bound by chivalry — any Save Boy / Rescue Damsel card is set aside.
   if (game.chivalry) for (const t of ["boy", "damsel"]) if (game.chivalry[t] === seat.mark) game.chivalry[t] = null;
   logEvent(game, `${seat.name} strikes down the King and claims the crown!`, "g");
+  // §18.10: the crown REPLACES the Knight card — "his quest is now to occupy the Castle". Say so, or the
+  // player keeps chasing the old quest (4T6D: George-turned-King still hunted the Dragon, then found the
+  // Gate shut against him). Logged, not recorded: results[mark] is one slot, and the fight/joust result
+  // that follows would overwrite a notice — but both modals show this line via their `detail` capture.
+  logEvent(game, `${seat.name}'s quest changes with the crown: hold the Castle as King through a full turn to win. The old quest is set aside.`, "a");
 }
 
 /* ------------------------------ chivalry -------------------------------- */
@@ -547,6 +570,14 @@ export function deliverRescue(game, seat, tile) {
     if (game.chivalry) game.chivalry[id] = null;
     seat.saved = seat.saved || {}; seat.saved[id] = true;        // permanent Boy-saver / Damsel-rescuer status — the reward is the honour, no stat (per the rulebook)
     logEvent(game, `${seat.name} delivers the ${DEN[id].name} safely to ${where} — ${id === "boy" ? "Boy-saver" : "Damsel-rescuer"}, chivalry fulfilled!`, "g");
+    // The rescue is the whole point of the chivalry card, and it happened in the chronicle alone — the one
+    // channel the player doesn't watch ("delivering damsel needs a modal", 4T6D mrhzbzxe). Recorded last in
+    // this move's segment on purpose: results[mark] is a single slot, so an earlier notice would be lost.
+    if (!seat.is_bot) recordRoll(game, seat.mark, { notice: {
+      tag: "Chivalry fulfilled", emoji: id === "boy" ? "🧒" : "👸",
+      head: `You deliver the ${DEN[id].name} safely to ${where}.`,
+      body: `You are now <b>${id === "boy" ? "Boy-saver" : "Damsel-rescuer"}</b> — the obligation of rescue is discharged and ${id === "boy" ? "he" : "she"} leaves your side. The honour is the reward; it grants no strength or prowess. (§15)`,
+    } });
   }
 }
 

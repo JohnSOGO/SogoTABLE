@@ -61,6 +61,7 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .mw-oblig-me{background:var(--crimson);color:#fff;border-color:#fff;font-weight:700;animation:mw-pulse 1.4s ease-in-out infinite}
 .mystic-wood-root .tok{position:absolute;width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px #000a;display:grid;place-items:center;font-family:var(--serif);font-weight:700;font-size:15px;color:#fff;z-index:3;will-change:transform}
 .mystic-wood-root .cardmark{position:absolute;right:3px;bottom:3px;background:#0009;border:1px solid var(--gold);border-radius:4px;font-size:9px;padding:1px 4px;color:var(--gold2);z-index:2;max-width:88%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.mystic-wood-root .cardmark2{bottom:17px}
 .mystic-wood-root .infomark{position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#000a;border:1px solid var(--gold);color:var(--gold2);font-size:10px;display:grid;place-items:center;z-index:3;line-height:1;cursor:help}
 .mystic-wood-root .facedown{position:absolute;inset:0;background:repeating-linear-gradient(45deg,#463b23,#463b23 6px,#3d3320 6px,#3d3320 12px);display:grid;place-items:center}
 .mystic-wood-root .facedown::after{content:"";width:34%;height:48%;border:2px solid #7d653399;border-radius:50% 50% 50% 50%/60% 60% 40% 40%}

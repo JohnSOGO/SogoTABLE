@@ -316,6 +316,10 @@ function cellsHtml(ctx, game, me) {
       if (t.storm) h += `<div class="mw-storm holdable" data-peek="storm:${pc}">🌩️<b>${t.storm}</b></div>`;
       if (t.name && AREA_NAMES[t.name]) h += `<div class="infomark holdable" data-peek="area:${pc}">ⓘ</div>`;
       if (t.card) h += `<div class="cardmark holdable${pulseCell === pc ? " mw-pulse" : ""}" data-peek="card:${pc}">${denEmoji(t.card)} ${E((DEN[t.card] || {}).name || "?")}</div>`;
+      // §9: a glade can hold TWO denizens, and you must approach them both. The board drew only the first,
+      // so the second sprang out of nowhere once the first fell and read as a rules bug ("I'm getting
+      // multiple encounters on a Tile now", 4T6D mrhz8ccr). Draw them both — the glade shows its full peril.
+      if (t.card2) h += `<div class="cardmark cardmark2 holdable" data-peek="card2:${pc}">${denEmoji(t.card2)} ${E((DEN[t.card2] || {}).name || "?")}</div>`;
     } else { h += `<div class="facedown"></div>`; }
     h += `</div>`;
   }
@@ -437,7 +441,14 @@ function showPop(x, y, title, body) {
 function peekContent(game, spec) {
   const [type, arg] = spec.split(":");
   if (type === "area") { const [r, c] = arg.split(",").map(Number); const t = tileAt(game, r, c); const half = t.half === "ench" ? "Enchanted" : "Earthly"; return { title: AREA_NAMES[t.name], body: `${AREA_FX[t.name] || "A place in the wood."}<br><span style="color:var(--muted)">${half} Wood · tile (${r},${c})</span>` }; }
-  if (type === "card") { const [r, c] = arg.split(",").map(Number); const t = tileAt(game, r, c); return { title: `${denEmoji(t.card)} ${(DEN[t.card] || {}).name || "?"}`, body: denizenSummary(t.card) }; }
+  // Either denizen of a glade peeks the same way; in a two-card glade both also carry the §9 rule that
+  // binds you to approach them BOTH — the rule that made a second encounter look like a bug (mrhz8ccr).
+  if (type === "card" || type === "card2") {
+    const [r, c] = arg.split(",").map(Number); const t = tileAt(game, r, c); const id = type === "card2" ? t.card2 : t.card;
+    const both = t.card && t.card2
+      ? `<br><span style="color:var(--muted)">🃏 <b>§9:</b> two denizens hold this glade. Enter it and you must approach <b>both</b> before your turn ends — and the second may not be withdrawn from.</span>` : "";
+    return { title: `${denEmoji(id)} ${(DEN[id] || {}).name || "?"}`, body: denizenSummary(id) + both };
+  }
   if (type === "tok" || type === "stats") { const seat = game.players.find((p) => p.mark === arg); return { title: seat ? E(seat.name) : "Knight", body: playerPeek(seat) }; }
   if (type === "thing") return { title: (THINGS[arg] || {}).name || arg, body: THING_DESC[arg] || "A magical Thing." };
   if (type === "comp") return { title: (DEN[arg] || {}).name || arg, body: COMP_DESC[arg] || "A companion travelling with you." };

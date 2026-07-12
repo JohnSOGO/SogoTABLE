@@ -162,6 +162,25 @@ Flagged for MojoSOGO's call (an ADDITION, not in the base rulebook — keep or r
   **entering** the area — barred in `doWithdraw`, and `canWithdraw:false` in the projection; (2) `botEnter`
   met only the **first** card and walked away from the second — bots now loop the area like the human path
   (`afterEncounter`), stopping only if the knight is carried out of it (Tower/transport).
+- **§18.10 the crown REPLACES the quest — now said out loud (2026-07-12, room 4T6D).** Vanquishing the
+  King swaps the Knight card for the King card, and the quest with it ("his quest is now to occupy the
+  Castle rather than to visit the cave"). `becomeKing` always set `seat.q = "king"`, but `seatToDict`
+  projected the quest text straight off the **knight** card — so a George who took the crown was still
+  told to slay the Dragon, was then (correctly) refused the kill under §18.4, and finally found the
+  Enchanted Gate shut against him. The engine was right the whole way; the screen was lying. The
+  projection now derives `quest`/`label` from `isKing` (`KING_QUEST`, `data.js`), the swap is announced
+  in the chronicle (and rides both the fight and joust result modals via their `detail` capture), and
+  the Gate now **says why it will not open** for an unfinished quest — or, for a King, that it is no
+  longer his road at all.
+- **§18.15 the Prince is spent only when his arm DECIDED the fight (2026-07-12, room 4T6D).** He was
+  auto-added to the first eligible challenge and always spent — so on a fight already won he cost his
+  knight *twice*: the Prince himself, and (per §18.15) the prowess for the kill. §12 says a knight **may**
+  use a companion's aid, so he now follows the same rule the **Sage** already did: he stands in the line
+  (his +3 shows in the odds), but he is only billed when the margin without him was ≤ 0. A fight won
+  without him keeps him — and keeps the prowess. A **lost** fight never spends him. And §18.15's other
+  half now holds too: "if you approach him again, you must greet him in the usual way" — a re-won Prince
+  **fights again** (`_princeUsed` was a once-a-game latch the rules never asked for, so a knight could
+  re-befriend him and find him a dead weight).
 - **Chivalry (§15) is implemented** — `game.chivalry` holds each obligation's bearer; merely *seeing*
   a Boy/Damsel in an area you enter lays the duty on you, **withdrawing does not shed it** (the
   rulebook's own example: "He withdraws from the area, but he must take the Save Boy card"), it

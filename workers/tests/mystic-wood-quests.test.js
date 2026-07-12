@@ -5,13 +5,15 @@
 // Split out of mystic-wood-rules.test.js, which sits at its 800-line cap.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setMysticWoodRandom } from "../games/mystic-wood/rules.js";
 import {
-  buildBoard, cellAt, resolveGreet, toTower, powerRotate,
+  setMysticWoodRandom, newMysticWoodGame, initMysticWoodSeats, mysticWoodGameToDict,
+} from "../games/mystic-wood/rules.js";
+import {
+  buildBoard, cellAt, resolveGreet, resolveChallenge, becomeKing, toTower, powerRotate,
 } from "../games/mystic-wood/engine.js";
 import { joustPrize } from "../games/mystic-wood/joust.js";
 import { resolveSpell } from "../games/mystic-wood/spells.js";
-import { KNIGHTS } from "../games/mystic-wood/data.js";
+import { KNIGHTS, KING_QUEST } from "../games/mystic-wood/data.js";
 
 // return a fixed sequence of unit floats (repeats the last forever) — for rigging dice
 function seq(values) { let i = 0; return () => values[Math.min(i++, values.length - 1)]; }
@@ -145,4 +147,43 @@ test("Mystic Wind spares companions, the Grail, and the Horse", () => {
   assert.deepEqual(s.companions, ["grail", "princess"], "companions stay — the Grail is not a Thing");
   assert.equal(s.horse, true, "nor is the Horse you ride");
   assert.equal(s.questDone, true, "so a Grail quest survives the Wind");
+});
+
+/* -------------------- the crown replaces the quest (§18.10) -------------- */
+// 4T6D mrhzg94z / mrhzha1o. Sogo played George, vanquished the King on turn 15 — and §18.10 traded his
+// Knight card for the King card, quest and all ("his quest is now to occupy the Castle"). The ENGINE knew
+// (seat.q became "king"); the projection did not — seatToDict read the quest straight off the KNIGHT card,
+// so for forty turns the board still told him to slay the Dragon. He hunted it, was told only George may
+// slay it, then stood in the Enchanted Gate and could not leave. The rules were right the whole way; the
+// screen was lying. These pin the screen to the rules.
+test("taking the crown swaps the projected quest and label (4T6D mrhzg94z)", () => {
+  const game = newMysticWoodGame();
+  initMysticWoodSeats(game, [{ mark: "P1", name: "Sogo", kind: "human" }, { mark: "P2", name: "B", kind: "bot", bot_level: 2 }, { mark: "P3", name: "C", kind: "bot", bot_level: 2 }]);
+  const s = game.players.P1;
+  s.knight = "george"; s.q = "dragon";
+  const before = mysticWoodGameToDict(game, "P1").players.find((p) => p.mark === "P1");
+  assert.equal(before.quest, KNIGHTS.george.quest, "before the crown, George's own quest");
+  assert.match(before.label, /George's quest/);
+
+  becomeKing(game, s);
+  const after = mysticWoodGameToDict(game, "P1").players.find((p) => p.mark === "P1");
+  assert.equal(after.isKing, true);
+  assert.equal(after.quest, KING_QUEST, "the crown REPLACED the Knight card, and the quest with it (§18.10)");
+  assert.doesNotMatch(after.quest, /Dragon/, "so the board no longer promises him a Dragon he can no longer slay");
+  assert.match(after.label, /Sogo \(King\)/, "and he is named for what he now is");
+  assert.match(game.log.map((e) => e.text).join("\n"), /quest changes with the crown/, "the swap is announced, not silent");
+});
+// §18.4 read against §18.10: only George kills the Dragon — and a George who wears the crown is not George
+// any more. The engine already had this right (it gates on seat.q, not on the knight's name); this pins it,
+// because it is the behaviour the report called a bug and it is staying.
+test("a George who took the crown drives the Dragon off rather than slaying it (§18.4 + §18.10)", () => {
+  const s = seatLit("george", { name: "Sogo" });
+  const g = openWood({ P1: s });
+  becomeKing(g, s);
+  const tile = cellAt(g.board, s.r, s.c); tile.card = "dragon";
+  resolveChallenge(g, s, tile, 6, 1);
+  assert.equal(s.questDone, false, "the Dragon is not his quest any more, so killing it would win him nothing");
+  assert.equal(tile.card, null, "it flees the glade…");
+  assert.ok(g.discard.includes("dragon"), "…but is recycled, not killed — it comes back for whoever still owes it a death");
+  assert.match(g.log.map((e) => e.text).join("\n"), /drives the Dragon off/);
 });

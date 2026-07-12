@@ -123,17 +123,37 @@ function stakesHtml(den, game, p) {
   const seat = (game.players || []).find((q) => q.mark === p.mark);
   const out = [];
   if (den.dragon) {
-    out.push(seat && seat.knight === "george"
+    // §18.4 + §18.10: only George kills the Dragon — and a George who took the crown is no longer George
+    // (the King card REPLACES the Knight card, quest and all). Promising him the kill here read as a
+    // contradiction when the fight then drove the beast off ("I'm playing George's quest but it says only
+    // George can slay the dragon", 4T6D mrhzg94z). The crown is the trade: say so on the card.
+    const george = seat && seat.knight === "george" && !seat.isKing;
+    out.push(george
       ? `<div class="denrow good">Your quest: <b>slay the Dragon</b>. Win, and it dies — then leave by the Enchanted Gate.</div>`
       : `<div class="denrow">Any knight can <b>beat</b> the Dragon — but <b>only George can slay it</b>. Win and you drive it off: it flees to the far wood, and <b>no prowess is won</b>. (§18.4)</div>`);
+    if (seat && seat.knight === "george" && seat.isKing) out.push(`<div class="denrow">👑 You wear the crown now: the King card replaced George's, and the Dragon with it. Your quest is to <b>hold the Castle</b>. (§18.10)</div>`);
   }
   if (den.captures) out.push(`<div class="denrow bad">If she wins, you are <b>ensnared</b> — you stay in her glade and your companions wander free (no Tower).</div>`);
   if (den.king) out.push(`<div class="denrow good">Vanquish him and <b>you are King</b> — then hold the Castle a full turn to win.</div>`);
   return out.length ? `<div class="denbox">${out.join("")}</div>` : "";
 }
 function pickCard(ctx, game, moveType, verb) {
+  const p = game.pending;
+  // §8.1: a tied challenge is re-rolled — the server re-opens the pick with `reroll`. The fresh grid used
+  // to slam in the instant you tapped, so the tie was never SEEN: six identical faces simply became six
+  // identical faces again ("I got a tie with the boar but I didn't see the die", 4T6D mrhz6og2). Reveal the
+  // tie on the face that was tapped — the one place a die belongs — hold a beat, then bring the new grid.
+  // Same shape as showDice's reveal, and it must run BEFORE closePortals(), which destroys that face.
+  const tied = pendingReveal && pendingReveal.el && pendingReveal.el.isConnected ? pendingReveal.el : null;
+  pendingReveal = null;
+  if (p && p.reroll && tied) {
+    tied.textContent = "🎲";
+    tied.classList.add("mw-revealed");
+    setTimeout(() => pickCard(ctx, game, moveType, verb), 780);
+    return;
+  }
   closePortals();
-  const p = game.pending, den = DEN[p.card], tile = tileAt(game, p.r, p.c);
+  const den = DEN[p.card], tile = tileAt(game, p.r, p.c);
   const emoji = denEmoji(p.card);
   // The server carries the article ("Merlin", but "the Witch") — he is a person, not a species.
   const name = E(p.denPhrase || `the ${p.denName || (den && den.name) || "denizen"}`);

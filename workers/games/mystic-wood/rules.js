@@ -6,7 +6,7 @@ import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
 import { cleanGameId } from "../../game-catalog.js";
 import { isBotSeat } from "../bots.js";
 import {
-  KNIGHTS, KNIGHT_ORDER, THINGS, DEN, DECK_IDS, START_CELL, MIN_PLAYERS, MAX_PLAYERS,
+  KNIGHTS, KNIGHT_ORDER, KING_QUEST, THINGS, DEN, DECK_IDS, START_CELL, MIN_PLAYERS, MAX_PLAYERS,
 } from "./data.js";
 import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
@@ -276,6 +276,20 @@ function enterTile(game, seat, tile) {
     seat.atGate = true;
     logEvent(game, `${name} stands in the Enchanted Gate, quest fulfilled — hold it to your next turn to leave in triumph.`, "g");
     return "end";   // §5.2: you cannot enter the Enchanted Gate and leave the Wood on the same turn
+  }
+  // §16: the Gate opens only AFTER the quest is fulfilled. Standing in it with the quest undone, nothing
+  // whatever happened, and the exit read as broken ("I am at the end gate but can't exit", 4T6D mrhzha1o).
+  // Say why — and for a King, say that the Gate is no longer his road at all (§18.10 traded it for the Castle).
+  if (tile.name === "xgate" && !seat.questDone && !seat.is_bot) {
+    recordRoll(game, seat.mark, { notice: seat.isKing ? {
+      tag: "The Enchanted Gate", emoji: "👑",
+      head: "The Gate is no longer your road — you wear the crown.",
+      body: "Taking the crown replaced your Knight card, and your quest with it (§18.10). A King does not leave the Wood to win: <b>occupy the Castle as King through one full turn</b>, and the Wood is yours (§16).",
+    } : {
+      tag: "The Enchanted Gate", emoji: "🚪",
+      head: "The Gate will not open — your quest is unfinished.",
+      body: `A knight leaves the Wood by this Gate only <b>after fulfilling the other requirement of the quest</b> (§16). Yours: <b>${KNIGHTS[seat.knight].quest}</b>. Finish it, return here, and hold the Gate to your next turn.`,
+    } });
   }
   if (tile.name === "cave" && seat.q === "cave" && !seat.questDone) logEvent(game, `${name} enters the Cave — keep vigil here for 3 full turns.`);
   takeChivalry(game, seat, tile);    // §15: seeing a Boy/Damsel here lays the obligation of rescue on you
@@ -548,8 +562,11 @@ function seatToDict(s) {
   return {
     // `label` identifies the player the way the reports asked: the human's name with the knight's
     // quest in parens — "Sogo (Roland's quest)". A bot IS its knight, so it just reads "Roland".
-    mark: s.mark, name: s.name, label: s.is_bot ? k.name : `${s.name} (${k.name}'s quest)`,
-    is_bot: s.is_bot, knight: s.knight, color: k.color, quest: k.quest,
+    // §18.10: a knight who takes the crown swaps the Knight card for the King card — quest and all.
+    // Projecting `k.quest` regardless left George-turned-King still reading "Slay the Dragon", so he
+    // stood in the Gate expecting to leave and was told only George may slay it (4T6D mrhzg94z/mrhzha1o).
+    mark: s.mark, name: s.name, label: s.is_bot ? (s.isKing ? `${k.name} the King` : k.name) : `${s.name} (${s.isKing ? "King" : `${k.name}'s quest`})`,
+    is_bot: s.is_bot, knight: s.knight, color: k.color, quest: s.isKing ? KING_QUEST : k.quest,
     r: s.r, c: s.c,
     things: s.things.map((t) => ({ id: t, name: THINGS[t].name })),
     prowess: s.prowess.map((x) => x.name),

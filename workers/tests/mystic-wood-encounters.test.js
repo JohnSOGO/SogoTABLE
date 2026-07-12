@@ -7,7 +7,7 @@ import {
   newMysticWoodGame, initMysticWoodSeats, makeMysticWoodMove, mysticWoodGameToDict, setMysticWoodRandom,
 } from "../games/mystic-wood/rules.js";
 import {
-  buildBoard, cellAt, reachableFrom, resolveGreet, toTower, snubbedBy,
+  buildBoard, cellAt, reachableFrom, resolveGreet, resolveChallenge, befriend, deliverRescue, toTower, snubbedBy,
 } from "../games/mystic-wood/engine.js";
 import { resolveJoust, recordJoust, joustPrize } from "../games/mystic-wood/joust.js";
 import { botEnter } from "../games/mystic-wood/ai.js";
@@ -274,4 +274,81 @@ test("§9 parity: a bot approaches the second denizen too, it does not walk away
   assert.equal(tile.card, null, "the first denizen was met");
   assert.equal(tile.card2, null, "…and so was the second — no card is left un-approached (§9)");
   assert.deepEqual(b.things, ["armour", "crystal"], "the bot met BOTH, in order — it no longer walks away from the second");
+});
+
+/* ------------------------ the Prince's arm (§18.15) ---------------------- */
+// 4T6D mrhzdu0s ("can I bank the prince, or is he used on the first fight?"). He was auto-spent on the
+// FIRST eligible challenge — even one already won — and §18.15 then denied the prowess for the kill, so
+// the Prince cost his knight twice over and could never be saved for the fight that needed him. §12 says
+// a knight MAY use a companion's aid: so he is billed only when his arm actually decided the day, exactly
+// as the Sage already is. He still stands in the line (his +3 shows in the odds) — he just isn't spent.
+function fightWith(knight, card, over = {}) {
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1"], players: {} };
+  const s = seatLit(knight, over); game.players.P1 = s;
+  const tile = cellAt(game.board, s.r, s.c); tile.card = card; tile.revealed = true;
+  return { game, s, tile };
+}
+test("the Prince is NOT spent on a fight won without him (4T6D mrhzdu0s)", () => {
+  // George S3 + Prince S3 = 9 vs the Boar's 2. He wins by 7 — four more than the Prince lent.
+  const { game, s, tile } = fightWith("george", "boar", { companions: ["prince"] });
+  resolveChallenge(game, s, tile, 3, 1);
+  assert.deepEqual(s.companions, ["prince"], "his arm was not needed — he keeps his place at your side");
+  assert.equal(s._princeUsed, false, "…and is still there for the fight that WILL need him");
+  assert.deepEqual(s.prowess.map((p) => p.name), ["Boar-slayer"], "so the kill is the knight's own, and the prowess is won (§18.15 does not bite)");
+  assert.match(game.log.map((e) => e.text).join("\n"), /the day was yours without him/, "and the modal says so — that is the answer to 'can I bank him?'");
+});
+test("the Prince IS spent on the fight his arm decided (§18.15)", () => {
+  // George S3 = 4 against the Troll's 7 — a loss. With the Prince's +3 it is 7 vs 7... so rig the white
+  // die one higher: 8 vs 7, a win by 1, which is inside the 3 he lent. Decisive → he is spent.
+  const { game, s, tile } = fightWith("george", "troll", { companions: ["prince"] });
+  resolveChallenge(game, s, tile, 2, 5);
+  assert.deepEqual(s.companions, [], "he gave his help, and §18.15 transports him back into the wood");
+  assert.equal(s._princeUsed, true);
+  assert.deepEqual(s.prowess, [], "no prowess is gained for a kill made with the Prince's help (§18.15)");
+  assert.equal(cellAt(game.board, s.r, s.c).card, null, "and the slain denizen is removed from the game");
+});
+test("a lost fight never spends the Prince (§18.15 bills him for help GIVEN)", () => {
+  const { game, s, tile } = fightWith("george", "troll", { companions: ["prince"] });
+  resolveChallenge(game, s, tile, 1, 6);   // 7 vs 8 even with his arm — the Tower
+  assert.equal(s._princeUsed, false, "his help never landed, so it is not billed");
+  assert.equal(s.tower, true, "the knight is away to the Tower — and the Prince is left in the glade with the rest (§10)");
+});
+
+/* ------------------------ chivalry delivered (§15) ----------------------- */
+// 4T6D mrhzbzxe: the rescue — the whole point of the chivalry card — happened in the chronicle alone,
+// the one channel a player doesn't watch. "Delivering damsel needs a modal."
+test("delivering the Damsel to the Queen raises a modal, not just a log line (4T6D mrhzbzxe)", () => {
+  const { game, s, tile } = fightWith("george", null, { companions: ["damsel"] });
+  game.chivalry = { boy: null, damsel: "P1" };
+  tile.card = "queen";
+  deliverRescue(game, s, tile);
+  assert.equal(s.saved.damsel, true, "she is delivered — Damsel-rescuer");
+  assert.deepEqual(s.companions, [], "…and she leaves your side");
+  assert.equal(game.chivalry.damsel, null, "the obligation is discharged");
+  const n = game.results.P1 && game.results.P1.notice;
+  assert.ok(n, "the player is TOLD, in a modal of its own");
+  assert.match(n.head, /deliver the Damsel/i);
+  assert.match(n.body, /Damsel-rescuer/);
+});
+test("a bot's delivery raises no modal", () => {
+  const { game, s, tile } = fightWith("roland", null, { is_bot: true, companions: ["boy"] });
+  game.chivalry = { boy: "P1", damsel: null };
+  const gate = game.board.find((t) => t.name === "egate");
+  s.r = gate.r; s.c = gate.c;
+  deliverRescue(game, s, gate);
+  assert.equal(s.saved.boy, true, "the bot still rescues him");
+  assert.equal(game.results.P1, undefined, "but no modal is recorded for a seat with nobody behind it");
+  assert.ok(tile);
+});
+// §18.15: "If you approach him again, you must greet him in the usual way" — a re-won Prince fights again.
+test("a Prince re-befriended after being spent lends his arm once more (§18.15)", () => {
+  const { game, s, tile } = fightWith("george", "troll", { companions: ["prince"] });
+  resolveChallenge(game, s, tile, 2, 5);            // decisive → spent, and _princeUsed latched
+  assert.equal(s._princeUsed, true);
+  const glade = cellAt(game.board, s.r, s.c); glade.card = "prince";
+  befriend(game, s, glade, "prince");               // greeted and won all over again
+  assert.equal(s._princeUsed, false, "a fresh greeting buys his arm again — he is not a dead weight for the rest of the game");
+  glade.card = "troll";
+  resolveChallenge(game, s, glade, 2, 5);
+  assert.deepEqual(s.companions, [], "…and he can be spent a second time on a fight that needs him");
 });
