@@ -158,6 +158,66 @@ test("architecture: exported JS modules only import other exported files", () =>
   assert.deepEqual(problems, [], `exported modules import files missing from the allowlist:\n${problems.join("\n")}`);
 });
 
+// Load-time evaluation guard: the import-closure test above catches a *missing*
+// module (an unresolved import white-screens the app). This one catches a module
+// that resolves but THROWS while evaluating — the failure that took the whole app
+// down on 2026-07-12, when a stray pair of backticks inside a CSS comment closed
+// the MYSTIC_WOOD_CSS template literal early and the trailing text parsed as JS
+// ("ReferenceError: herald is not defined"). `node --check` and the rules tests
+// never caught it: the syntax is valid; only *evaluation* fails. So we evaluate.
+// Every static frontend module is imported under no-op browser globals — a
+// self-returning Proxy that also coerces to "" — so DOM/transport/storage access
+// at module top level no-ops instead of throwing. What survives that stub and
+// still throws is a genuine load-time bug like a broken template literal.
+test("architecture: every static frontend module evaluates without throwing", async () => {
+  const noop = new Proxy(function () {}, {
+    get: (_t, prop) =>
+      prop === Symbol.toPrimitive || prop === "toString" || prop === "valueOf"
+        ? () => ""
+        : typeof prop === "symbol"
+          ? undefined
+          : noop,
+    apply: () => noop,
+    construct: () => noop,
+    has: () => false,
+  });
+  const browserGlobals = [
+    "document", "window", "navigator", "self", "location",
+    "localStorage", "sessionStorage", "history", "screen",
+    "WebSocket", "Audio", "AudioContext", "webkitAudioContext",
+    "requestAnimationFrame", "cancelAnimationFrame", "matchMedia",
+    "customElements", "HTMLElement", "CSS", "getComputedStyle",
+  ];
+  const installed = [];
+  for (const name of browserGlobals) {
+    try {
+      Object.defineProperty(globalThis, name, { value: noop, configurable: true, writable: true });
+      installed.push(name);
+    } catch {
+      // Getter-only builtin (e.g. navigator in Node): leave the real one — member
+      // access on it doesn't throw, which is all this load sweep needs.
+    }
+  }
+  const failures = [];
+  try {
+    for (const rel of sourceFiles([".js"])) {
+      if (!rel.startsWith("src/sogotable/static/")) continue;
+      try {
+        await import(pathToFileURL(join(root, rel)).href);
+      } catch (error) {
+        failures.push(`${rel} -> ${error.constructor.name}: ${String(error.message).split("\n")[0]}`);
+      }
+    }
+  } finally {
+    for (const name of installed) delete globalThis[name];
+  }
+  assert.deepEqual(
+    failures,
+    [],
+    `static frontend modules that throw at load (the app can't boot past these):\n${failures.join("\n")}`,
+  );
+});
+
 // Metadata split-brain guard (review #13): games/registry.js is the runtime
 // source of truth (opaque ids + aliases), while per-game manifest.js files carry
 // richer descriptive metadata. They drift if nothing pins them together — some
