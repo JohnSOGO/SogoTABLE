@@ -105,6 +105,56 @@ function buildPrompt(report, branch) {
   ].join("\n");
 }
 
+// The ROOM batch prompt: one agent takes EVERY open report from a single playtest room and works them as
+// a set — the methodology refined by hand over the HPM2/GY3B/UHKO/1WSQ/67QG/06CK batches. Like the
+// single-report agent it is BOXED to its worktree branch (no push/deploy/clear) — the harness runs the
+// tests and ships (push to main + deploy) only if green, then clears the room's reports.
+function buildRoomPrompt(reports, branch, roomCode) {
+  const dossier = reports.map((r, i) => `#### Report ${i + 1} of ${reports.length}\n${reportToText(r)}`).join("\n\n----------------\n\n");
+  return [
+    `You are addressing an ENTIRE playtest room (${roomCode}) of the SogoTable project in one pass —`,
+    `${reports.length} report(s) below. You are in an isolated git worktree on branch \`${branch}\`, so`,
+    "work freely; your changes do NOT touch the user's main tree.",
+    "",
+    "Follow CLAUDE.md doctrine (placement before implementation, smallest correct change, sibling-path",
+    "parity, docs when contracts change). Work the reports AS A WHOLE, in this order:",
+    "",
+    "1. REVIEW every report together. GROUP duplicates and near-duplicates (the same underlying issue",
+    "   reported different ways) so you fix each root cause once.",
+    "2. TRIAGE each report into one of: (a) a real bug to fix; (b) a UX/clarity gap to fix with clearer",
+    "   messaging/emoji/feedback — NOT rule changes; (c) working-as-intended — communicate WHY (a clearer",
+    "   message), do not change behaviour. Many reports are questions or confusion, not defects.",
+    "3. RULES ARE AUTHORITATIVE. For a game, its rulebook doc is the source of truth (e.g.",
+    "   docs/mystic-wood-rulebook.md). Do NOT invent or bend rules. If a request CONFLICTS with the",
+    "   published rules, follow the rules, keep the behaviour, and explain it in a message — never silently",
+    "   implement the conflicting ask. When a snapshot 'bug' turns out to be correct play, say so.",
+    "4. Use each report's `game_state` JSON snapshot (board, seats, pending, and the chronicle — each log",
+    "   line carries a `t` turn number) to reconstruct what actually happened before deciding.",
+    "5. IMPLEMENT the smallest correct change per root cause. Check sibling paths (hot-seat vs room, bot vs",
+    "   human, each game module). Respect the file-size ceilings in workers/tests/architecture.test.js —",
+    "   if an owning file is at its cap, COMPACT or extract rather than bloat it; never raise a cap.",
+    "6. ADD or update focused tests for any logic/rule change. The suite needs no install:",
+    "   run `node --test workers/tests/*.test.js` and get it fully GREEN before you finish.",
+    "7. COMMIT all of it to this branch with one clear message that maps each report id → what you did",
+    "   (fixed / clarified / working-as-intended), and note anything you deliberately did NOT change.",
+    "",
+    "HARD CONSTRAINTS:",
+    "- Do NOT `git push`, do NOT deploy (`npm run deploy:*`), do NOT touch `main`, do NOT resolve/clear the",
+    "  bug reports. The harness ships (push to main + deploy if the worker changed) and clears this room's",
+    "  reports FOR you — but ONLY if your committed work leaves the test suite green. So a red suite = no",
+    "  ship, no clear; leave it green.",
+    "- If a report is too ambiguous to act on safely, do NOT guess: say what you investigated and what",
+    "  you'd need. The reporter can always re-file it.",
+    "",
+    "When finished, output a per-report summary: for each, its id and whether you fixed it, clarified it,",
+    "or judged it correct — plus the files changed and the test result.",
+    "",
+    `--- ${reports.length} REPORT(S) FROM ROOM ${roomCode} ---`,
+    "",
+    dossier,
+  ].join("\n");
+}
+
 // A short, human-readable label for a tool_use event in the live log.
 function briefTool(item) {
   const inp = item.input || {};
@@ -118,6 +168,8 @@ function briefTool(item) {
 function publicJob(j) {
   return {
     id: j.id, reportId: j.reportId, title: j.title, branch: j.branch,
+    roomCode: j.roomCode || "", reportCount: Array.isArray(j.reports) ? j.reports.length : 0,
+    reportsCleared: j.reportsCleared || 0, clearError: j.clearError || "",
     status: j.status, summary: j.summary, error: j.error, commits: j.commits,
     sessionId: j.sessionId || "", log: j.log.slice(-LOG_TAIL), logFile: j.logFile || "",
     shipState: j.shipState || "", shippedHash: j.shippedHash || "", deployed: !!j.deployed, shipError: j.shipError || "",
@@ -134,7 +186,7 @@ export function listJobs() {
 // weren't persisted), but the branch + worktree are real, so View diff / Ship /
 // Merge / Discard still work. Called once at startup.
 export async function initJobs() {
-  const branches = await git(["branch", "--list", "fix/bug-*", "--format=%(refname:short)"]);
+  const branches = await git(["branch", "--list", "fix/bug-*", "fix/room-*", "--format=%(refname:short)"]);
   const wt = await git(["worktree", "list", "--porcelain"]);
   const wtByBranch = {};
   let cur = "";
@@ -144,15 +196,16 @@ export async function initJobs() {
   }
   for (const branch of branches.out.split("\n").map((s) => s.trim()).filter(Boolean)) {
     if ([...jobs.values()].some((j) => j.branch === branch)) continue;
-    const reportId = branch.replace(/^fix\/bug-/, "");
+    const isRoom = branch.startsWith("fix/room-");
+    const reportId = branch.replace(/^fix\/(bug|room)-/, isRoom ? "room-" : "");
     const commits = await git(["log", "--oneline", `main..${branch}`]);
     const id = `job-${++seq}`;
     const logFile = join(logDir, safeBranch(branch) + ".log");
     let savedLog = "(restored after a server restart — no saved log found)\n";
     if (existsSync(logFile)) { try { savedLog = readFileSync(logFile, "utf8").slice(-MEM_LOG_CAP); } catch { /* keep default */ } }
     jobs.set(id, {
-      id, reportId, title: `(restored) ${reportId}`, branch,
-      wtPath: wtByBranch[branch] || join(repoRoot, ".worktrees", `bug-${reportId}`),
+      id, reportId, roomCode: isRoom ? branch.replace(/^fix\/room-/, "") : "", title: `(restored) ${reportId}`, branch,
+      wtPath: wtByBranch[branch] || join(repoRoot, ".worktrees", isRoom ? reportId : `bug-${reportId}`),
       logFile,
       status: "done", log: savedLog,
       summary: commits.out ? "Restored fix branch from a previous run. View the diff to review, then Ship or Discard." : "Restored branch with no commits — safe to discard.",
@@ -177,7 +230,7 @@ export async function startFix(report) {
   const id = `job-${++seq}`;
   const branch = `fix/bug-${reportId}`;
   const job = {
-    id, reportId, title: firstLine(report.description), branch,
+    id, reportId, report, title: firstLine(report.description), branch,
     wtPath: join(repoRoot, ".worktrees", `bug-${reportId}`),
     logFile: join(logDir, safeBranch(branch) + ".log"),
     status: "running", log: "", summary: "", error: "", commits: "",
@@ -185,21 +238,51 @@ export async function startFix(report) {
   };
   jobs.set(id, job);
   running += 1;
-  run(job, report).catch((e) => { job.status = "error"; job.error = String(e && e.message || e); })
+  run(job).catch((e) => { job.status = "error"; job.error = String(e && e.message || e); })
     .finally(() => { running -= 1; if (!job.endedAt) job.endedAt = Date.now(); });
   return { ok: true, id, branch };
 }
 
-async function run(job, report) {
+// Address an ENTIRE room in one agent: the reports (fetched by the caller, which owns the API + passcode)
+// are worked as a set. `onShipped(reportIds)` is invoked ONLY after a green auto-ship lands on main, so the
+// caller can then clear the room's reports — a red suite parks the branch and leaves the reports untouched.
+export async function startRoomFix({ roomCode, reports, onShipped } = {}) {
+  const code = String(roomCode || "").replace(/[^a-z0-9-]/gi, "").toUpperCase();
+  if (!code) return { ok: false, error: "No room code." };
+  if (!Array.isArray(reports) || !reports.length) return { ok: false, error: `No open reports for room ${code}.` };
+  if (running >= MAX_CONCURRENT) return { ok: false, error: `Too many agents running (${running}). Try again shortly.` };
+  for (const j of jobs.values()) {
+    if (j.roomCode === code && j.status === "running") return { ok: false, error: `An agent is already working room ${code}.` };
+  }
+  const id = `job-${++seq}`;
+  const branch = `fix/room-${code}`;
+  const job = {
+    id, reportId: `room-${code}`, roomCode: code, reports, onShipped,
+    reportIds: reports.map((r) => r.id), title: `Room ${code} — ${reports.length} report(s)`, branch,
+    wtPath: join(repoRoot, ".worktrees", `room-${code}`),
+    logFile: join(logDir, safeBranch(branch) + ".log"),
+    status: "running", log: "", summary: "", error: "", commits: "",
+    startedAt: Date.now(), endedAt: 0,
+  };
+  jobs.set(id, job);
+  running += 1;
+  run(job).catch((e) => { job.status = "error"; job.error = String(e && e.message || e); })
+    .finally(() => { running -= 1; if (!job.endedAt) job.endedAt = Date.now(); });
+  return { ok: true, id, branch, count: reports.length };
+}
+
+async function run(job) {
   const log = (s) => writeLog(job, s);
+  const isRoom = Array.isArray(job.reports);
+  const prompt = isRoom ? buildRoomPrompt(job.reports, job.branch, job.roomCode) : buildPrompt(job.report, job.branch);
 
   // Start the persisted log fresh for a new fix, and record the exact brief the agent
   // was given (the edited text goes in via stdin and isn't stored anywhere else).
   try {
     mkdirSync(logDir, { recursive: true });
-    writeFileSync(job.logFile, `# Fix-agent log — ${job.branch} (report ${job.reportId})\n\n`);
+    writeFileSync(job.logFile, `# Fix-agent log — ${job.branch} (${isRoom ? `room ${job.roomCode}, ${job.reports.length} reports` : `report ${job.reportId}`})\n\n`);
   } catch { /* non-fatal */ }
-  log(`== Brief given to the agent ==\n${reportToText(report)}\n\n`);
+  log(`== Brief given to the agent ==\n${isRoom ? job.reports.map((r) => reportToText(r)).join("\n\n----\n\n") : reportToText(job.report)}\n\n`);
 
   // Fresh worktree: clear any stale one for this report first.
   await git(["worktree", "remove", "--force", job.wtPath]);
@@ -227,7 +310,7 @@ async function run(job, report) {
   ledger(job, `▶ START — "${job.title}" (base ${job.baseRev})`);
 
   log(`\n$ claude (stream-json) — prompt via stdin, cwd: worktree\n\n`);
-  const res = await spawnClaude(job, { prompt: buildPrompt(report, job.branch) });
+  const res = await spawnClaude(job, { prompt });
   job.sessionId = res.sessionId || job.sessionId;
   await finalize(job, res);
 }
@@ -346,6 +429,19 @@ async function doAutoShip(job) {
   const shipTail = res.touchesWorker ? (res.deployed ? " · worker deployed" : " · ⚠ worker deploy FAILED") : "";
   log(`\n■ SHIPPED to main as ${res.hash}${shipTail}\n`);
   ledger(job, `■ SHIPPED to main as ${res.hash}${shipTail}`);
+  // A room batch clears its reports ONLY now — after the fix is green, on main, and (if needed) deployed.
+  if (typeof job.onShipped === "function" && Array.isArray(job.reportIds) && job.reportIds.length) {
+    try {
+      const cleared = await job.onShipped(job.reportIds);
+      job.reportsCleared = cleared;
+      log(`\n■ cleared ${cleared} report(s) for room ${job.roomCode}\n`);
+      ledger(job, `■ cleared ${cleared} report(s) for room ${job.roomCode}`);
+    } catch (e) {
+      job.clearError = String(e && e.message || e);
+      log(`\n⚠ could not clear reports: ${job.clearError} (shipped OK — clear them manually)\n`);
+      ledger(job, `⚠ ship ok, clear failed: ${job.clearError}`);
+    }
+  }
 }
 
 // The shared "land this branch on origin/main" core, used by both auto-ship and the

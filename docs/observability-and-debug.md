@@ -69,3 +69,21 @@ never a public room.**
 - [x] Slice 2 — snapshot on bug report
 - [ ] Slice 3 — seed + move capture (replay token)
 - [ ] Slice 4 — local replay/scripted‑dice harness
+
+## Fix agents (bug manager)
+
+The bug manager UI (`npm run bugreports:ui <passcode>`, served by
+`scripts/serve-bug-manager.mjs`) launches Claude Code agents against reports. Two modes:
+
+- **🤖 Address (one report)** — `/agent/fix`, `startFix()`. An agent fixes a single report in an
+  isolated worktree branch `fix/bug-<id>`. Boxed: it does not push/deploy. With `BUG_AGENT_AUTOSHIP`
+  on (default), a green test suite auto‑ships the branch to `main` (and `deploy:brain` if `workers/`
+  changed); a red suite parks it.
+- **🏠 Fix room (a whole playtest room)** — `/agent/room-fix`, `startRoomFix()`. One agent takes
+  **every open report from a room** and works them as a set, using the batch methodology in
+  `buildRoomPrompt()` (review together → group duplicates → triage fix / clarify / working‑as‑intended
+  → rules are authoritative, don't invent them → smallest correct change + tests → one commit). It is
+  boxed exactly like the single agent (no push/deploy/clear); the same auto‑ship test‑gate lands it on
+  `main`. **Only after a green ship** does the harness clear that room's reports (delete — the reporter
+  can always re‑file). A red suite = no ship, no clear. This encodes the hand‑run
+  HPM2/GY3B/UHKO/1WSQ/67QG/06CK cycle so a room code is all the input needed.

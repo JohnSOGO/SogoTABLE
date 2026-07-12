@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { startFix, listJobs, getJob, getDiff, mergeJob, discardJob, continueJob, openTerminal, shipJob, initJobs, claudeAvailable, runnerStatus } from "./bug-agent.mjs";
+import { startFix, startRoomFix, listJobs, getJob, getDiff, mergeJob, discardJob, continueJob, openTerminal, shipJob, initJobs, claudeAvailable, runnerStatus } from "./bug-agent.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const htmlPath = join(repoRoot, "bugreport", "manage.html");
@@ -84,6 +84,34 @@ function readBody(req) {
   });
 }
 
+// Call the upstream D1 API with the Sogo passcode injected (never trusted from the browser).
+async function apiCall(path, body) {
+  const r = await fetch(`${api}${path}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...(body || {}), passcode }),
+  });
+  const text = await r.text();
+  try { return JSON.parse(text); } catch { return { ok: false, error: text.slice(0, 200) }; }
+}
+// A report's room: prefer room_code, fall back to the game_state snapshot's room.
+function reportRoom(r) {
+  if (r.room_code) return String(r.room_code).toUpperCase();
+  try { return String(JSON.parse(r.game_state || "{}").room || "").toUpperCase(); } catch { return ""; }
+}
+// Every OPEN (not-done) report for a room.
+async function openReportsForRoom(code) {
+  const room = String(code || "").toUpperCase();
+  const d = await apiCall("/api/bug-reports/list", {});
+  const all = d.reports || d.bug_reports || [];
+  return all.filter((r) => r.status !== "done" && reportRoom(r) === room);
+}
+// Delete a set of reports by id (the room agent's onShipped clear). Returns how many were removed.
+async function deleteReports(ids) {
+  if (!ids || !ids.length) return 0;
+  const d = await apiCall("/api/bug-reports/resolve", { ids, delete: true });
+  return d.affected || 0;
+}
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${port}`);
@@ -129,6 +157,16 @@ const server = createServer(async (req, res) => {
       if (req.method === "POST" && url.pathname === "/agent/fix") {
         const body = JSON.parse((await readBody(req)) || "{}");
         return send(await startFix(body.report || {}));
+      }
+      // Address an ENTIRE playtest room in one agent: gather its open reports, hand them to a room agent,
+      // and clear them only after a green ship (the agent never clears them itself).
+      if (req.method === "POST" && url.pathname === "/agent/room-fix") {
+        const body = JSON.parse((await readBody(req)) || "{}");
+        const code = String(body.room || "").toUpperCase();
+        if (!code) return send({ ok: false, error: "No room code." });
+        const reports = await openReportsForRoom(code);
+        if (!reports.length) return send({ ok: false, error: `No open reports for room ${code}.` });
+        return send(await startRoomFix({ roomCode: code, reports, onShipped: deleteReports }));
       }
       if (req.method === "POST" && url.pathname === "/agent/merge") {
         const body = JSON.parse((await readBody(req)) || "{}");
