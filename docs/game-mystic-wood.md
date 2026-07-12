@@ -215,6 +215,16 @@ The split is the whole point: **you can always be *told*; you can only *decline*
 says you may.** Do not gate a downside-free boon behind a tap — inform, and move on. Reserve consent
 prompts for choices that are both **rules-legal** and **meaningful** (a real cost or trade-off).
 
+**Forced changes still inform — and must reach the *victim*.** Where a rule removes consent, the
+*informed* half is not weakened, it is sharpened: whenever an **external force changes a player's
+character state** — a rival's spell strips your Things, the Queen casts you into the Tower, a scatter
+moves you, a companion is torn away — that player must be **personally told what happened to them**,
+via a per-victim notice (`recordRoll(mark, { notice })`) they see on their **next render**, never only a
+chronicle line. This matters most **off-turn**, when the player is not even watching. Bots get no
+notice (no screen). Chivalry remains the carve-out for *consent* (§15) — but even there, the obligation
+laid on you is announced. Rule of thumb: **if an outside force touched your character, your screen says
+so.**
+
 ### Classification — every state-change / approach (the source of truth)
 
 **FORCED (inform only — no decline; a `§` dictates the outcome):**
@@ -225,7 +235,9 @@ prompts for choices that are both **rules-legal** and **meaningful** (a real cos
 | Take the crown once you beat the King | §18.10 — vanquisher *becomes* King | forced; **informed** (pre-fight warning + swap notice, 2026-07-12) |
 | Greeted-denizen reaction (remains / transport / transportYou / befriend / tower / give / horse-runs) | §8 — you chose to greet; the die/denizen dictates the reaction | forced; inform via result modal |
 | Fight loss → Tower; Enchantress ensnare | §8 / §18.7 | forced; informed |
-| Spell events: Mystic Horn scatter, Mystic Wind (sweeps Things), Mystic Fog (rotates), Magician's Storm | §6 / §18.11 — drawn from the deck, resolve on reveal | forced; staged/narrated |
+| Mystic Wind sweeps your Things | §18.14 — off-turn when a rival draws it | forced; **victim now told what THEY lost** (2026-07-12), not just the shared herald |
+| Mystic Horn scatter; Magician's Storm | §6 / §18.11 | forced; staged/narrated (Horn token-tour; storm badges) |
+| Mystic Fog rotates the wood; a quest-companion flees (Princess/Prince/Grail) | §18.12 / §16 | forced; chronicle + animation only — **victim-notice still owed** (informed follow-ups) |
 | Queen's boon casts a rival into the Tower | §ext | forced; informed |
 | Power-Limit *that you exceed* must be resolved | §18 — surrender is mandatory | forced **to resolve** — but *which* cards is a choice (below) |
 
@@ -237,7 +249,7 @@ prompts for choices that are both **rules-legal** and **meaningful** (a real cos
 | Move or stay put (movement is voluntary) | §5 (“movement is voluntary”) | ✅ exists |
 | Guyon's +1 after the roll | §8.2 | ✅ toggle exists |
 | Joust prize (Tower / Thing / companion) | §12 | ✅ choice exists |
-| **Power-Limit: *which* card(s) to shed** | §14/§18 — the player chooses | ❌ **auto-picks & deletes** — first consent slice |
+| **Power-Limit: *which* card(s) to shed** | §14/§18 — the player chooses | ✅ **shipped 2026-07-12** (human chooses via `power_shed`; bots auto-shed; disposal-to-tile still follow-up) |
 | Voluntary Thing drop | §11 | ❌ not built |
 | Voluntary Horse release (declare where it runs) | § (Horse) | ❌ not built |
 | Exchange Things / hand a companion to a knight in your area | §13 | ❌ not built |

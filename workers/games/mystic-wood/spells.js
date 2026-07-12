@@ -4,9 +4,10 @@
 // under the god-file cap. relocate flows in from engine.js; the chronicle (logEvent)
 // from the pure narration.js leaf; the seq'd board-event descriptors the client heralds
 // (recordRotation / recordHorn) from the pure events.js leaf. Neither leaf imports back.
-import { relocate } from "./engine.js";
+import { relocate, recordRoll } from "./engine.js";
 import { logEvent } from "./narration.js";
 import { recordRotation, recordHorn, recordWind } from "./events.js";
+import { THINGS } from "./data.js";
 
 /* ------------------------------- spells --------------------------------- */
 // Returns { endTurn } — Mystic Horn ends the drawer's turn.
@@ -26,7 +27,25 @@ export function resolveSpell(game, seat, tile, spellId) {
   if (spellId === "wind") {
     // §18.14: sweeps every Thing HELD by a Knight (not Companions, not the Grail, not the mount Horse).
     let swept = 0;
-    for (const m of game.seat_order) { const q = game.players[m]; swept += q.things.length; q.things = []; }
+    for (const m of game.seat_order) {
+      const q = game.players[m];
+      if (!q.things.length) continue;
+      const lost = q.things.map((t) => (THINGS[t] ? THINGS[t].name : t));
+      swept += q.things.length;
+      q.things = [];
+      // Informed Consent (forced change): an EXTERNAL force — a rival's spell, on THEIR turn — stripped
+      // this knight's Things. The shared herald says only "N swept"; it never says what YOU lost. Tell the
+      // victim what left their character, so a forced change never lives only in a chronicle they can't see
+      // (humans only — a bot has no screen). Off-turn: results[mark] holds it until the victim next renders.
+      if (!q.is_bot) {
+        const listed = lost.length === 1 ? lost[0] : `${lost.slice(0, -1).join(", ")} and ${lost[lost.length - 1]}`;
+        recordRoll(game, q.mark, { notice: {
+          tag: "Mystic Wind", emoji: "🌬️",
+          head: `The Mystic Wind sweeps your ${lost.length === 1 ? "Thing" : "Things"} away.`,
+          body: `<b>${listed}</b> — lost on the wind (§18.14). Your companions and the Grail are untouched; only Things blow away.`,
+        } });
+      }
+    }
     recordWind(game, name, swept);
     logEvent(game, swept ? `${name} draws the Mystic Wind — it blows, and every Thing held by the knights is swept away!` : `${name} draws the Mystic Wind, but no knight holds a Thing to lose.`, swept ? "r" : "");
     return {};

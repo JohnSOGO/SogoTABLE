@@ -10,6 +10,7 @@ import {
   buildBoard, cellAt, reachableFrom, resolveGreet, resolveChallenge, befriend, deliverRescue, toTower, snubbedBy, capTotal,
 } from "../games/mystic-wood/engine.js";
 import { resolveJoust, recordJoust, joustPrize } from "../games/mystic-wood/joust.js";
+import { resolveSpell } from "../games/mystic-wood/spells.js";
 import { botEnter } from "../games/mystic-wood/ai.js";
 import { KNIGHTS } from "../games/mystic-wood/data.js";
 
@@ -384,4 +385,22 @@ test("§14/§18 Power Limit: a human over the limit chooses what to surrender be
   }
   assert.ok(capTotal(s) <= 10, "brought within the limit — by cards the PLAYER picked, not an auto-shed");
   assert.ok(g.turn_seq > seq0, "and only then does the turn pass");
+});
+
+// Informed Consent (forced change): the Mystic Wind strips your Things on a RIVAL's turn — the shared
+// herald says only "N swept". Each HUMAN victim must be told what THEY lost, or a forced change to their
+// character lives only in a chronicle they cannot see. Bots (no screen) and knights who lost nothing don't.
+test("Mystic Wind tells each human victim what THEY lost, not just the shared herald", () => {
+  const game = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1", "P2", "P3"], players: {} };
+  game.players.P1 = seatLit("george", { mark: "P1", things: ["armour", "lance"] });     // human — loses two
+  game.players.P2 = seatLit("roland", { mark: "P2", is_bot: true, things: ["wand"] });  // bot drawer — no notice
+  game.players.P3 = seatLit("perceval", { mark: "P3", things: [] });                    // holds nothing — no notice
+  resolveSpell(game, game.players.P2, cellAt(game.board, game.players.P2.r, game.players.P2.c), "wind");
+
+  assert.deepEqual(game.players.P1.things, [], "the Wind stripped the human's Things");
+  const n = game.results.P1 && game.results.P1.notice;
+  assert.ok(n && /Mystic Wind/.test(n.tag), "the victim is personally told");
+  assert.match(n.body, /Armour/); assert.match(n.body, /Lance/);
+  assert.ok(!(game.results.P2 && game.results.P2.notice), "the bot drawer gets no notice (no screen)");
+  assert.ok(!(game.results.P3 && game.results.P3.notice), "a knight who lost nothing gets no notice");
 });
