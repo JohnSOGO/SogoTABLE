@@ -209,6 +209,19 @@ function strandCompanions(game, seat) {
     if (game.chivalry && (id === "boy" || id === "damsel")) game.chivalry[id] = null;   // obligation resets; re-seeing re-lays it
   });
   seat.companions = [];
+  syncQuestCompanion(game, seat);   // the Princess/Prince/Grail left behind un-fulfils the quest that rides on her
+}
+// §16: a companion quest ("Leave the Wood WITH the Princess") is fulfilled only while the companion is STILL
+// beside you — the requirement is tested on LEAVING, exactly as Marfisa's prowess is (§19.2). questDone used to
+// LATCH on befriending and never fall back, so a knight vanquished at the last (companions left in the area,
+// §10) could still walk out of the Enchanted Gate and win the Wood with nothing at his side (bug mrh9klnb).
+// Winning her back sets it again. Called wherever a companion leaves a seat, and once more at the gate.
+const QUEST_COMPANION = { princess: "princess", prince: "prince", grail: "grail" };
+export function syncQuestCompanion(game, seat) {
+  const need = QUEST_COMPANION[seat.q];
+  if (!need || !seat.questDone || seat.companions.includes(need)) return;
+  seat.questDone = false; seat.atGate = false;
+  logEvent(game, `${denPhrase(need)} is no longer with ${seat.name} — the quest is unfulfilled until ${need === "grail" ? "it is taken up" : "won"} again.`, "r");
 }
 export function anyKing(game) { return game.seat_order.some((m) => game.players[m].isKing); }
 export function tileNameAt(game, seat) { const t = cellAt(game.board, seat.r, seat.c); return t ? t.name : null; }
@@ -222,6 +235,15 @@ export function applyMoveTo(game, seat, from, to) {
 // A short "what did this Thing do to me" note for the result card / chronicle: the stat/power it grants
 // and the seat's resulting totals, so a player sees the buff and their updated stats when they receive it.
 const POWER_NOTE = { cave: "lets you enter the Cave", key: "escapes the Tower once", wand: "rotates your tile", scry: "scries the deck" };
+// The same courtesy for a COMPANION won: "whenever you receive something tell me what the buff is"
+// (bug mrh964kp — the Grail joined you with no word of what it did). Read AFTER enforcePower, so the
+// totals quoted are the ones the knight actually walks away with.
+const COMP_NOTE = { grail: "+1 Prowess, +1 Strength", princess: "+1 Prowess (never against the King)", sage: "lends +2 Prowess to one contest, then departs",
+  prince: "lends +3 Strength & +3 Prowess to ONE fight", archmage: "transports you on your turn", magician: "raises a storm on your turn",
+  boy: "deliver him to the Earthly Gate", damsel: "deliver her to the Queen" };
+function compEffect(seat, id) {
+  return `${COMP_NOTE[id] || "travels at your side"} (now S ${totalS(seat)} · P ${totalP(seat)})`;
+}
 function thingEffect(seat, id) {
   const t = THINGS[id] || {}; const parts = [];
   if (t.S) parts.push(`+${t.S} Strength`);
@@ -295,32 +317,37 @@ export function horseRunsTo(game, tile, dir) {
 export function befriend(game, seat, tile, id) {
   seat.companions.push(id);
   logEvent(game, `The ${DEN[id].name} befriends ${seat.name}!`, "a");
+  clearCard(game, tile, false); enforcePower(game, seat);
+  logEvent(game, `${seat.name} is joined by the ${DEN[id].name} — ${compEffect(seat, id)}.`, "a");   // say the buff (mrh964kp)
   const q = seat.q;
   if ((q === "princess" && id === "princess") || (q === "prince" && id === "prince")) {
     seat.questDone = true;
-    logEvent(game, `${seat.name}'s quest companion is won — now leave by the Enchanted Gate!`, "g");
+    logEvent(game, `${seat.name}'s quest companion is won — now leave by the Enchanted Gate, WITH ${id === "prince" ? "him" : "her"} still at your side.`, "g");
   }
-  clearCard(game, tile, false); enforcePower(game, seat);
   return { befriended: true };
 }
 // §18.16: a fleeing denizen (the Princess) goes directly to the Gate in the OTHER half of the wood, and
 // is PLACED there as an independent denizen so the player can see and re-approach her (bug mrh80zsz).
-function fleeToGate(game, tile, id) {
+// The line names the knight she fled FROM: she can flee onto a rival standing at the far Gate, and an
+// unattributed "the Princess flees" read as the reader's own doing (bug mrh9hu2f).
+function fleeToGate(game, seat, tile, id) {
   tile.card = null;
   const far = tile.half === "ench" ? cellAt(game.board, 8, 3) : cellAt(game.board, 0, 3);   // egate / xgate
   if (!far.card) far.card = id; else if (!far.card2) far.card2 = id; else game.discard.push(id);
-  logEvent(game, `The Princess flees to the ${far.half === "ench" ? "Enchanted" : "Earthly"} Gate — seek her there.`);
+  logEvent(game, `The Princess slips away from ${seat.name} and flees to the ${far.half === "ench" ? "Enchanted" : "Earthly"} Gate — seek her there.`);
 }
 export function takeGrail(game, seat, tile) {
   seat.companions.push("grail");
   logEvent(game, `${seat.name} takes up the Holy Grail!`, "a");
-  if (seat.q === "grail") { seat.questDone = true; logEvent(game, `${seat.name} bears the Grail — reach the Enchanted Gate to win!`, "g"); }
   clearCard(game, tile, false);
+  logEvent(game, `${seat.name} bears the Holy Grail — ${compEffect(seat, "grail")}.`, "a");   // say the buff (mrh964kp)
+  if (seat.q === "grail") { seat.questDone = true; logEvent(game, `${seat.name} bears the Grail — reach the Enchanted Gate to win, still holding it!`, "g"); }
 }
 
 // Record a seat's most recent roll under its OWN mark, so a following bot turn (in the same makeMove
-// call) can't clobber the human's result before it reaches the client.
-function recordRoll(game, mark, data) {
+// call) can't clobber the human's result before it reaches the client. Exported so the turn machine
+// (rules.js) can record the results that accrue at the START of a turn — the Bishop's prayer.
+export function recordRoll(game, mark, data) {
   game.roll_seq = (game.roll_seq || 0) + 1;
   if (!game.results) game.results = {};
   game.results[mark] = { seq: game.roll_seq, mark, ...data };
@@ -624,7 +651,7 @@ export function resolveGreet(game, seat, tile, forcedDie, useGuyon = true) {
         else { logEvent(game, "The Grail slips away."); clearCard(game, tile); }
       } else if (id === "princess") {
         if (total >= 9) befriend(game, seat, tile, id);
-        else fleeToGate(game, tile, "princess");   // §18.16: she goes to the Gate in the OTHER half — placed there, re-approachable
+        else fleeToGate(game, seat, tile, "princess");   // §18.16: she goes to the Gate in the OTHER half — placed there, re-approachable
       } else { // prince — 8+ befriends, 2-7 he ATTACKS (vanquish → he yields & joins)
         if (total >= 8) befriend(game, seat, tile, id);
         else princeAttack(game, seat, tile);
@@ -728,6 +755,7 @@ function joustTakeCompanion(game, winner, loser) {
     logEvent(game, `${wn} wins ${ln}'s ${DEN[cid].name}.`, "g");
     if ((winner.q === "princess" && cid === "princess") || (winner.q === "prince" && cid === "prince")) { winner.questDone = true; logEvent(game, `${wn}'s quest companion is won — leave by the Enchanted Gate!`, "g"); }
     enforcePower(game, winner);
+    syncQuestCompanion(game, loser);   // …and robbed of HIS quest companion, the loser's quest is undone (mrh9klnb)
   };
   if (cid === "sage") { take(); return; }
   if (cid === "prince") {
@@ -756,7 +784,7 @@ export function powerRotate(game, seat) {
   const t = cellAt(game.board, seat.r, seat.c);
   const o = t.open;
   t.open = { N: o.S, S: o.N, E: o.W, W: o.E };
-  recordRotation(game, [t]);
+  recordRotation(game, [t], seat.name, "wand");   // the herald names who turned it (mrh97d6q)
   logEvent(game, `${seat.name} raises the Wand — the tile turns about.`, "a");
 }
 // Fountain: 1–2 Tower · 3–4 Earthly Gate · 5–6 Enchanted Gate. Ends the turn.

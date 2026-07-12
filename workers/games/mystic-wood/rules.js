@@ -14,7 +14,7 @@ import {
   relocate, logEvent, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
   resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
   denPhrase, denIntro, escapeOutcomes, resolveEscape, recordKeyUnlock, becomeKing,
-  takeChivalry, deliverRescue,
+  takeChivalry, deliverRescue, syncQuestCompanion, recordRoll,
 } from "./engine.js";
 import { resolveSpell, raiseStorm, decayStorms } from "./spells.js";
 import { playBotTurn } from "./ai.js";
@@ -33,7 +33,8 @@ export function newMysticWoodGame() {
     status: "playing", winner: null, end_reason: null,
     seat_order: [], players: {}, current_player: null,
     board: [], deck: [], discard: [], log: [], pending: null, scry_reveal: null, results: {},
-    horn: null, horn_seq: 0, rotation: null, rotation_seq: 0, chivalry: { boy: null, damsel: null },
+    horn: null, horn_seq: 0, rotation: null, rotation_seq: 0, wind: null, wind_seq: 0,
+    chivalry: { boy: null, damsel: null },
     turn_seq: 0, round: 1, roll_seq: 0, knight_setup: "auto",
   };
 }
@@ -63,7 +64,8 @@ export function initMysticWoodSeats(game, players) {
   game.status = "playing"; game.winner = null; game.end_reason = null;
   game.seat_order = []; game.players = {}; game.log = []; game.pending = null; game.scry_reveal = null;
   game.results = {}; game.turn_seq = 0; game.round = 1; game.roll_seq = 0;
-  game.horn = null; game.horn_seq = 0; game.rotation = null; game.rotation_seq = 0; game.chivalry = { boy: null, damsel: null };
+  game.horn = null; game.horn_seq = 0; game.rotation = null; game.rotation_seq = 0; game.wind = null; game.wind_seq = 0;
+  game.chivalry = { boy: null, damsel: null };
   game.board = buildBoard();
   game.deck = shuffle(DECK_IDS.slice()); game.discard = [];
   const pool = shuffle(KNIGHT_ORDER.slice());   // distinct knights, randomly assigned (v1 — see PLAN.md)
@@ -90,6 +92,11 @@ function beginSeatTurn(game, seat) {
   seat.moved = false; seat.stormed = false; seat.freeMove = false; seat.usedFreeMove = false;
   game.pending = null; game.scry_reveal = null;
   const name = seat.name;
+  // §16: "leaving the Wood AFTER fulfilling the other requirement of the quest" — a companion quest is
+  // fulfilled only while the companion is still with you. The loss sites revoke questDone; this is the
+  // backstop at the one place the game is actually WON, so no future loss path can smuggle a knight out
+  // of the gate without his Princess (bug mrh9klnb).
+  syncQuestCompanion(game, seat);
   if (seat.atGate) {
     if (seat.questDone && tileNameAt(game, seat) === "xgate") { winGame(game, seat, "gate"); return "skip"; }
     seat.atGate = false;
@@ -130,7 +137,13 @@ function beginSeatTurn(game, seat) {
     if (t && t.card === "bishop") {
       seat.prayerTurns = (seat.prayerTurns || 0) + 1;
       logEvent(game, `${name} prays before the Bishop (${seat.prayerTurns}/3).`);
-      if (seat.prayerTurns >= 3) { seat.things.push("ring"); seat.praying = false; clearCard(game, t, false); logEvent(game, `The Bishop blesses ${name} with the Ring (+1 Prowess).`, "g"); enforcePower(game, seat); }
+      const blessed = seat.prayerTurns >= 3;
+      if (blessed) { seat.things.push("ring"); seat.praying = false; clearCard(game, t, false); logEvent(game, `The Bishop blesses ${name} with the Ring (+1 Prowess).`, "g"); enforcePower(game, seat); }
+      // §18.2: each turn of prayer COSTS the knight their turn, which the seat then silently skipped —
+      // no popup, no badge, nothing but a log line. Three turns vanished and the vigil looked broken
+      // ("bishop only does 1 of three… I have no chance to sit three rounds", bug mrh93gvz). A human now
+      // gets the same result modal every other spent turn gets, counting the vigil down to the Ring.
+      if (!seat.is_bot) recordRoll(game, seat.mark, { pray: true, turns: seat.prayerTurns, blessed });
     } else { seat.praying = false; logEvent(game, `${name} leaves the Bishop; the prayer lapses.`); }
     // Kneeling commits the knight: the Bishop holds them here, so a still-praying seat misses
     // its turn (the prayer just counted above) instead of being handed a move that would lapse it.
@@ -479,6 +492,7 @@ function seatToDict(s) {
     moved: !!s.moved, freeMove: !!s.freeMove,   // client shows an "open turn" prompt after a move
     questDone: !!s.questDone, isKing: !!s.isKing, atGate: !!s.atGate, won: !!s.won,
     caveTurns: s.caveTurns || 0,
+    praying: !!s.praying, prayerTurns: s.prayerTurns || 0,   // §18.2: the vigil, so the strip can SHOW it ticking (mrh93gvz)
     totalP: totalP(s), totalS: totalS(s),
   };
 }
@@ -539,6 +553,7 @@ export function mysticWoodGameToDict(game) {
     results: game.results || {},
     horn: game.horn || null,
     rotation: game.rotation || null,   // §18.12 Fog / Wand: cells that just turned about, for the spin animation
+    wind: game.wind || null,           // §18.14: who drew the Wind and how many Things it swept, for the herald
     chivalry: game.chivalry || { boy: null, damsel: null },   // §15: who currently bears each rescue obligation
     // Send the full retained chronicle (bounded by LOG_CAP) so the client can show the ENTIRE history
     // (report mrfoq90c) and a bug-report snapshot captures a real audit trail. turn_seq above is the

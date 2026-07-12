@@ -5,7 +5,7 @@
 // engine.js; the seq'd board-event descriptors the client heralds (recordRotation /
 // recordHorn) come from the pure events.js leaf, which imports nothing back.
 import { logEvent, relocate } from "./engine.js";
-import { recordRotation, recordHorn } from "./events.js";
+import { recordRotation, recordHorn, recordWind } from "./events.js";
 
 /* ------------------------------- spells --------------------------------- */
 // Returns { endTurn } — Mystic Horn ends the drawer's turn.
@@ -15,16 +15,19 @@ export function resolveSpell(game, seat, tile, spellId) {
     // §18.12: every face-up arrow area rotates 180°. Fixed areas (Gates/Tower) don't turn.
     const spun = [];
     for (const t of game.board) if (t.revealed && !t.fixed) { const o = t.open; t.open = { N: o.S, S: o.N, E: o.W, W: o.E }; spun.push(t); }
-    recordRotation(game, spun);
+    recordRotation(game, spun, name, "fog");
     const n = spun.length;
-    logEvent(game, `Mystic Fog rolls through — ${n} area${n === 1 ? "" : "s"} of the wood turn about.`);
+    // Name the knight who drew it: the wood turns on someone ELSE's turn too, and an unattributed spin
+    // read as the board glitching (bug mrh97d6q).
+    logEvent(game, `${name} draws the Mystic Fog — it rolls through, and ${n} area${n === 1 ? "" : "s"} of the wood turn about.`);
     return {};
   }
   if (spellId === "wind") {
     // §18.14: sweeps every Thing HELD by a Knight (not Companions, not the Grail, not the mount Horse).
     let swept = 0;
     for (const m of game.seat_order) { const q = game.players[m]; swept += q.things.length; q.things = []; }
-    logEvent(game, swept ? "Mystic Wind blows — every Thing held by the knights is swept away!" : "Mystic Wind blows, but no knight holds a Thing to lose.", swept ? "r" : "");
+    recordWind(game, name, swept);
+    logEvent(game, swept ? `${name} draws the Mystic Wind — it blows, and every Thing held by the knights is swept away!` : `${name} draws the Mystic Wind, but no knight holds a Thing to lose.`, swept ? "r" : "");
     return {};
   }
   if (spellId === "horn") {

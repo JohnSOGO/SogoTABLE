@@ -113,6 +113,8 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .chip{font-size:10px;background:var(--panel2);border:1px solid var(--rule);border-radius:99px;padding:1px 7px;color:var(--gold2)}
 .mystic-wood-root .chip.comp{color:var(--azure);border-color:#3a4a66}
 .mystic-wood-root .badge{font-size:10px;background:#5a2320;border:1px solid #a33;border-radius:99px;padding:1px 7px;color:#e8a}
+/* the Bishop's vigil is a boon in progress, not a misfortune — gold, not the prison badge's red (mrh93gvz) */
+.mystic-wood-root .mw-pray{background:var(--panel2);border-color:var(--gold);color:var(--gold2);font-weight:700}
 .mystic-wood-root .holdable{cursor:help;user-select:none;-webkit-user-select:none}
 
 /* slide-over panels (Knights / Chronicle) */

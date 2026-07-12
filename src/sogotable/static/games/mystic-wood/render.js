@@ -5,8 +5,8 @@
 import { renderHostStartLobby } from "../lobby.js";
 import { MYSTIC_WOOD_CSS } from "./styles.js";
 import { syncHorn, resetHorn, hornOwnsTokens, hornRemainingMs } from "./horn.js";
-import { syncHerald, resetHeralds } from "./herald.js";
-import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
+import { syncHerald, resetHeralds, raiseHerald } from "./herald.js";
+import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX, EVENT_TALE } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
 import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showDice, showIntro, initEncounter, signalWorking, clearWorking } from "./encounter.js";
 
@@ -82,6 +82,7 @@ export function renderMysticWoodGame(ctx) {
   // re-render can't strand it); it reads prevPos, so it runs BEFORE animateTokens. syncHerald then
   // re-mounts any raised herald (the Horn's tale) over the freshly-rendered chronicle strip.
   syncHorn(root, game, { cw: CW, ch: CH, prevPos });
+  syncBoardEvents(game);
   syncHerald(root);
   syncRotation(root, game);
   animateTokens(root, game);
@@ -162,6 +163,10 @@ function statsHtml(seat) {
 }
 function invHtml(seat) {
   let h = "";
+  // §18.2: the vigil is three SPENT turns, and while it ran the only sign of it was a log line — the turn
+  // itself was skipped in silence, so the prayer looked stuck at one ("bishop only does 1 of three", bug
+  // mrh93gvz). Now it ticks on the strip, where the player is already looking.
+  if (seat.praying) h += `<span class="badge holdable mw-pray" data-peek="pray:${seat.prayerTurns || 0}">🙏 Praying ${seat.prayerTurns || 0}/3</span>`;
   if (seat.isKing) h += `<span class="chip holdable" data-peek="king:0">👑 King</span>`;
   (seat.things || []).forEach((t) => { h += `<span class="chip holdable" data-peek="thing:${t.id}">${E(t.name)}</span>`; });
   (seat.prowess || []).forEach((n) => { h += `<span class="chip holdable" data-peek="prowess:0">${E(n)}</span>`; });
@@ -346,6 +351,22 @@ function animateTokens(root, game) {
 // snapshot rebuild, so the fresh <svg> already shows the NEW doors; we start it flipped 180° (which reads
 // as the OLD orientation) and ease back to 0, so the doors visibly sweep round. Seq-guarded — a re-render
 // mid-spin won't restart it, and a reconnect adopts the seq without replaying (seenRotation in justInit).
+// The board can change under you on someone ELSE's turn — the Fog turns the wood about, the Wand turns a
+// tile, the Wind strips every Thing — and the tiles simply "jumped", with the only word for it a log line
+// that named no one ("they just jump and it's confusing what happened… there should be a pop-up explaining
+// who triggered the event", bug mrh97d6q). Each seq'd event now raises a HERALD that says who and what,
+// while it happens: the tale runs alongside the 2s spin (the banner sits over the chronicle, never the map,
+// so it can narrate the animation instead of hiding it). The server owns who/what — we only tell it.
+function syncBoardEvents(game) {
+  const who = (name) => E(name || "A knight");   // a tale is raw HTML — the player-chosen name is escaped HERE
+  const rot = game.rotation;
+  if (rot && rot.seq) {
+    const tale = EVENT_TALE[rot.cause === "wand" ? "wand" : "fog"];
+    raiseHerald({ key: "rotation", seq: rot.seq, title: tale.title, tale: tale.body(who(rot.by), (rot.cells || []).length) });
+  }
+  const wind = game.wind;
+  if (wind && wind.seq) raiseHerald({ key: "wind", seq: wind.seq, title: EVENT_TALE.wind.title, tale: EVENT_TALE.wind.body(who(wind.by), wind.swept || 0) });
+}
 function syncRotation(root, game) {
   const rot = game.rotation;
   if (!rot || !rot.seq || rot.seq <= seenRotation) return;
@@ -374,10 +395,16 @@ function showPop(x, y, title, body) {
   popEl.innerHTML = `<b>${title}</b><div class="popbody">${body}</div>`;
   document.body.appendChild(popEl); popAt = Date.now();
   const r = popEl.getBoundingClientRect();
-  // Center the peek over the map, wherever the badge sits (bug mrh7xy80) — a peek near a corner badge
-  // used to open off toward that corner and clip; centered, it always reads.
+  // Centred horizontally over the map, wherever the badge sits (bug mrh7xy80) — a peek near a corner badge
+  // used to open off toward that corner and clip. Vertically it rides at the TOP of the map, not the middle
+  // of the WINDOW: the badges and legend sit low, so a window-centred peek landed over the bottom of the
+  // board and covered the very tiles it described ("I want the pop-up to be the top of the map and it's
+  // currently at the bottom", bug mrh94r63). Clamped so it can never run off-screen on a small phone.
+  const board = uiRoot && uiRoot.querySelector(".mw-boardwrap");
+  const box = board ? board.getBoundingClientRect() : null;
+  const top = box ? box.top + 8 : (window.innerHeight - r.height) / 2;
   popEl.style.left = Math.max(8, (window.innerWidth - r.width) / 2) + "px";
-  popEl.style.top = Math.max(8, (window.innerHeight - r.height) / 2) + "px";
+  popEl.style.top = Math.max(8, Math.min(top, window.innerHeight - r.height - 8)) + "px";
 }
 function peekContent(game, spec) {
   const [type, arg] = spec.split(":");
@@ -387,6 +414,7 @@ function peekContent(game, spec) {
   if (type === "thing") return { title: (THINGS[arg] || {}).name || arg, body: THING_DESC[arg] || "A magical Thing." };
   if (type === "comp") return { title: (DEN[arg] || {}).name || arg, body: COMP_DESC[arg] || "A companion travelling with you." };
   if (type === "prowess") return { title: "Prowess card", body: "+1 Prowess — won by slaying a beast. Adds to your Prowess in every contest." };
+  if (type === "pray") { const n = Number(arg) || 0; return { title: "🙏 Praying before the Bishop", body: `Three full turns of prayer earn the <b>Ring</b> (+1 Prowess). <b>${n} of 3</b> kept — ${3 - n} to go.<br>Each turn of prayer <b>costs you that turn</b>: you kneel instead of moving. If the prayer is interrupted, the turns kept are lost. (§18.2)` }; }
   if (type === "horse") return { title: "Horse", body: "+2 Strength. Caught when it bolts into a wall — greet it, chase it. Not a companion; another knight can win it in a joust." };
   if (type === "tower") return { title: "Imprisoned in the Tower", body: "Each turn roll a die — escape on 5–6, or freed on the 4th turn. The Key frees you at once." };
   if (type === "captured") return { title: "Captured by the Enchantress", body: "Each turn, roll — escape on a 6." };
