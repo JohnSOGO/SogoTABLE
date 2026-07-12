@@ -17,7 +17,7 @@
 //     across later turns and looked as if it had re-triggered (e.g. while being beaten by a beast).
 import { playMysticHorn } from "../../sound.js";
 
-export const HORN_MS = 2000;   // the token tour, start to final cell
+export const HORN_MS = 2400;   // the token tour, start to final cell (a touch longer so it's easy to follow)
 const READ_MS = 6000;          // how long the tale then lingers, readable, before it clears itself
 const FLASH_MS = 700;          // the banner flashes for this long when it arrives (after the tour)
 

@@ -178,7 +178,9 @@ function openEncounter(game, seat, tile) {
   if (!tile.card && tile.card2) { tile.card = tile.card2; tile.card2 = null; }   // meet the second of a two-card area
   if (!tile.card) return false;
   if (DEN[tile.card].king && seat.knight === "britomart" && !anyKing(game)) {
-    logEvent(game, "Britomart pays the King no heed and passes by."); return false;
+    // §18: Britomart's quest is not the crown — she alone neither challenges the King nor may become one,
+    // so she simply passes him by (intentional — a report asked "is this right?"; it is).
+    logEvent(game, "Britomart's quest is not the crown — she pays the King no heed and passes by.", "muted"); return false;
   }
   const den = DEN[tile.card];
   const combat = den.cls === "beast" || den.cls === "warrior" || den.cls === "magic";

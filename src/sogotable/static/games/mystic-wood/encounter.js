@@ -28,6 +28,22 @@ function resultEmojiForRoll(roll) {
 /* ------------------------------- portal --------------------------------- */
 function portal() { const p = document.createElement("div"); p.className = "mystic-wood-root mw-portal"; document.body.appendChild(p); return p; }
 export function closePortals() { document.querySelectorAll(".mw-portal").forEach((n) => n.remove()); }
+// "Working…" indicator (bug mrh84cjn): a move is a server round-trip that can lag. signalWorking() shows a
+// small badge only if the reply hasn't come within ~500ms (so fast moves don't flicker); the next render
+// calls clearWorking(). Lives here (render imports it) so both the board and the pick modals can raise it.
+let workTimer = null;
+function workEl() { return document.querySelector(".mw-working"); }
+export function signalWorking() {
+  if (workTimer || workEl()) return;
+  workTimer = setTimeout(() => {
+    workTimer = null;
+    if (workEl()) return;
+    const w = document.createElement("div"); w.className = "mystic-wood-root mw-working";
+    w.innerHTML = `<div class="mw-working-box">⏳ Working…</div>`;
+    document.body.appendChild(w);
+  }, 500);
+}
+export function clearWorking() { if (workTimer) { clearTimeout(workTimer); workTimer = null; } const w = workEl(); if (w) w.remove(); }
 // The first-sight narrative the server writes for a met card (server-owned prose, no user input) —
 // shown on both the encounter card and the pick grid so EVERY card type is met with its own line.
 function introHtml(p) { return p && p.intro ? `<p class="mw-enc-intro">${sanitizeLog(p.intro)}</p>` : ""; }
@@ -132,6 +148,7 @@ function pickCard(ctx, game, moveType, verb) {
     else if (moveType === "combat_pick" && p.hopeless) b.textContent = den && den.captures ? "🕸️" : "⛓️";
     if (moveType === "combat_pick" || moveType === "greet_pick") pendingReveal = { el: b };
     // The result modal swaps in on the next render (dice suppressed — this was a pick, not a roll).
+    signalWorking();
     ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")), useGuyon });
   }));
 }
@@ -160,6 +177,7 @@ export function showEscapePick(ctx, game) {
     b.classList.add("mw-chosen");
     pendingReveal = { el: b };   // the Key 🗝️ (free) or the lock 🔒 (held) morphs onto this face when it lands (mrglq3yx)
     // The result modal swaps in on the next render (no die — the pick stood in for the roll).
+    signalWorking();
     ctx.makeMove({ type: "escape_pick", pick: Number(b.getAttribute("data-pick")) });
   }));
 }

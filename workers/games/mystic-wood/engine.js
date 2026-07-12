@@ -311,6 +311,14 @@ export function befriend(game, seat, tile, id) {
   clearCard(game, tile, false); enforcePower(game, seat);
   return { befriended: true };
 }
+// §18.16: a fleeing denizen (the Princess) goes directly to the Gate in the OTHER half of the wood, and
+// is PLACED there as an independent denizen so the player can see and re-approach her (bug mrh80zsz).
+function fleeToGate(game, tile, id) {
+  tile.card = null;
+  const far = tile.half === "ench" ? cellAt(game.board, 8, 3) : cellAt(game.board, 0, 3);   // egate / xgate
+  if (!far.card) far.card = id; else if (!far.card2) far.card2 = id; else game.discard.push(id);
+  logEvent(game, `The Princess flees to the ${far.half === "ench" ? "Enchanted" : "Earthly"} Gate — seek her there.`);
+}
 export function takeGrail(game, seat, tile) {
   seat.companions.push("grail");
   logEvent(game, `${seat.name} takes up the Holy Grail!`, "a");
@@ -504,7 +512,7 @@ function applyWin(game, seat, tile, den, id) {
     if (seat._princeAiding) { logEvent(game, `The ${den.name} falls to the Prince's arm — no glory won.`, "muted"); clearCard(game, tile, false); }
     else { seat.prowess.push({ name: den.slay, P: 1 }); logEvent(game, `${seat.name} gains ${den.slay} (+1 Prowess).`, "g"); clearCard(game, tile); }
   }
-  else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${seat.name} takes the ${THINGS[den.gives].name}.`, "g"); clearCard(game, tile); }
+  else if (den.gives) { seat.things.push(den.gives); logEvent(game, `${seat.name} takes the ${THINGS[den.gives].name} — ${thingEffect(seat, den.gives)}.`, "g"); clearCard(game, tile); }
   else if (den.king) { becomeKing(game, seat); clearCard(game, tile, false); }
   else if (id === "wizard") { seat.things.push("lance"); logEvent(game, `${seat.name} takes the Lance (+1 Strength).`, "g"); clearCard(game, tile); }
   else if (id === "illusion") { sendIllusion(game, tile); }
@@ -624,7 +632,7 @@ export function resolveGreet(game, seat, tile, forcedDie, useGuyon = true) {
         else { logEvent(game, "The Grail slips away."); clearCard(game, tile); }
       } else if (id === "princess") {
         if (total >= 9) befriend(game, seat, tile, id);
-        else { logEvent(game, "The Princess flees to the far Gate."); clearCard(game, tile); }
+        else fleeToGate(game, tile, "princess");   // §18.16: she goes to the Gate in the OTHER half — placed there, re-approachable
       } else { // prince — 8+ befriends, 2-7 he ATTACKS (vanquish → he yields & joins)
         if (total >= 8) befriend(game, seat, tile, id);
         else princeAttack(game, seat, tile);

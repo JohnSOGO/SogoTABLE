@@ -192,5 +192,8 @@ export const MYSTIC_WOOD_CSS = `
 .mw-portal .mw-intro-tale b{color:var(--gold2)}
 .mystic-wood-root.mw-pop{position:fixed;z-index:80;background:var(--panel);border:1px solid var(--gold);border-radius:8px;padding:8px 11px;max-width:270px;font-size:12px;line-height:1.5;box-shadow:0 8px 24px #000b;pointer-events:none;display:block}
 .mystic-wood-root.mw-pop b{color:var(--gold2);display:block;margin-bottom:3px;font-family:var(--serif);font-size:13px}
+.mystic-wood-root.mw-working{position:fixed;left:0;right:0;bottom:18px;z-index:85;display:flex;justify-content:center;pointer-events:none}
+.mystic-wood-root.mw-working .mw-working-box{background:#000c;border:1px solid var(--gold);border-radius:20px;padding:7px 16px;color:var(--gold2);font-size:13px;box-shadow:0 4px 16px #000b;animation:mw-work-pulse 1s ease-in-out infinite}
+@keyframes mw-work-pulse{0%,100%{opacity:.65}50%{opacity:1}}
 .mystic-wood-root.mw-pop .popbody{color:var(--ink)}
 `;

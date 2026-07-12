@@ -7,13 +7,20 @@ import { MYSTIC_WOOD_CSS } from "./styles.js";
 import { syncHorn, resetHorn, hornOwnsTokens, hornRemainingMs } from "./horn.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
-import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showDice, showIntro, initEncounter } from "./encounter.js";
+import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showDice, showIntro, initEncounter, signalWorking, clearWorking } from "./encounter.js";
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
 const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + gap 3)
 const GLIDE_MS = 450;        // token move glide duration; encounter reveal waits this out
 const ROTATE_MS = 2000;      // a tile "turns about" (Fog/Wand) — spin it 180° over this long (bug mrgkf242)
-let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0, uiRoot = null, seenRotation = 0;
+let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0, uiRoot = null, seenRotation = 0, gameStartAt = 0;
+// Debug-only wall-clock: how long this room's game has run. Persisted per room so a reload doesn't reset it.
+// Shown only in the expanded Chronicle panel (mrh7ri98) — the game state stays pure; this is client-side.
+function elapsedStr() {
+  if (!gameStartAt) return "";
+  const s = Math.max(0, Math.floor((Date.now() - gameStartAt) / 1000));
+  return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+}
 let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 let prevPos = {};      // mark -> {r,c}, for gliding tokens between tiles
 let pulseCell = null;  // "r,c" of the legend/map badge currently highlighted
@@ -46,10 +53,15 @@ export function renderMysticWoodGame(ctx) {
       blurb: "Each knight has a unique quest. Invite players or bots (3–5 seats, bots fill), then start — knights are dealt at random." });
     return;
   }
+  clearWorking();   // a fresh render means the server replied — drop any "Working…" indicator (mrh84cjn)
   const game = ctx.game || {};
   const gameKey = `${(ctx.room && ctx.room.code) || "?"}`;
   const justInit = view.gameKey !== gameKey;
-  if (justInit) { view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; stormMode = false; seenRotation = game.rotation ? game.rotation.seq : 0; resetHorn(game.horn ? game.horn.seq : 0); }
+  if (justInit) {
+    view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; stormMode = false;
+    seenRotation = game.rotation ? game.rotation.seq : 0; resetHorn(game.horn ? game.horn.seq : 0);
+    try { const k = "mw.start." + gameKey; gameStartAt = +localStorage.getItem(k) || Date.now(); localStorage.setItem(k, gameStartAt); } catch (_e) { gameStartAt = 0; }
+  }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
   const me = localMark(ctx);
   let root = host.querySelector(".mystic-wood-root");
@@ -80,7 +92,7 @@ export function renderMysticWoodGame(ctx) {
   if (encTimer) { clearTimeout(encTimer); encTimer = null; } // a newer render owns the encounter-reveal timing
   // Hold every modal off the map until the Mystic Horn's 2s tour lands — a popup must never cover the
   // tokens mid-flight (bug mrh6ewl2). Otherwise just wait out a token glide before the card covers a tile.
-  const hornWait = hornOwnsTokens() ? hornRemainingMs() + 120 : 0;
+  const hornWait = hornOwnsTokens() ? hornRemainingMs() + 700 : 0;   // let the tour fully settle before any card (mrh7qgwh)
   if (myRoll && myRoll.seq > seenRoll) {
     seenRoll = myRoll.seq;
     if (hornWait) encTimer = setTimeout(() => { encTimer = null; showDice(ctx, myRoll); }, hornWait);
@@ -360,8 +372,10 @@ function showPop(x, y, title, body) {
   popEl.innerHTML = `<b>${title}</b><div class="popbody">${body}</div>`;
   document.body.appendChild(popEl); popAt = Date.now();
   const r = popEl.getBoundingClientRect();
-  popEl.style.left = Math.max(8, Math.min(window.innerWidth - r.width - 8, x - r.width / 2)) + "px";
-  popEl.style.top = Math.max(8, y - r.height - 12) + "px";
+  // Center the peek over the map, wherever the badge sits (bug mrh7xy80) — a peek near a corner badge
+  // used to open off toward that corner and clip; centered, it always reads.
+  popEl.style.left = Math.max(8, (window.innerWidth - r.width) / 2) + "px";
+  popEl.style.top = Math.max(8, (window.innerHeight - r.height) / 2) + "px";
 }
 function peekContent(game, spec) {
   const [type, arg] = spec.split(":");
@@ -431,6 +445,7 @@ function wireBoard(root, ctx, game, me) {
   root.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     const a = b.getAttribute("data-act");
+    if (["end", "scry", "rotate", "drink", "withdraw"].includes(a)) signalWorking();   // server round-trips (mrh84cjn)
     if (a === "end") ctx.makeMove({ type: "end-turn" });
     else if (a === "scry") ctx.makeMove({ type: "scry" });
     else if (a === "rotate") ctx.makeMove({ type: "rotate" });
@@ -528,10 +543,10 @@ function onBoardUp(e) {
     const el = uiRoot && uiRoot.querySelector(`.cell[data-cell="${r},${c}"]`);
     if (!el || (ctx.isMovePending && ctx.isMovePending())) return;
     if (stormMode) {                                          // targeting a storm: tap a valid area to raise it
-      if (el.classList.contains("storm-target")) { stormMode = false; ctx.makeMove({ type: "storm", r, c }); }
+      if (el.classList.contains("storm-target")) { stormMode = false; signalWorking(); ctx.makeMove({ type: "storm", r, c }); }
       return;
     }
-    if (el.classList.contains("reachable")) ctx.makeMove({ type: "move", r, c });
+    if (el.classList.contains("reachable")) { signalWorking(); ctx.makeMove({ type: "move", r, c }); }
   }, 400);
 }
 function onBoardCancel(e) { if (gesture && e.pointerId === gesture.id) gesture = null; }
@@ -560,9 +575,11 @@ function chronicleHtml(game) {
   let rows = game.log || [];
   if (chronFilter) { const p = game.players.find((q) => q.mark === chronFilter); const nm = p && logName(p); rows = nm ? rows.filter((e) => String(e.text || "").includes(nm)) : rows; }
   rows = rows.slice().reverse();   // the ENTIRE (bounded) history, newest first — report mrfoq90c
-  const list = rows.length ? rows.map((e) => `<div class="le"><span class="${E(e.cls || "")}">${sanitizeLog(e.text)}</span></div>`).join("")
+  // Debug view: prefix each line with the turn it was written on (the `t` field) so a snapshot reads turn-by-turn.
+  const list = rows.length ? rows.map((e) => `<div class="le"><span style="color:var(--muted);font-size:11px;margin-right:6px">t${e.t == null ? "?" : e.t}</span><span class="${E(e.cls || "")}">${sanitizeLog(e.text)}</span></div>`).join("")
     : `<div class="le muted">No entries${chronFilter ? " for this player" : ""} yet.</div>`;
-  return `<h2 style="font-size:22px;margin-bottom:8px">Chronicle <span style="font-size:14px;color:var(--muted)">· Turn ${game.turn_seq || 0} · ${(game.log || []).length} entries</span></h2><div class="mw-cfrow">${chips.join("")}</div><div class="mw-chronlist">${list}</div>`;
+  const clock = elapsedStr();
+  return `<h2 style="font-size:22px;margin-bottom:8px">Chronicle <span style="font-size:14px;color:var(--muted)">· Turn ${game.turn_seq || 0} · ${(game.log || []).length} entries${clock ? ` · ⏱ ${clock}` : ""}</span></h2><div class="mw-cfrow">${chips.join("")}</div><div class="mw-chronlist">${list}</div>`;
 }
 function wireChron(panel, game) {
   panel.querySelectorAll("[data-cf]").forEach((b) => b.addEventListener("click", () => {
@@ -588,7 +605,7 @@ function openJoust(root, ctx, game, me) {
   bar.innerHTML = `<span class="mw-prompt">Joust which knight?</span>` + targets.map((t) => `<button data-jt="${t.mark}">⚔️ ${E(t.name)}</button>`).join("") + `<button data-jt="cancel">Cancel</button>`;
   bar.querySelectorAll("[data-jt]").forEach((b) => b.addEventListener("click", () => {
     const v = b.getAttribute("data-jt"); if (v === "cancel") { renderMysticWoodGame(ctx); return; }
-    if (!(ctx.isMovePending && ctx.isMovePending())) ctx.makeMove({ type: "joust", target: v });
+    if (!(ctx.isMovePending && ctx.isMovePending())) { signalWorking(); ctx.makeMove({ type: "joust", target: v }); }
   }));
 }
 function openTransport(root, ctx, game, me) {
@@ -599,7 +616,7 @@ function openTransport(root, ctx, game, me) {
   bar.innerHTML = dests.map((t) => `<button data-tp="${t.r},${t.c}">${E(AREA_NAMES[t.name] || t.name)}</button>`).join("") + `<button data-tp="cancel">Cancel</button>`;
   bar.querySelectorAll("[data-tp]").forEach((b) => b.addEventListener("click", () => {
     const v = b.getAttribute("data-tp"); if (v === "cancel") { renderMysticWoodGame(ctx); return; }
-    const [r, c] = v.split(",").map(Number); ctx.makeMove({ type: "transport", r, c });
+    const [r, c] = v.split(",").map(Number); signalWorking(); ctx.makeMove({ type: "transport", r, c });
   }));
 }
 

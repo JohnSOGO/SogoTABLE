@@ -622,6 +622,19 @@ test("Sage: departs from a greeting only when his +2 was decisive", () => {
   assert.ok(s2.companions.includes("sage"), "won comfortably — the Sage was not needed, so he stays");
 });
 
+// 06CK mrh80zsz / §18.16: when the Princess flees she goes to the Gate in the OTHER half and is PLACED
+// there (not discarded), so the player can see and re-approach her.
+test("Princess flees to the Gate in the other half, placed there to be re-approached", () => {
+  const g = { board: buildBoard(), deck: [], discard: [], log: [], results: {} };
+  const s = seatLit("george", { r: 1, c: 1 });   // (1,1) is the Enchanted half
+  const t = cellAt(g.board, 1, 1); t.revealed = true; t.card = "princess"; t.card2 = null;
+  resolveGreet(g, s, t, 1);   // die 1 + George's Prowess (2) < 9 → she flees
+  assert.ok(!s.companions.includes("princess"), "not befriended");
+  assert.equal(t.card, null, "she leaves this area");
+  assert.equal(cellAt(g.board, 8, 3).card, "princess", "placed on the Earthly Gate — the other half");
+  assert.ok(!g.discard.includes("princess"), "not discarded out of play");
+});
+
 // 1WSQ/67QG mrh6go4v: being cast into the Tower records a per-mark result so the victim gets an escape
 // popup — matters most for an OFF-turn imprisonment (a rival's Queen boon), which otherwise had no modal.
 test("Jailed notice: a Queen boon records an escape popup on the victim's own mark", () => {
