@@ -5,6 +5,7 @@
 import { renderHostStartLobby } from "../lobby.js";
 import { MYSTIC_WOOD_CSS } from "./styles.js";
 import { syncHorn, resetHorn, hornOwnsTokens, hornRemainingMs } from "./horn.js";
+import { syncHerald, resetHeralds } from "./herald.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
 import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showDice, showIntro, initEncounter, signalWorking, clearWorking } from "./encounter.js";
@@ -59,7 +60,7 @@ export function renderMysticWoodGame(ctx) {
   const justInit = view.gameKey !== gameKey;
   if (justInit) {
     view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; stormMode = false;
-    seenRotation = game.rotation ? game.rotation.seq : 0; resetHorn(game.horn ? game.horn.seq : 0);
+    seenRotation = game.rotation ? game.rotation.seq : 0; resetHorn(game.horn ? game.horn.seq : 0); resetHeralds();
     try { const k = "mw.start." + gameKey; gameStartAt = +localStorage.getItem(k) || Date.now(); localStorage.setItem(k, gameStartAt); } catch (_e) { gameStartAt = 0; }
   }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
@@ -78,9 +79,10 @@ export function renderMysticWoodGame(ctx) {
   wireBoard(root, ctx, game, me);
   zoomCtx = { root, game, me }; applyZoom(); requestAnimationFrame(() => applyZoom());
   // The Horn owns the tokens while it scatters them (resuming the tour on every render so a
-  // re-render can't strand it, and re-mounting its self-clearing herald over the chronicle);
-  // it reads prevPos, so it runs BEFORE animateTokens.
+  // re-render can't strand it); it reads prevPos, so it runs BEFORE animateTokens. syncHerald then
+  // re-mounts any raised herald (the Horn's tale) over the freshly-rendered chronicle strip.
   syncHorn(root, game, { cw: CW, ch: CH, prevPos });
+  syncHerald(root);
   syncRotation(root, game);
   animateTokens(root, game);
   // overlays: my own most-recent roll result (kept per-seat so bot turns can't clobber it), else a pending encounter.

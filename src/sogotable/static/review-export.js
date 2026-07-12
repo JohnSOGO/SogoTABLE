@@ -70,6 +70,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/mystic-wood/encounter.js",
   "src/sogotable/static/games/mystic-wood/util.js",
   "src/sogotable/static/games/mystic-wood/horn.js",
+  "src/sogotable/static/games/mystic-wood/herald.js",
   "src/sogotable/static/games/mystic-wood/styles.js",
   "src/sogotable/static/games/mystic-wood/content.js",
   "src/sogotable/static/games/potion-lab/manifest.js",
