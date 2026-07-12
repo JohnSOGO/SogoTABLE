@@ -34,6 +34,14 @@ export const MYSTIC_WOOD_CSS = `
 /* Turn counter pinned at the front of the banner so it never ellipsizes away (report mrfoq90c). */
 .mystic-wood-root .mw-turnno{font-variant:normal;font-size:12px;color:var(--gold);letter-spacing:.02em}
 .mystic-wood-root .mw-status{background:var(--panel);border-bottom:1px solid var(--rule);padding:6px 8px}
+/* The map is a MAP, not a document: a long press on it is a peek, never a text selection. Without this,
+   holding a tile on iOS raised the selection handles and the magnifier loupe over the very thing you were
+   trying to look at, and the peek fought the OS for the gesture ("no need to select text on the map; long
+   tap is for peeking, not selecting text", mrhc8gih — and the "do not zoom" half of mrhc666h). Set on the
+   whole game root so the board, badges, legend and log all behave; the chronicle panel is a portal and
+   opts back in below, where reading (and copying) a line is the point. */
+.mystic-wood-root{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.mystic-wood-root .mw-chronlist{-webkit-user-select:text;user-select:text}
 .mystic-wood-root .mw-boardwrap{position:relative;overflow:hidden;width:100%;min-height:120px;flex:none;touch-action:none;background:#0f1409;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
 :root[data-theme="light"] .mystic-wood-root .mw-boardwrap{background:#c9d0b4}
 .mystic-wood-root .board{--cell:96px;position:absolute;top:0;left:0;transform-origin:0 0;display:grid;grid-template-columns:repeat(7,var(--cell));grid-auto-rows:calc(var(--cell)*0.72);gap:3px;padding:8px}

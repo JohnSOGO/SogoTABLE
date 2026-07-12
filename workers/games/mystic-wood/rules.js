@@ -12,11 +12,11 @@ import {
   setMysticWoodRandom, shuffle, buildBoard, cellAt, reachableFrom, applyMoveTo,
   resolveChallenge, resolveGreet, powerScry, powerRotate, powerDrink,
   relocate, totalP, totalS, hasThing, anyKing, tileNameAt, rollDie, combatPreview,
-  resolveJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
-  escapeOutcomes, resolveEscape, recordKeyUnlock, becomeKing,
+  resolveJoust, recordJoust, joustPrize, joustSpoils, clearCard, enforcePower, greetOutcomes, combatOutcomes,
+  escapeOutcomes, resolveEscape, recordKeyUnlock, becomeKing, snubbedBy,
   takeChivalry, deliverRescue, syncQuestCompanion, recordRoll,
 } from "./engine.js";
-import { logEvent, denPhrase, denIntro } from "./narration.js";   // the chronicle + its phrasing (pure leaf)
+import { logEvent, logMark, logSince, denPhrase, denIntro } from "./narration.js";   // the chronicle + its phrasing (pure leaf)
 import { resolveSpell, raiseStorm, decayStorms } from "./spells.js";
 import { playBotTurn } from "./ai.js";
 
@@ -55,6 +55,7 @@ function makeSeat(p, knight) {
     tower: false, towerTries: 0, captured: false, caveTurns: 0,
     questDone: false, isKing: false, castleHold: 0, atGate: false,
     praying: false, prayerTurns: 0,
+    snub: null,   // §8.2.1: { card, r, c } — the denizen who last ignored THIS knight and will not hear them again yet
     _princeUsed: false, _princeAiding: false, moved: false, won: false,
   };
 }
@@ -131,7 +132,21 @@ function beginSeatTurn(game, seat) {
   if (seat.q === "cave" && here === "cave" && !seat.questDone) {
     seat.caveTurns = (seat.caveTurns || 0) + 1;
     logEvent(game, `${name} keeps vigil in the Cave (${seat.caveTurns}/3).`);
-    if (seat.caveTurns >= 3) { seat.questDone = true; logEvent(game, `${name}'s vigil is complete — now reach the Enchanted Gate!`, "g"); }
+    const done = seat.caveTurns >= 3;
+    if (done) { seat.questDone = true; logEvent(game, `${name}'s vigil is complete — now reach the Enchanted Gate!`, "g"); }
+    // The vigil only accrues at the START of a turn you are STILL in the Cave — so each turn you must END
+    // TURN without moving, and nothing said so ("not obvious I need to hit end turn on cave", bug mrhcq3ps).
+    // The Bishop's prayer already gets a per-turn modal (mrh93gvz); the Cave is the same mechanic, so give
+    // it the same voice — the count, and the instruction that carries it forward.
+    if (!seat.is_bot) recordRoll(game, seat.mark, { notice: done ? {
+      tag: "The Cave", emoji: "🕯️",
+      head: `Your vigil is complete — <b>3 of 3</b> turns kept.`,
+      body: `The quest is fulfilled. Now <b>reach the Enchanted Gate</b> and leave the Wood to win.`,
+    } : {
+      tag: "The Cave", emoji: "🕯️",
+      head: `You keep vigil in the Cave — <b>${seat.caveTurns} of 3</b>.`,
+      body: `A turn counts only if you are still in the Cave when it begins. To keep the next one: <b>do not move</b> — just press <b>End turn ▶</b>. ${3 - seat.caveTurns} more turn${3 - seat.caveTurns === 1 ? "" : "s"} and the vigil is done.`,
+    } });
   }
   if (seat.praying) {
     const t = cellAt(game.board, seat.r, seat.c);
@@ -191,6 +206,21 @@ function passTurn(game) { advanceTurn(game); beginAndAdvance(game); }
 function openEncounter(game, seat, tile) {
   if (!tile.card && tile.card2) { tile.card = tile.card2; tile.card2 = null; }   // meet the second of a two-card area
   if (!tile.card) return false;
+  // §8.2.1: a denizen who already "remained" for this knight goes on ignoring them until they have met a
+  // denizen in ANOTHER area (or jousted). In a two-card area the OTHER denizen must still be greeted.
+  if (snubbedBy(seat, tile.card)) {
+    if (tile.card2) { const held = tile.card; tile.card = tile.card2; tile.card2 = held; }   // meet the other one here
+    else {
+      const phrase = denPhrase(tile.card);
+      logEvent(game, `${phrase} pays ${seat.name} no heed — already ignored here. (§8.2.1)`, "muted");
+      if (!seat.is_bot) recordRoll(game, seat.mark, { notice: {
+        tag: "Already ignored", emoji: "😐",
+        head: `${phrase} will not look up. You have been ignored here once already.`,
+        body: `Asking again changes nothing — and stepping off the tile and back on does not help either. Meet a denizen in <b>another area</b>, or joust a knight, and ${phrase} will hear you once more. Until then you may pass freely through. (§8.2.1)`,
+      } });
+      return false;   // no pending: §8.2.1 "you may pass freely through this area now or later"
+    }
+  }
   if (DEN[tile.card].king && seat.knight === "britomart" && !anyKing(game)) {
     // §18: Britomart's quest is not the crown — she alone neither challenges the King nor may become one,
     // so she simply passes him by (intentional — a report asked "is this right?"; it is).
@@ -406,19 +436,25 @@ function doJoust(game, seat, action) {
   if (def.won || def.tower || def.out) throw new Error("That knight cannot be jousted.");
   if (def.r !== seat.r || def.c !== seat.c) throw new Error("That knight is not in your area.");
   const res = resolveJoust(game, seat, def);
+  const before = logMark(game);   // the "X jousts Y" headline is already on the modal — capture only what FOLLOWS
   const winner = res.chWon ? seat : def, loser = res.chWon ? def : seat;
   // §18.10: unhorse a player-King and he is OUT of the game; the victor takes the crown outright.
   if (loser.isKing) {
     loser.out = true; loser.isKing = false;
     logEvent(game, `${loser.name} is unhorsed and cast from the game — the crown passes to ${winner.name}!`, "r");
     becomeKing(game, winner);
+    recordJoust(game, seat, def, res, logSince(game, before));
     passTurn(game);
     return;
   }
   if (res.chWon) {
+    // The fight lands NOW for both knights; the victor's prize is a second modal (the bar prompts for it),
+    // and the loser learns their fate from the result the prize itself records.
+    recordJoust(game, seat, def, res, "");
     game.pending = { type: "joust-prize", mark: seat.mark, loser: def.mark };   // won → choose the prize
   } else {
-    joustPrize(game, def, seat, "tower");                     // lost → the defender unhorses you to the Tower
+    joustPrize(game, def, seat, "tower", "joust");            // lost → the defender unhorses you to the Tower
+    recordJoust(game, seat, def, res, logSince(game, before)); // …carried IN the fight result, so it isn't overwritten by a bare jail notice
     passTurn(game);
   }
 }
@@ -433,6 +469,20 @@ function doWithdraw(game, seat) {
   game.pending = null;
   seat.r = back.r; seat.c = back.c;
   logEvent(game, `${seat.name} withdraws from ${denPhrase(p.card)} back to ${back.label || "the path"}.`);
+  // §15: withdrawing from the Boy/Damsel is LEGAL — "Roland enters the Palace and reveals Orc and Boy. He
+  // withdraws from the area, but he must take the Save Boy card." Seeing them is what binds you, not greeting
+  // them, and the obligation follows you out. Read as a missing rule ("it let me withdraw from the boy and not
+  // force chivalry", bug mrhcgftz) because nothing said the duty had stuck. Say so, plainly.
+  const oblig = DEN[p.card] && DEN[p.card].chivalry;
+  if (oblig && game.chivalry && game.chivalry[oblig] === seat.mark && !seat.is_bot) {
+    const who = oblig === "boy" ? "the Boy" : "the Damsel", them = oblig === "boy" ? "him" : "her";
+    const dest = oblig === "boy" ? "the <b>Earthly Gate</b>" : "the <b>Queen</b>";
+    recordRoll(game, seat.mark, { notice: {
+      tag: "The obligation follows you", emoji: oblig === "boy" ? "👦" : "👧",
+      head: `You turn back — but the duty of rescue rides with you.`,
+      body: `You may withdraw from ${who}: the rules let a knight withdraw from <b>any</b> denizen. But merely <b>seeing</b> ${who} laid the obligation on you, and withdrawing does not shed it — you still bear the <b>${oblig === "boy" ? "Save Boy" : "Rescue Damsel"}</b> card. Return, greet ${them}, and deliver ${them} to ${dest} to fulfil it. It passes to another knight only when one of them next enters ${who}'s area. (§15)`,
+    } });
+  }
   passTurn(game);
 }
 function doJoustPrize(game, seat, action) {

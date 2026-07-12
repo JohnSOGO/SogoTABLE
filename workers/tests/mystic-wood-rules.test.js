@@ -234,7 +234,11 @@ test("Challenge result detail: another knight beating the Dragon is told it fled
   setMysticWoodRandom(seq([0.99, 0.0]));                          // white=6, red=1 → 8 vs 6 → win
   assert.equal(resolveChallenge(game, s, tile).result, "win");
   assert.ok(!s.questDone);
-  assert.match(game.results.P1.detail, /Dragon flees/);
+  // §18.4: he BEAT it but did not SLAY it — the detail must say both, or a win reads as the attack
+  // never landing ("I attack dragon and attack doesn't process", bug mrhcj22t).
+  assert.match(game.results.P1.detail, /flees to the far wood/);
+  assert.match(game.results.P1.detail, /only George can slay it/i);
+  assert.equal(s.prowess.length, 0);                              // no prowess for a drive-off
   assert.ok(game.discard.includes("dragon"));                     // recycled — George's quest stays possible
 });
 

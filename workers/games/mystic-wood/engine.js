@@ -166,13 +166,16 @@ export function relocate(game, seat, r, c) {
 // Sent to the Tower. Losing a FIGHT costs you your companions — but they return to the wood (recycle
 // into the deck) so quest companions (Grail/Prince/Princess) can't be permanently locked away by the
 // wrong knight. Being sent by the Rogue/Queen keeps your companions (loseCompanions=false).
-export function toTower(game, seat, loseCompanions = true) {
+export function toTower(game, seat, loseCompanions = true, via = null) {
   if (loseCompanions) strandCompanions(game, seat);   // §10: left in the area (back on the board), not discarded
   seat.tower = true; seat.towerTries = 0; seat.r = 4; seat.c = 3;
   // A popup tells the victim they're jailed and can escape (mrh6go4v) — matters most for an OFF-turn
   // imprisonment (a rival's Queen boon), which otherwise only left a log line. A fight loss records its
   // own defeat result right after this, which supersedes the notice, so no double modal there.
-  recordRoll(game, seat.mark, { jailed: true });
+  // via="joust": the joust records ONE combined result (the fight AND the Tower) for the loser — a bare
+  // jail notice here would overwrite it and the loser would never see the fight that put them there
+  // ("need more modals explaining what is happening", bug mrhc3izr).
+  if (via !== "joust") recordRoll(game, seat.mark, { jailed: true });
 }
 // §10: a Knight vanquished in a challenge "leaves all Companions in the area" — they become independent
 // Denizens again, to be re-approached (and a Boy/Damsel re-rescued). So place each back on the board —
@@ -216,11 +219,31 @@ export function applyMoveTo(game, seat, from, to) {
 // actually walks away with.
 const thingNote = (seat, id) => thingEffect(id, totalS(seat), totalP(seat));
 const compNote = (seat, id) => compEffect(id, totalS(seat), totalP(seat));
+/* ------------------------------- the snub ------------------------------- */
+// §8.2.1: a denizen who "remains" ignores THIS knight — "you cannot greet the Denizen again until you
+// have challenged or greeted a Denizen in another area, or jousted with another Knight." So the bar is
+// per-knight (another knight may still be heard), and ONLY an encounter somewhere else lifts it: standing
+// still and trying again does nothing, and nor does stepping off and back on ("Can I stay on a tile and
+// try again to get a result? Or do I have to move off and on" — bug mrhcnxmv).
+export function snubbedBy(seat, id) { return !!(seat.snub && seat.snub.card === id); }
+export function clearSnub(seat) { seat.snub = null; }
+// Called as an encounter RESOLVES: meeting a denizen in ANOTHER area lifts the bar. Meeting the second
+// denizen of the SAME area does not — §8.2.1 says "in another area", and you must greet the others here anyway.
+function meetElsewhere(seat, tile) {
+  if (seat.snub && (seat.snub.r !== tile.r || seat.snub.c !== tile.c)) clearSnub(seat);
+}
+
 // Apply a greeted denizen's reaction. Returns { endTurn, befriended }.
 export function applyReaction(game, seat, tile, act) {
   const name = seat.name;
   const id = tile.card;
-  if (act === "remains") { tile.remains = true; logEvent(game, tale(id, act, name) || `${denPhrase(id)} remains, ignoring ${name}.`); return {}; }
+  meetElsewhere(seat, tile);
+  if (act === "remains") {
+    tile.remains = true;
+    seat.snub = { card: id, r: tile.r, c: tile.c };   // §8.2.1: he will not hear THIS knight again until they meet someone elsewhere
+    logEvent(game, tale(id, act, name) || `${denPhrase(id)} remains, ignoring ${name}.`);
+    return {};
+  }
   if (act === "transport") { logEvent(game, tale(id, act, name) || `${denPhrase(id)} transports away.`); clearCard(game, tile); return {}; }
   if (act === "transportYou") { logEvent(game, tale(id, act, name) || `The Arch-Mage transports ${name}!`, "a"); relocate(game, seat, 8 - seat.r, 6 - seat.c); return {}; }
   if (act === "befriend") return befriend(game, seat, tile, id);
@@ -416,6 +439,7 @@ export function combatOutcomes(game, seat, tile) {
 export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   const den = DEN[tile.card];
   const id = tile.card;
+  meetElsewhere(seat, tile);   // §8.2.1: a challenge in another area lifts any denizen's snub
   const mineParts = [], foeParts = [];
   if (den.cls === "beast" || den.cls === "warrior") mineParts.push({ l: "Strength", v: totalS(seat) });
   if (den.cls === "magic" || den.cls === "warrior") mineParts.push({ l: "Prowess", v: totalP(seat) - princessVsKing(seat, den) });
@@ -473,7 +497,10 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
 function applyWin(game, seat, tile, den, id) {
   if (den.dragon) {
     if (seat.q === "dragon") { seat.questDone = true; logEvent(game, `The Dragon is SLAIN — ${seat.name}'s quest is done! Reach the Enchanted Gate to win.`, "g"); clearCard(game, tile, false); }
-    else { logEvent(game, "The Dragon flees to the far wood."); clearCard(game, tile, true); } // stays in play so George's quest remains possible
+    // §18.4: "Any Knight can challenge the Dragon, but only George can kill it." Beating it merely drives it
+    // off — no kill, no prowess, no Thing. Won without a word, that read as the attack never landing ("I have
+    // an instant win on dragon… I attack dragon and attack doesn't process", bug mrhcj22t), so say it plainly.
+    else { logEvent(game, `${seat.name} drives the Dragon off — it flees to the far wood. Only George can slay it, so no prowess is won. (§18.4)`); clearCard(game, tile, true); } // stays in play so George's quest remains possible
   } else if (den.slay) {
     // §18.15: no prowess is gained for a Prince-assisted kill, and the slain denizen is removed (no recycle).
     if (seat._princeAiding) { logEvent(game, `The ${den.name} falls to the Prince's arm — no glory won.`, "muted"); clearCard(game, tile, false); }
@@ -655,16 +682,30 @@ function sendIllusion(game, tile) {
 }
 
 /* ------------------------------- joust ---------------------------------- */
-// The contest only: both knights add full S+P + a die; ties reroll. Records the roll for the
-// challenger so they see the result, and returns who won. The prize is applied separately.
+// The contest only: both knights add full S+P + a die; ties reroll. Returns the FIGHT (both dice and
+// both bonus breakdowns) so it can be shown like any other fight; the caller records it once the
+// prize/fate is known, and applies the prize separately.
 export function resolveJoust(game, ch, def) {
   const cName = ch.name, dName = def.name;
-  let cw, dw, guard = 0;
-  do { cw = d6() + totalS(ch) + totalP(ch); dw = d6() + totalS(def) + totalP(def); } while (cw === dw && guard++ < 50);
+  let cDie, dDie, cw, dw, guard = 0;
+  do {
+    cDie = d6(); dDie = d6();
+    cw = cDie + totalS(ch) + totalP(ch); dw = dDie + totalS(def) + totalP(def);
+  } while (cw === dw && guard++ < 50);
   const chWon = cw > dw;
+  clearSnub(ch); clearSnub(def);   // §8.2.1: a joust frees BOTH knights to approach a snubbing denizen again
   logEvent(game, `${cName} jousts ${dName} — ${cw} vs ${dw}. ${chWon ? cName : dName} prevails!`, "a");
-  recordRoll(game, ch.mark, { joust: true, cw, dw, cName, dName, winnerName: chWon ? cName : dName, chWon });
-  return { chWon };
+  return { chWon, cw, dw, cDie, dDie, cName, dName, winnerName: chWon ? cName : dName,
+    cParts: [{ l: "Strength", v: totalS(ch) }, { l: "Prowess", v: totalP(ch) }],
+    dParts: [{ l: "Strength", v: totalS(def) }, { l: "Prowess", v: totalP(def) }] };
+}
+// §12: BOTH knights watch the joust. The loser used to get only a bare "you are in the Tower" notice with
+// no word of the fight that put them there (bug mrhc3izr) — the jail notice overwrote the joust result.
+// Now the same fight is recorded for each seat, told from that knight's side, carrying the fate it ended in.
+export function recordJoust(game, ch, def, res, detail) {
+  const fight = { joust: true, ...res, detail: detail || "" };
+  recordRoll(game, ch.mark, { ...fight, youWon: res.chWon, youAreCh: true, foeName: def.name });
+  recordRoll(game, def.mark, { ...fight, youWon: !res.chWon, youAreCh: false, foeName: ch.name });
 }
 // Whether the loser has anything worth taking (so the client only offers valid prizes).
 export function joustSpoils(loser) {
@@ -676,7 +717,7 @@ export function joustSpoils(loser) {
 }
 // Apply the winner's chosen prize. "tower" imprisons the loser (keeps cards); "thing" takes their
 // best Thing/Horse; "companion" takes one companion. Falls back to Tower if the picked spoil is gone.
-export function joustPrize(game, winner, loser, prize) {
+export function joustPrize(game, winner, loser, prize, via = null) {
   const wn = winner.name, ln = loser.name;
   if (prize === "thing") {
     if (loser.horse && !winner.horse) { loser.horse = false; winner.horse = true; logEvent(game, `${wn} wins ${ln}'s Horse (+2 Strength).`, "g"); enforcePower(game, winner); return; }
@@ -692,7 +733,7 @@ export function joustPrize(game, winner, loser, prize) {
   }
   if (prize === "companion" && loser.companions.length) { joustTakeCompanion(game, winner, loser); return; }
   logEvent(game, `${wn} unhorses ${ln} — away to the Tower!`, "r");
-  toTower(game, loser, false);   // sent by a joust → keeps all cards
+  toTower(game, loser, false, via);   // sent by a joust → keeps all cards
 }
 // §12: Sage (and Boy/Damsel) come outright; every other Companion must be APPROACHED with a die roll —
 // "remains" leaves them loyal to the foe, and the Prince fights back (winning, he stays and jails you).

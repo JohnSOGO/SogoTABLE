@@ -104,6 +104,24 @@ export function showEncounter(ctx, game) {
 export function showGreetPick(ctx, game) { pickCard(ctx, game, "greet_pick", "You greet"); }
 // A fight: same six-face pick, but the odds are win / lose (/ tie → reroll) vs the foe's hidden roll.
 export function showCombatPick(ctx, game) { pickCard(ctx, game, "combat_pick", "You fight"); }
+// What a WIN against this foe actually buys you. A fight goes straight to the pick screen (no encounter
+// card), so these rules had nowhere to appear: the Dragon's "only George can slay it" lived only in a
+// board peek, where — read beside a guaranteed win — it looked like "you cannot win here" ("I have an
+// instant win on dragon and it says I will lose", mrhcj22t). §18.4: any knight may BEAT the Dragon; only
+// George's quest KILLS it. Say what victory means, on the screen where you commit to the fight.
+function stakesHtml(den, game, p) {
+  if (!den) return "";
+  const seat = (game.players || []).find((q) => q.mark === p.mark);
+  const out = [];
+  if (den.dragon) {
+    out.push(seat && seat.knight === "george"
+      ? `<div class="denrow good">Your quest: <b>slay the Dragon</b>. Win, and it dies — then leave by the Enchanted Gate.</div>`
+      : `<div class="denrow">Any knight can <b>beat</b> the Dragon — but <b>only George can slay it</b>. Win and you drive it off: it flees to the far wood, and <b>no prowess is won</b>. (§18.4)</div>`);
+  }
+  if (den.captures) out.push(`<div class="denrow bad">If she wins, you are <b>ensnared</b> — you stay in her glade and your companions wander free (no Tower).</div>`);
+  if (den.king) out.push(`<div class="denrow good">Vanquish him and <b>you are King</b> — then hold the Castle a full turn to win.</div>`);
+  return out.length ? `<div class="denbox">${out.join("")}</div>` : "";
+}
 function pickCard(ctx, game, moveType, verb) {
   closePortals();
   const p = game.pending, den = DEN[p.card], tile = tileAt(game, p.r, p.c);
@@ -124,6 +142,7 @@ function pickCard(ctx, game, moveType, verb) {
     ${p.reroll ? `<div class="mw-prompt" style="text-align:center">🎲 A tie — cast again. Pick one.</div>` : ""}
     ${p.noMatch ? `<div class="mw-prompt" style="text-align:center;color:var(--good,#2e7d32)">⚔️✨ ${name} is no match — you cannot lose here.</div>` : ""}
     ${p.hopeless ? `<div class="mw-prompt" style="text-align:center;color:var(--bad,#c62828)">${den && den.captures ? "🕸️" : "⛓️"} ${name} mocks you — you cannot best him here.${p.canWithdraw ? " Withdraw, or meet your fate." : ""}</div>` : ""}
+    ${moveType === "combat_pick" ? stakesHtml(den, game, p) : ""}
     <div class="mw-pickodds">${oddsHtml(p.groups)}</div>
     ${p.guyonOptional ? `<div class="row"><button data-guyon="1" class="mw-guyon">Guyon's +1: ON</button></div>` : ""}
     <div class="mw-pickgrid">${faces}</div>
@@ -283,10 +302,29 @@ function renderDiceModal(ctx, roll) {
       <div class="result mw-result-big">${res}</div>
       <div class="hint">${sub}</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
+  } else if (roll.notice) {
+    // A plain titled notice — a rule the board can't show and a log line gets lost in: the Cave vigil
+    // counting itself down (mrhcq3ps), a denizen who has already ignored you (§8.2.1, mrhcnxmv), the
+    // obligation of rescue that follows you out of a withdrawal (§15, mrhcgftz). Server-owned prose.
+    const n = roll.notice;
+    inner = `<div class="tag">${E(n.tag || "")}</div>
+      <div class="result mw-result-big mw-result-tale">${n.emoji ? E(n.emoji) + " " : ""}${sanitizeLog(n.head || "")}</div>
+      ${n.body ? `<div class="mw-result-detail">${sanitizeLog(n.body)}</div>` : ""}
+      <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else if (roll.joust) {
-    inner = `<div class="tag">Joust</div>
-      <div class="result mw-result-big">⚔️ ${E(roll.winnerName)} prevails!</div>
-      <div class="hint">${E(roll.cName)} ${roll.cw} vs ${E(roll.dName)} ${roll.dw}</div>
+    // §12: a joust is a FIGHT, resolved just like a challenge — so show it like one. It used to be a single
+    // line, and the LOSER saw only a bare "you're in the Tower" notice with no word of the fight that put
+    // them there ("need more modals explaining what is happening… make it sound like a fight", mrhc3izr).
+    // Both knights now get this, told from their own side, with both dice, both bonuses, and the fate.
+    const won = !!roll.youWon;
+    const head = won ? `<span class="g">⚔️✨ You unhorse ${E(roll.foeName)}! — ${roll.youAreCh ? roll.cw : roll.dw} vs ${roll.youAreCh ? roll.dw : roll.cw}</span>`
+      : `<span class="r">🛡️ ${E(roll.foeName)} unhorses you — ${roll.youAreCh ? roll.cw : roll.dw} vs ${roll.youAreCh ? roll.dw : roll.cw}</span>`;
+    const detail = roll.detail ? `<div class="mw-result-detail">${sanitizeLog(roll.detail)}</div>` : "";
+    inner = `<div class="tag">The lists — ${E(roll.cName)} rides against ${E(roll.dName)}</div>
+      <div class="result mw-result-big">${head}</div>
+      ${detail}
+      <div class="hint">the dice — each knight adds his full Strength + Prowess:</div>
+      <div class="dicewrap">${diceRow(E(roll.cName), "white", roll.cDie, roll.cParts, roll.cw)}${diceRow(E(roll.dName), "red", roll.dDie, roll.dParts, roll.dw)}</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else if (roll.greet) {
     // No die on screen when the reaction never varies (Dwarf/Nymph/Sage/Bishop) OR when the

@@ -4,7 +4,7 @@
 import { DEN } from "./data.js";
 import {
   cellAt, reachableFrom, applyMoveTo, resolveChallenge, resolveGreet,
-  anyKing, pickIndex, takeChivalry, deliverRescue,
+  anyKing, pickIndex, takeChivalry, deliverRescue, snubbedBy,
 } from "./engine.js";
 import { resolveSpell } from "./spells.js";
 
@@ -35,14 +35,22 @@ export function playBotTurn(game, seat) {
   botEnter(game, seat, target);
 }
 
-// Mirror of the turn machine's enterTile, but resolves any encounter immediately.
-function botEnter(game, seat, tile) {
+// Mirror of the turn machine's enterTile, but resolves any encounter immediately. Exported so the bot's
+// arrival can be driven directly in tests — it is where bot/human rule parity is won or lost.
+export function botEnter(game, seat, tile) {
   if (tile.pendingSpell) { const sp = tile.pendingSpell; tile.pendingSpell = null; resolveSpell(game, seat, tile, sp); }
   if (tile.name === "xgate" && seat.questDone && !seat.atGate) seat.atGate = true;
   if (tile.name === "cave" && seat.q === "cave") { seat.caveTurns += 1; if (seat.caveTurns >= 3) seat.questDone = true; }
   takeChivalry(game, seat, tile); deliverRescue(game, seat, tile);   // §15 obligation / delivery
   if (tile.card && DEN[tile.card].king && seat.knight === "britomart" && !anyKing(game)) return; // Britomart ignores the King
   if (!tile.card) return;
+  // §8.2.1: a denizen who has already ignored THIS knight goes on ignoring it — the same bar the human
+  // path enforces in openEncounter. Bots run the human rules or they run different rules; there is no
+  // third option, and a bot quietly re-rolling a denizen a human may not is exactly that.
+  if (snubbedBy(seat, tile.card)) {
+    if (!tile.card2) return;                                             // pass freely through
+    const held = tile.card; tile.card = tile.card2; tile.card2 = held;   // …but still meet the OTHER denizen here
+  }
   const den = DEN[tile.card];
   const combat = den.cls === "beast" || den.cls === "warrior" || den.cls === "magic";
   if (combat) resolveChallenge(game, seat, tile);

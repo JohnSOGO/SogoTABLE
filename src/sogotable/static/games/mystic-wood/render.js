@@ -15,6 +15,7 @@ const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + 
 const GLIDE_MS = 450;        // token move glide duration; encounter reveal waits this out
 const ROTATE_MS = 2000;      // a tile "turns about" (Fog/Wand) — spin it 180° over this long (bug mrgkf242)
 let styled = false, resizeHooked = false, zoomCtx = null, seenRoll = 0, uiRoot = null, seenRotation = 0, gameStartAt = 0;
+let rotAnim = null;          // { seq, until } — the live tile-spin, re-applied each render until it lands (a rebuild would otherwise eat it)
 // Debug-only wall-clock: how long this room's game has run. Persisted per room so a reload doesn't reset it.
 // Shown only in the expanded Chronicle panel (mrh7ri98) — the game state stays pure; this is client-side.
 function elapsedStr() {
@@ -60,7 +61,7 @@ export function renderMysticWoodGame(ctx) {
   const justInit = view.gameKey !== gameKey;
   if (justInit) {
     view = { gameKey, zoom: 0, focus: null, panel: null }; seenRoll = 0; prevPos = {}; pulseCell = null; chronFilter = null; stormMode = false;
-    seenRotation = game.rotation ? game.rotation.seq : 0; resetHorn(game.horn ? game.horn.seq : 0); resetHeralds();
+    seenRotation = game.rotation ? game.rotation.seq : 0; rotAnim = null; resetHorn(game.horn ? game.horn.seq : 0); resetHeralds();
     try { const k = "mw.start." + gameKey; gameStartAt = +localStorage.getItem(k) || Date.now(); localStorage.setItem(k, gameStartAt); } catch (_e) { gameStartAt = 0; }
   }
   if (!resizeHooked) { resizeHooked = true; window.addEventListener("resize", () => applyZoom()); }
@@ -215,9 +216,18 @@ function actionsHtml(ctx, game, me) {
     if (stormMode) return `<span class="mw-prompt">🌩️ Tap an area to storm</span><button data-act="stormcancel">Cancel</button>`;
     const has = (id) => (meSeat.things || []).some((t) => t.id === id);
     const comp = (id) => (meSeat.companions || []).some((c) => c.id === id);
+    // A vigil is kept by NOT moving: the turn only counts if you are still on the tile when the next one
+    // begins, so the act that advances it is "End turn". Nothing said so, and the bar looked like every
+    // other turn ("not obvious I need to hit end turn on cave", bug mrhcq3ps). Say it, standing, every turn
+    // of the vigil — and say the same for the Bishop's prayer, which is the identical mechanic.
+    const myQuest = (KNIGHTS[meSeat.knight] || {}).q;   // the projection carries `knight`, not the server's `q`
+    const vigil = tile && tile.name === "cave" && myQuest === "cave" && !meSeat.questDone && !meSeat.isKing
+      ? `🕯️ Keeping vigil — <b>${meSeat.caveTurns || 0}/3</b>. Don't move: <b>End turn ▶</b> to keep this one.`
+      : meSeat.praying ? `🙏 Praying — <b>${meSeat.prayerTurns || 0}/3</b>. Don't move: <b>End turn ▶</b> to keep this one.` : "";
+    if (vigil) btns += `<span class="mw-prompt">${vigil}</span>`;
     // After a move the turn stays open only for a free move or a joust — make that OBVIOUS so it never
     // looks stuck (the reason the bots seemed frozen: you had to End turn).
-    if (meSeat.moved) btns += `<span class="mw-prompt">${meSeat.freeMove ? "Free move — step on, or" : "Your move is done —"} End turn ▶</span>`;
+    else if (meSeat.moved) btns += `<span class="mw-prompt">${meSeat.freeMove ? "Free move — step on, or" : "Your move is done —"} End turn ▶</span>`;
     const foes = game.players.filter((p) => p.mark !== me && !p.won && !p.tower && !p.captured && p.r === meSeat.r && p.c === meSeat.c);
     if (foes.length && !(tile && tile.name === "tower")) btns += `<button data-act="joust">⚔️ Joust</button>`;   // §12: before OR after moving
     if (tile && tile.name === "fountain") btns += `<button data-act="drink">⛲ Drink</button>`;
@@ -369,18 +379,31 @@ function syncBoardEvents(game) {
 }
 function syncRotation(root, game) {
   const rot = game.rotation;
-  if (!rot || !rot.seq || rot.seq <= seenRotation) return;
-  seenRotation = rot.seq;
-  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!rot || !rot.seq) return;
+  if (rot.seq > seenRotation) {                                // a NEW turning of the wood — start the spin
+    seenRotation = rot.seq;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { rotAnim = null; return; }
+    rotAnim = { seq: rot.seq, until: Date.now() + ROTATE_MS };
+  }
+  // The board is a full innerHTML rebuild on EVERY render, so the <svg> we animate is thrown away and
+  // replaced the moment anything else lands — and the move's own WebSocket echo arrives milliseconds after
+  // the HTTP reply, so the spin was destroyed before a single frame of it was ever seen: the tiles just
+  // "jumped" ("when I rotate a tile, I want to see an animation", bug mrhcdy5s). So the spin is TIME-owned,
+  // not render-owned (the Horn does the same): re-apply it on every render for whatever time is left, from
+  // the angle it should currently be at, until it lands.
+  if (!rotAnim || rotAnim.seq !== rot.seq) return;
+  const left = rotAnim.until - Date.now();
+  if (left <= 0) { rotAnim = null; return; }
+  const from = 180 * (left / ROTATE_MS);   // still to sweep — a resumed spin picks up mid-turn, never restarts
   (rot.cells || []).forEach(([r, c]) => {
     const cell = root.querySelector(`.cell[data-cell="${r},${c}"]`);
     const svg = cell && cell.querySelector("svg");
     if (!svg) return;
     svg.style.transition = "none";
     svg.style.transformOrigin = "50% 50%";
-    svg.style.transform = "rotate(180deg)";
+    svg.style.transform = `rotate(${from}deg)`;
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      svg.style.transition = `transform ${ROTATE_MS}ms ease`;
+      svg.style.transition = `transform ${left}ms ${left === ROTATE_MS ? "ease" : "linear"}`;
       svg.style.transform = "rotate(0deg)";
     }));
   });
@@ -439,7 +462,10 @@ function denizenSummary(id) {
   if (den.slay) lines.push(`Vanquish → ${den.slay} (+1 Prowess).`);
   if (id === "wizard") lines.push("Vanquish → Lance (+1 Strength).");
   else if (den.gives) lines.push(`Vanquish → ${THINGS[den.gives].name}.`);
-  if (den.dragon) lines.push("Only George can slay it.");
+  // §18.4: "Any Knight can challenge the Dragon, but only George can kill it." The bare old line ("Only
+  // George can slay it") read as "you cannot win here" — even on a guaranteed win ("I have an instant win
+  // on dragon and it says I will lose", mrhcj22t). Beating it and killing it are different things: say both.
+  if (den.dragon) lines.push("<b>Any</b> knight can beat it — but only <b>George</b> can slay it.<br>If another knight wins, it flees to the far wood (no prowess won).");
   if (den.king) lines.push("Vanquish → become King.");
   if (den.captures) lines.push("If it wins, it captures you (escape on a 6).");
   const rr = tblRows(den.tbl);
@@ -545,8 +571,14 @@ function onBoardMove(e) {
   const dx = e.clientX - gesture.x, dy = e.clientY - gesture.y;
   if (!gesture.moved && Math.hypot(dx, dy) < 10) return;       // small movement stays a tap
   gesture.moved = true;
-  hidePop();                                                   // a drag cancels any press-hold peek
-  if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; } // ...and the pending single-tap move
+  if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; } // a drag cancels the pending single-tap move
+  // A peek is a PRESS-AND-HOLD: dragging the finger off the badge is how you get your thumb out of the way
+  // and actually READ it. Killing the pop on the first millimetre of drag made peeking on a phone almost
+  // impossible ("if I peek let me drag my finger away and see the screen… disappear when lift finger",
+  // bug mrhc666h). So while a peek is up, a drag neither hides it NOR pans the board — the gesture belongs
+  // to the peek until the finger lifts (onBoardUp / onBoardCancel).
+  if (gesture.onHoldable && popEl) return;
+  hidePop();                                                   // a drag that is NOT a peek cancels any stray pop
   if (gesture.f0) {                                            // zoomed → pan; finger right reveals content left
     const dc = -dx / (gesture.scale * CW), dr = -dy / (gesture.scale * CH);
     view.focus = { r: clampN(gesture.f0.r + dr, 0, 8), c: clampN(gesture.f0.c + dc, 0, 6) };
@@ -556,6 +588,9 @@ function onBoardMove(e) {
 function onBoardUp(e) {
   if (!gesture || e.pointerId !== gesture.id) return;
   const g = gesture; gesture = null;
+  // Lifting the finger ends a peek AT ONCE (bug mrhc666h) — but only a real press-and-hold: a quick TAP on a
+  // badge also peeks, and that pop must survive the release long enough to be read (requestHide's floor).
+  if (g.onHoldable && popEl && (g.moved || Date.now() - popAt > 350)) { hidePop(); return; }
   if (g.moved) return;                                        // a pan/drag, not a tap
   const cell = cellAtPoint(g.x, g.y); if (!cell) return;      // couldn't map to a tile (off the board)
   const { r, c } = cell, ctx = g.ctx, now = Date.now();
@@ -579,7 +614,7 @@ function onBoardUp(e) {
     if (el.classList.contains("reachable")) { signalWorking(); ctx.makeMove({ type: "move", r, c }); }
   }, 400);
 }
-function onBoardCancel(e) { if (gesture && e.pointerId === gesture.id) gesture = null; }
+function onBoardCancel(e) { if (gesture && e.pointerId === gesture.id) { gesture = null; hidePop(); } }
 document.addEventListener("pointermove", onBoardMove);
 document.addEventListener("pointerup", onBoardUp);
 document.addEventListener("pointercancel", onBoardCancel);

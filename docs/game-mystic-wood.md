@@ -144,10 +144,23 @@ Flagged for MojoSOGO's call (an ADDITION, not in the base rulebook — keep or r
   Magician companion's owner may, on their turn, raise a storm on any area (not from/at the Tower);
   for three full turns after, no one may enter or leave it by *normal* movement (magical movement —
   transport/horn/relocate — bypasses).
-- **Still not implemented:** the **obligation/rescue subsystem** (Boy/Damsel/Child + chivalry
-  cards + delivery — a dedicated feature; now unblocked by the rulebook, a future slice). Knight
-  selection is random at start; per-seat interactive picking is a planned fast-follow. Joust
-  refinements (once-per-game Queen boon, player-chosen boon target, Castle defender +2) pending.
+- **§8.2.1 the snub — NOW ENFORCED (2026-07-11, room 4LSI):** a denizen who "remains" *ignores that
+  knight* until they have "challenged or greeted a Denizen in another area, or jousted with another
+  Knight". The bar is **per-knight** (`seat.snub = {card,r,c}`; another knight may still be heard),
+  and only an encounter **elsewhere** — or a joust — lifts it. Standing still and retrying does
+  nothing, and neither does stepping off the tile and back on; the area may be **passed through
+  freely** meanwhile, and a two-card area still yields its *other* denizen. Enforced on **both**
+  paths — `openEncounter` (human, `rules.js`) and `botEnter` (bot, `ai.js`) — or the bots would
+  quietly play by different rules. Was previously unenforced: you could re-roll a denizen for free.
+- **Chivalry (§15) is implemented** — `game.chivalry` holds each obligation's bearer; merely *seeing*
+  a Boy/Damsel in an area you enter lays the duty on you, **withdrawing does not shed it** (the
+  rulebook's own example: "He withdraws from the area, but he must take the Save Boy card"), it
+  passes to the last knight to see them, and delivery (Boy → Earthly Gate, Damsel → Queen) fulfils it.
+- **Still not implemented:** knight selection is random at start; per-seat interactive picking is a
+  planned fast-follow. Joust refinements (once-per-game Queen boon, player-chosen boon target,
+  Castle defender +2) pending. **Known gap:** a bot credits its *arrival* turn toward the Cave vigil
+  (`ai.js` `botEnter`) while a human must sit three turn-*starts* — unreported, but a real bot/human
+  asymmetry worth closing.
 
 ## Open issues — AWAITING SOGO'S INPUT (do not close without it)
 
