@@ -7,9 +7,9 @@ import {
   newMysticWoodGame, initMysticWoodSeats, makeMysticWoodMove, setMysticWoodRandom,
 } from "../games/mystic-wood/rules.js";
 import {
-  buildBoard, cellAt, reachableFrom, resolveGreet, resolveJoust, recordJoust,
-  joustPrize, toTower, snubbedBy,
+  buildBoard, cellAt, reachableFrom, resolveGreet, toTower, snubbedBy,
 } from "../games/mystic-wood/engine.js";
+import { resolveJoust, recordJoust, joustPrize } from "../games/mystic-wood/joust.js";
 import { botEnter } from "../games/mystic-wood/ai.js";
 import { KNIGHTS } from "../games/mystic-wood/data.js";
 

@@ -7,8 +7,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { setMysticWoodRandom } from "../games/mystic-wood/rules.js";
 import {
-  buildBoard, cellAt, resolveGreet, joustPrize, toTower, powerRotate,
+  buildBoard, cellAt, resolveGreet, toTower, powerRotate,
 } from "../games/mystic-wood/engine.js";
+import { joustPrize } from "../games/mystic-wood/joust.js";
 import { resolveSpell } from "../games/mystic-wood/spells.js";
 import { KNIGHTS } from "../games/mystic-wood/data.js";
 

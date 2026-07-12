@@ -8,8 +8,9 @@ import {
   buildBoard, cellAt, reachableFrom, totalP, totalS, capTotal, princessVsKing,
   resolveChallenge, resolveGreet, hasThing, relocate, greetOutcomes, combatOutcomes,
   escapeOutcomes, escapeFrees, resolveEscape,
-  joustSpoils, joustPrize, enforcePower, takeChivalry, deliverRescue, becomeKing,
+  enforcePower, takeChivalry, deliverRescue, becomeKing,
 } from "../games/mystic-wood/engine.js";
+import { joustSpoils, joustPrize } from "../games/mystic-wood/joust.js";
 import { logEvent } from "../games/mystic-wood/narration.js";
 import { resolveSpell, raiseStorm, decayStorms } from "../games/mystic-wood/spells.js";
 import { KNIGHTS, DEN, DEN_TALES, DEN_INTRO } from "../games/mystic-wood/data.js";
