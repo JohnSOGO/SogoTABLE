@@ -139,10 +139,10 @@ function buildRoomPrompt(reports, branch, roomCode) {
     "   (fixed / clarified / working-as-intended), and note anything you deliberately did NOT change.",
     "",
     "HARD CONSTRAINTS:",
-    "- Do NOT `git push`, do NOT deploy (`npm run deploy:*`), do NOT touch `main`, do NOT resolve/clear the",
-    "  bug reports. The harness ships (push to main + deploy if the worker changed) and clears this room's",
-    "  reports FOR you — but ONLY if your committed work leaves the test suite green. So a red suite = no",
-    "  ship, no clear; leave it green.",
+    "- Do NOT `git push`, do NOT deploy (`npm run deploy:*`), do NOT touch `main`, do NOT resolve the bug",
+    "  reports. The harness ships (push to main + deploy if the worker changed) and marks this room's",
+    "  reports DONE (resolved, kept on file — not deleted) FOR you — but ONLY if your committed work leaves",
+    "  the test suite green. So a red suite = no ship, no resolve; leave it green.",
     "- If a report is too ambiguous to act on safely, do NOT guess: say what you investigated and what",
     "  you'd need. The reporter can always re-file it.",
     "",
@@ -169,7 +169,7 @@ function publicJob(j) {
   return {
     id: j.id, reportId: j.reportId, title: j.title, branch: j.branch,
     roomCode: j.roomCode || "", reportCount: Array.isArray(j.reports) ? j.reports.length : 0,
-    reportsCleared: j.reportsCleared || 0, clearError: j.clearError || "",
+    reportsResolved: j.reportsResolved || 0, resolveError: j.resolveError || "",
     status: j.status, summary: j.summary, error: j.error, commits: j.commits,
     sessionId: j.sessionId || "", log: j.log.slice(-LOG_TAIL), logFile: j.logFile || "",
     shipState: j.shipState || "", shippedHash: j.shippedHash || "", deployed: !!j.deployed, shipError: j.shipError || "",
@@ -432,17 +432,18 @@ async function doAutoShip(job) {
   const shipTail = res.touchesWorker ? (res.deployed ? " · worker deployed" : " · ⚠ worker deploy FAILED") : "";
   log(`\n■ SHIPPED to main as ${res.hash}${shipTail}\n`);
   ledger(job, `■ SHIPPED to main as ${res.hash}${shipTail}`);
-  // A room batch clears its reports ONLY now — after the fix is green, on main, and (if needed) deployed.
+  // A room batch resolves its reports (marks them DONE — kept on file, not deleted) ONLY now — after the
+  // fix is green, on main, and (if needed) deployed. If a report needs more work, the reporter re-files.
   if (typeof job.onShipped === "function" && Array.isArray(job.reportIds) && job.reportIds.length) {
     try {
-      const cleared = await job.onShipped(job.reportIds);
-      job.reportsCleared = cleared;
-      log(`\n■ cleared ${cleared} report(s) for room ${job.roomCode}\n`);
-      ledger(job, `■ cleared ${cleared} report(s) for room ${job.roomCode}`);
+      const resolved = await job.onShipped(job.reportIds);
+      job.reportsResolved = resolved;
+      log(`\n■ marked ${resolved} report(s) done for room ${job.roomCode} (kept on file)\n`);
+      ledger(job, `■ marked ${resolved} report(s) done for room ${job.roomCode}`);
     } catch (e) {
-      job.clearError = String(e && e.message || e);
-      log(`\n⚠ could not clear reports: ${job.clearError} (shipped OK — clear them manually)\n`);
-      ledger(job, `⚠ ship ok, clear failed: ${job.clearError}`);
+      job.resolveError = String(e && e.message || e);
+      log(`\n⚠ could not mark reports done: ${job.resolveError} (shipped OK — mark them manually)\n`);
+      ledger(job, `⚠ ship ok, resolve failed: ${job.resolveError}`);
     }
   }
 }

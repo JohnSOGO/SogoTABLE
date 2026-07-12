@@ -105,10 +105,11 @@ async function openReportsForRoom(code) {
   const all = d.reports || d.bug_reports || [];
   return all.filter((r) => r.status !== "done" && reportRoom(r) === room);
 }
-// Delete a set of reports by id (the room agent's onShipped clear). Returns how many were removed.
-async function deleteReports(ids) {
+// Mark a set of reports DONE by id (the room agent's onShipped step) — resolved, not deleted, so the
+// report stays on file as an audit trail. If it needs more work, the reporter re-files. Returns the count.
+async function resolveReports(ids) {
   if (!ids || !ids.length) return 0;
-  const d = await apiCall("/api/bug-reports/resolve", { ids, delete: true });
+  const d = await apiCall("/api/bug-reports/resolve", { ids });   // no delete flag → status:"done"
   return d.affected || 0;
 }
 
@@ -159,14 +160,14 @@ const server = createServer(async (req, res) => {
         return send(await startFix(body.report || {}));
       }
       // Address an ENTIRE playtest room in one agent: gather its open reports, hand them to a room agent,
-      // and clear them only after a green ship (the agent never clears them itself).
+      // and mark them DONE (resolved, kept on file) only after a green ship — the agent never touches them.
       if (req.method === "POST" && url.pathname === "/agent/room-fix") {
         const body = JSON.parse((await readBody(req)) || "{}");
         const code = String(body.room || "").toUpperCase();
         if (!code) return send({ ok: false, error: "No room code." });
         const reports = await openReportsForRoom(code);
         if (!reports.length) return send({ ok: false, error: `No open reports for room ${code}.` });
-        return send(await startRoomFix({ roomCode: code, reports, onShipped: deleteReports }));
+        return send(await startRoomFix({ roomCode: code, reports, onShipped: resolveReports }));
       }
       if (req.method === "POST" && url.pathname === "/agent/merge") {
         const body = JSON.parse((await readBody(req)) || "{}");

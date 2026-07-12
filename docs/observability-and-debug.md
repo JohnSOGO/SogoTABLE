@@ -83,7 +83,8 @@ The bug manager UI (`npm run bugreports:ui <passcode>`, served by
   **every open report from a room** and works them as a set, using the batch methodology in
   `buildRoomPrompt()` (review together → group duplicates → triage fix / clarify / working‑as‑intended
   → rules are authoritative, don't invent them → smallest correct change + tests → one commit). It is
-  boxed exactly like the single agent (no push/deploy/clear); the same auto‑ship test‑gate lands it on
-  `main`. **Only after a green ship** does the harness clear that room's reports (delete — the reporter
-  can always re‑file). A red suite = no ship, no clear. This encodes the hand‑run
-  HPM2/GY3B/UHKO/1WSQ/67QG/06CK cycle so a room code is all the input needed.
+  boxed exactly like the single agent (no push/deploy/resolve); the same auto‑ship test‑gate lands it on
+  `main`. **Only after a green ship** does the harness mark that room's reports **done** (resolved, kept
+  on file — NOT deleted, so the audit trail survives; the reporter re‑files if it needs more work). A red
+  suite = no ship, no resolve. This encodes the hand‑run HPM2/GY3B/UHKO/1WSQ/67QG/06CK cycle so a room
+  code is all the input needed.

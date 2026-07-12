@@ -241,7 +241,7 @@
       </div>
       <input id="search" class="search" type="search" placeholder="Search description, game, player…" />
       <input id="roomCode" class="search" style="max-width:130px;text-transform:uppercase" type="text" maxlength="8" placeholder="Room code" />
-      <button class="btn" id="fixRoom" title="One agent addresses EVERY open report from this room as a batch, then ships to main and clears them if the tests pass">🏠 Fix room</button>
+      <button class="btn" id="fixRoom" title="One agent addresses EVERY open report from this room as a batch, then ships to main and marks them done (kept on file) if the tests pass">🏠 Fix room</button>
       <button class="btn" id="refresh">↻ Refresh</button>
       <button class="btn" id="stop" title="Stop the manager and close its window">⏻ Stop</button>
     </div>
@@ -482,7 +482,7 @@ document.getElementById("fixRoom").addEventListener("click", async () => {
   const code = (el.value || "").trim().toUpperCase();
   if (!code) { toast("Enter a room code first."); el.focus(); return; }
   const n = state.reports.filter((r) => r.status !== "done" && ((r.room_code || "").toUpperCase() === code || (() => { try { return (JSON.parse(r.game_state || "{}").room || "").toUpperCase() === code; } catch { return false; } })())).length;
-  if (!confirm(`Launch ONE agent to address all ${n || "?"} open report(s) from room ${code} — review as a batch, fix, then ship to main and clear them if tests pass. Continue?`)) return;
+  if (!confirm(`Launch ONE agent to address all ${n || "?"} open report(s) from room ${code} — review as a batch, fix, then ship to main and mark them done (kept on file) if tests pass. Continue?`)) return;
   try {
     const r = await api("/agent/room-fix", { room: code });
     toast(`🏠 Room ${code}: agent started on ${r.branch} (${r.count} reports).`); el.value = ""; pollJobs();
