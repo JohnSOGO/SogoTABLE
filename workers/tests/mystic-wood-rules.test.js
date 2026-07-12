@@ -622,6 +622,18 @@ test("Sage: departs from a greeting only when his +2 was decisive", () => {
   assert.ok(s2.companions.includes("sage"), "won comfortably — the Sage was not needed, so he stays");
 });
 
+// 1WSQ/67QG mrh6go4v: being cast into the Tower records a per-mark result so the victim gets an escape
+// popup — matters most for an OFF-turn imprisonment (a rival's Queen boon), which otherwise had no modal.
+test("Jailed notice: a Queen boon records an escape popup on the victim's own mark", () => {
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  const s = g.players.P1; const t = cellAt(g.board, s.r, s.c); t.revealed = true; t.card = "queen";
+  g.players.P2.r = 1; g.players.P2.c = 1; g.players.P3.tower = true;   // P2 is the sole eligible rival
+  resolveGreet(g, s, t, 6);   // a 6 → the Queen's boon towers the leading free rival
+  assert.equal(g.players.P2.tower, true, "the rival is cast into the Tower");
+  assert.ok(g.results.P2 && g.results.P2.jailed, "the victim gets a jailed popup on their own mark");
+});
+
 // A beast fight ignores Prowess entirely, so the Sage can never be decisive there — he must survive it.
 test("Sage: a beast fight (Strength only) never spends him", () => {
   const g = { board: buildBoard(), deck: [], discard: [], log: [], results: {}, seat_order: ["P1"], players: {} };

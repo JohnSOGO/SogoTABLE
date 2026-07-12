@@ -189,6 +189,10 @@ export function relocate(game, seat, r, c) {
 export function toTower(game, seat, loseCompanions = true) {
   if (loseCompanions) strandCompanions(game, seat);   // §10: left in the area (back on the board), not discarded
   seat.tower = true; seat.towerTries = 0; seat.r = 4; seat.c = 3;
+  // A popup tells the victim they're jailed and can escape (mrh6go4v) — matters most for an OFF-turn
+  // imprisonment (a rival's Queen boon), which otherwise only left a log line. A fight loss records its
+  // own defeat result right after this, which supersedes the notice, so no double modal there.
+  recordRoll(game, seat.mark, { jailed: true });
 }
 // §10: a Knight vanquished in a challenge "leaves all Companions in the area" — they become independent
 // Denizens again, to be re-approached (and a Boy/Damsel re-rescued). So place each back on the board —
@@ -671,8 +675,8 @@ function queenBoon(game, seat, die) {
 function sendIllusion(game, tile) {
   const id = tile.card; tile.card = null;
   const spots = game.board.filter((t) => t.revealed && !t.card && t.name !== "tower" && !game.seat_order.some((m) => game.players[m].r === t.r && game.players[m].c === t.c));
-  if (spots.length) { spots[rnd(spots.length)].card = id; logEvent(game, "The Illusion does your bidding and drifts off to another glade."); }
-  else logEvent(game, "The Illusion does your bidding and fades away.");
+  if (spots.length) { spots[rnd(spots.length)].card = id; logEvent(game, "You see through the Illusion — it holds no treasure, and flees to another glade at your command."); }
+  else logEvent(game, "You see through the Illusion — it holds no treasure, and melts away.");
 }
 
 /* ------------------------------- joust ---------------------------------- */

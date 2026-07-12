@@ -38,6 +38,9 @@ function clearTourTimers() { tourTimers.forEach(clearTimeout); tourTimers = []; 
 
 // True while the tour is in flight: render.js must not also glide the tokens.
 export function hornOwnsTokens() { return Date.now() < animUntil; }
+// Ms left until the tour lands — render.js holds any result/encounter modal off the map until then, so a
+// popup never covers the tokens mid-flight (bug mrh6ewl2). Zero once the tour is done.
+export function hornRemainingMs() { return Math.max(0, animUntil - Date.now()); }
 
 // Fresh mount (new room / reload): adopt the current seq without playing it, and show no banner.
 export function resetHorn(seq) {

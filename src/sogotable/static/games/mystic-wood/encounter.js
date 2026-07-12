@@ -20,7 +20,7 @@ let pendingReveal = null;
 function resultEmojiForRoll(roll) {
   if (roll.escape) return roll.freed ? "🗝️" : "🔒";     // the Key when you break free, the lock when the bars hold
   if (roll.outcome === "win") return "⚔️✨";
-  if (roll.outcome === "lose") return roll.bound ? "🧝‍♀️" : "💀";
+  if (roll.outcome === "lose") return roll.bound ? "🕸️" : "⛓️";   // ensnared (held) vs jailed (Tower) — never a death skull
   if (roll.greet && roll.resultKey) return oddsEmoji(roll.resultKey) || null;   // befriend 🤝, give:potion 🧪, transport 💨 … (mrgsh5me)
   return null;   // joust: no single-face outcome to reveal
 }
@@ -32,7 +32,7 @@ export function closePortals() { document.querySelectorAll(".mw-portal").forEach
 // shown on both the encounter card and the pick grid so EVERY card type is met with its own line.
 function introHtml(p) { return p && p.intro ? `<p class="mw-enc-intro">${sanitizeLog(p.intro)}</p>` : ""; }
 // A glance-emoji for each pick outcome, so a face's result reads without reading (bug mrghtdqr).
-const ODDS_EMOJI = { win: "⚔️✨", lose: "💀", tie: "🎲", captured: "✦", free: "🔓", held: "🔒",
+const ODDS_EMOJI = { win: "⚔️✨", lose: "⛓️", tie: "🎲", captured: "🕸️", free: "🔓", held: "🔒",
   remains: "😐", transport: "💨", transportYou: "🌀", befriend: "🤝", tower: "⛓️", run: "🐎💨", catch: "🐎",
   grail: "🏆", flee: "🏃", attack: "⚔️", imprison: "👑⛓️", nothing: "🚫", pray: "🙏" };
 const THING_EMOJI = { wand: "🪄", crystal: "💎", key: "🗝️", armour: "🛡️", potion: "🧪", ring: "💍", blessing: "✨", shield: "🛡️", golden_bough: "🌿", lance: "🗡️" };
@@ -107,7 +107,7 @@ function pickCard(ctx, game, moveType, verb) {
     <h2>${emoji} Pick one</h2>
     ${p.reroll ? `<div class="mw-prompt" style="text-align:center">🎲 A tie — cast again. Pick one.</div>` : ""}
     ${p.noMatch ? `<div class="mw-prompt" style="text-align:center;color:var(--good,#2e7d32)">⚔️✨ ${name} is no match — you cannot lose here.</div>` : ""}
-    ${p.hopeless ? `<div class="mw-prompt" style="text-align:center;color:var(--bad,#c62828)">💀 ${name} mocks you — you cannot best him here.${p.canWithdraw ? " Withdraw, or meet your fate." : ""}</div>` : ""}
+    ${p.hopeless ? `<div class="mw-prompt" style="text-align:center;color:var(--bad,#c62828)">${den && den.captures ? "🕸️" : "⛓️"} ${name} mocks you — you cannot best him here.${p.canWithdraw ? " Withdraw, or meet your fate." : ""}</div>` : ""}
     <div class="mw-pickodds">${oddsHtml(p.groups)}</div>
     ${p.guyonOptional ? `<div class="row"><button data-guyon="1" class="mw-guyon">Guyon's +1: ON</button></div>` : ""}
     <div class="mw-pickgrid">${faces}</div>
@@ -129,7 +129,7 @@ function pickCard(ctx, game, moveType, verb) {
     // picks, greet included). A sure win/loss reads at once; otherwise the face waits until the verdict
     // morphs on via pendingReveal — never a die (a die is only ever a reroll).
     if (moveType === "combat_pick" && p.noMatch) b.textContent = "⚔️✨";
-    else if (moveType === "combat_pick" && p.hopeless) b.textContent = "💀";
+    else if (moveType === "combat_pick" && p.hopeless) b.textContent = den && den.captures ? "🕸️" : "⛓️";
     if (moveType === "combat_pick" || moveType === "greet_pick") pendingReveal = { el: b };
     // The result modal swaps in on the next render (dice suppressed — this was a pick, not a roll).
     ctx.makeMove({ type: moveType, pick: Number(b.getAttribute("data-pick")), useGuyon });
@@ -230,7 +230,14 @@ function renderDiceModal(ctx, roll) {
   closePortals();
   const host = portal();
   let inner;
-  if (roll.escape) {
+  if (roll.jailed) {
+    // A bare imprisonment notice — mostly for being towered on someone ELSE's turn (a rival's Queen boon),
+    // where there'd otherwise be no popup at all (mrh6go4v). A fight loss supersedes this with its own modal.
+    inner = `<div class="tag">The Tower</div>
+      <div class="result mw-result-big"><span class="r">⛓️ Cast into the Tower jail!</span></div>
+      <div class="hint">On your turn you may try to escape — a 5 or 6 frees you, the fourth dawn opens the door on its own, and the Key unlocks it at once.</div>
+      <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
+  } else if (roll.escape) {
     // The picked escape shows no die (the pick stood in for the roll); the headline says free or held.
     const capture = roll.mode === "capture", key = roll.mode === "key";
     const res = roll.freed
@@ -265,8 +272,8 @@ function renderDiceModal(ctx, roll) {
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else {
     const res = roll.outcome === "win" ? `<span class="g">⚔️✨ Victory! — ${roll.mine} vs ${roll.foe}</span>`
-      : roll.bound ? `<span class="r">✦ Ensnared by the Enchantress! — ${roll.mine} vs ${roll.foe}<br>You remain in her glade; your companions wander free.</span>`
-      : `<span class="r">💀 Defeated — ${roll.mine} vs ${roll.foe}<br>⛓️ To the Tower — companions lost.</span>`;
+      : roll.bound ? `<span class="r">🕸️ Ensnared by the Enchantress! — ${roll.mine} vs ${roll.foe}<br>You remain in her glade; your companions wander free.</span>`
+      : `<span class="r">⛓️ Defeated — ${roll.mine} vs ${roll.foe}<br>Off to the Tower jail — companions left behind. Try to escape on your turn.</span>`;
     // What the fight actually did — the Dragon slain, a Thing taken, the crown claimed. Without it a
     // win reads as "you rolled higher" and the player never learns what they gained.
     const detail = roll.detail ? `<div class="mw-result-detail">${sanitizeLog(roll.detail)}</div>` : "";

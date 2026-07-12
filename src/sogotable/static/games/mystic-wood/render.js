@@ -4,7 +4,7 @@
 // seams are rewired: data source (the ctx.game projection) and intent (ctx.makeMove). Snapshot render.
 import { renderHostStartLobby } from "../lobby.js";
 import { MYSTIC_WOOD_CSS } from "./styles.js";
-import { syncHorn, resetHorn, hornOwnsTokens } from "./horn.js";
+import { syncHorn, resetHorn, hornOwnsTokens, hornRemainingMs } from "./horn.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
 import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showDice, showIntro, initEncounter } from "./encounter.js";
@@ -78,13 +78,20 @@ export function renderMysticWoodGame(ctx) {
   // genuinely NEW rolls pop; the pending encounter (if any) then shows normally.
   if (justInit) seenRoll = myRoll ? (myRoll.seq || 0) : 0;
   if (encTimer) { clearTimeout(encTimer); encTimer = null; } // a newer render owns the encounter-reveal timing
-  if (myRoll && myRoll.seq > seenRoll) { seenRoll = myRoll.seq; showDice(ctx, myRoll); }
-  else if (game.pending && ["encounter", "greet_pick", "combat_pick", "escape_pick"].includes(game.pending.type) && game.pending.mark === me) {
+  // Hold every modal off the map until the Mystic Horn's 2s tour lands — a popup must never cover the
+  // tokens mid-flight (bug mrh6ewl2). Otherwise just wait out a token glide before the card covers a tile.
+  const hornWait = hornOwnsTokens() ? hornRemainingMs() + 120 : 0;
+  if (myRoll && myRoll.seq > seenRoll) {
+    seenRoll = myRoll.seq;
+    if (hornWait) encTimer = setTimeout(() => { encTimer = null; showDice(ctx, myRoll); }, hornWait);
+    else showDice(ctx, myRoll);
+  } else if (game.pending && ["encounter", "greet_pick", "combat_pick", "escape_pick"].includes(game.pending.type) && game.pending.mark === me) {
     // Let the token finish gliding onto the tile BEFORE the card covers it; on a fresh mount
     // (no glide) reveal at once. A newer render clears this timer, so a stale card can't pop.
     const show = game.pending.type === "greet_pick" ? showGreetPick : game.pending.type === "combat_pick" ? showCombatPick
       : game.pending.type === "escape_pick" ? showEscapePick : showEncounter;
-    if (iMoved) encTimer = setTimeout(() => { encTimer = null; show(ctx, game); }, GLIDE_MS + 60);
+    const wait = hornWait || (iMoved ? GLIDE_MS + 60 : 0);
+    if (wait) encTimer = setTimeout(() => { encTimer = null; show(ctx, game); }, wait);
     else show(ctx, game);
   } else if (game.round === 1 && me && introShownFor !== gameKey && !introSeen(gameKey)) {
     // At a clean game start (no roll, no pending), the local knight entrusts their quest — once per room.
