@@ -197,6 +197,9 @@ export async function initJobs() {
   for (const branch of branches.out.split("\n").map((s) => s.trim()).filter(Boolean)) {
     if ([...jobs.values()].some((j) => j.branch === branch)) continue;
     const isRoom = branch.startsWith("fix/room-");
+    // A room branch is ours ONLY if its suffix is a real room-code shape (uppercase alphanumeric). This
+    // keeps recovery from adopting unrelated `fix/room-<topic-slug>` feature branches as phantom jobs.
+    if (isRoom && !/^[A-Z0-9]{3,8}$/.test(branch.replace(/^fix\/room-/, ""))) continue;
     const reportId = branch.replace(/^fix\/(bug|room)-/, isRoom ? "room-" : "");
     const commits = await git(["log", "--oneline", `main..${branch}`]);
     const id = `job-${++seq}`;
@@ -247,7 +250,7 @@ export async function startFix(report) {
 // are worked as a set. `onShipped(reportIds)` is invoked ONLY after a green auto-ship lands on main, so the
 // caller can then clear the room's reports — a red suite parks the branch and leaves the reports untouched.
 export async function startRoomFix({ roomCode, reports, onShipped } = {}) {
-  const code = String(roomCode || "").replace(/[^a-z0-9-]/gi, "").toUpperCase();
+  const code = String(roomCode || "").replace(/[^a-z0-9]/gi, "").toUpperCase();
   if (!code) return { ok: false, error: "No room code." };
   if (!Array.isArray(reports) || !reports.length) return { ok: false, error: `No open reports for room ${code}.` };
   if (running >= MAX_CONCURRENT) return { ok: false, error: `Too many agents running (${running}). Try again shortly.` };
