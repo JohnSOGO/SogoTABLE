@@ -193,6 +193,15 @@
   .focus-log .lg-bullet { padding-left: 14px; text-indent: -12px; }
   .focus-log .lg-gap { height: 8px; }
   .focus-log code { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: .92em; }
+  .focus-log strong { color: var(--ink); font-weight: 700; }
+  .focus-log em { font-style: italic; color: var(--ink); }
+  .focus-log del { color: var(--muted); }
+  .lg-tablewrap { overflow-x: auto; margin: 8px 0; }
+  .lg-table { border-collapse: collapse; font-family: var(--sans, system-ui), sans-serif; font-size: 12.5px; line-height: 1.5; width: 100%; }
+  .lg-table th, .lg-table td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; vertical-align: top; }
+  .lg-table th { background: var(--panel); font-weight: 700; color: var(--ink); }
+  .lg-table td { color: var(--ink); }
+  .lg-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 45%, transparent); }
   .focus-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--panel); }
   .focus-actions .job-continue { flex: 1 1 260px; margin-top: 0; }
 
@@ -737,24 +746,57 @@ function jobHtml(j) {
 
 // Turn the raw agent log (streamed markers + the agent's markdown-ish summary)
 // into a readable, coloured transcript.
+// Inline markdown: `code`, **bold**, *italic* (the agent's summaries lean on all three). Escape first,
+// so no user text can inject HTML; then apply the spans. Order matters — ** before single *.
+function mdInline(s) {
+  return escapeHtml(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>");
+}
+const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l || "");
+const isTableSep = (l) => /-/.test(l || "") && /^\s*\|?[\s:|-]+\|?\s*$/.test(l || "");
+// A block of consecutive "| … |" lines → a real table. A `|---|` row (if present) splits header from body.
+function renderMdTable(rows) {
+  const cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  const sep = rows.findIndex(isTableSep);
+  const head = sep >= 0 ? rows.slice(0, sep) : [];
+  const body = sep >= 0 ? rows.slice(sep + 1) : rows;
+  const thead = head.length ? `<thead>${head.map((r) => `<tr>${cells(r).map((c) => `<th>${mdInline(c)}</th>`).join("")}</tr>`).join("")}</thead>` : "";
+  const tbody = `<tbody>${body.map((r) => `<tr>${cells(r).map((c) => `<td>${mdInline(c)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  return `<div class="lg-tablewrap"><table class="lg-table">${thead}${tbody}</table></div>`;
+}
 function formatLog(raw) {
-  const inline = (s) => escapeHtml(s).replace(/`([^`]+)`/g, "<code>$1</code>");
-  return String(raw || "").split("\n").map((line) => {
-    if (!line.trim()) return '<div class="lg-gap"></div>';
-    if (/^#{1,4}\s/.test(line)) return `<div class="lg-h">${inline(line.replace(/^#{1,4}\s+/, ""))}</div>`;
+  const lines = String(raw || "").split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    // Table block: two or more consecutive "| … |" rows render as an HTML table.
+    if (isTableRow(line) && isTableRow(lines[i + 1])) {
+      const block = [];
+      while (i < lines.length && isTableRow(lines[i])) { block.push(lines[i]); i += 1; }
+      i -= 1;
+      out.push(renderMdTable(block));
+      continue;
+    }
+    if (!line.trim()) { out.push('<div class="lg-gap"></div>'); continue; }
+    if (/^#{1,4}\s/.test(line)) { out.push(`<div class="lg-h">${mdInline(line.replace(/^#{1,4}\s+/, ""))}</div>`); continue; }
     if (line.startsWith("⚙")) {
       const m = line.match(/^⚙\s+([^:]+):\s*([\s\S]*)$/);
-      return m
+      out.push(m
         ? `<div class="lg-tool"><span class="lg-tname">⚙ ${escapeHtml(m[1])}</span> ${escapeHtml(m[2])}</div>`
-        : `<div class="lg-tool">${escapeHtml(line)}</div>`;
+        : `<div class="lg-tool">${escapeHtml(line)}</div>`);
+      continue;
     }
-    if (line.startsWith("▶") || line.startsWith("■")) return `<div class="lg-meta">${escapeHtml(line)}</div>`;
-    if (line.startsWith("$ ")) return `<div class="lg-cmd">${escapeHtml(line)}</div>`;
-    if (line.startsWith("— you:")) return `<div class="lg-you">${escapeHtml(line)}</div>`;
-    if (/\b(error|failed|fatal|cannot)\b/i.test(line)) return `<div class="lg-err">${inline(line)}</div>`;
-    if (/^\s*[-*]\s/.test(line)) return `<div class="lg-bullet">• ${inline(line.replace(/^\s*[-*]\s+/, ""))}</div>`;
-    return `<div>${inline(line)}</div>`;
-  }).join("");
+    if (line.startsWith("▶") || line.startsWith("■")) { out.push(`<div class="lg-meta">${escapeHtml(line)}</div>`); continue; }
+    if (line.startsWith("$ ")) { out.push(`<div class="lg-cmd">${escapeHtml(line)}</div>`); continue; }
+    if (line.startsWith("— you:")) { out.push(`<div class="lg-you">${escapeHtml(line)}</div>`); continue; }
+    if (/\b(error|failed|fatal|cannot)\b/i.test(line)) { out.push(`<div class="lg-err">${mdInline(line)}</div>`); continue; }
+    if (/^\s*[-*]\s/.test(line)) { out.push(`<div class="lg-bullet">• ${mdInline(line.replace(/^\s*[-*]\s+/, ""))}</div>`); continue; }
+    out.push(`<div>${mdInline(line)}</div>`);
+  }
+  return out.join("");
 }
 
 let focusedJobId = null;
