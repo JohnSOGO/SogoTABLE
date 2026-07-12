@@ -222,6 +222,18 @@ export function getJob(id) {
   const j = jobs.get(id);
   return j ? publicJob(j) : null;
 }
+// The FULL persisted log for a job. The in-memory copy is capped (MEM_LOG_CAP) and the polled API log is
+// a short tail (LOG_TAIL), so a long agent summary scrolls off both — Focus needs the whole thing, read
+// from the on-disk logFile. Capped to a browser-safe ceiling.
+export function getFullLog(id) {
+  const j = jobs.get(id);
+  if (!j) return { ok: false, error: "No such job." };
+  let log = j.log || "";
+  try { if (j.logFile && existsSync(j.logFile)) log = readFileSync(j.logFile, "utf8"); } catch { /* fall back to the in-memory tail */ }
+  const CAP = 800000;   // ~800KB guard
+  if (log.length > CAP) log = "…(truncated to last 800KB)…\n" + log.slice(-CAP);
+  return { ok: true, id, log };
+}
 
 export async function startFix(report) {
   const reportId = String(report && report.id || "").replace(/[^a-z0-9-]/gi, "");

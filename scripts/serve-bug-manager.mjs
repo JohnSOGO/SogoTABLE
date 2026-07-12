@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { startFix, startRoomFix, listJobs, getJob, getDiff, mergeJob, discardJob, continueJob, openTerminal, shipJob, initJobs, claudeAvailable, runnerStatus } from "./bug-agent.mjs";
+import { startFix, startRoomFix, listJobs, getJob, getFullLog, getDiff, mergeJob, discardJob, continueJob, openTerminal, shipJob, initJobs, claudeAvailable, runnerStatus } from "./bug-agent.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const htmlPath = join(repoRoot, "bugreport", "manage.html");
@@ -154,6 +154,7 @@ const server = createServer(async (req, res) => {
       if (req.method === "GET" && url.pathname === "/agent/jobs") return send({ ok: true, jobs: listJobs() });
       if (req.method === "GET" && url.pathname === "/agent/available") return send({ ok: true, available: await claudeAvailable() });
       if (req.method === "GET" && url.pathname === "/agent/job") return send(getJob(url.searchParams.get("id")) || { ok: false, error: "No such job." });
+      if (req.method === "GET" && url.pathname === "/agent/log") return send(getFullLog(url.searchParams.get("id")));
       if (req.method === "GET" && url.pathname === "/agent/diff") return send(await getDiff(url.searchParams.get("id")));
       if (req.method === "POST" && url.pathname === "/agent/fix") {
         const body = JSON.parse((await readBody(req)) || "{}");

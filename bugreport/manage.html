@@ -655,6 +655,9 @@ async function pollJobs() {
     jobs = (await res.json()).jobs || [];
   } catch { /* server gone */ }
   renderJobs(jobs);
+  // A focused running job's on-disk log keeps growing — re-pull the full log each poll so Focus stays live.
+  const fj = focusedJobId && jobs.find((x) => x.id === focusedJobId);
+  if (fj && fj.status === "running") refreshFocusLog();
   const busy = jobs.some((j) => j.status === "running" || j.shipState === "shipping" || j.shipState === "queued");
   clearTimeout(pollTimer);
   if (jobs.length) pollTimer = setTimeout(pollJobs, busy ? 2500 : 8000);
@@ -800,6 +803,18 @@ function formatLog(raw) {
 }
 
 let focusedJobId = null;
+// The polled job log is only a short tail (LOG_TAIL); Focus pulls the FULL on-disk log so a long agent
+// summary isn't cut off. Cached per focused job; text stays null until the fetch lands (tail shows meanwhile).
+let focusLog = { id: null, text: null };
+async function refreshFocusLog() {
+  const id = focusedJobId; if (!id) return;
+  if (focusLog.id !== id) focusLog = { id, text: null };   // mark loading so renderFocus won't re-trigger
+  try {
+    const res = await fetch("/agent/log?id=" + encodeURIComponent(id));
+    const data = await res.json();
+    if (data.ok && focusedJobId === id) { focusLog = { id, text: data.log || "" }; renderFocus(); }
+  } catch (_e) { /* keep the tail fallback */ }
+}
 
 function renderFocus() {
   const el = document.getElementById("focus");
@@ -808,9 +823,12 @@ function renderFocus() {
   document.getElementById("focus-name").textContent = j.title;
   document.getElementById("focus-stat").innerHTML = jobStat(j);
   document.getElementById("focus-branch").textContent = j.branch;
+  // Load the full log once for this job (running jobs also get refreshed from pollJobs as they grow).
+  if (focusLog.id !== j.id) refreshFocusLog();
+  const src = (focusLog.id === j.id && focusLog.text != null) ? focusLog.text : j.log;
   const logEl = document.getElementById("focus-log");
   const nearBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 60;
-  logEl.innerHTML = j.log ? formatLog(j.log) : "(no output yet)";
+  logEl.innerHTML = src ? formatLog(src) : "(no output yet)";
   if (nearBottom) logEl.scrollTop = logEl.scrollHeight;
   const actEl = document.getElementById("focus-actions");
   const typed = actEl.querySelector(".cont-input") ? actEl.querySelector(".cont-input").value : "";
@@ -819,7 +837,7 @@ function renderFocus() {
   el.hidden = false;
 }
 
-function closeFocus() { focusedJobId = null; document.getElementById("focus").hidden = true; }
+function closeFocus() { focusedJobId = null; focusLog = { id: null, text: null }; document.getElementById("focus").hidden = true; }
 
 async function onJobClick(e) {
   const b = e.target.closest("[data-job]"); if (!b) return;
