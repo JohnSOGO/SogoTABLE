@@ -191,6 +191,72 @@ Flagged for MojoSOGO's call (an ADDITION, not in the base rulebook — keep or r
   (`ai.js` `botEnter`) while a human must sit three turn-*starts* — unreported, but a real bot/human
   asymmetry worth closing.
 
+## Informed Consent (design doctrine, 2026-07-12)
+
+The 4T6D bug batch was, to a fault, **one failure repeated**: the game changed a player's
+situation — or offered a deal — without saying *what changed, what it cost, what it granted*, or
+letting the player choose. The crown silently swapped George's quest; the Dragon was "vanquished"
+then fled; the Gate would not open and would not say why; the Damsel was delivered in the chronicle
+alone. So we adopt a standing principle.
+
+**Informed Consent.** Whenever an action changes a player's state, or an approach/deal is offered:
+
+1. **Informed (always).** Show the *terms* — what changes, what it costs, what it grants — on the
+   screen where it happens (a modal), **not** the chronicle (which is for review, and on a phone is
+   easy to miss). The terms are **computed server-side** and carried in the prepared state
+   (`pending` / `results`), then rendered by the client. The UI never invents them (Wu Wei: rules
+   own the transition and prepare the state; UI renders and captures intent).
+2. **Consent (only where the rules allow it).** Let the player accept or decline **exactly where the
+   rulebook grants a choice — and only there.** Where a `§` *forces* the act, there is no decline;
+   the obligation itself is the rule (chivalry is the archetype — see the carve-out). Adding a
+   decline where a rule forces the act is itself a rules violation.
+
+The split is the whole point: **you can always be *told*; you can only *decline* where the rulebook
+says you may.** Do not gate a downside-free boon behind a tap — inform, and move on. Reserve consent
+prompts for choices that are both **rules-legal** and **meaningful** (a real cost or trade-off).
+
+### Classification — every state-change / approach (the source of truth)
+
+**FORCED (inform only — no decline; a `§` dictates the outcome):**
+
+| Mechanic | Rule | Status |
+| --- | --- | --- |
+| Chivalry: Boy/Damsel obligation laid on you | §15 — the carve-out; obligation is mandatory | forced (correct) |
+| Take the crown once you beat the King | §18.10 — vanquisher *becomes* King | forced; **informed** (pre-fight warning + swap notice, 2026-07-12) |
+| Greeted-denizen reaction (remains / transport / transportYou / befriend / tower / give / horse-runs) | §8 — you chose to greet; the die/denizen dictates the reaction | forced; inform via result modal |
+| Fight loss → Tower; Enchantress ensnare | §8 / §18.7 | forced; informed |
+| Spell events: Mystic Horn scatter, Mystic Wind (sweeps Things), Mystic Fog (rotates), Magician's Storm | §6 / §18.11 — drawn from the deck, resolve on reveal | forced; staged/narrated |
+| Queen's boon casts a rival into the Tower | §ext | forced; informed |
+| Power-Limit *that you exceed* must be resolved | §18 — surrender is mandatory | forced **to resolve** — but *which* cards is a choice (below) |
+
+**OPTIONAL (inform AND allow the choice — a `§` grants it):**
+
+| Mechanic | Rule | Status |
+| --- | --- | --- |
+| Withdraw vs approach; greet vs challenge | §7 flow | ✅ consent exists |
+| Move or stay put (movement is voluntary) | §5 (“movement is voluntary”) | ✅ exists |
+| Guyon's +1 after the roll | §8.2 | ✅ toggle exists |
+| Joust prize (Tower / Thing / companion) | §12 | ✅ choice exists |
+| **Power-Limit: *which* card(s) to shed** | §14/§18 — the player chooses | ❌ **auto-picks & deletes** — first consent slice |
+| Voluntary Thing drop | §11 | ❌ not built |
+| Voluntary Horse release (declare where it runs) | § (Horse) | ❌ not built |
+| Exchange Things / hand a companion to a knight in your area | §13 | ❌ not built |
+
+The `❌` rows are the rules-legal gaps the audit (`docs/mystic-wood-audit.md`) already lists as
+pending — this doctrine names them under one banner rather than inventing new rules.
+
+### Follow-through (so the principle sticks)
+
+- **Every new mechanic must declare, in code and in its result/pending, (a) its terms and (b)
+  forced-or-optional with a `§` citation.** A new `results`/`pending` that mutates state without
+  surfacing terms is a review finding.
+- Bot parity is mandatory: every consent point needs a deterministic bot auto-resolution (bots are
+  never prompted). Sibling path: bot vs human.
+- An outstanding consent `pending` must re-surface on reconnect/resume (multiplayer resilience).
+- Rollout is **incremental and rules-audited**, never a big-bang refactor: doctrine + transparency
+  first (presentation, low risk), then one consent slice at a time via the `placement-advisor`
+  (each crosses the rules/transport boundary). Power-Limit choice (§14/§18) is the first slice.
+
 ## Open issues — AWAITING SOGO'S INPUT (do not close without it)
 
 These came from Sogo's in-app bug reports (room PM0T, 2026-07-08). Each is **blocked on a

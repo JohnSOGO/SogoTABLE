@@ -65,6 +65,7 @@ If the idea is still fuzzy or architecture-shaping, run AREC before implementati
 - Polling, WebSockets, Durable Objects, or quota-sensitive behavior -> `docs/cloudflare-quota.md`
 - Colors, dark/light theme, or adding theme-sensitive styles -> `docs/theme.md`
 - Risky or ambiguous idea proposals -> `docs/AREC.md`
+- Player-facing terms of a state change or deal, and where a player may decline (informed consent) -> `docs/game-mystic-wood.md` (Informed Consent)
 
 ## Core Doctrine
 
@@ -72,6 +73,7 @@ If the idea is still fuzzy or architecture-shaping, run AREC before implementati
   rules, the UI owns the presentation, persistence owns storage. (Full ownership
   table in [Modularity](modularity.md).)
 - Make correct behavior the easy path.
+- **Informed consent:** show the terms of any state change or deal (server-prepared, rendered in a modal, not the chronicle); allow the player to decline **only where the rules grant a choice** — chivalry is the deliberate carve-out. (Doctrine + forced/optional table in [game-mystic-wood.md](game-mystic-wood.md).)
 - Keep rules, transport, and UI separate.
 - Prefer event-driven updates over periodic polling.
 - Keep shared multiplayer truth on the hosted Worker path.
