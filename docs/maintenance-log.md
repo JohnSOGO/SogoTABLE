@@ -141,3 +141,31 @@ audit when the newest entry is stale (>14 days or >150 commits since).
   hearts/render.js (788/800 but cold since ship day); app.js/worker parked 1 line under ceiling.
 - **Handoffs:** 1 to reorganizer (render.js seam — done), 1 to implementer (retroactive receipt — done);
   0 to placement-advisor.
+
+## 2026-07-12 — sixth steward pass (Mystic Wood 8-batch maturation)
+- **Trigger:** on-demand, ~2,600-line / 48-commit / 8-playtest-batch delta since d72d5a4
+  (HPM2 → GY3B → UHKO → 1WSQ → 67QG → 06CK → SON6 → 4LSI), with **four modules extracted
+  REACTIVELY by different agents**. Verdict: **MINOR DRIFT**. Full suite 396/396 green.
+- **Blind-spot answer (the reason for the pass):** the four reactive extractions —
+  `spells.js`, `events.js`, `narration.js` (worker) and `herald.js` (client) — **cohere: they are
+  the RIGHT seams, not make-room artifacts.** Each owns one concern, is a pure leaf with a
+  one-directional, documented no-back-import discipline that holds in the code (verified: nothing
+  imports engine back except spells.js, only for `relocate`). `data.js`/`content.js` split holds by
+  purpose; the 4-way test split is concern-aligned, not merely cap-driven. 0 receipts owed
+  (per-game files ride the `games/` directory pattern); no new owner rows.
+- **Finding 1 (HIGH, time-sensitive) — DONE:** `engine.js` at 788/800 AND the repo's #1 hotspot;
+  next batch would breach the cap mid-fix. → reorganizer extracted the **joust** subsystem to a new
+  pure leaf `workers/games/mystic-wood/joust.js`; engine.js 788 → **708** (behaviour-preserving prep
+  commit 2ff697b; shared `d6` exported not copied; importers repointed; 396 green).
+- **Finding 2 (MED) — DEFERRED (not owed yet):** `render.js` regrew 556 → 727 (73 lines of headroom);
+  flagged as the reorganizer's *next* seam (board-input/gesture block → a `board-input.js` leaf).
+  Not urgent; separate future commit.
+- **Finding 3 (MED) — DONE:** `data.js` ↔ `content.js` duplicated KNIGHTS/THINGS/DEN with no guard.
+  → added `workers/tests/mystic-wood-parity.test.js` pinning the shared gameplay fields (commit
+  292e976). Parity currently holds. Same shape as the 1st pass's RTTA guard.
+- **Restraint (weighed, left alone):** the "phrasing leak" — investigated, did NOT happen (the 62 inline
+  `engine.js` outcome-sentences are correctly co-located with their rule branch; moving them = classitis);
+  the concern-aligned test split; `bug-agent.mjs` (683/800, cohesive deep module — watch only);
+  `manage.html` (uncapped, off-graph, single-user loopback admin tool).
+- **Handoffs:** 2 to reorganizer (engine.js joust seam — done; render.js seam — deferred),
+  1 to implementer (parity guard — done); 0 to placement-advisor.
