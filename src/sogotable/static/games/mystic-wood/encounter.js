@@ -134,7 +134,18 @@ function stakesHtml(den, game, p) {
     if (seat && seat.knight === "george" && seat.isKing) out.push(`<div class="denrow">👑 You wear the crown now: the King card replaced George's, and the Dragon with it. Your quest is to <b>hold the Castle</b>. (§18.10)</div>`);
   }
   if (den.captures) out.push(`<div class="denrow bad">If she wins, you are <b>ensnared</b> — you stay in her glade and your companions wander free (no Tower).</div>`);
-  if (den.king) out.push(`<div class="denrow good">Vanquish him and <b>you are King</b> — then hold the Castle a full turn to win.</div>`);
+  // §18.10: beating the King crowns you — and the crown REPLACES your Knight card, quest and all. It is
+  // not declinable, so the warning belongs HERE, on the screen where you choose to fight: win and you give
+  // up your current quest for the Castle (4T6D — George took the crown and chased the Dragon 147 turns on,
+  // never told the quest had changed). Withdraw is the only way to keep it. Britomart cannot take the crown.
+  if (den.king) {
+    if (seat && seat.knight === "britomart") {
+      out.push(`<div class="denrow">Britomart <b>cannot take the crown</b> (§18) — beating the King wins her nothing; her quest stays the Prince.</div>`);
+    } else {
+      out.push(`<div class="denrow good">Vanquish him and <b>you become King</b> — hold the Castle a full turn to win. (§18.10)</div>`);
+      out.push(`<div class="denrow bad">⚠️ The crown <b>replaces your quest</b>: you give up <b>${E(seat ? seat.quest : "")}</b> and can then win only by holding the Castle. <b>Withdraw</b> if you would keep your quest.</div>`);
+    }
+  }
   return out.length ? `<div class="denbox">${out.join("")}</div>` : "";
 }
 function pickCard(ctx, game, moveType, verb) {

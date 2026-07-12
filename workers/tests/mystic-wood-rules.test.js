@@ -226,6 +226,7 @@ test("Challenge result carries the consequence: the Dragon slain completes Georg
   assert.equal(roll.outcome, "win");
   assert.match(roll.detail, /Dragon is SLAIN/);
   assert.doesNotMatch(roll.detail, /vanquishes/);                 // headline isn't duplicated into the detail
+  assert.ok(game.log.some((e) => /vanquishes the Dragon/.test(e.text)), "George's OWN kill is a 'vanquish'");
 });
 
 test("Challenge result detail: another knight beating the Dragon is told it fled", () => {
@@ -241,6 +242,10 @@ test("Challenge result detail: another knight beating the Dragon is told it fled
   assert.match(game.results.P1.detail, /only George can slay it/i);
   assert.equal(s.prowess.length, 0);                              // no prowess for a drive-off
   assert.ok(game.discard.includes("dragon"));                     // recycled — George's quest stays possible
+  // The headline reads "bests", not "vanquishes" — the latter read as a kill right before "it fled"
+  // (4T6D mrhzg94z: a crowned George thought he had slain the Dragon he only drove off).
+  assert.ok(game.log.some((e) => /bests the Dragon/.test(e.text)), "a drive-off is a 'best', not a 'vanquish'");
+  assert.ok(!game.log.some((e) => /vanquishes the Dragon/.test(e.text)));
 });
 
 // §18.7 / §8 exception: the Enchantress never imprisons. Vanquished by her, you REMAIN in her area

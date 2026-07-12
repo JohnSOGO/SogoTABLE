@@ -479,7 +479,13 @@ export function resolveChallenge(game, seat, tile, forcedWhite, forcedRed) {
   // §8 exception / §18.7: the Enchantress never imprisons — vanquished by her, you REMAIN in her area
   // (she ignores you until you leave); every other foe sends you to the Tower.
   const bound = outcome === "lose" && den.captures;
-  if (outcome === "win") logEvent(game, `${seat.name} vanquishes the ${den.name}! (${mine} vs ${foe})`, "g");
+  // §18.4: beating the Dragon without George's own quest active only DRIVES IT OFF — it is not slain.
+  // "vanquishes" read as a kill right before applyWin's "drives the Dragon off" line, so a crowned George
+  // thought he had killed it (4T6D mrhzg94z). Say "bests" for a drive-off so the two lines don't contradict.
+  if (outcome === "win") {
+    const drivesOff = den.dragon && seat.q !== "dragon";
+    logEvent(game, `${seat.name} ${drivesOff ? "bests" : "vanquishes"} the ${den.name}! (${mine} vs ${foe})`, "g");
+  }
   else if (bound) logEvent(game, `The Enchantress overpowers ${seat.name} (${mine} vs ${foe}) — you remain in her glade, ensnared.`, "r");
   else logEvent(game, `${seat.name} is vanquished by the ${den.name} (${mine} vs ${foe}) — away to the Tower!`, "r");
   const before = logMark(game);   // headline is already on the modal; capture only what follows
