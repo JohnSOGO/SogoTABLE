@@ -7,6 +7,7 @@ import {
   KNIGHTS, THINGS, DEN, DEN_TALES, DEN_INTRO, DECK_IDS, COMP_P, ROWS, COLS, POWER_LIMIT,
   NAMED_TILES,
 } from "./data.js";
+import { recordRotation } from "./events.js";   // seq'd board-event descriptors the client heralds
 
 /* ------------------------------- RNG seam ------------------------------- */
 let mysticWoodRandom = Math.random;
@@ -215,15 +216,6 @@ export function tileNameAt(game, seat) { const t = cellAt(game.board, seat.r, se
 export function applyMoveTo(game, seat, from, to) {
   if (!to.revealed) { const e = edgeBetween(from, to); revealTile(to, e ? e[1] : undefined); drawCardFor(game, to); }
   seat.r = to.r; seat.c = to.c; seat.moved = true;
-}
-
-/* ---------------------- animation record (shared) ----------------------- */
-// A tile-turn to animate: record which cells spun + bump the seq so the renderer spins those tiles 180°
-// once (§18.12 Fog / the Wand's single-tile turn — bug mrgkf242). Shared by resolveSpell (spells.js)
-// and the Wand power (powerRotate) below — the one seq the renderer keys the spin off.
-export function recordRotation(game, cells) {
-  if (!cells.length) return;
-  game.rotation = { seq: (game.rotation_seq = (game.rotation_seq || 0) + 1), cells: cells.map((t) => [t.r, t.c]) };
 }
 
 /* ----------------------------- reactions -------------------------------- */

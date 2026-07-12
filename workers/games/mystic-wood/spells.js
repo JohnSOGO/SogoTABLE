@@ -1,22 +1,13 @@
 // The Mystic Wood — spells & storms (pure: no DOM, no I/O, no timers).
 // The three Mystic spell cards (Fog / Wind / Horn) resolve on arrival, and the
 // Magician companion's storm bars an area. Extracted from engine.js to keep it
-// under the god-file cap. Shared primitives (logEvent, relocate, recordRotation)
-// flow in from engine.js; this module is a leaf — engine never imports it back.
-import { logEvent, relocate, recordRotation } from "./engine.js";
+// under the god-file cap. Shared primitives (logEvent, relocate) flow in from
+// engine.js; the seq'd board-event descriptors the client heralds (recordRotation /
+// recordHorn) come from the pure events.js leaf, which imports nothing back.
+import { logEvent, relocate } from "./engine.js";
+import { recordRotation, recordHorn } from "./events.js";
 
 /* ------------------------------- spells --------------------------------- */
-// The scatter is a discrete, one-shot presentation event (like a roll): the client tours the tokens
-// across the wood exactly once, keyed off the seq. A re-render, a reconnect, or a reload must never
-// replay it, so the seq only ever advances — it is never cleared.
-function recordHorn(game, byName, scattered) {
-  game.horn_seq = (game.horn_seq || 0) + 1;
-  game.horn = {
-    seq: game.horn_seq, byName,
-    marks: scattered.map((s) => s.mark),
-    tour: scattered.map((s) => [s.r, s.c]),
-  };
-}
 // Returns { endTurn } — Mystic Horn ends the drawer's turn.
 export function resolveSpell(game, seat, tile, spellId) {
   const name = seat.name;

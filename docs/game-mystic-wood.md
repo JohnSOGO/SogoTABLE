@@ -41,10 +41,11 @@ Powers activate from the action bar when held: **🔮 Scry** (Crystal), **🔄 R
 
 Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTTA precedent.
 
-- **Server (authoritative, pure):** `workers/games/mystic-wood/{data,engine,rules,ai}.js`. One
-  seeded RNG seam; board gen (T-junction/crossroads tiles), movement, a recycling denizen deck,
+- **Server (authoritative, pure):** `workers/games/mystic-wood/{data,engine,events,spells,rules,ai}.js`.
+  One seeded RNG seam; board gen (T-junction/crossroads tiles), movement, a recycling denizen deck,
   combat/greet/spell/power resolution, the turn machine, and human-path bots. Dispatch row in
-  `workers/games/handlers.js`.
+  `workers/games/handlers.js`. `events.js` is the pure leaf that writes the seq'd board-event
+  descriptors (`recordRotation` / `recordHorn`) — engine and spells import it; it imports nothing.
 - **Client:** `src/sogotable/static/games/mystic-wood/{render,styles,manifest}.js` — the 7×9
   board + 3-level zoom, seat list, encounter Greet/Challenge prompt, power buttons, end screen.
   Idempotent snapshot render from `mysticWoodGameToDict`; intents via `ctx.makeMove`. Joins the
