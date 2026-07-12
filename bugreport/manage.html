@@ -254,6 +254,7 @@
       <input id="roomCode" class="search" style="max-width:130px;text-transform:uppercase" type="text" maxlength="8" placeholder="Room code" />
       <button class="btn" id="fixRoom" title="One agent addresses EVERY open report from this room as a batch, then ships to main and marks them done (kept on file) if the tests pass">🏠 Fix room</button>
       <button class="btn" id="refresh">↻ Refresh</button>
+      <button class="btn" id="restart" title="Relaunch the manager in a fresh window (picks up code changes) and reload this page">♻ Restart</button>
       <button class="btn" id="stop" title="Stop the manager and close its window">⏻ Stop</button>
     </div>
   </div>
@@ -516,6 +517,25 @@ document.getElementById("fixRoom").addEventListener("click", async () => {
     const r = await api("/agent/room-fix", { room: code });
     toast(`🏠 Room ${code}: agent started on ${r.branch} (${r.count} reports).`); el.value = ""; pollJobs();
   } catch (err) { toast(err.message || "Could not start the room agent."); }
+});
+document.getElementById("restart").addEventListener("click", async (e) => {
+  const b = e.currentTarget;
+  if (!b.dataset.armed) {   // one-tap arm, like Stop — a restart briefly drops the server
+    b.dataset.armed = "1"; b.textContent = "♻ Restart now?";
+    setTimeout(() => { if (b) { delete b.dataset.armed; b.textContent = "♻ Restart"; } }, 3000);
+    return;
+  }
+  delete b.dataset.armed; b.textContent = "♻ Restarting…"; b.disabled = true;
+  toast("♻ Restarting — a fresh window opens and this page reloads…", 30000);
+  try { await fetch("/restart", { method: "POST" }); } catch (_e) { /* the server is going down — expected */ }
+  // Wait for the new instance to bind the port, then reload into it.
+  const t0 = Date.now();
+  const waitUp = async () => {
+    if (Date.now() - t0 > 30000) { toast("Still starting — reload once the new window is ready."); b.disabled = false; b.textContent = "♻ Restart"; return; }
+    try { const r = await fetch("/agent/available", { cache: "no-store" }); if (r.ok) return location.reload(); } catch (_e) { /* not up yet */ }
+    setTimeout(waitUp, 1000);
+  };
+  setTimeout(waitUp, 3000);
 });
 document.getElementById("stop").addEventListener("click", async (e) => {
   const b = e.currentTarget;

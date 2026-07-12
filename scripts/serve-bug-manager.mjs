@@ -145,6 +145,24 @@ const server = createServer(async (req, res) => {
       setTimeout(() => process.exit(0), 150);
       return;
     }
+    // Restart from the browser: relaunch the manager, then exit — so a code change (or a wedged state) is
+    // one click away instead of hunting for START-bug-manager.cmd. The new instance waits ~2s so THIS one
+    // exits and frees the port first; the page then auto-reloads once the fresh server answers.
+    if (req.method === "POST" && url.pathname === "/restart") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      const launcher = join(repoRoot, "bugreport", "START-bug-manager.cmd");
+      console.log("\nRestart requested — a fresh manager window opens in ~2s…");
+      try {
+        if (process.platform === "win32" && existsSync(launcher)) {
+          spawn("cmd", ["/c", `timeout /t 2 /nobreak >nul & start "" "${launcher}"`], { detached: true, stdio: "ignore" }).unref();
+        } else {
+          spawn(process.execPath, [fileURLToPath(import.meta.url), ...argv], { detached: true, stdio: "ignore" }).unref();
+        }
+      } catch (e) { console.error("Relaunch failed: " + e.message); }
+      setTimeout(() => process.exit(0), 250);
+      return;
+    }
     // Local agent routes — spawn/track fix agents in isolated worktrees.
     if (url.pathname.startsWith("/agent/")) {
       const send = (payload, status = 200) => {
