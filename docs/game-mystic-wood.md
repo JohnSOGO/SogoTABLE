@@ -152,6 +152,16 @@ Flagged for MojoSOGO's call (an ADDITION, not in the base rulebook — keep or r
   freely** meanwhile, and a two-card area still yields its *other* denizen. Enforced on **both**
   paths — `openEncounter` (human, `rules.js`) and `botEnter` (bot, `ai.js`) — or the bots would
   quietly play by different rules. Was previously unenforced: you could re-roll a denizen for free.
+- **§9 more than one card in an area — NOW ANNOUNCED AND BINDING (2026-07-12, room QZCS):** an area can
+  hold two cards (the Palace/Altar deal two; the Horse can *run into* an occupied glade), and the rule is
+  "you must approach all Denizens individually, and your turn is not over until you have done so or have
+  been sent to another place". The engine already met the second — but silently, so a fresh card appearing
+  the moment the first was dealt with read as a bug ("I get a Merlin card after capturing horse; rules
+  ok?"). It now **names §9** in the chronicle and on the card (`pending.second`). Two halves were also
+  *wrong*: (1) withdraw stayed on offer for the second denizen, though §9 spends the withdrawal on
+  **entering** the area — barred in `doWithdraw`, and `canWithdraw:false` in the projection; (2) `botEnter`
+  met only the **first** card and walked away from the second — bots now loop the area like the human path
+  (`afterEncounter`), stopping only if the knight is carried out of it (Tower/transport).
 - **Chivalry (§15) is implemented** — `game.chivalry` holds each obligation's bearer; merely *seeing*
   a Boy/Damsel in an area you enter lays the duty on you, **withdrawing does not shed it** (the
   rulebook's own example: "He withdraws from the area, but he must take the Save Boy card"), it

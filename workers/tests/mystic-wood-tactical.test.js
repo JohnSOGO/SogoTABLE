@@ -151,3 +151,23 @@ test("Hopeless fight: flagged as hopeless, no sure win, and withdraw stays avail
   const dict = mysticWoodGameToDict(g, "P1");
   assert.equal(dict.pending.canWithdraw, true, "the knight may still withdraw from a hopeless fight");
 });
+
+// Soft-lock (bugs mrhieiyh / mrhihqe8 — "game stuck waiting for working to finish"). The turn legitimately
+// stays OPEN after a move (to joust, or to spend a free move), but the board went on highlighting reachable
+// tiles, so tapping one posted a move the server had to reject — and a rejected action left the client's
+// "⏳ Working…" latch up forever, freezing the game. The client now hides the affordance (render.js mirrors
+// this guard) and the shell re-renders on rejection (app.js). This pins the server contract both rely on:
+// the reject itself, and the two projected fields the board reads to know a move is spent.
+test("Turn flow: a spent move is rejected, and the projection SAYS the move is spent", () => {
+  const g = moveGame({ r: 8, c: 3 });
+  const dest = cellAt(g.board, 8, 2); dest.revealed = true; dest.card = null; dest.card2 = null; dest.open = { N: 1, E: 1, S: 1, W: 1 };
+  cellAt(g.board, 8, 3).open = { N: 1, E: 1, S: 1, W: 1 };
+  Object.assign(g.players.P2, { r: 8, c: 2, tower: false });   // a rival stands there → §12: the turn stays open to joust
+  makeMysticWoodMove(g, "P1", { type: "move", r: 8, c: 2 });
+  assert.equal(g.current_player, "P1", "the turn stays open (a knight to joust here)");
+  const seat = mysticWoodGameToDict(g, "P1").players.find((p) => p.mark === "P1");
+  assert.equal(seat.moved, true, "…but the move is SPENT, and the projection says so");
+  assert.equal(seat.freeMove, false, "…with no free continuation — so the board must offer no reachable tile");
+  assert.throws(() => makeMysticWoodMove(g, "P1", { type: "move", r: 8, c: 1 }), /already moved/,
+    "and the server rejects a second move — the UI must never invite one");
+});

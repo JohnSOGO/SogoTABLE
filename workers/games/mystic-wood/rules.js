@@ -249,7 +249,17 @@ function openEncounter(game, seat, tile) {
 // After a denizen resolves, a two-card area may still hold a second to approach THIS visit — meet it
 // (only once the first is gone; a "remained" first keeps the tile and its partner waits for a later entry).
 function afterEncounter(game, seat, tile) {
-  if (tile && !tile.card && tile.card2 && openEncounter(game, seat, tile)) return;
+  if (tile && !tile.card && tile.card2 && openEncounter(game, seat, tile)) {
+    // §9: "you must approach all Denizens individually, and your turn is not over until you have done so."
+    // The rule is right, but the game never NAMED it — a second card simply appeared once the first was
+    // dealt with, and read as a bug ("I get a Merlin card after capturing horse; rules ok?", mrhijjmm).
+    // Say whose glade it is, in the chronicle and (via `second`) on the card itself.
+    if (game.pending) {
+      game.pending.second = true;
+      logEvent(game, `${denPhrase(tile.card)} was in this glade too — every denizen here must be approached before the turn ends. (§9)`, "a");
+    }
+    return;
+  }
   passTurn(game);
 }
 // Returns a movement disposition: "end" (a spell/gate ended the turn), "encounter" (a denizen pending
@@ -465,6 +475,10 @@ function doWithdraw(game, seat) {
   const p = game.pending;
   if (!p || !["encounter", "greet_pick", "combat_pick"].includes(p.type) || p.mark !== seat.mark) throw new Error("There is nothing to withdraw from.");
   if (seat.arrivedByTransport) throw new Error("You cannot withdraw after being transported here.");
+  // §9: the withdrawal is decided on ENTERING the area — "you may withdraw from the area if possible. If you
+  // do not withdraw, you must approach all Denizens individually." Having met the first denizen, the knight is
+  // committed to the rest; he cannot meet one and slip away from the other.
+  if (p.second) throw new Error("You met the first denizen — §9 binds you to approach every denizen in this area.");
   const back = seat.fromR === undefined ? null : cellAt(game.board, seat.fromR, seat.fromC);
   if (!back) throw new Error("There is nowhere to withdraw to.");
   game.pending = null;
@@ -566,15 +580,16 @@ function pendingToDict(game) {
   const meeter = game.players[p.mark];
   const knightName = meeter.name;   // the intro/first-sight line names the meeting player (human name, or the knight for a bot)
   // §8: you may withdraw from a met denizen unless you arrived by transportation (no retreat path).
-  const canWithdraw = !meeter.arrivedByTransport && meeter.fromR !== undefined;
+  // §9: nor from the SECOND denizen of a two-card area — meeting the first spent the withdrawal.
+  const canWithdraw = !meeter.arrivedByTransport && meeter.fromR !== undefined && !p.second;
   if (p.type === "greet_pick" || p.type === "combat_pick") {
     const den = DEN[p.card];
-    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "", canWithdraw, reroll: !!p.reroll,
+    return { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, groups: p.groups, label: p.label || "", canWithdraw, second: !!p.second, reroll: !!p.reroll,
       noMatch: !!p.noMatch, hopeless: !!p.hopeless,   // GY3B: "no match" (sure win) / "he mocks you" (cannot win — withdraw)
       groupsNoBonus: p.groupsNoBonus, guyonOptional: !!p.guyonOptional,   // §8.2 Guyon's optional +1 (greet only)
       denName: den ? den.name : "", denPhrase: denPhrase(p.card), denClass: den ? den.cls : "", intro: denIntro(p.card, knightName) };
   }
-  const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat, canWithdraw };
+  const out = { type: p.type, mark: p.mark, r: p.r, c: p.c, card: p.card, combat: p.combat, canWithdraw, second: !!p.second };
   const den = DEN[p.card];
   if (den) {
     out.denName = den.name; out.denPhrase = denPhrase(p.card); out.denClass = den.cls; out.denS = den.S || 0; out.denP = den.P || 0;

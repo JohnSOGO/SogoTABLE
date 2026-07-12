@@ -47,6 +47,14 @@ export function clearWorking() { if (workTimer) { clearTimeout(workTimer); workT
 // The first-sight narrative the server writes for a met card (server-owned prose, no user input) —
 // shown on both the encounter card and the pick grid so EVERY card type is met with its own line.
 function introHtml(p) { return p && p.intro ? `<p class="mw-enc-intro">${sanitizeLog(p.intro)}</p>` : ""; }
+// §9: a second denizen was waiting in this area. The rules make you approach EVERY denizen here before the
+// turn ends (and the withdrawal was spent on the first) — but the card just appeared, unannounced, and read
+// as a bug ("I get a Merlin card after capturing horse; rules ok?", mrhijjmm). Name the rule on the card.
+function secondHtml(p) {
+  return p && p.second
+    ? `<div class="mw-prompt" style="text-align:center">🃏 A second denizen holds this glade — §9: you must approach them all before your turn ends. No withdrawing now.</div>`
+    : "";
+}
 // A glance-emoji for each pick outcome, so a face's result reads without reading (bug mrghtdqr).
 const ODDS_EMOJI = { win: "⚔️✨", lose: "⛓️", tie: "🎲", captured: "🕸️", free: "🔓", held: "🔒",
   remains: "😐", transport: "💨", transportYou: "🌀", befriend: "🤝", tower: "⛓️", run: "🐎💨", catch: "🐎",
@@ -84,6 +92,7 @@ export function showEncounter(ctx, game) {
     ${tileHeaderHtml(tile)}
     <h2>${denEmoji(p.card)} ${E(p.denName || (den && den.name) || "")}</h2>
     ${introHtml(p)}
+    ${secondHtml(p)}
     ${denboxHtml(p, den, tile)}
     <div class="row">${p.combat ? `<button class="primary" data-enc="challenge">Challenge</button>` : `<button class="primary" data-enc="greet">Greet</button>`}${p.canWithdraw ? `<button data-enc="withdraw">↩︎ Withdraw</button>` : ""}</div>
   </div></div>`;
@@ -138,6 +147,7 @@ function pickCard(ctx, game, moveType, verb) {
     <div class="tag">${verb} ${name}</div>
     ${tileHeaderHtml(tile)}
     ${introHtml(p)}
+    ${secondHtml(p)}
     <h2>${emoji} Pick one</h2>
     ${p.reroll ? `<div class="mw-prompt" style="text-align:center">🎲 A tie — cast again. Pick one.</div>` : ""}
     ${p.noMatch ? `<div class="mw-prompt" style="text-align:center;color:var(--good,#2e7d32)">⚔️✨ ${name} is no match — you cannot lose here.</div>` : ""}

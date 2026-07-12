@@ -715,3 +715,44 @@ REORG RECEIPT
 - Verification:  node --test workers/tests/*.test.js → 374 pass, 0 fail (incl. architecture.test.js).
                  Reorganizer: reorganizer agent (2026-07-11).
 ```
+
+## 2026-07-12 — Mystic Wood playtest room QZCS (4 reports): UI soft-lock + §9
+
+```
+PLACEMENT RECEIPT
+- Ask:          Four playtest reports from room QZCS. Two are one root cause (the game freezes with
+                "⏳ Working…" up); one asks whether a second denizen after catching the Horse is legal;
+                one asks for a rule audit of a full game log.
+- Verdict:      (1) src/sogotable/static/app.js — postRoomAction's catch [EXISTING owner]
+                (2) src/sogotable/static/games/mystic-wood/render.js — cellsHtml's myTurn [EXISTING]
+                (3) workers/games/mystic-wood/rules.js — afterEncounter / doWithdraw / pendingToDict [EXISTING]
+                (4) src/sogotable/static/games/mystic-wood/encounter.js — the §9 banner [EXISTING]
+                (5) workers/games/mystic-wood/ai.js — botMeet, the §9 bot sibling path [EXISTING]
+- Flow stage:   (1) render (the shell's terminal-path render fan) · (2) render (affordance from published
+                state) · (3) validate + apply + broadcast · (4) render · (5) validate + apply (bot turn)
+- Advisor:      placement-advisor (2026-07-12). New owner rows: NONE — all five land in existing owners.
+- Considerations:
+    - app.js was 2493/2497 (CEILINGS). The advisor ruled a net +1 line does NOT cross the ceiling, so
+      modularity.md's objective trigger for a preparatory refactor is not met and its restraint clause
+      forbids a speculative one. Reorganizer: NOT required. Landed at 2494/2497.
+    - The advisor TRIMMED the app.js change from +2 to +1: re-render on the catch only, NOT on the
+      pendingMove early-return (that path is not a leak — the in-flight move owns its own terminal render,
+      and rendering there would clear a badge that is still truthfully reporting work on the wire). The
+      invariant restored is "both terminal paths render", not "every return renders".
+    - Rejected: clearing the "working" latch inside mystic-wood's client. That is the doctrine's named
+      anti-pattern (defensive patch in every caller instead of one upstream boundary) — EVERY game that
+      latches UI on send has this latent freeze, because they all route through ctx.makeMove =
+      postRoomAction. Fixing it upstream fixes RTTA/Hearts/etc. for free.
+    - Rejected: teaching render.js move-legality. Its guard mirrors published seat fields (moved/freeMove)
+      only; rules.js doHumanMove keeps the reject. The UI stops LYING about what is offered; it decides nothing.
+- Sibling paths: bot vs human on §9 — checked, and it was BROKEN: ai.js botEnter met the first card of a
+                two-card area and walked away from the second, a rule a human is bound by. Fixed in ai.js
+                (botMeet). Bots never withdraw, so the doWithdraw guard has no bot blast radius.
+- Verification: node --test workers/tests/*.test.js → 400 pass, 0 fail (was 396; +4 new tests).
+- app.js is FULL as of this commit (2494/2497). The NEXT app.js change of any size goes to the reorganizer
+  first. Pre-named seam: extract postRoomAction / makeTenThousandAction / the pendingMove in-flight guard
+  into a new src/sogotable/static/client/room-actions.js owner (also lifts a top-level `let` out of the shell).
+- For the code-steward (NOT this batch): render.js reachableSet duplicates rules.js reachableFrom — the client
+  mirrors legality instead of consuming it, which is the root class of the soft-lock. The durable fix is for
+  rules.js to publish the legal target set in the projection. That is a projection-contract change = a second hat.
+```

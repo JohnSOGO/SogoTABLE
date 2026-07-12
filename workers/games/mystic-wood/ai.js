@@ -41,6 +41,15 @@ export function botEnter(game, seat, tile) {
   if (tile.pendingSpell) { const sp = tile.pendingSpell; tile.pendingSpell = null; resolveSpell(game, seat, tile, sp); }
   if (tile.name === "xgate" && seat.questDone && !seat.atGate) seat.atGate = true;
   if (tile.name === "cave" && seat.q === "cave") { seat.caveTurns += 1; if (seat.caveTurns >= 3) seat.questDone = true; }
+  botMeet(game, seat, tile);
+}
+// Approach the denizens of this area. §9: "you must approach all Denizens individually, and your turn is not
+// over until you have done so or have been sent to another place" — the human path loops this in rules.js
+// afterEncounter, but the bot met only the FIRST card and walked away from the second. Bots run the human
+// rules or they run different rules; there is no third option. Loops until the area is met or the knight is
+// carried out of it (Tower / transport), so a bot can never quietly skip a card a human is bound to face.
+function botMeet(game, seat, tile, guard = 0) {
+  if (!tile.card && tile.card2) { tile.card = tile.card2; tile.card2 = null; }   // the second of a two-card area (§9)
   takeChivalry(game, seat, tile); deliverRescue(game, seat, tile);   // §15 obligation / delivery
   if (tile.card && DEN[tile.card].king && seat.knight === "britomart" && !anyKing(game)) return; // Britomart ignores the King
   if (!tile.card) return;
@@ -55,4 +64,8 @@ export function botEnter(game, seat, tile) {
   const combat = den.cls === "beast" || den.cls === "warrior" || den.cls === "magic";
   if (combat) resolveChallenge(game, seat, tile);
   else resolveGreet(game, seat, tile);
+  // Still standing in the area with a card left to meet → meet it. Being sent away (Tower) or transported
+  // ends the obligation, exactly as §9's "or have been sent to another place" says.
+  const here = seat.r === tile.r && seat.c === tile.c && !seat.tower && !seat.out && !seat.won;
+  if (here && !tile.card && tile.card2 && guard < 2) botMeet(game, seat, tile, guard + 1);
 }

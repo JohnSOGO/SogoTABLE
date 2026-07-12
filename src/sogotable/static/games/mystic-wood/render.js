@@ -295,7 +295,12 @@ function reachableSet(game, seat) {
 }
 function cellsHtml(ctx, game, me) {
   const meSeat = game.players.find((p) => p.mark === me);
-  const myTurn = game.current_player === me && game.status === "playing" && meSeat && !meSeat.tower && !meSeat.captured && !game.pending;
+  // A SPENT move must not still look reachable. The turn stays open after a move (to joust, or to take a
+  // free move), and the board went on glowing — so tapping a neighbour posted a move the server had to
+  // reject ("You have already moved this turn."), and a rejected action used to freeze the UI (mrhihqe8).
+  // Mirrors the server's own guard in rules.js doHumanMove, read from published seat fields only.
+  const canMove = meSeat && (!meSeat.moved || meSeat.freeMove);
+  const myTurn = game.current_player === me && game.status === "playing" && meSeat && !meSeat.tower && !meSeat.captured && !game.pending && canMove;
   const reach = myTurn ? reachableSet(game, meSeat) : new Set();
   let h = "";
   for (let r = 0; r < 9; r += 1) for (let c = 0; c < 7; c += 1) {

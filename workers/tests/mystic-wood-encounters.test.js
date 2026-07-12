@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  newMysticWoodGame, initMysticWoodSeats, makeMysticWoodMove, setMysticWoodRandom,
+  newMysticWoodGame, initMysticWoodSeats, makeMysticWoodMove, mysticWoodGameToDict, setMysticWoodRandom,
 } from "../games/mystic-wood/rules.js";
 import {
   buildBoard, cellAt, reachableFrom, resolveGreet, toTower, snubbedBy,
@@ -215,4 +215,63 @@ test("§12: losing a joust for real leaves the loser holding the fight, not a ba
   assert.ok(r.cDie >= 1 && r.cDie <= 6 && r.dDie >= 1 && r.dDie <= 6, "both dice are on the screen");
   assert.match(r.detail, /Tower/, "the fate the fight ended in");
   assert.ok(!/jousts/.test(r.detail), "…and not a duplicate of the headline");
+});
+
+
+// §9 (bug mrhijjmm — "I get a Merlin card after capturing horse; rules ok?"): it IS the rule. An area can
+// hold two cards (the Horse runs into an occupied glade; the Palace/Altar deal two), and "you must approach
+// all Denizens individually, and your turn is not over until you have done so". The play was right; the game
+// simply never SAID so. It now names the rule, and enforces the half it was quietly getting wrong: the
+// withdrawal is spent on ENTERING the area, so you cannot meet the first denizen and slip away from the second.
+test("§9: the second denizen announces itself — the chronicle and the card name the rule", () => {
+  setMysticWoodRandom(() => 0.5);
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.current_player = "P1"; const s = g.players.P1;
+  s.knight = "george"; s.q = "dragon"; s.things = []; s.prowess = []; s.companions = [];
+  const tile = cellAt(g.board, s.r, s.c); tile.revealed = true; tile.card = "ox"; tile.card2 = "merlin";
+  g.pending = { type: "combat_pick", mark: "P1", r: tile.r, c: tile.c, card: "ox", red: 1, label: "Strength", faceMap: [6, 6, 6, 6, 6, 6] };
+  makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 1 });   // the Ox is slain; Merlin was waiting
+  assert.ok(g.pending, "the second denizen opens its own encounter");
+  assert.equal(g.pending.second, true, "…flagged as a §9 second denizen, so the card can say why it appeared");
+  assert.ok(g.log.some((e) => /every denizen here must be approached/.test(e.text) && /§9/.test(e.text)),
+    "the chronicle names §9 instead of letting a fresh card look like a bug");
+  const pend = mysticWoodGameToDict(g, "P1").pending;
+  assert.equal(pend.second, true, "the flag reaches the client");
+  assert.equal(pend.canWithdraw, false, "§9: the withdrawal was spent on the first denizen");
+});
+
+test("§9: you cannot withdraw from the second denizen of a two-card area", () => {
+  setMysticWoodRandom(() => 0.5);
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  g.current_player = "P1"; const s = g.players.P1;
+  s.knight = "george"; s.q = "dragon"; s.things = []; s.prowess = []; s.companions = [];
+  s.fromR = s.r; s.fromC = s.c === 0 ? 1 : s.c - 1; s.arrivedByTransport = false;   // a retreat path exists
+  const back = cellAt(g.board, s.fromR, s.fromC); back.revealed = true;
+  const tile = cellAt(g.board, s.r, s.c); tile.revealed = true; tile.card = "ox"; tile.card2 = "merlin";
+  g.pending = { type: "combat_pick", mark: "P1", r: tile.r, c: tile.c, card: "ox", red: 1, label: "Strength", faceMap: [6, 6, 6, 6, 6, 6] };
+  makeMysticWoodMove(g, "P1", { type: "combat_pick", pick: 1 });
+  assert.equal(g.pending.second, true);
+  assert.throws(() => makeMysticWoodMove(g, "P1", { type: "withdraw" }), /§9/,
+    "having met the first, the knight is bound to approach the second");
+  assert.ok(g.pending, "and the encounter is still standing — the turn cannot be dodged");
+  assert.equal(g.players.P1.r, tile.r, "he has not stepped back");
+});
+
+// Sibling path (bot vs human): the human loops the area in afterEncounter; the bot met the FIRST card and
+// walked away from the second, so bots were playing a §9 a human is bound by. Bots run the human rules.
+test("§9 parity: a bot approaches the second denizen too, it does not walk away", () => {
+  setMysticWoodRandom(mulberry32(11));
+  const g = newMysticWoodGame();
+  initMysticWoodSeats(g, [human("P1"), bot("P2"), bot("P3")]);
+  const b = g.players.P2;
+  b.knight = "george"; b.q = "dragon"; b.things = []; b.prowess = []; b.companions = []; b.tower = false;
+  // The Dwarf and the Nymph are single-effect greets (Armour / Crystal) — they always clear, so this test
+  // measures §9 and not the die.
+  const tile = cellAt(g.board, b.r, b.c); tile.revealed = true; tile.card = "dwarf"; tile.card2 = "nymph";
+  botEnter(g, b, tile);
+  assert.equal(tile.card, null, "the first denizen was met");
+  assert.equal(tile.card2, null, "…and so was the second — no card is left un-approached (§9)");
+  assert.deepEqual(b.things, ["armour", "crystal"], "the bot met BOTH, in order — it no longer walks away from the second");
 });

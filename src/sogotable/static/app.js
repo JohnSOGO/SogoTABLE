@@ -1511,6 +1511,7 @@ async function postRoomAction(action) {
     setRoom(response.room);
   } catch (error) {
     pendingMove = null;
+    renderGame();   // BOTH terminal paths must re-render: a game's UI clears its own "working" latch there, so a rejected action left it up forever and the game looked frozen (mrhihqe8/mrhieiyh)
     showTurnStatus(null, error.message);
     return error.message || "The move failed to send. Try again.";
   }
