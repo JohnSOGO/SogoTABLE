@@ -65,25 +65,26 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .cardmark.mw-pulse{outline:2px solid #7be07b}
 .mystic-wood-root .mw-log{position:relative;flex:1 1 auto;min-height:84px;overflow-y:auto;background:var(--panel);border-top:1px solid var(--rule);padding:5px 8px;font-size:11.5px;line-height:1.4}
 
-/* Mystic Horn: the chronicle strip becomes the horn's own herald — it flashes for the two seconds
-   the knights are in flight, then holds the tale until the player silences it. */
-.mystic-wood-root .mw-horn{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;gap:3px;padding:6px 10px;background:var(--panel);overflow-y:auto;box-shadow:inset 0 0 0 2px var(--gold)}
-.mystic-wood-root .mw-horn-title{font-family:var(--serif);font-variant:small-caps;letter-spacing:.04em;font-size:14px;color:var(--gold2);flex:none}
-.mystic-wood-root .mw-horn-tale{font-size:11.5px;line-height:1.45;color:var(--ink)}
-.mystic-wood-root .mw-horn-tale b{color:var(--gold2)}
-.mystic-wood-root .mw-horn-tale .muted{color:var(--muted)}
-.mystic-wood-root .mw-horn-exit{align-self:center;flex:none;margin-top:4px;font-size:11px;padding:5px 11px;white-space:nowrap}
-.mystic-wood-root .mw-horn-flash{animation:mw-horn-flash .32s steps(1) infinite}
-.mystic-wood-root .mw-horn-flash .mw-horn-tale,.mystic-wood-root .mw-horn-flash .mw-horn-tale .muted{color:#fff}
-.mystic-wood-root .mw-horn-flash .mw-horn-title,.mystic-wood-root .mw-horn-flash .mw-horn-tale b{color:#fff8dc}
-@keyframes mw-horn-flash{
+/* Herald: an event's tale takes over the chronicle strip (herald.js) — it flashes as it arrives,
+   holds the tale to be read, then clears itself. Generic chrome; each event adds its own modifier
+   (`.mw-herald-horn` — the Mystic Horn's four-hued flash, the wood answering). */
+.mystic-wood-root .mw-herald{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;gap:3px;padding:6px 10px;background:var(--panel);overflow-y:auto;box-shadow:inset 0 0 0 2px var(--gold)}
+.mystic-wood-root .mw-herald-title{font-family:var(--serif);font-variant:small-caps;letter-spacing:.04em;font-size:14px;color:var(--gold2);flex:none}
+.mystic-wood-root .mw-herald-tale{font-size:11.5px;line-height:1.45;color:var(--ink)}
+.mystic-wood-root .mw-herald-tale b{color:var(--gold2)}
+.mystic-wood-root .mw-herald-tale .muted{color:var(--muted)}
+.mystic-wood-root .mw-herald-exit{align-self:center;flex:none;margin-top:4px;font-size:11px;padding:5px 11px;white-space:nowrap}
+.mystic-wood-root .mw-herald-flash .mw-herald-tale,.mystic-wood-root .mw-herald-flash .mw-herald-tale .muted{color:#fff}
+.mystic-wood-root .mw-herald-flash .mw-herald-title,.mystic-wood-root .mw-herald-flash .mw-herald-tale b{color:#fff8dc}
+.mystic-wood-root .mw-herald-horn.mw-herald-flash{animation:mw-herald-horn-flash .32s steps(1) infinite}
+@keyframes mw-herald-horn-flash{
   0%{background:#3b2a5e;box-shadow:inset 0 0 0 2px #a97bd6}
   25%{background:#5e3a20;box-shadow:inset 0 0 0 2px var(--gold)}
   50%{background:#1f5244;box-shadow:inset 0 0 0 2px #4fae91}
   75%{background:#5a2320;box-shadow:inset 0 0 0 2px var(--crimson)}
 }
 .mystic-wood-root .tok.mw-tok-horn{z-index:5;box-shadow:0 0 0 3px rgba(224,189,99,.65),0 2px 8px #000b}
-@media (prefers-reduced-motion:reduce){.mystic-wood-root .mw-horn-flash{animation:none;background:var(--panel2)}}
+@media (prefers-reduced-motion:reduce){.mystic-wood-root .mw-herald-flash{animation:none;background:var(--panel2)}}
 .mystic-wood-root .mw-actions{display:flex;justify-content:center;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-top:1px solid var(--rule);overflow-x:auto;flex-wrap:nowrap;border-radius:0 0 10px 10px}
 .mystic-wood-root .mw-actions button{font-size:12px;padding:8px 11px;white-space:nowrap;flex:0 0 auto;width:auto;height:auto}
 .mystic-wood-root .mw-prompt{flex:none;align-self:center;font-size:11px;color:var(--muted);white-space:nowrap;padding-right:2px}
@@ -112,6 +113,8 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .chip{font-size:10px;background:var(--panel2);border:1px solid var(--rule);border-radius:99px;padding:1px 7px;color:var(--gold2)}
 .mystic-wood-root .chip.comp{color:var(--azure);border-color:#3a4a66}
 .mystic-wood-root .badge{font-size:10px;background:#5a2320;border:1px solid #a33;border-radius:99px;padding:1px 7px;color:#e8a}
+/* the Bishop's vigil is a boon in progress, not a misfortune — gold, not the prison badge's red (mrh93gvz) */
+.mystic-wood-root .mw-pray{background:var(--panel2);border-color:var(--gold);color:var(--gold2);font-weight:700}
 .mystic-wood-root .holdable{cursor:help;user-select:none;-webkit-user-select:none}
 
 /* slide-over panels (Knights / Chronicle) */

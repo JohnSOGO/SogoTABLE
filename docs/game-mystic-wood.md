@@ -41,14 +41,17 @@ Powers activate from the action bar when held: **🔮 Scry** (Crystal), **🔄 R
 
 Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTTA precedent.
 
-- **Server (authoritative, pure):** `workers/games/mystic-wood/{data,engine,rules,ai}.js`. One
-  seeded RNG seam; board gen (T-junction/crossroads tiles), movement, a recycling denizen deck,
+- **Server (authoritative, pure):** `workers/games/mystic-wood/{data,engine,events,spells,rules,ai}.js`.
+  One seeded RNG seam; board gen (T-junction/crossroads tiles), movement, a recycling denizen deck,
   combat/greet/spell/power resolution, the turn machine, and human-path bots. Dispatch row in
-  `workers/games/handlers.js`.
+  `workers/games/handlers.js`. `events.js` is the pure leaf that writes the seq'd board-event
+  descriptors (`recordRotation` / `recordHorn`) — engine and spells import it; it imports nothing.
 - **Client:** `src/sogotable/static/games/mystic-wood/{render,styles,manifest}.js` — the 7×9
   board + 3-level zoom, seat list, encounter Greet/Challenge prompt, power buttons, end screen.
   Idempotent snapshot render from `mysticWoodGameToDict`; intents via `ctx.makeMove`. Joins the
-  shared host-start render branch in `app.js`. `horn.js` owns the Mystic Horn scatter effect.
+  shared host-start render branch in `app.js`. `horn.js` owns the Mystic Horn's token tour; `herald.js`
+  owns the generic self-clearing banner (title/tale/dismiss over the chronicle strip, keyed by an event
+  seq) that the Horn — and any future board event — raises to tell its tale.
 - **State** is plain serializable data; the projection carries inventory names + an encounter
   combat preview so the client does zero rules math.
 - **Discrete one-shot events** ride the projection as monotonically-seq'd records the client fires
@@ -60,7 +63,7 @@ Follows the standard one-game contract (`docs/adding-a-game.md`), Mazewright/RTT
   the resolution produced — `detail` for a challenge, `result` for a greet — so the modal says *what
   happened* (the Dragon slain, a Thing taken, the crown claimed), not just who rolled higher. Resolve
   first, `recordRoll` last; the headline (`Victory! — 9 vs 6`) is not repeated in the detail.
-  A resolution reads its own lines back through `logMark`/`logSince` (`engine.js`), which count
+  A resolution reads its own lines back through `logMark`/`logSince` (`narration.js`), which count
   events (`game.log_n`) rather than index into `game.log` — the chronicle is capped at 80 lines, and
   an index goes stale the instant the cap starts trimming the front. **Never `game.log.slice(n)`.**
 - **A greeting tells a story.** `DEN_TALES` (`data.js`) gives every reaction a greet table can roll
@@ -127,8 +130,8 @@ Flagged for MojoSOGO's call (an ADDITION, not in the base rulebook — keep or r
 - **The Mystic Horn is staged, not silent (2026-07-08; hardened 2026-07-10).** A scatter used to
   look like a teleport, so knights lost their own token. `horn.js` plays it: a horn call, every
   token touring each knight's landing place in turn before it settles (~2s, one-shot per
-  `horn.seq`), and the chronicle strip becomes a flashing herald that narrates the Horn.
-  Reduced-motion skips the tour and the flashing.
+  `horn.seq`), and the chronicle strip becomes a flashing herald (`herald.js`) that narrates the
+  Horn. Reduced-motion skips the tour and the flashing.
   Two fixes (bug `mrdk3cws-996mir`): (1) the tour now **resumes on every render** while it is in
   flight — a snapshot render rebuilds the tokens, so a mid-tour re-render (a bot's turn, a poll)
   used to strand the knights half-way and you'd never see the full scatter. (2) The herald

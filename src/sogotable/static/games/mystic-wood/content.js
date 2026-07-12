@@ -68,12 +68,33 @@ export const THING_DESC = {
   crystal: "Scry the deck. On your turn, press <b>🔮 Scry</b> beneath the board to reveal the next card.",
 };
 export const COMP_DESC = {
-  sage: "Adds +2 Prowess to one contest, then departs.", princess: "+1 Prowess. Won't aid against the King. (Roland's quest companion.)",
-  prince: "Lends +3 Strength & +3 Prowess to ONE fight (never vs the King, nor George vs the Dragon), then just travels on. (Britomart's quest companion.)", grail: "+1 Strength and +1 Prowess. Not a Thing. (Perceval's quest object.)",
+  sage: "Adds +2 Prowess to one contest, then departs.",
+  // She is BOTH: a friend to win, and a runner until you do (bug mrh9g4wv — "is she supposed to flee or a
+  // friend… she keeps running away"). Greeting her is die + your Prowess: 9+ she joins, less and she is gone
+  // to the far Gate (§18.16). And she must still be BESIDE you when you leave — losing her un-does the quest.
+  princess: "+1 Prowess. Won't aid against the King. (Roland's quest companion.)<br><b>Greet her:</b> die + your Prowess — <b>9+</b> and she befriends you; anything less and she flees to the Gate in the <i>other</i> half of the wood, to be sought again. Raise your Prowess and she is easier to win.<br><b>Roland's quest:</b> she must still be with you when you leave by the Enchanted Gate — if you are vanquished she is left behind in the wood, and the quest is unfulfilled until you win her back.",
+  prince: "Lends +3 Strength & +3 Prowess to ONE fight (never vs the King, nor George vs the Dragon), then just travels on. (Britomart's quest companion — she must still have him when she leaves.)", grail: "+1 Strength and +1 Prowess. Not a Thing. (Perceval's quest object — he must still bear it when he leaves.)",
   magician: "On your turn, press <b>🌩️ Storm</b> beneath the board, then tap an area: for three full turns no one may enter or leave it by normal movement (magical movement — transport/horn — still passes). Never from or at the Tower. No stat bonus.",
   archmage: "On your turn, press <b>✨ Transport</b> beneath the board to send yourself to any revealed place.",
   boy: "Rescued, not fought — greeting him makes him your Companion, and seeing him obliges you to rescue him. (Chivalry §15.)",
   damsel: "Rescued, not fought — greet her to take her as a Companion, then deliver her to the Queen's area to rescue her. (Chivalry §15.)",
+};
+// The tale a board-wide event tells when it lands — the herald render.js raises so a spin or a sweep is
+// never a silent, unattributed jump (bug mrh97d6q). `who` arrives ALREADY ESCAPED from render.js (a tale is
+// raw HTML and the name is player-chosen); the counts come from the server's event, never re-derived here.
+export const EVENT_TALE = {
+  fog: { title: "🌫️ The Mystic Fog", body: (who, n) =>
+    `<b>${who}</b> turns over the Mystic Fog, and the wood breathes it in.<br>`
+    + `Paths that ran north now run south: <b>${n} area${n === 1 ? "" : "s"}</b> of the wood turn about where they stand — every road on them reversed. `
+    + `<span class="muted">The tiles you see spinning are the same tiles, turned around. Look again before you ride: the way you came may no longer be open.</span>` },
+  wand: { title: "🪄 The Wand", body: (who) =>
+    `<b>${who}</b> raises the Wand, and the glade underfoot swings slowly about.<br>`
+    + `<span class="muted">The tile turns 180° — its roads now lead the other way.</span>` },
+  wind: { title: "🌬️ The Mystic Wind", body: (who, swept) => swept
+    ? `<b>${who}</b> turns over the Mystic Wind, and it tears through the wood.<br>`
+      + `Every <b>Thing</b> held by every knight — <b>${swept}</b> in all — is torn from their hands and scattered back into the wood. Armour, Wand, Potion, Ring: all gone at once.<br>`
+      + `<span class="muted">Companions are not Things: the Grail, the Princess, the Prince and the Sage all stay. Nor does it touch the Horse you ride.</span>`
+    : `<b>${who}</b> turns over the Mystic Wind — it blows hard through the wood, but no knight holds a Thing for it to take.` },
 };
 export const AREA_NAMES = { cave: "Cave", chapel: "Chapel", castle: "Castle", fountain: "Fountain", grove: "Sacred Grove", island: "Island", palace: "Palace", altar: "Altar", tower: "Tower", egate: "Earthly Gate", xgate: "Enchanted Gate" };
 export const AREA_FX = {

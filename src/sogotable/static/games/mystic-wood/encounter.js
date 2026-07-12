@@ -255,6 +255,20 @@ function renderDiceModal(ctx, roll) {
       <div class="result mw-result-big"><span class="r">⛓️ Cast into the Tower jail!</span></div>
       <div class="hint">On your turn you may try to escape — a 5 or 6 frees you, the fourth dawn opens the door on its own, and the Key unlocks it at once.</div>
       <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
+  } else if (roll.pray) {
+    // §18.2: a turn of prayer SPENDS the turn — the knight kneels instead of moving, and the seat is skipped.
+    // Skipped in silence, the vigil looked broken and stuck at one ("bishop only does 1 of three… no chance to
+    // sit three rounds", mrh93gvz). Now each kept turn gets its own modal and counts itself down to the Ring.
+    const n = roll.turns || 0;
+    inner = roll.blessed
+      ? `<div class="tag">The Bishop</div>
+        <div class="result mw-result-big"><span class="g">💍 The Bishop blesses you with the Ring!</span></div>
+        <div class="mw-result-detail">Three full turns of prayer kept — the Ring is yours: <b>+1 Prowess</b>. You may move again on this turn.</div>
+        <div class="row"><button class="primary" data-close="1">Continue</button></div>`
+      : `<div class="tag">The Bishop</div>
+        <div class="result mw-result-big mw-result-tale">🙏 You keep the vigil — <b>${n} of 3</b>.</div>
+        <div class="mw-result-detail">This turn is spent kneeling: you do not move. <b>${3 - n} more turn${3 - n === 1 ? "" : "s"}</b> of prayer and the Bishop gives you the <b>Ring (+1 Prowess)</b>.<br><span class="muted">If the prayer is broken before then, the turns kept are lost.</span></div>
+        <div class="row"><button class="primary" data-close="1">Continue</button></div>`;
   } else if (roll.escape) {
     // The picked escape shows no die (the pick stood in for the roll); the headline says free or held.
     const capture = roll.mode === "capture", key = roll.mode === "key";

@@ -1,22 +1,14 @@
 // The Mystic Wood — spells & storms (pure: no DOM, no I/O, no timers).
 // The three Mystic spell cards (Fog / Wind / Horn) resolve on arrival, and the
 // Magician companion's storm bars an area. Extracted from engine.js to keep it
-// under the god-file cap. Shared primitives (logEvent, relocate, recordRotation)
-// flow in from engine.js; this module is a leaf — engine never imports it back.
-import { logEvent, relocate, recordRotation } from "./engine.js";
+// under the god-file cap. relocate flows in from engine.js; the chronicle (logEvent)
+// from the pure narration.js leaf; the seq'd board-event descriptors the client heralds
+// (recordRotation / recordHorn) from the pure events.js leaf. Neither leaf imports back.
+import { relocate } from "./engine.js";
+import { logEvent } from "./narration.js";
+import { recordRotation, recordHorn, recordWind } from "./events.js";
 
 /* ------------------------------- spells --------------------------------- */
-// The scatter is a discrete, one-shot presentation event (like a roll): the client tours the tokens
-// across the wood exactly once, keyed off the seq. A re-render, a reconnect, or a reload must never
-// replay it, so the seq only ever advances — it is never cleared.
-function recordHorn(game, byName, scattered) {
-  game.horn_seq = (game.horn_seq || 0) + 1;
-  game.horn = {
-    seq: game.horn_seq, byName,
-    marks: scattered.map((s) => s.mark),
-    tour: scattered.map((s) => [s.r, s.c]),
-  };
-}
 // Returns { endTurn } — Mystic Horn ends the drawer's turn.
 export function resolveSpell(game, seat, tile, spellId) {
   const name = seat.name;
@@ -24,16 +16,19 @@ export function resolveSpell(game, seat, tile, spellId) {
     // §18.12: every face-up arrow area rotates 180°. Fixed areas (Gates/Tower) don't turn.
     const spun = [];
     for (const t of game.board) if (t.revealed && !t.fixed) { const o = t.open; t.open = { N: o.S, S: o.N, E: o.W, W: o.E }; spun.push(t); }
-    recordRotation(game, spun);
+    recordRotation(game, spun, name, "fog");
     const n = spun.length;
-    logEvent(game, `Mystic Fog rolls through — ${n} area${n === 1 ? "" : "s"} of the wood turn about.`);
+    // Name the knight who drew it: the wood turns on someone ELSE's turn too, and an unattributed spin
+    // read as the board glitching (bug mrh97d6q).
+    logEvent(game, `${name} draws the Mystic Fog — it rolls through, and ${n} area${n === 1 ? "" : "s"} of the wood turn about.`);
     return {};
   }
   if (spellId === "wind") {
     // §18.14: sweeps every Thing HELD by a Knight (not Companions, not the Grail, not the mount Horse).
     let swept = 0;
     for (const m of game.seat_order) { const q = game.players[m]; swept += q.things.length; q.things = []; }
-    logEvent(game, swept ? "Mystic Wind blows — every Thing held by the knights is swept away!" : "Mystic Wind blows, but no knight holds a Thing to lose.", swept ? "r" : "");
+    recordWind(game, name, swept);
+    logEvent(game, swept ? `${name} draws the Mystic Wind — it blows, and every Thing held by the knights is swept away!` : `${name} draws the Mystic Wind, but no knight holds a Thing to lose.`, swept ? "r" : "");
     return {};
   }
   if (spellId === "horn") {
