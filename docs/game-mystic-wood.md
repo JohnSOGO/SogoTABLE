@@ -238,7 +238,7 @@ so.**
 | Mystic Wind sweeps your Things | §18.14 — off-turn when a rival draws it | forced; **victim now told what THEY lost** (2026-07-12), not just the shared herald |
 | Mystic Horn scatter; Magician's Storm | §6 / §18.11 | forced; staged/narrated (Horn token-tour; storm badges) |
 | A quest-companion is torn away (Princess/Prince/Grail) → your quest reverts | §16 / §12 | forced; **victim now told** (2026-07-12) — `syncQuestCompanion` notice; covers the off-turn joust-steal (the fight-loss path already carries it in the result detail) |
-| Mystic Fog rotates the wood around you | §18.12 | forced; chronicle + rotation animation only — a per-victim notice is the one remaining informed follow-up |
+| Mystic Fog rotates the wood around you | §18.12 | forced; **informed by seeing it** — a gold ring now marks exactly the turned tiles (2026-07-12), surviving a 180°-symmetric tile and reduced motion; no notice needed (seeing the tiles turn IS the information) |
 | Queen's boon casts a rival into the Tower | §ext | forced; informed |
 | Power-Limit *that you exceed* must be resolved | §18 — surrender is mandatory | forced **to resolve** — but *which* cards is a choice (below) |
 
