@@ -165,11 +165,15 @@ function beginSeatTurn(game, seat) {
       // gets the same result modal every other spent turn gets, counting the vigil down to the Ring.
       if (!seat.is_bot) recordRoll(game, seat.mark, { pray: true, turns: seat.prayerTurns, blessed });
     } else { seat.praying = false; logEvent(game, `${name} leaves the Bishop; the prayer lapses.`); }
-    // Kneeling commits the knight: the Bishop holds them here, so a still-praying seat misses
-    // its turn (the prayer just counted above) instead of being handed a move that would lapse it.
-    // Bots already hold in ai.js; this makes a human wait the same three turns. On the turn the
-    // prayer completes, `praying` is now false and the seat plays on (with the Ring).
-    if (seat.praying) return "skip";
+    // §18.2: kneeling commits the knight — the Bishop holds them here for three turns. The human TAKES
+    // each of those turns (return "act", NOT "skip") so they SEE and FEEL the vigil tick, one turn at a
+    // time. Returning "skip" made beginAndAdvance loop through all three prayer turns — and the bot turns
+    // between them — in a SINGLE server pass, collapsing the whole three-turn prayer into one instant the
+    // player never experienced ("shows me spending three turns but I don't feel like I spend three turns…
+    // is this game turn locked?", 9JOM mrik3dsn). Moves are blocked while praying (makeMysticWoodMove), so
+    // it still cannot be lapsed — the only action is End turn, which passes to the next round and ticks the
+    // next prayer. Bots hold in ai.js. When the prayer completes, `praying` is false and the seat plays on.
+    if (seat.praying) return "act";
   }
   // §5.3/§8: a denizen sitting on your area (you were transported onto it) must be approached BEFORE any
   // move. Humans get the encounter opened here; bots resolve it in playBotTurn.
@@ -566,6 +570,10 @@ export function makeMysticWoodMove(game, mark, action) {
   const seat = game.players[mark];
   if (seat.is_bot) throw new Error("Bot seats are resolved automatically.");
   const type = (action && action.type) || action;
+  // §18.2: at prayer before the Bishop the knight is committed — the ONLY move is to End turn, which ticks
+  // the next prayer next round. Blocking the rest is what makes the prayer a felt, un-lapse-able three turns
+  // (the seat now takes each turn — see beginSeatTurn) instead of the old silent auto-skip (9JOM mrik3dsn).
+  if (seat.praying && type !== "end-turn") throw new Error("You are at prayer before the Bishop — End turn to keep praying; you cannot act until he blesses you.");
   switch (type) {
     case "move": doHumanMove(game, seat, action); break;
     case "encounter": doEncounterChoice(game, seat, action); break;

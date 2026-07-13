@@ -398,32 +398,34 @@ test("Greet: the Sage and the Bishop have fixed reactions and roll no die", () =
   assert.equal(bishop.game.results.P1.die, null);
 });
 
-// Report mrfof9ip-to1swn: "Bishop doesn't make me wait three turns. It starts but doesn't count."
-// A bot HOLDS while praying (ai.js), so its prayer counts every round — but a human used to be
-// handed a normal, active turn, and any move silently LAPSED the prayer, so a human playing
-// naturally never accumulated the count. Kneeling is a commitment: the Bishop must hold the human
-// the same three turns hands-free. After the kneel turn ends, the turn machine must auto-skip the
-// still-praying seat (counting the prayer) until the Ring is earned — no further input required.
-test("Bishop: kneeling holds a human for three turns and earns the Ring hands-free", () => {
+// Report mrfof9ip: a move during prayer used to LAPSE it, so it never counted. The first fix HELD the
+// seat by AUTO-SKIPPING — which ran all three prayer turns (and the bots between) in one server pass,
+// collapsing the vigil into an instant the player never felt (9JOM mrik3dsn). Right: the human TAKES each
+// prayer turn (one End turn ticks ONE), and moving is blocked so it still can't be lapsed.
+test("Bishop: prayer is three FELT turns — one End turn ticks one, and it can't be lapsed (9JOM mrik3dsn)", () => {
   setMysticWoodRandom(mulberry32(42));
   const game = newMysticWoodGame();
   initMysticWoodSeats(game, [human("P1"), bot("P2"), bot("P3")]);
   assert.equal(game.current_player, "P1");
   const p1 = game.players.P1;
 
-  // Kneel: put the Bishop under the human and start the prayer, then end the kneel turn once.
   const tile = cellAt(game.board, p1.r, p1.c);
   tile.card = "bishop"; tile.revealed = true;
   resolveGreet(game, p1, tile);
   assert.equal(p1.praying, true);
   assert.equal(p1.prayerTurns, 0);
 
-  makeMysticWoodMove(game, "P1", { type: "end-turn" });   // one input — the Bishop takes it from here
+  makeMysticWoodMove(game, "P1", { type: "end-turn" });
+  assert.equal(p1.prayerTurns, 1, "one End turn ticks exactly ONE prayer — the three do NOT collapse");
+  assert.equal(game.current_player, "P1", "and the turn returns to the praying knight, not skipped past");
+  assert.throws(() => makeMysticWoodMove(game, "P1", { type: "move", r: p1.r, c: p1.c + 1 }), /prayer|End turn/i,
+    "moving is blocked, so the prayer cannot be lapsed");
 
-  assert.equal(game.status, "playing");
-  assert.equal(p1.prayerTurns, 3, "the prayer must count to three unattended");
-  assert.equal(p1.praying, false, "the prayer completes and releases the knight");
-  assert.ok(p1.things.includes("ring"), "three turns of prayer earn the Ring");
+  makeMysticWoodMove(game, "P1", { type: "end-turn" });
+  makeMysticWoodMove(game, "P1", { type: "end-turn" });
+  assert.equal(p1.prayerTurns, 3, "counted to three, one taken turn at a time");
+  assert.equal(p1.praying, false, "then the prayer releases the knight");
+  assert.ok(p1.things.includes("ring"), "with the Ring earned (§18.2)");
   assert.equal(game.current_player, "P1", "the freed knight gets its turn back");
 });
 
@@ -729,6 +731,8 @@ test("integration: seeded bot-heavy games run to completion with a valid winner"
         else makeMysticWoodMove(g, g.current_player, { type: "encounter", choice: g.pending.combat ? "challenge" : "greet" });
         continue;
       }
+      // At prayer the only legal move is End turn (the seat takes each of the three prayer turns).
+      if (seat.praying) { makeMysticWoodMove(g, g.current_player, { type: "end-turn" }); continue; }
       // A move no longer auto-ends the turn (§5.2 free move); this harness takes ONE move then ends,
       // so it exercises the machine without chasing the optional free-move chain.
       if (seat.moved) { makeMysticWoodMove(g, g.current_player, { type: "end-turn" }); continue; }

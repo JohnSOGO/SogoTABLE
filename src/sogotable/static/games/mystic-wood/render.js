@@ -218,6 +218,10 @@ function actionsHtml(ctx, game, me) {
     const tile = tileAt(game, meSeat.r, meSeat.c);
     // Storm-targeting mode: the whole bar becomes a prompt — tap an area on the board to storm it.
     if (stormMode) return `<span class="mw-prompt">🌩️ Tap an area to storm</span><button data-act="stormcancel">Cancel</button>`;
+    // §18.2: at prayer the knight is committed — the only act is to End turn, which keeps the vigil and
+    // passes to the next round (where it ticks again). The bar is JUST that, so each of the three turns is
+    // taken and SEEN, not silently auto-skipped and collapsed into one (9JOM mrik3dsn).
+    if (meSeat.praying) return `<span class="mw-prompt">🙏 Praying — <b>${meSeat.prayerTurns || 0}/3</b>. <b>End turn ▶</b> to keep praying.</span><button class="primary" data-act="end">End turn</button>`;
     const has = (id) => (meSeat.things || []).some((t) => t.id === id);
     const comp = (id) => (meSeat.companions || []).some((c) => c.id === id);
     // A vigil is kept by NOT moving: the turn only counts if you are still on the tile when the next one
@@ -226,8 +230,7 @@ function actionsHtml(ctx, game, me) {
     // of the vigil — and say the same for the Bishop's prayer, which is the identical mechanic.
     const myQuest = (KNIGHTS[meSeat.knight] || {}).q;   // the projection carries `knight`, not the server's `q`
     const vigil = tile && tile.name === "cave" && myQuest === "cave" && !meSeat.questDone && !meSeat.isKing
-      ? `🕯️ Keeping vigil — <b>${meSeat.caveTurns || 0}/3</b>. Don't move: <b>End turn ▶</b> to keep this one.`
-      : meSeat.praying ? `🙏 Praying — <b>${meSeat.prayerTurns || 0}/3</b>. Don't move: <b>End turn ▶</b> to keep this one.` : "";
+      ? `🕯️ Keeping vigil — <b>${meSeat.caveTurns || 0}/3</b>. Don't move: <b>End turn ▶</b> to keep this one.` : "";
     if (vigil) btns += `<span class="mw-prompt">${vigil}</span>`;
     // After a move the turn stays open only for a free move or a joust — make that OBVIOUS so it never
     // looks stuck (the reason the bots seemed frozen: you had to End turn).
@@ -303,7 +306,7 @@ function cellsHtml(ctx, game, me) {
   // free move), and the board went on glowing — so tapping a neighbour posted a move the server had to
   // reject ("You have already moved this turn."), and a rejected action used to freeze the UI (mrhihqe8).
   // Mirrors the server's own guard in rules.js doHumanMove, read from published seat fields only.
-  const canMove = meSeat && (!meSeat.moved || meSeat.freeMove);
+  const canMove = meSeat && (!meSeat.moved || meSeat.freeMove) && !meSeat.praying;   // at prayer, moving would lapse the vigil — the server blocks it, so don't glow reachable
   const myTurn = game.current_player === me && game.status === "playing" && meSeat && !meSeat.tower && !meSeat.captured && !game.pending && canMove;
   const reach = myTurn ? reachableSet(game, meSeat) : new Set();
   let h = "";
