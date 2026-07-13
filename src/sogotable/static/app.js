@@ -1619,6 +1619,7 @@ function clearBattleshipReveals() {
 
 function setRoom(room) {
   if (isStaleRoomSnapshot(currentRoom, room)) return;
+  if (currentRoom && room && currentRoom.code === room.code && Number(room.revision) > Number(currentRoom.revision || 0) + 1) console.info(`[sync] recovered ${Number(room.revision) - Number(currentRoom.revision) - 1} missed broadcast(s) — rev ${currentRoom.revision}→${room.revision}`);
   const previousRoom = currentRoom;
   currentRoom = room;
   clearResolvedPendingMove(room);

@@ -44,7 +44,7 @@ export function createRealtimeController(callbacks) {
     connectRoomSocket();
     callbacks.refreshRoom();
   }
-  function onForeground() { if (roomCode) refreshRoomLiveUpdates(); }
+  function onForeground() { if (roomCode) { syncLog("foreground/pageshow → reconnect + re-pull"); refreshRoomLiveUpdates(); } }
   function armRoomPoll() {
     disarmRoomPoll();
     roomPollTimer = setInterval(() => {
@@ -73,12 +73,15 @@ export function createRealtimeController(callbacks) {
       const wasReconnecting = roomSocketReconnectAttempts > 0;
       connectedRoomCode = roomCode;
       roomSocketReconnectAttempts = 0;
+      syncLog(`room socket open${wasReconnecting ? " (reconnected — re-pulling)" : ""}`);
       if (wasReconnecting) callbacks.refreshRoom();
     });
     roomSocket.addEventListener("message", callbacks.onRoomMessage);
     roomSocket.addEventListener("close", () => {
       roomSocket = null;
-      if (callbacks.shouldReconnectRoom()) {
+      const willReconnect = callbacks.shouldReconnectRoom();
+      syncLog(`room socket closed${willReconnect ? " — reconnecting" : ""}`);
+      if (willReconnect) {
         callbacks.onRoomReconnect();
         scheduleRoomReconnect();
       }
@@ -186,3 +189,9 @@ export function createRealtimeController(callbacks) {
 function reconnectDelay(attempts) {
   return Math.min(MAX_RECONNECT_DELAY_MS, 2000 * 2 ** attempts);
 }
+
+// Multiplayer sync breadcrumbs (§ Multiplayer Resilience: add debug visibility). Low-noise — only the
+// diagnostic transport events (socket open/close, foreground recovery), NOT every snapshot or poll tick.
+// Read them with the browser console (or the in-chrome read_console_messages tool) when a two-human game
+// hitches: a gap in socket-open lines, or a foreground re-pull that unsticks play, tells the story.
+function syncLog(msg) { if (typeof console !== "undefined" && console.info) console.info("[sync] " + msg); }
