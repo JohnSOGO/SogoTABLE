@@ -294,8 +294,9 @@ test("architecture: every game declares a lobbyMode consistent with host_start",
 // the next large addition to them also forces a conversation.)
 const GLOBAL_FILE_CAP = 800;
 const FILE_CAP_EXCEPTIONS = {
-  // Per-domain split is a tracked follow-up (review #5); pinned until then.
-  "workers/tests/sogotable-api.test.js": 2810,
+  // Per-domain split is in progress (review #5): the 10,000 domain now lives in
+  // sogotable-api-ten-thousand.test.js. Ratchet this down as more domains peel off.
+  "workers/tests/sogotable-api.test.js": 2263,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];
