@@ -50,6 +50,12 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .cell.reachable{outline-color:var(--gold);cursor:pointer}
 .mystic-wood-root .cell.reachable:hover{outline-color:var(--gold2)}
 .mystic-wood-root .cell.current{outline-color:var(--crimson)}
+/* Fog/Wand "turned this tile" cue: a gold ring on exactly the tiles that rotated — the information that
+   survives a 180°-symmetric tile and a reduced-motion device (where the spin is suppressed). Inset so the
+   cell's overflow:hidden never clips it. Static ring always; a gentle glow-pulse only when motion is OK. */
+.mystic-wood-root .cell.mw-rotating{z-index:4;box-shadow:inset 0 0 0 3px var(--gold-bright)}
+@media (prefers-reduced-motion:no-preference){.mystic-wood-root .cell.mw-rotating{animation:mw-rotring .6s ease-in-out infinite}}
+@keyframes mw-rotring{50%{box-shadow:inset 0 0 0 3px var(--gold-bright),inset 0 0 15px 3px var(--gold)}}
 /* Magician's Storm: a badge on a stormy area (turns left), and the dashed targets while aiming one. */
 .mystic-wood-root .mw-storm{position:absolute;left:3px;top:3px;z-index:3;display:flex;align-items:center;gap:1px;font-size:12px;line-height:1;padding:1px 3px;border-radius:5px;background:#0009;border:1px solid #7fb0e0;color:#cfe3ff}
 .mystic-wood-root .mw-storm b{font-size:11px;color:#fff}

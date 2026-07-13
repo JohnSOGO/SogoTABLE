@@ -393,25 +393,30 @@ function syncBoardEvents(game) {
 function syncRotation(root, game) {
   const rot = game.rotation;
   if (!rot || !rot.seq) return;
-  if (rot.seq > seenRotation) {                                // a NEW turning of the wood — start the spin
+  // "Seeing the tile rotate is information enough" — so the information must survive when the tile is
+  // 180°-SYMMETRIC (a +-road tile looks identical after the turn) OR the device suppresses motion (the
+  // spin used to be skipped entirely on reduced-motion, so those players saw nothing). A gold ring marks
+  // exactly which tiles turned, in BOTH paths; the spin rides on top only when motion is allowed.
+  const reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  if (rot.seq > seenRotation) {                                // a NEW turning of the wood — start the cue
     seenRotation = rot.seq;
-    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { rotAnim = null; return; }
-    rotAnim = { seq: rot.seq, until: Date.now() + ROTATE_MS };
+    rotAnim = { seq: rot.seq, until: Date.now() + (reduce ? 1100 : ROTATE_MS), reduce };
   }
-  // The board is a full innerHTML rebuild on EVERY render, so the <svg> we animate is thrown away and
-  // replaced the moment anything else lands — and the move's own WebSocket echo arrives milliseconds after
-  // the HTTP reply, so the spin was destroyed before a single frame of it was ever seen: the tiles just
-  // "jumped" ("when I rotate a tile, I want to see an animation", bug mrhcdy5s). So the spin is TIME-owned,
-  // not render-owned (the Horn does the same): re-apply it on every render for whatever time is left, from
-  // the angle it should currently be at, until it lands.
+  // The board is a full innerHTML rebuild on EVERY render, so the <svg>/class we set is thrown away the
+  // moment anything else lands — and the move's own WebSocket echo arrives milliseconds after the HTTP
+  // reply, so the spin was destroyed before a single frame was seen: tiles just "jumped" (bug mrhcdy5s).
+  // So the cue is TIME-owned, not render-owned (the Horn does the same): re-apply it on every render for
+  // whatever time is left, from the angle it should currently be at, until it lands.
   if (!rotAnim || rotAnim.seq !== rot.seq) return;
   const left = rotAnim.until - Date.now();
   if (left <= 0) { rotAnim = null; return; }
   const from = 180 * (left / ROTATE_MS);   // still to sweep — a resumed spin picks up mid-turn, never restarts
   (rot.cells || []).forEach(([r, c]) => {
     const cell = root.querySelector(`.cell[data-cell="${r},${c}"]`);
-    const svg = cell && cell.querySelector("svg");
-    if (!svg) return;
+    if (!cell) return;
+    cell.classList.add("mw-rotating");     // the ring — the cue that survives a symmetric tile and reduced motion
+    const svg = cell.querySelector("svg");
+    if (rotAnim.reduce || !svg) return;    // reduced motion: the ring, no spin
     svg.style.transition = "none";
     svg.style.transformOrigin = "50% 50%";
     svg.style.transform = `rotate(${from}deg)`;
