@@ -44,6 +44,7 @@ import {
   forgetLocalGameHomePlayer,
 } from "./controllers/local-seat.js";
 import { wireRoomSounds, playRoomStateSounds } from "./controllers/room-sounds.js";
+import { wireSoundControls } from "./controllers/sound-controls.js";
 import {
   initSessionStore,
   getSelectedPlayerId,
@@ -87,8 +88,6 @@ import { renderRttaGame } from "./games/rtta/render.js";
 import { renderPotionLabGame } from "./games/potion-lab/render.js";
 import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
 import {
-  isSoundEnabled,
-  soundVolumeLevel,
   setSoundEnabled,
   setSoundVolumeLevel,
   playBattleshipHit,
@@ -97,8 +96,6 @@ import {
   playConfirm,
   playInvalidMove,
   playRoomCreated,
-  toggleSound,
-  unlockAudio,
 } from "./sound.js";
 
 const CLASSIC_GAME_ID = GAME_IDS.classic;
@@ -202,7 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshRevisionSummary();
   document.documentElement.classList.toggle("is-mac", /Mac|iP(hone|ad|od)/i.test(navigator.platform || navigator.userAgent || ""));
   bindNavigation();
-  bindSoundControls();
+  wireSoundControls();
   bindTouchZoomGuard();
   refreshGameDefinitions();
   renderGames();
@@ -250,20 +247,6 @@ document.addEventListener("DOMContentLoaded", () => {
   realtime.connectAppEvents();
 });
 
-function bindSoundControls() {
-  renderSoundControls();
-  document.addEventListener("pointerdown", unlockAudio, { once: true });
-  document.addEventListener("keydown", unlockAudio, { once: true });
-  document.addEventListener("click", playControlClickSound);
-  document.querySelectorAll("[data-sound-toggle]").forEach((button) => {
-    button.addEventListener("click", () => {
-      toggleSound();
-      renderSoundControls();
-      playConfirm();
-    });
-  });
-}
-
 function bindTouchZoomGuard() {
   let lastTapTime = 0;
   document.addEventListener("touchend", (event) => {
@@ -277,30 +260,6 @@ function bindTouchZoomGuard() {
       event.preventDefault();
     }
   }, { passive: false });
-}
-
-function renderSoundControls() {
-  const enabled = isSoundEnabled();
-  const level = soundVolumeLevel();
-  document.querySelectorAll("[data-sound-toggle]").forEach((button) => {
-    button.classList.toggle("muted", !enabled);
-    button.textContent = enabled ? "🔊" : "🔇";
-    button.setAttribute("aria-pressed", String(enabled));
-    button.setAttribute("aria-label", enabled ? "Mute sound" : "Unmute sound");
-    button.title = enabled ? "Mute sound" : "Unmute sound";
-    button.dataset.volumeLevel = enabled ? String(level) : "0";
-    button.innerHTML = `<span aria-hidden="true">${enabled ? "🔊" : "🔇"}</span>`;
-    button.setAttribute("aria-label", enabled ? `Sound volume ${level} of 5` : "Sound muted");
-    button.title = enabled ? `Sound volume ${level} of 5` : "Sound muted";
-  });
-}
-
-function playControlClickSound(event) {
-  const button = event.target.closest("button");
-  if (!button || button.disabled) return;
-  if (button.classList.contains("cell")) return;
-  if (button.matches("[data-sound-toggle]")) return;
-  playClick();
 }
 
 async function refreshRevisionSummary() {

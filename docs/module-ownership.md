@@ -44,6 +44,7 @@ concern), then implement.
 | `src/sogotable/static/controllers/superuser.js` | Sogo superuser identity + passcode gate | — |
 | `src/sogotable/static/controllers/local-seat.js` | Local hot-seat seat persistence (device-local) | — |
 | `src/sogotable/static/controllers/room-sounds.js` | Room-snapshot → sound-effect mapping | — |
+| `src/sogotable/static/controllers/sound-controls.js` | Sound mute/volume toggle UI + audio unlock + control-click SFX wiring | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/invites.js` | Invite / opponent flows (remote / bot / local) | — |
 | `src/sogotable/static/games/registry.js` | Single game registry — metadata source of truth | — |
 | `src/sogotable/static/games/game-kinds.js` | Client game-kind predicates (classify a room game blob by id) | `src/sogotable/static/app.js` |
