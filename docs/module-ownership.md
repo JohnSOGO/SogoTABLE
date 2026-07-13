@@ -53,6 +53,7 @@ concern), then implement.
 | `src/sogotable/static/games/game-list-view.js` | Game-select list view | — |
 | `src/sogotable/static/games/playing-cards.js` | Shared standard-deck (52-card) card-face + hand HTML primitives — pure builders, no rules, no per-game logic | `src/sogotable/static/app.js` |
 | `workers/sogotable-api.js` | Worker entry: routing, side-effect dispatch, Durable Objects, remaining domain handlers | — |
+| `workers/room-view.js` | Room wire projection: public room/summary/invite dicts + viewer projection + revision/freshness bookkeeping | `workers/sogotable-api.js` |
 | `workers/game-catalog.js` | Game id resolution + public game definitions | `workers/sogotable-api.js` |
 | `workers/stats.js` | Room outcome stats: completed-room recording, Elo, high scores, personal stats | `workers/sogotable-api.js` |
 | `workers/projections.js` | Public projections (player + bot views) | `workers/sogotable-api.js` |

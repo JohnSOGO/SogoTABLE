@@ -15,6 +15,7 @@ const REVIEW_EXPORT_FILES = [
   "scripts/bug-agent.mjs",
   "scripts/clear-bug-reports.mjs",
   "workers/sogotable-api.js",
+  "workers/room-view.js",
   "workers/bug-reports.js",
   "workers/platform/http.js",
   "workers/platform/rate-limit.js",

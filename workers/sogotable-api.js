@@ -30,6 +30,12 @@ import {
   moveHandlerFor, newGame, gameToDict, gameToDictForViewer, legalMoves, chooseBotMove, makeMove,
   initGameSeats, applyGameStartOptions, resetRoomGame, ensureBattleshipBotFleets,
 } from "./games/handlers.js";
+// Room wire projection (public room/summary/invite dicts + viewer projection +
+// revision/freshness bookkeeping) — extracted owner; the entry only routes.
+import {
+  publicInvite, bumpRoomRevision, roomToDict, roomToDictForViewer, responseForViewer,
+  viewerPlayerIdForRequest, viewerPlayerIdForPayload, roomSummary,
+} from "./room-view.js";
 // 10,000 bot internals re-exported on __test only (workers/tests/helpers.js
 // exercises them through the Worker's test surface).
 import {
@@ -988,10 +994,6 @@ function playerFromPayload(payload) {
   return clean;
 }
 
-function publicInvite(invite) {
-  return { ...invite, game_id: cleanGameId(invite.game_id) };
-}
-
 function botPlayerFromId(botId) {
   const id = String(botId || "").trim();
   const bot = BOT_DEFINITIONS.find((item) => item.id === id);
@@ -1045,108 +1047,6 @@ function roomFromPayload(data, payload) {
   const room = data.rooms[code];
   if (!room) throw new Error("Table not found.");
   return room;
-}
-
-function roomToDict(data, room) {
-  ensureRoomFreshness(room);
-  return {
-    code: room.code,
-    host_id: room.host_id,
-    game_id: cleanGameId(room.game_id),
-    revision: room.revision,
-    game_epoch: room.game_epoch,
-    started: room.started,
-    local_mode: room.local_mode,
-    status: roomStatus(room),
-    players: room.players,
-    game: gameToDict(room.game),
-    latest_invite: latestInviteForRoom(data, room),
-    reset_request: resetRequestForRoom(room),
-    stats_recorded: Boolean(room.stats_recorded),
-  };
-}
-
-function roomToDictForViewer(data, room, viewerPlayerId = "") {
-  const base = room && room.status && room.game_id ? structuredClone(room) : roomToDict(data, room);
-  const viewerId = String(viewerPlayerId || "").trim();
-  const viewerSeat = base.players.find((player) => player.id === viewerId);
-  base.game = gameToDictForViewer(base.game, viewerSeat ? viewerSeat.mark : "", base.status);
-  return base;
-}
-
-function responseForViewer(response, viewerPlayerId = "") {
-  if (!response || response.ok === false) return response;
-  const projected = { ...response };
-  if (projected.room) projected.room = roomToDictForViewer(null, projected.room, viewerPlayerId);
-  if (projected.active_room) projected.active_room = roomToDictForViewer(null, projected.active_room, viewerPlayerId);
-  if (Array.isArray(projected.rooms)) {
-    projected.rooms = projected.rooms.map((room) => room && room.game ? roomToDictForViewer(null, room, viewerPlayerId) : room);
-  }
-  return projected;
-}
-
-function viewerPlayerIdForRequest(url, payload = {}) {
-  return String(url.searchParams.get("player_id") || viewerPlayerIdForPayload(payload) || "").trim();
-}
-
-function viewerPlayerIdForPayload(payload = {}) {
-  return String(
-    payload.player_id ||
-    payload.requester_id ||
-    payload.host_id ||
-    payload.player && payload.player.id ||
-    payload.id ||
-    "",
-  ).trim();
-}
-
-function roomSummary(room) {
-  ensureRoomFreshness(room);
-  const playerCount = playerCountForGame(room.game_id);
-  return {
-    code: room.code,
-    host_id: room.host_id,
-    game_id: cleanGameId(room.game_id),
-    revision: room.revision,
-    game_epoch: room.game_epoch,
-    started: room.started,
-    local_mode: room.local_mode,
-    status: roomStatus(room),
-    players: room.players,
-    open_seats: Number.isFinite(playerCount) ? Math.max(0, playerCount - room.players.length) : null,
-  };
-}
-
-function ensureRoomFreshness(room) {
-  if (!room) return;
-  const revision = Number(room.revision);
-  const gameEpoch = Number(room.game_epoch);
-  room.revision = Number.isFinite(revision) && revision > 0 ? revision : 1;
-  room.game_epoch = Number.isFinite(gameEpoch) && gameEpoch > 0 ? gameEpoch : 1;
-}
-
-function bumpRoomRevision(room, options = {}) {
-  ensureRoomFreshness(room);
-  if (options.newGame) room.game_epoch += 1;
-  room.revision += 1;
-}
-
-function latestInviteForRoom(data, room) {
-  if (!data || !data.invites) return null;
-  const invites = Object.values(data.invites).filter((invite) => invite.room_code === room.code);
-  return invites.length ? publicInvite(invites[invites.length - 1]) : null;
-}
-
-function resetRequestForRoom(room) {
-  if (!room.reset_votes.length) return null;
-  const requesterId = room.reset_votes[0];
-  const requester = room.players.find((player) => player.id === requesterId);
-  return {
-    requester_id: requesterId,
-    requester_name: requester ? requester.name : "Player",
-    votes: [...room.reset_votes].sort(),
-    needed: room.players.length,
-  };
 }
 
 function activeRoomForPlayer(data, playerId, gameId) {
