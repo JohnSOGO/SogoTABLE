@@ -68,6 +68,12 @@ test("quest companion: a joust that steals the Princess un-fulfils the loser's q
   assert.ok(winner.companions.includes("princess"), "the victor takes her");
   assert.ok(!loser.companions.includes("princess"), "she is no longer Roland's");
   assert.equal(loser.questDone, false, "so Roland's quest is unfulfilled again");
+  // Informed Consent (forced, OFF-turn): the theft happens on the victor's turn and reverts the loser's
+  // WIN CONDITION. His joust result was already recorded before the steal, so nothing else overwrites this
+  // — he is told his quest is undone, not left to discover the shut Gate later.
+  const n = g.results.P1 && g.results.P1.notice;
+  assert.ok(n && /Quest unfulfilled/.test(n.tag), "and the off-turn loser is TOLD his quest is undone");
+  assert.match(n.body, /Enchanted Gate/);
 });
 
 // §18.8: the Grail is a Companion too, and Perceval's quest rides on it the same way.

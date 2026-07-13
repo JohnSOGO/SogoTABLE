@@ -237,7 +237,8 @@ so.**
 | Fight loss → Tower; Enchantress ensnare | §8 / §18.7 | forced; informed |
 | Mystic Wind sweeps your Things | §18.14 — off-turn when a rival draws it | forced; **victim now told what THEY lost** (2026-07-12), not just the shared herald |
 | Mystic Horn scatter; Magician's Storm | §6 / §18.11 | forced; staged/narrated (Horn token-tour; storm badges) |
-| Mystic Fog rotates the wood; a quest-companion flees (Princess/Prince/Grail) | §18.12 / §16 | forced; chronicle + animation only — **victim-notice still owed** (informed follow-ups) |
+| A quest-companion is torn away (Princess/Prince/Grail) → your quest reverts | §16 / §12 | forced; **victim now told** (2026-07-12) — `syncQuestCompanion` notice; covers the off-turn joust-steal (the fight-loss path already carries it in the result detail) |
+| Mystic Fog rotates the wood around you | §18.12 | forced; chronicle + rotation animation only — a per-victim notice is the one remaining informed follow-up |
 | Queen's boon casts a rival into the Tower | §ext | forced; informed |
 | Power-Limit *that you exceed* must be resolved | §18 — surrender is mandatory | forced **to resolve** — but *which* cards is a choice (below) |
 

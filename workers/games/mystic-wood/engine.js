@@ -209,6 +209,15 @@ export function syncQuestCompanion(game, seat) {
   if (!need || !seat.questDone || seat.companions.includes(need)) return;
   seat.questDone = false; seat.atGate = false;
   logEvent(game, `${denPhrase(need)} is no longer with ${seat.name} — the quest is unfulfilled until ${need === "grail" ? "it is taken up" : "won"} again.`, "r");
+  // Informed Consent (forced change): losing your quest companion silently reverts your WIN CONDITION —
+  // a bigger change to your character than most fights. It can strike off-turn (a rival unhorses you in a
+  // joust, §12), so tell the victim, not just the chronicle. All three callers (turn-start, joust-loss,
+  // gate) funnel through here, so one notice covers them. Humans only. (§16)
+  if (!seat.is_bot) recordRoll(game, seat.mark, { notice: {
+    tag: "Quest unfulfilled", emoji: "❗",
+    head: `Your quest companion is gone — ${denPhrase(need)} is no longer with you.`,
+    body: `Your quest is unfulfilled until ${need === "grail" ? "the Grail is taken up" : `${denPhrase(need)} is won`} again — the Enchanted Gate stays shut to you until then. (§16)`,
+  } });
 }
 export function anyKing(game) { return game.seat_order.some((m) => game.players[m].isKing); }
 export function tileNameAt(game, seat) { const t = cellAt(game.board, seat.r, seat.c); return t ? t.name : null; }
