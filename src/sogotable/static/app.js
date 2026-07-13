@@ -167,6 +167,7 @@ const realtime = createRealtimeController({
   onRoomReconnect: () => showTurnStatus(null, "Reconnecting to table..."),
   refreshRoom,
   shouldReconnectRoom: () => Boolean(currentRoom),
+  shouldPollRoom: () => { const seat = currentRoom && localRoomSeat(currentRoom); return Boolean(seat && currentRoom.started && !isSoloRoom(currentRoom) && currentRoom.game && currentRoom.game.status === "playing" && seat.mark !== currentRoom.game.current_player); },
 });
 
 document.addEventListener("DOMContentLoaded", () => {

@@ -832,3 +832,32 @@ PLACEMENT RECEIPT (advisor: placement-advisor)
                 (hold turn → choose → pass; spoofed index throws); the 24-seed integration harness now
                 drives power_shed too. On-device modal check remains for MojoSOGO.
 ```
+
+## 2026-07-12 — Missed-broadcast recovery for room sync (two-human deadlock, room HSYF)
+
+```
+PLACEMENT RECEIPT (advisor: placement-advisor)
+- Ask:          Recover from a MISSED room-state broadcast — the two-human deadlock where a
+                client never received the "it's your turn" snapshot, the game then waits on that
+                stale client, and no further broadcast comes to unstick it (players restart the app).
+- Verdict:      src/sogotable/static/realtime.js  [EXISTING] — the mechanism: a visibilitychange/
+                pageshow listener (reconnect+re-pull on foreground, reusing refreshRoomLiveUpdates)
+                and a ~7s safety-net poll timer, armed on start / disarmed on stop.
+                src/sogotable/static/app.js  [EXISTING] — ONE new callback on the existing
+                createRealtimeController({...}) literal: shouldPollRoom() (in a started, playing,
+                non-solo room AND it's not my turn), reusing localRoomSeat/isSoloRoom. +1 line.
+- Why:          realtime.js owns the socket lifecycle & reconnect — recovery timers/listeners are its
+                concern. The waiting predicate is applied game-state the SHELL owns; it flows in via the
+                callbacks object (like shouldReconnectRoom/getRoomPlayerId), never by transport reaching
+                into turn state. Transport re-pulls messages; it does not resolve turn semantics.
+- Poll is triple-gated (quota): armed only while in a room, only while shouldPollRoom() (not my turn),
+                only while the tab is visible; disarmed on leaving the room. Both paths RE-FETCH only
+                (callbacks.refreshRoom) — no new mutation/broadcast; setRoom's isStaleRoomSnapshot
+                revision guard makes a late/older reply safe.
+- Ceiling:      app.js was at 2494/2497 (3-line headroom). The one-line callback → 2495, under cap. No
+                reorganizer needed. NOTE: app.js is now at 2495/2497 — the next shell addition needs an
+                extraction first.
+- Reorganizer:  NONE. New owner row: NONE (existing platform owners).
+- Verification: 412 tests pass; architecture load-eval + ceiling guards green. Two-device on-device
+                check (background one phone mid-turn, return) remains for MojoSOGO — inherent to the bug.
+```

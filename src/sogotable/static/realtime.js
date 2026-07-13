@@ -1,10 +1,12 @@
 import { appEventsSocketUrl, roomSocketUrl } from "./api-client.js";
 
 const MAX_RECONNECT_DELAY_MS = 30000;
+const ROOM_POLL_MS = 7000;   // safety-net re-fetch cadence while WAITING on another player (see recovery below)
 
 export function createRealtimeController(callbacks) {
   let roomSocket = null;
   let roomReconnectTimer = null;
+  let roomPollTimer = null;
   let roomSocketReconnectAttempts = 0;
   let roomCode = "";
   let connectedRoomCode = "";
@@ -21,12 +23,39 @@ export function createRealtimeController(callbacks) {
     if (roomSocket && connectedRoomPlayerId && connectedRoomPlayerId !== callbacks.getRoomPlayerId()) stopRoomSocket();
     connectRoomSocket();
     callbacks.refreshRoom();
+    armRoomPoll();
   }
 
   function stopRoomLiveUpdates() {
     stopRoomSocket();
     roomCode = "";
+    disarmRoomPoll();
   }
+
+  // The WebSocket is the primary sync path; these are backstops for a snapshot the client NEVER received —
+  // a mobile tab that backgrounded (iOS freezes the socket without a clean `close`, so no reconnect fires)
+  // or a frame dropped under lag. With two humans this deadlocks: a missed "it's your turn" broadcast
+  // leaves the game WAITING on a stale client, so no further broadcast ever comes to unstick it, and the
+  // player has to restart the app (room HSYF). Both paths only RE-FETCH (callbacks.refreshRoom); setRoom's
+  // isStaleRoomSnapshot revision guard makes a late/older reply safe — no new mutation or broadcast.
+  function refreshRoomLiveUpdates() {   // foreground return: reconnect the (maybe frozen) socket AND re-pull
+    if (!roomCode) return;
+    stopRoomSocket();
+    connectRoomSocket();
+    callbacks.refreshRoom();
+  }
+  function onForeground() { if (roomCode) refreshRoomLiveUpdates(); }
+  function armRoomPoll() {
+    disarmRoomPoll();
+    roomPollTimer = setInterval(() => {
+      if (!roomCode) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;   // hidden → onForeground re-pulls on return
+      if (callbacks.shouldPollRoom && callbacks.shouldPollRoom()) callbacks.refreshRoom();      // only while it's NOT my turn
+    }, ROOM_POLL_MS);
+  }
+  function disarmRoomPoll() { if (roomPollTimer) { clearInterval(roomPollTimer); roomPollTimer = null; } }
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") onForeground(); });
+  if (typeof window !== "undefined") window.addEventListener("pageshow", onForeground);
 
   function connectRoomSocket() {
     if (!roomCode || !("WebSocket" in window)) return;
@@ -147,12 +176,7 @@ export function createRealtimeController(callbacks) {
 
   return {
     connectAppEvents,
-    refreshRoomLiveUpdates: () => {
-      if (!roomCode) return;
-      stopRoomSocket();
-      connectRoomSocket();
-      callbacks.refreshRoom();
-    },
+    refreshRoomLiveUpdates,
     sendAppEventSubscription,
     startRoomLiveUpdates,
     stopRoomLiveUpdates,
