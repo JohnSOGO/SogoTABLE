@@ -11,6 +11,46 @@ audit when the newest entry is stale (>14 days or >150 commits since).
 
 ---
 
+## 2026-07-15 — seventh steward pass (proactive debt relief on the two hottest files)
+
+- **Run:** On-demand whole-codebase audit. Baseline `main` at `f951c6f`, 412/412 green.
+  Execution artifact: `docs/maintenance-plan-2026-07-15.md` (Steward Pass 7).
+- **File-size verdict (answers "drastically reduce file size?"):** **NOT warranted —
+  no blanket line-cutting campaign.** The extract-and-ratchet gradient is already the
+  correct mechanism and it is working; the large files are cohesive-by-owner (deep
+  modules with narrow interfaces), not god-files; the remaining big files
+  (`hearts/render` 788, `ten-thousand/rules` 784 locked, `rtta/board` 742,
+  `mazewright/rules` 733) are **cold** — size without churn is cheap debt, and
+  force-bisecting them to hit a number would be the classitis/fragmentation
+  anti-pattern the doctrine warns against. Targeted, surgical relief on the two files
+  that actually bite was the wu-wei move.
+- **Findings & disposition (all landed on `main`):**
+  1. **Mystic-Wood board-input seam** (MED, reorganizer) — `mystic-wood/render.js` was
+     756/800 and the #4 churn hotspot. Behavior-preserving extraction of the
+     pointer/gesture board-input cluster into a new leaf `board-input.js`; render.js
+     756 → 690, cap ratcheted to 691. **`15b5a0d`**.
+  2. **Battleship reveal subsystem out of the shell** (MED, reorganizer) — `app.js`
+     carried a whole game's presentation state machine (11 `*Battleship*` functions +
+     5 of 30 top-level `let`s) — a Feature-Envy / layer leak. Extracted into the
+     existing `games/battleship/client.js` behind a `wireBattleship(ctx)` seam;
+     app.js 2456 → 2261 (ceiling ratcheted), top-level `let` cap 30 → 25.
+     **`0edd373`**.
+  3. **Retroactive REORG receipts** (LOW, implementer) — `e634f18` (room-view.js) and
+     `f37ba3d` (sound-controls.js) each shipped a new top-level owner row with no
+     receipt. Two clearly-marked RETROACTIVE receipts backfilled to
+     `placement-receipts.md`. Doc-only. **`84443a2`**.
+- **Guardrails held:** Two-Hats (each reorg its own commit, no behavior change), 412
+  tests green before/after every commit, ceilings ratcheted DOWN never bumped, topic
+  branch per task, pushed to `main`. Both structural tasks delegated to the
+  `reorganizer` (refactor-only hat); neither reorganizer needed a new owner row, and
+  Task 1's reorganizer narrowed the seam (moved only the pointer-gesture cluster, not
+  all of `wireBoard`) — its placement judgment was honored, not overruled.
+- **Restraint (weighed, left alone):** the cold big files above; `app.js`/worker as
+  cohesive deep modules; no opportunistic splitting of cohesive modules.
+- **Sources read:** maintenance-plan-2026-07-15.md, module-ownership.md,
+  placement-receipts.md, architecture.test.js (live ceilings), the touched game/shell
+  modules; git log/diff/churn `f951c6f..HEAD`; `node --test workers/tests/*.test.js`.
+
 ## 2026-07-03 — fourth steward pass (milestone: Mazewright locked, RTTA refining, theme landed)
 
 - **Run:** Milestone, scope: whole codebase. `main` at `512780d`, 197/197 green (verified).
