@@ -81,7 +81,7 @@ extraction. Do not trust the numbers above as gospel — they rot.
   `docs/module-ownership.md` — no new owner row. If the `reorganizer` disagrees on
   the seam, it decides; do not overrule mid-task.
 
-### Task 3 — Backfill two retroactive REORG receipts (LOW · implementer)
+### Task 3 — Backfill two retroactive REORG receipts (LOW · implementer) — DONE @ 84443a2
 - **Why:** `e634f18` created `workers/room-view.js` and `f37ba3d` created
   `controllers/sound-controls.js` — both added top-level owner rows to
   `module-ownership.md` with **no** receipt in `placement-receipts.md`. Codified rule
