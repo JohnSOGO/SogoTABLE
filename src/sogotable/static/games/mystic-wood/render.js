@@ -9,6 +9,7 @@ import { syncHerald, resetHeralds, raiseHerald } from "./herald.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX, EVENT_TALE } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
 import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showPowerShed, showDice, showIntro, initEncounter, signalWorking, clearWorking } from "./encounter.js";
+import { wireBoardPointer, initBoardInput } from "./board-input.js";
 
 const ZOOM_WIDTHS = [7, 5, 3, 2];
 const CW = 99, CH = 72.12;   // board grid stride (cell 96 + gap 3, row 69.12 + gap 3)
@@ -26,9 +27,6 @@ function elapsedStr() {
 let view = { gameKey: null, zoom: 0, focus: null, panel: null };
 let prevPos = {};      // mark -> {r,c}, for gliding tokens between tiles
 let pulseCell = null;  // "r,c" of the legend/map badge currently highlighted
-let clickTimer = null; // deferred single-tap move (cancelled when a 2nd tap makes it a double-tap zoom)
-let lastTapAt = 0;      // timestamp of the previous board tap, for pointer-based double-tap detection
-let gesture = null;     // active board pointer gesture (tap / double-tap / drag-pan), from pointer events
 let chronFilter = null; // Chronicle: mark of the knight whose entries are shown (null = all)
 let stormMode = false;  // Magician storm-targeting: cells become storm targets and a tap raises a storm
 let encTimer = null;    // deferred encounter reveal (waits for the mover's token glide)
@@ -549,8 +547,8 @@ function wireBoard(root, ctx, game, me) {
     if (ctx.isMovePending && ctx.isMovePending()) return;
     ctx.makeMove({ type: "joust-prize", prize: b.getAttribute("data-jp") });
   }));
-  // (Board tap / double-tap / pan are handled by the pointer-gesture model below — NOT click — because
-  // iOS Safari withholds the 2nd click of a double-tap, so click-based zoom never fires on iPhone.)
+  // (Board tap / double-tap / pan are handled by the pointer-gesture model in board-input.js — NOT click —
+  // because iOS Safari withholds the 2nd click of a double-tap, so click-based zoom never fires on iPhone.)
   // legend badges: tap to pulse the badge and its tile on the map
   root.querySelectorAll("[data-legend]").forEach((b) => b.addEventListener("click", () => {
     const pc = b.getAttribute("data-legend");
@@ -563,90 +561,10 @@ function wireBoard(root, ctx, game, me) {
     el.addEventListener("mousedown", show); el.addEventListener("touchstart", show, { passive: false });
     el.addEventListener("mouseleave", requestHide); el.addEventListener("click", (e) => e.stopPropagation());
   });
-  // Board input is POINTER-based, not click. iOS Safari treats a double-tap as a gesture and does NOT
-  // fire the 2nd click, so click-based zoom is impossible on iPhone; pointerdown/up land for every tap.
-  // pointerdown records the gesture; document-level move/up (below) resolve tap / double-tap / drag-pan.
-  const wrapEl = root.querySelector(".mw-boardwrap");
-  if (wrapEl) wrapEl.addEventListener("pointerdown", (e) => {
-    const zoomed = (view.zoom || 0) > 0;
-    const vw = wrapEl.clientWidth || 1, scale = vw / ((ZOOM_WIDTHS[view.zoom] || 7) * CW);
-    gesture = {
-      id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, ctx,
-      onHoldable: !!e.target.closest(".holdable"),          // a peek target → tap peeks, don't move
-      f0: zoomed ? currentFocus(game, me) : null, scale,
-    };
-  });
+  // Board tap / double-tap / drag-pan are POINTER-based, not click (iOS Safari withholds the 2nd click of
+  // a double-tap) — owned by board-input.js, which resolves them against the shared view/peek state.
+  wireBoardPointer(root, ctx, game, me);
 }
-// Which cell a screen point falls on, mapped back through the board's live transform (so a tap on a token,
-// badge, or the tile padding still resolves to the tile beneath it — not just direct .cell hits).
-function cellAtPoint(px, py) {
-  const board = uiRoot && uiRoot.querySelector(".board");
-  if (!board) return null;
-  const rect = board.getBoundingClientRect();
-  if (!rect.width || !rect.height) return null;
-  const bw = 7 * CW - 3 + PAD * 2, s = rect.width / bw;        // effective scale from the rendered box
-  const ix = (px - rect.left) / s - PAD, iy = (py - rect.top) / s - PAD;
-  return { r: clampN(Math.floor(iy / CH), 0, 8), c: clampN(Math.floor(ix / CW), 0, 6) };
-}
-// The board's current centre in fractional cell coords: an explicit focus (double-tap / prior pan) or my knight.
-function currentFocus(game, me) {
-  if (view.focus) return { r: view.focus.r, c: view.focus.c };
-  const seat = (game.players || []).find((p) => p.mark === me);
-  return seat ? { r: seat.r, c: seat.c } : { r: 4, c: 3 };
-}
-const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
-function onBoardMove(e) {
-  if (!gesture || e.pointerId !== gesture.id) return;
-  const dx = e.clientX - gesture.x, dy = e.clientY - gesture.y;
-  if (!gesture.moved && Math.hypot(dx, dy) < 10) return;       // small movement stays a tap
-  gesture.moved = true;
-  if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; } // a drag cancels the pending single-tap move
-  // A peek is a PRESS-AND-HOLD: dragging the finger off the badge is how you get your thumb out of the way
-  // and actually READ it. Killing the pop on the first millimetre of drag made peeking on a phone almost
-  // impossible ("if I peek let me drag my finger away and see the screen… disappear when lift finger",
-  // bug mrhc666h). So while a peek is up, a drag neither hides it NOR pans the board — the gesture belongs
-  // to the peek until the finger lifts (onBoardUp / onBoardCancel).
-  if (gesture.onHoldable && popEl) return;
-  hidePop();                                                   // a drag that is NOT a peek cancels any stray pop
-  if (gesture.f0) {                                            // zoomed → pan; finger right reveals content left
-    const dc = -dx / (gesture.scale * CW), dr = -dy / (gesture.scale * CH);
-    view.focus = { r: clampN(gesture.f0.r + dr, 0, 8), c: clampN(gesture.f0.c + dc, 0, 6) };
-    applyZoom(false);                                          // recompute + clamp the transform to bounds
-  }
-}
-function onBoardUp(e) {
-  if (!gesture || e.pointerId !== gesture.id) return;
-  const g = gesture; gesture = null;
-  // Lifting the finger ends a peek AT ONCE (bug mrhc666h) — but only a real press-and-hold: a quick TAP on a
-  // badge also peeks, and that pop must survive the release long enough to be read (requestHide's floor).
-  if (g.onHoldable && popEl && (g.moved || Date.now() - popAt > 350)) { hidePop(); return; }
-  if (g.moved) return;                                        // a pan/drag, not a tap
-  const cell = cellAtPoint(g.x, g.y); if (!cell) return;      // couldn't map to a tile (off the board)
-  const { r, c } = cell, ctx = g.ctx, now = Date.now();
-  if (now - lastTapAt < 400) {                                // DOUBLE TAP → zoom in on this tile (even on a token)
-    lastTapAt = 0;
-    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-    view.focus = { r, c }; view.zoom = Math.min(ZOOM_WIDTHS.length - 1, (view.zoom || 0) + 1); applyZoom(true);
-    return;
-  }
-  lastTapAt = now;                                            // register the tap so a 2nd tap can pair into a zoom
-  if (g.onHoldable) return;                                   // tap on a peek target → peek only, never a move
-  if (clickTimer) clearTimeout(clickTimer);
-  clickTimer = setTimeout(() => {                             // deferred single-tap move (a 2nd tap cancels it)
-    clickTimer = null;
-    const el = uiRoot && uiRoot.querySelector(`.cell[data-cell="${r},${c}"]`);
-    if (!el || (ctx.isMovePending && ctx.isMovePending())) return;
-    if (stormMode) {                                          // targeting a storm: tap a valid area to raise it
-      if (el.classList.contains("storm-target")) { stormMode = false; signalWorking(); ctx.makeMove({ type: "storm", r, c }); }
-      return;
-    }
-    if (el.classList.contains("reachable")) { signalWorking(); ctx.makeMove({ type: "move", r, c }); }
-  }, 400);
-}
-function onBoardCancel(e) { if (gesture && e.pointerId === gesture.id) { gesture = null; hidePop(); } }
-document.addEventListener("pointermove", onBoardMove);
-document.addEventListener("pointerup", onBoardUp);
-document.addEventListener("pointercancel", onBoardCancel);
 document.addEventListener("mouseup", requestHide);
 document.addEventListener("touchend", requestHide);
 
@@ -754,3 +672,18 @@ function applyZoom(animate) {
   board.style.transition = (animate && !RM) ? "transform .3s ease" : "none";
   board.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${scale.toFixed(3)})`;
 }
+
+// Hand the board-input leaf its accessors once (after every const above is initialized). It owns the
+// pointer gesture and tap timers; it reaches this module's shared view / storm / peek state and the
+// zoom + peek helpers only through these getters/setters — a one-way hook, so there is no import cycle.
+initBoardInput({
+  ZOOM_WIDTHS, CW, CH, PAD,
+  getView: () => view,
+  getUiRoot: () => uiRoot,
+  getStormMode: () => stormMode,
+  setStormMode: (v) => { stormMode = v; },
+  getPopEl: () => popEl,
+  getPopAt: () => popAt,
+  hidePop: () => hidePop(),
+  applyZoom: (animate) => applyZoom(animate),
+});

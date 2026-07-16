@@ -297,6 +297,10 @@ const FILE_CAP_EXCEPTIONS = {
   // Per-domain split is in progress (review #5): the 10,000 domain now lives in
   // sogotable-api-ten-thousand.test.js. Ratchet this down as more domains peel off.
   "workers/tests/sogotable-api.test.js": 2263,
+  // Mystic Wood's active hotspot: the pointer/gesture board-input cluster was extracted
+  // to games/mystic-wood/board-input.js (2026-07-15), dropping render.js from 756 to 690.
+  // Pinned below the 800 global backstop to lock the room in — extract again before it regrows.
+  "src/sogotable/static/games/mystic-wood/render.js": 691,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];
