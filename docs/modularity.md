@@ -207,7 +207,17 @@ of merely contradicting prose:
 
 - **Ratchet ceilings** — the four known big files (`app.js`, the Worker,
   `styles.css`, `styles-games.css`) have individual line caps that only ratchet
-  down. Extract, then lower the cap.
+  down. Extract, then lower the cap. The new cap is the file's post-extraction size
+  **plus a small `WORKING_BUFFER`** (≈25 lines) — *not* `size + 1`. The buffer is
+  deliberate: a cap pinned one line above the file makes the *next* routine edit to
+  the correct owner trip the guard, which turns the line-count proxy into the master
+  and forces ceremony on every commit. The line cap is a smoke detector for
+  god-files, not a target to optimise — it should fire on genuine bloat (a whole new
+  subsystem, > buffer), then hand off to the `placement-advisor`, and stay quiet for
+  ordinary forward work. Re-bloat back toward the pre-extraction size is still
+  forbidden, and the 800-line backstop remains the hard "too far" line. (The
+  separate `APP_TOP_LEVEL_LET_CAP` gets **no** buffer: it counts cross-cutting shell
+  state, where adding a new global should always force a placement decision.)
 - **Global file cap (800)** — every *other* source file is capped, so a new god
   file fails the build the moment it forms. Raising the cap or adding an exception
   is a deliberate, reviewed act — prefer extracting.
@@ -286,7 +296,7 @@ room made — fullness alone does not trigger a refactor; *pressure from the cha
 **Sequencing (in this order):**
 
 1. **Placement** — the architecture step names the owner; if it is full, names the seam to extract and where it goes.
-2. **Preparatory-refactor commit** — the *minimum* seam that opens room: behavior-preserving, all tests green, the file's ceiling ratcheted down. Its own commit, separately revertable.
+2. **Preparatory-refactor commit** — the *minimum* seam that opens room: behavior-preserving, all tests green, the file's ceiling ratcheted down to its new size + `WORKING_BUFFER` (not size + 1 — see Enforcement). Its own commit, separately revertable.
 3. **Feature commit** — the new code, dropped into the now-roomy module.
 
 Two commits, in that order. Never bundle the refactor into the feature commit: keeping

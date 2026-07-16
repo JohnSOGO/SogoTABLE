@@ -43,10 +43,21 @@ function gameDirOf(rel) {
   return match ? match[1] : null;
 }
 
+// Working buffer for the ratchet (see docs/modularity.md, "Enforcement" →
+// Ratchet ceilings). After an extraction, pin the ceiling at the file's NEW size
+// PLUS this buffer — not at size+1. The buffer is breathing room for ordinary
+// forward edits to the correct owner, so the guard fires on genuine bloat (a whole
+// new subsystem), NOT on every routine commit. It still forbids drift back toward
+// the pre-extraction size, and the 800-line backstop stays the hard "too far" line.
+// The literal beside each entry is the file's size at its last ratchet; when you
+// extract again, lower that literal and the ceiling drops with it.
+const WORKING_BUFFER = 25;
 const CEILINGS = {
-  "src/sogotable/static/app.js": 2261,
-  "workers/sogotable-api.js": 1230,
-  "src/sogotable/static/styles.css": 275,
+  "src/sogotable/static/app.js": 2260 + WORKING_BUFFER,
+  "workers/sogotable-api.js": 1229 + WORKING_BUFFER,
+  "src/sogotable/static/styles.css": 274 + WORKING_BUFFER,
+  // Looser legacy cap already carrying more than a buffer of headroom (file ~1663);
+  // left as-is rather than tightened — the buffer is a floor, not a mandate to churn.
   "src/sogotable/static/styles-games.css": 1700,
 };
 
@@ -55,7 +66,7 @@ for (const [rel, ceiling] of Object.entries(CEILINGS)) {
     const lines = lineCount(rel);
     assert.ok(
       lines <= ceiling,
-      `${rel} is ${lines} lines (ceiling ${ceiling}). Extract a module before adding more, then ratchet this ceiling down.`,
+      `${rel} is ${lines} lines (ceiling ${ceiling}). Extract a module before adding more, then ratchet this ceiling down to the new size + WORKING_BUFFER (${WORKING_BUFFER}).`,
     );
   });
 }
@@ -293,14 +304,16 @@ test("architecture: every game declares a lobbyMode consistent with host_start",
 // extracting a module. (The big cohesive game files sit just under the cap, so
 // the next large addition to them also forces a conversation.)
 const GLOBAL_FILE_CAP = 800;
+// Same size + WORKING_BUFFER rule as CEILINGS above (the literal is the size at the
+// last ratchet); these sit below the 800 backstop while their own split completes.
 const FILE_CAP_EXCEPTIONS = {
   // Per-domain split is in progress (review #5): the 10,000 domain now lives in
   // sogotable-api-ten-thousand.test.js. Ratchet this down as more domains peel off.
-  "workers/tests/sogotable-api.test.js": 2263,
+  "workers/tests/sogotable-api.test.js": 2262 + WORKING_BUFFER,
   // Mystic Wood's active hotspot: the pointer/gesture board-input cluster was extracted
-  // to games/mystic-wood/board-input.js (2026-07-15), dropping render.js from 756 to 690.
+  // to games/mystic-wood/board-input.js (2026-07-15), dropping render.js from 756 to 689.
   // Pinned below the 800 global backstop to lock the room in — extract again before it regrows.
-  "src/sogotable/static/games/mystic-wood/render.js": 691,
+  "src/sogotable/static/games/mystic-wood/render.js": 689 + WORKING_BUFFER,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];
