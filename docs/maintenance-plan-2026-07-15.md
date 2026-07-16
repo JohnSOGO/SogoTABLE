@@ -59,7 +59,7 @@ extraction. Do not trust the numbers above as gospel — they rot.
   workers/tests/*.test.js` stays 412 green; ratchet the mystic-wood budget/guard.
 - **Commit:** one `refactor(mystic-wood): …` commit. Nothing else bundled.
 
-### Task 2 — Relocate the Battleship reveal subsystem out of the shell (MED · reorganizer)
+### Task 2 — Relocate the Battleship reveal subsystem out of the shell (MED · reorganizer) — DONE @ 0edd373
 - **Why:** `app.js` carries **94** `battleship` references (vs TenThousand 15,
   Quoridor 8) — 11 named functions plus **5 of the 30 top-level `let`s**. A whole
   game's presentation state machine living in the shell is a Feature Envy / layer
