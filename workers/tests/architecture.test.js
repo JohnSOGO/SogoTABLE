@@ -44,13 +44,23 @@ function gameDirOf(rel) {
 }
 
 // Working buffer for the ratchet (see docs/modularity.md, "Enforcement" →
-// Ratchet ceilings). After an extraction, pin the ceiling at the file's NEW size
-// PLUS this buffer — not at size+1. The buffer is breathing room for ordinary
-// forward edits to the correct owner, so the guard fires on genuine bloat (a whole
-// new subsystem), NOT on every routine commit. It still forbids drift back toward
-// the pre-extraction size, and the 800-line backstop stays the hard "too far" line.
-// The literal beside each entry is the file's size at its last ratchet; when you
-// extract again, lower that literal and the ceiling drops with it.
+// Ratchet ceilings). A ceiling is a smoke detector for god-files, NOT a target:
+// crossing it is the TRIGGER to consult the placement-advisor, not an order to
+// fragment the file. The advisor returns one of two verdicts, and EITHER one
+// re-arms this buffer of headroom:
+//   • "extract" — a god-file is forming: open a seam, then re-pin the ceiling at the
+//     REDUCED size + WORKING_BUFFER (the cap moves DOWN).
+//   • "cohesive owner, keep it" — the file legitimately grew and splitting it would
+//     be classitis: re-pin the ceiling at its CURRENT size + WORKING_BUFFER (the cap
+//     moves UP) and record a receipt. Growth is authorised by judgment, not
+//     forbidden by a number.
+// Either way the buffer is re-armed, so ordinary forward edits never trip the guard;
+// only genuine growth (> buffer) does, and only to summon that judgment. A cap is
+// set to size+1 NEVER — that pins the file to the wall so the next routine edit
+// re-trips it. Raising a cap is never silent: it needs the advisor verdict + receipt,
+// and the 800-line backstop stays the hard line for every OTHER file. The literal
+// beside each entry is the file's size at its last re-pin; move it when the advisor
+// rules.
 const WORKING_BUFFER = 25;
 const CEILINGS = {
   "src/sogotable/static/app.js": 2260 + WORKING_BUFFER,
@@ -66,7 +76,7 @@ for (const [rel, ceiling] of Object.entries(CEILINGS)) {
     const lines = lineCount(rel);
     assert.ok(
       lines <= ceiling,
-      `${rel} is ${lines} lines (ceiling ${ceiling}). Extract a module before adding more, then ratchet this ceiling down to the new size + WORKING_BUFFER (${WORKING_BUFFER}).`,
+      `${rel} is ${lines} lines (ceiling ${ceiling}). Crossing a ceiling is the trigger to consult the placement-advisor — it either names a seam to extract (then re-pin the cap at the reduced size + WORKING_BUFFER) or blesses the file as a cohesive owner (then re-pin the cap at ${lines} + WORKING_BUFFER (${WORKING_BUFFER}) and record a receipt). Do not silently bump this number.`,
     );
   });
 }

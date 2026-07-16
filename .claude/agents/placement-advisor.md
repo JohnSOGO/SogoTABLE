@@ -102,8 +102,10 @@ When these signals say the natural home is overloaded, the correct placement is 
 4. `workers/tests/architecture.test.js` — the actual enforced rules (read it so your
    decision can never collide with CI). Note especially:
    - **Line ceilings** (`CEILINGS`): `app.js`, `workers/sogotable-api.js`,
-     `styles.css`, `styles-games.css` each have a hard line cap. A change that would
-     push a file over its ceiling is the signal to **extract first**, not to grow it.
+     `styles.css`, `styles-games.css` each carry a line cap set at the file's size +
+     a `WORKING_BUFFER` (~25). A change that would push a file over its ceiling is the
+     signal to **consult you** — you decide extract-first vs bless-and-raise (see the
+     God-file check). It is NOT an automatic order to fragment the file.
    - **`app.js` top-level `let` cap**: new cross-cutting state belongs in a
      `client/` owner module, not a fresh shell global.
    - **Layering**: controllers (`controllers/`) and game modules (`games/<game>/`)
@@ -139,13 +141,24 @@ owner row**, not a one-off bolted into a nearby file.
      an existing one whenever the responsibility is distinct.
 6. **God-file check (mandatory).** Look up the chosen target file's current line
    count and compare to its ceiling if it has one (read the file / count lines).
-   - Near or over the ceiling → the decision is "**hand off to the `reorganizer`
+   Crossing a ceiling is the *trigger for this judgment*, not a verdict in itself.
+   Weigh the file's cohesion — is it a deep module with a narrow interface doing one
+   job, or a bag of unrelated concerns creeping toward a god-file? — and return one
+   of two verdicts:
+   - **Extract-first (a god-file is forming).** "**Hand off to the `reorganizer`
      first**: extract `<seam>` out of `<file>` as a preparatory refactor, then the
      feature lands here," or "place in a new module instead." Name the seam to
      extract — you decide *what* to pull and *to where*; the `reorganizer` performs
-     the behavior-preserving extraction before the implementer adds the feature.
-     Never advise "just add it" to a file at its ceiling, and never tell the
-     implementer to do the extraction inline — that mixes the two hats.
+     the behavior-preserving extraction before the implementer adds the feature, and
+     re-pins the cap at the reduced size + buffer. Never tell the implementer to do
+     the extraction inline — that mixes the two hats.
+   - **Bless-and-raise (a cohesive owner that legitimately grew).** If the file is a
+     genuine deep module and splitting it would be classitis, the honest answer is
+     *let it grow*: the feature lands here, and the ceiling is re-pinned at the new
+     size + `WORKING_BUFFER`, recorded as a receipt. Do not manufacture a refactor
+     just to satisfy a number — the cap serves cohesion, not the reverse. Reserve
+     this verdict for files that are genuinely cohesive; the shell (`app.js`) should
+     almost never earn it, since its job is to push game code *out* into game modules.
    - For `app.js`: if the addition is cross-cutting state, route it to a `client/`
      owner module, not a new top-level `let`.
 7. **Layering / import constraints.** State any rule the implementer must honor for

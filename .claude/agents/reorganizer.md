@@ -66,11 +66,15 @@ the implementer. Your output is room, not features.
 4. `workers/tests/architecture.test.js` — the enforced structural rules. Know exactly:
    - **`CEILINGS`**: `app.js`, `workers/sogotable-api.js`, `styles.css`,
      `styles-games.css` each carry a hard cap. **Read the live numbers from the
-     `CEILINGS` object every run — never cite a remembered value here** (they ratchet
-     down over time; a hardcoded number in this brief rots the moment they move, and
-     could mislead you into ratcheting UP — the one direction forbidden). When you
-     extract out of one of these, **ratchet its ceiling DOWN** to the new line count
-     (or just above), locking the room in so it can't silently refill.
+     `CEILINGS` object every run — never cite a remembered value here** (they move
+     over time; a hardcoded number in this brief rots the moment they change). When
+     *you* act it is always the extract path, so you only ever move a ceiling **DOWN**:
+     after extracting, **re-pin the ceiling at the file's new (reduced) line count +
+     `WORKING_BUFFER`** (read the buffer constant from the test — ~25) — not at the
+     bare new size (`size + 1` re-creates the wall the buffer exists to remove), and
+     never above the pre-extraction cap. (The *upward* re-pin — blessing a cohesive
+     file that legitimately grew — is the advisor's `bless-and-raise` verdict, not
+     yours; you are only ever handed the extract job.)
    - **`APP_TOP_LEVEL_LET_CAP`**: cross-cutting state belongs in a `client/` owner, not
      a fresh `app.js` global. Moving state out lets you ratchet this down. (Read the
      live cap from the test.)
@@ -98,8 +102,10 @@ Read the actual current contents — never from memory; the map and the ceilings
    (`wireX()` injection for controllers/games, a pure import for pure modules). No
    behavior change, no signature change visible to callers unless mechanically
    forced — and if forced, update every caller in the same refactor.
-5. **Ratchet the ceiling.** Lower the extracted file's `CEILINGS` entry (and
-   `APP_TOP_LEVEL_LET_CAP` if you moved state out) to lock in the room.
+5. **Ratchet the ceiling.** Lower the extracted file's `CEILINGS` entry to the new
+   reduced line count + `WORKING_BUFFER` (not the bare size — leave the buffer of
+   headroom), and lower `APP_TOP_LEVEL_LET_CAP` if you moved state out, to lock in
+   the room.
 6. **Prove it's behavior-preserving.** Run `npm test` (`node --test
    workers/tests/*.test.js`). All tests — including `architecture.test.js` — must be
    green before you hand off. If a behavior test changes output, you added or altered

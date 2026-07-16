@@ -206,18 +206,26 @@ by `workers/tests/architecture.test.js`, so a violation fails `npm test` instead
 of merely contradicting prose:
 
 - **Ratchet ceilings** — the four known big files (`app.js`, the Worker,
-  `styles.css`, `styles-games.css`) have individual line caps that only ratchet
-  down. Extract, then lower the cap. The new cap is the file's post-extraction size
-  **plus a small `WORKING_BUFFER`** (≈25 lines) — *not* `size + 1`. The buffer is
-  deliberate: a cap pinned one line above the file makes the *next* routine edit to
-  the correct owner trip the guard, which turns the line-count proxy into the master
-  and forces ceremony on every commit. The line cap is a smoke detector for
-  god-files, not a target to optimise — it should fire on genuine bloat (a whole new
-  subsystem, > buffer), then hand off to the `placement-advisor`, and stay quiet for
-  ordinary forward work. Re-bloat back toward the pre-extraction size is still
-  forbidden, and the 800-line backstop remains the hard "too far" line. (The
-  separate `APP_TOP_LEVEL_LET_CAP` gets **no** buffer: it counts cross-cutting shell
-  state, where adding a new global should always force a placement decision.)
+  `styles.css`, `styles-games.css`) carry individual line caps. A cap is a smoke
+  detector for god-files, **not** a target to optimise: crossing it is the *trigger*
+  to consult the `placement-advisor`, **not** an order to fragment the file. The
+  advisor returns one of two verdicts, and **either one re-arms a `WORKING_BUFFER`**
+  (≈25 lines) of headroom, so ordinary forward edits never trip the guard again:
+  - **Extract** — a god-file is forming. Open a seam (preparatory-refactor commit),
+    then re-pin the cap at the *reduced* size + buffer. The cap moves **down**.
+  - **Cohesive owner — keep it** — the file is a deep module that legitimately grew;
+    splitting it would be classitis. Re-pin the cap at its *current* size + buffer
+    and record a receipt. The cap moves **up**, by judgment, not by convenience.
+
+  A cap is set to `size + 1` **never** — that pins the file to the wall so the next
+  routine edit re-trips it, turning the line-count proxy into the master. Only
+  genuine growth (> buffer) trips the guard, and only to summon the advisor's
+  judgment. Raising a cap is never *silent*: it needs the advisor verdict + receipt,
+  and no individually-capped file crosses the 800-line backstop without an explicit
+  reviewed exception. (The separate `APP_TOP_LEVEL_LET_CAP` gets **no** buffer: it
+  counts cross-cutting shell state, where adding a new global should always force a
+  placement decision — and the shell is the file the advisor should be *least*
+  willing to let grow, since its job is to push game code *out* into game modules.)
 - **Global file cap (800)** — every *other* source file is capped, so a new god
   file fails the build the moment it forms. Raising the cap or adding an exception
   is a deliberate, reviewed act — prefer extracting.
