@@ -11,6 +11,33 @@ audit when the newest entry is stale (>14 days or >150 commits since).
 
 ---
 
+## 2026-07-15 — eighth steward pass (re-review immediately after Pass 7)
+
+- **Trigger:** On-demand re-review right after the Pass 7 cleanup, whole-codebase scope.
+  Baseline `main` at `010f148`, tree clean. Verdict: **SOUND — nothing owed.**
+- **Pass 7 landing verified (no half-done extractions, no orphans):**
+  `mystic-wood/board-input.js` (107 lines) exists and is imported by `render.js:12`
+  (render.js 689/691); battleship reveal subsystem fully out of the shell — app.js keeps
+  only orchestration seams, zero orphaned `*Battleship*`/reveal state, top-level `let`
+  count exactly at its ratcheted cap (25); all CI structural guards green
+  (documented-owner, layering, rules-purity, manifest parity, 800 backstop, load-time
+  eval sweep). **412/412 tests green** — matches the Pass 7 baseline.
+- **Placement audit:** 0 receipts owed — the 3 commits since `86a5ad5` are all
+  docs/maintenance; the 2 retroactive receipts Pass 7 backfilled (`room-view.js`,
+  `sound-controls.js`) are present and marked RETROACTIVE.
+- **mystic-wood has fully cooled:** the Pass 5/6 #1 hotspot has had **zero feature
+  churn since 2026-07-12** — the only commits are the Pass 7 cleanup itself.
+- **Restraint (weighed, left alone — no manufactured churn):** `mystic-wood/engine.js`
+  at 764/800 (watch-item, but churn stopped → cheap cold debt; re-measure first at the
+  next mystic-wood feature wave); the ~1-line ceiling headroom on app.js / worker /
+  styles.css / render.js / sogotable-api.test.js (the ratchet-by-design pattern — forces
+  the next addition to open a seam); the ~22-entry `wireBattleship` ctx surface (freshly
+  extracted verbatim in `0edd373` — narrowing it now is negative ROI; ~6 pure helpers
+  `client.js` could import directly are a tiny future tidy, revisit at battleship's next
+  feature); `sogotable-api.test.js` at 2262 lines (already-tracked FILE_CAP_EXCEPTION).
+- **Handoffs:** none (0 reorganizer, 0 implementer, 0 placement-advisor). Next trigger:
+  a game ship/lock or a mystic-wood feature wave (re-measure `engine.js`/`render.js` first).
+
 ## 2026-07-15 — seventh steward pass (proactive debt relief on the two hottest files)
 
 - **Run:** On-demand whole-codebase audit. Baseline `main` at `f951c6f`, 412/412 green.
