@@ -45,7 +45,7 @@ extraction. Do not trust the numbers above as gospel — they rot.
 
 ## Tasks (ordered by ROI; do in order)
 
-### Task 1 — Open the Mystic-Wood board-input seam (MED · reorganizer)
+### Task 1 — Open the Mystic-Wood board-input seam (MED · reorganizer) — DONE @ 15b5a0d
 - **Why:** `mystic-wood/render.js` is 756/800 and the repo's #4 hotspot; it grew 29
   lines in a 3-day delta while Informed-Consent doctrine work lands. Beck: make the
   change easy *before* the next feature, as its own commit, to avoid a Two-Hats
