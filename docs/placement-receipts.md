@@ -861,3 +861,58 @@ PLACEMENT RECEIPT (advisor: placement-advisor)
 - Verification: 412 tests pass; architecture load-eval + ceiling guards green. Two-device on-device
                 check (background one phone mid-turn, return) remains for MojoSOGO — inherent to the bug.
 ```
+
+## 2026-07-12 — RETROACTIVE — room-view projection extraction (new owner row)
+Commit: e634f18 refactor(worker): extract room-view projection from sogotable-api.js to open ceiling headroom
+Logged 2026-07-15 (Steward Pass 7, maintenance-plan Task 3): the pass-7 receipts-vs-commits
+audit found this reorg shipped a new top-level owner row in `docs/module-ownership.md` with
+no receipt. Codified rule (2nd pass): a new top-level owner row is *always* a receipt.
+Substance reconstructed from the commit body; the audit verified the placement was correct.
+
+```
+REORG RECEIPT (commit e634f18) — RETROACTIVE
+- Trigger:      The Worker entry `workers/sogotable-api.js` sat at 1330/1330 — zero headroom —
+                ahead of further worker work; make room first, as its own behavior-preserving commit.
+- Seam moved:   Room WIRE PROJECTION — public room/summary/invite dicts + viewer projection +
+                revision/freshness bookkeeping — from `workers/sogotable-api.js` to a NEW leaf
+                `workers/room-view.js`, wired back by pure (downstream-only) import.
+- Room opened:  sogotable-api.js 1330 → 1230 lines; ceiling ratcheted 1330 → 1230.
+                room-view.js is a 116-line leaf under the global backstop (no dedicated ceiling).
+- Behavior:     PRESERVED — functions moved verbatim; no HTTP route, Durable Object binding,
+                broadcast shape, revision logic, or response changed. The three DO classes stay
+                exported from the entry, so wrangler.toml bindings are unaffected. 412 tests green.
+- Restraint:    Deliberately did NOT extract the DO classes — they couple back to entry-local
+                routeRequest/notify*/runBotTurns (a circular back-import); room-view is downstream-only.
+- New owner row: | `workers/room-view.js` | Room wire projection: public room/summary/invite dicts +
+                viewer projection + revision/freshness bookkeeping | `workers/sogotable-api.js` |
+                (shipped in e634f18; this receipt is the missing audit-trail entry for it).
+                review-export allowlist entry also added in the original commit.
+- Reorganizer:  YES (behavior-preserving preparatory extraction).
+```
+
+## 2026-07-12 — RETROACTIVE — sound-controls extraction (new owner row)
+Commit: f37ba3d refactor(shell): extract sound-controls from app.js to open ceiling headroom
+Logged 2026-07-15 (Steward Pass 7, maintenance-plan Task 3): same audit, same finding — a new
+top-level owner row in `docs/module-ownership.md` shipped without a receipt. Substance
+reconstructed from the commit body; the audit verified the placement was correct.
+
+```
+REORG RECEIPT (commit f37ba3d) — RETROACTIVE
+- Trigger:      `src/sogotable/static/app.js` sat at 2496/2497 — one line under its hard CEILINGS
+                cap, no runway — ahead of further shell work; open a seam first.
+- Seam moved:   Sound-control UI wiring — mute/volume toggle buttons + one-time audio unlock +
+                global control-click SFX — from `app.js` to a NEW leaf controller
+                `src/sogotable/static/controllers/sound-controls.js`, wired once via
+                wireSoundControls() from DOMContentLoaded.
+- Room opened:  app.js 2496 → 2456 lines; ceiling ratcheted 2497 → 2456 (41 lines headroom).
+                sound-controls.js is a 51-line leaf under the global backstop.
+- Behavior:     PRESERVED — the three functions moved verbatim (same DOM listeners, button
+                markup/aria/title, SFX); the module imports ../sound.js directly and needs no ctx
+                (zero shell state moved). 412 tests green.
+- Restraint:    Sound-control UI only; no shell state relocated, no unrelated app.js edits.
+- New owner row: | `src/sogotable/static/controllers/sound-controls.js` | Sound mute/volume toggle
+                UI + audio unlock + control-click SFX wiring | `src/sogotable/static/app.js` |
+                (shipped in f37ba3d; this receipt is the missing audit-trail entry for it).
+                review-export allowlist entry also added in the original commit.
+- Reorganizer:  YES (behavior-preserving preparatory extraction).
+```
