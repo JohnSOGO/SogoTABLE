@@ -92,7 +92,7 @@ extraction. Do not trust the numbers above as gospel — they rot.
 - **Agent:** implementer (you). No subagent needed.
 - **Acceptance:** two receipts present, marked retroactive, referencing the commits.
 
-### Task 4 — Record the pass (doc-only)
+### Task 4 — Record the pass (doc-only) — DONE @ 86a5ad5
 - Append a Pass-7 entry to `docs/maintenance-log.md` summarizing this audit, the
   file-size verdict, and Tasks 1–3 with their landing commits.
 
