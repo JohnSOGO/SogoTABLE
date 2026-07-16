@@ -7,9 +7,11 @@ import { dirname, join, relative, sep } from "node:path";
 import { posix } from "node:path";
 
 // Ratchet guards (from the 2026-06-26 architecture review): the two god-files
-// and the stylesheets must not silently regrow. When you extract code out of one,
-// LOWER its ceiling to lock the win in. If a new feature pushes a file over its
-// ceiling, that is the signal to extract something first, not to bump the limit.
+// and the stylesheets must not silently regrow. Each cap is set at the file's size
+// + WORKING_BUFFER, so ordinary edits fit; crossing a ceiling is the trigger to
+// consult the placement-advisor, which either extracts a seam (cap re-pinned DOWN)
+// or blesses a cohesive file (cap re-pinned UP, with a receipt) — never a silent
+// bump. Audit the live state any time with `npm run arch:audit`.
 // styles.css was split into styles.css (platform chrome) + styles-games.css
 // (game-screen visuals) on 2026-06-27 to make room without regrowth.
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
