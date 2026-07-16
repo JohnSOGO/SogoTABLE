@@ -1,15 +1,17 @@
-// Browser-side adapter for Battleship (Phase 2): the setup/play/grid renderers
-// and their geometry + draft helpers. The hard part of this game is the reveal
-// animation system, which STAYS in the app shell (the scheduler owns the timers
-// and the reveal/queue/view-mode/review-mark state). This module renders from a
-// ctx bag each frame and calls back through it: it reads the active reveal via
-// ctx.activeReveal(), reads/writes view-mode + review-mark via ctx getters/
-// setters, and triggers moves/clears/repaints via ctx.makeAction/clearReveals/
-// rerender. The shell keeps battleshipViewerSeat, battleshipVisiblePlayer, the
-// phrase pickers, activeBattleshipResultReveal, makeBattleshipAction, and the
-// isBattleshipGameState predicate. Only the ship-placement draft state lives
-// here (module-private); clearBattleshipDraft is exported for the shell's POST.
+// Browser-side controller for Battleship (Phase 2). This module owns the WHOLE
+// battleship presentation state machine — relocated out of the app shell so the
+// shell stops carrying a single game's view logic (ownership Golden Rule / no
+// Feature Envy). It owns: the setup/play/grid renderers and their geometry +
+// draft helpers; the reveal-animation subsystem (the queued hit/miss reveals,
+// their timer, and the offence/defence view mode); the completed-game review
+// mark; and the move-submit action. One-way dependency: this module NEVER imports
+// the shell. The shell injects its capabilities once via wireBattleship(ctx) and
+// drives the exported entry points (renderBattleshipGame, showBattleshipAttackReveal,
+// syncBattleshipReviewMark, visibleBattleshipPlayerMark, get/setBattleshipReviewMark).
+// clearBattleshipDraft stays exported for the shell's fleet-POST path.
 import { actionLabelStyle } from "../../storage.js";
+import { randomBattleshipAttackPhrase, randomBattleshipResultPhrase } from "./phrases.js";
+import { playBattleshipHit, playBattleshipMiss, playClick, playInvalidMove } from "../../sound.js";
 
 // Module-private fleet-placement state (was on the app shell).
 let battleshipSelectedShipId = "carrier";
@@ -17,6 +19,79 @@ let battleshipDrafts = {};
 // Latest render ctx, stored so the cell/button handlers created during a render
 // see current shell state when they fire.
 let ctx = null;
+
+// Reveal-animation subsystem state (relocated from the app shell). This module
+// owns the battleship presentation state machine: the queued hit/miss reveals,
+// their timer, the offence/defence view mode, and the review-mark that the
+// completed-game player switch reads/writes.
+let battleshipViewMode = "auto";
+let battleshipResultReveal = null;
+let battleshipResultTimer = null;
+let battleshipRevealQueue = [];
+let battleshipReviewMark = "";
+
+const BATTLESHIP_RADAR_MS = 1000;          // radar scan before the hit/miss lands
+const BATTLESHIP_RESULT_MS = 2000;         // how long the hit/miss stays up
+const BATTLESHIP_DEFENCE_SETTLE_MS = 250;  // let the defence board settle before an incoming reveal
+
+// Shell capabilities injected once via wireBattleship(). One-way: this module
+// never imports app.js; the shell hands it these hooks and calls the exports.
+let shell = {
+  getRoom: () => null,
+  getPendingMove: () => null,
+  setPendingMove: () => {},
+  selectedPlayer: () => null,
+  isBattleshipGameState: () => false,
+  isBotPlayer: () => false,
+  moveIntentKey: () => "",
+  getDeviceSelectedPlayerId: () => "",
+  getSelectedPlayerId: () => "",
+  ensureOwnerToken: async () => "",
+  api: async () => ({}),
+  setRoom: () => {},
+  rerender: () => {},
+  showTurnStatus: () => {},
+  setTurnStatusText: () => {},
+  setTurnColorVariables: () => {},
+  scheduleWinOverlay: () => {},
+  showInfoPrompt: () => {},
+  isHexColor: () => false,
+  mixColorWithWhite: () => "",
+  colorWithAlpha: () => "",
+};
+
+export function wireBattleship(context) {
+  shell = { ...shell, ...context };
+}
+
+// Build the per-frame render ctx the renderers read. Values are snapshotted at
+// frame time (matching the old shell, which passed a fresh bag each renderGame);
+// deferred cell/button handlers re-read the module-level `ctx`, so they see the
+// latest frame. Battleship state/functions are now module-local; shell-generic
+// helpers come from the injected `shell`.
+function buildRenderCtx() {
+  return {
+    room: shell.getRoom(),
+    pendingMove: shell.getPendingMove(),
+    viewMode: battleshipViewMode,
+    setViewMode: (mode) => { battleshipViewMode = mode; },
+    reviewMark: battleshipReviewMark,
+    setReviewMark: (mark) => { battleshipReviewMark = mark; },
+    viewerSeat: battleshipViewerSeat,
+    visiblePlayer: battleshipVisiblePlayer,
+    activeReveal: activeBattleshipResultReveal,
+    makeAction: makeBattleshipAction,
+    clearReveals: clearBattleshipReveals,
+    rerender: shell.rerender,
+    showTurnStatus: shell.showTurnStatus,
+    setTurnStatusText: shell.setTurnStatusText,
+    setTurnColorVariables: shell.setTurnColorVariables,
+    scheduleWinOverlay: shell.scheduleWinOverlay,
+    isHexColor: shell.isHexColor,
+    mixColorWithWhite: shell.mixColorWithWhite,
+    colorWithAlpha: shell.colorWithAlpha,
+  };
+}
 
 // Dark-mode board palette ("dark ocean"). The light naval palette lives in
 // styles-games.css; this small block re-skins only the dark theme and is
@@ -75,9 +150,9 @@ function ensureBattleshipTheme() {
   document.head.appendChild(styleEl);
 }
 
-function renderBattleshipGame(renderCtx) {
+function renderBattleshipGame() {
   ensureBattleshipTheme();
-  ctx = renderCtx;
+  ctx = buildRenderCtx();
   const game = ctx.room.game;
   const host = document.getElementById("macroBoard");
   host.className = "macro-board battleship-room-board";
@@ -447,4 +522,225 @@ function clearBattleshipDraft(code, mark) {
   delete battleshipDrafts[battleshipDraftKey(code, mark)];
 }
 
-export { renderBattleshipGame, clearBattleshipDraft };
+// --- Reveal subsystem + move action (relocated from the app shell) ---------
+
+// Submit a battleship move (fleet placement or an attack) and reconcile the
+// resulting room snapshot. Reads the live room via shell.getRoom() at each
+// access — including after the await — so a mid-flight broadcast is honored
+// exactly as it was when this lived on the shell.
+async function makeBattleshipAction(action) {
+  const player = shell.selectedPlayer();
+  if (!player || !shell.getRoom() || !shell.isBattleshipGameState(shell.getRoom().game)) return;
+  const selectedSeat = shell.getRoom().players.find((seat) => seat.id === player.id);
+  if (!selectedSeat || shell.isBotPlayer(selectedSeat)) return;
+  if (shell.getRoom().game.status === "playing" && selectedSeat.mark !== shell.getRoom().game.current_player) return;
+  const moveKey = shell.moveIntentKey(shell.getRoom(), player.id, null, null, JSON.stringify(action));
+  if (shell.getPendingMove()) return;
+  playClick();
+  shell.setPendingMove({
+    key: moveKey,
+    roomCode: shell.getRoom().code,
+    moveCount: shell.getRoom().game.move_count,
+  });
+  shell.rerender();
+  try {
+    const response = await shell.api("/api/room/move", {
+      code: shell.getRoom().code,
+      player_id: player.id,
+      owner_token: await shell.ensureOwnerToken(player.id),
+      action, game_epoch: shell.getRoom().game_epoch,
+    });
+    shell.setPendingMove(null);
+    // Don't clear reveals here: setRoom enqueues the fresh ones from the event
+    // diff, and a live WebSocket broadcast may already be playing this move's
+    // reveal before this response resolves.
+    if (action.type === "place_fleet" || action.type === "auto_place") {
+      const selectedSeatAfterMove = shell.getRoom().players.find((seat) => seat.id === player.id);
+      clearBattleshipDraft(shell.getRoom().code, selectedSeatAfterMove && selectedSeatAfterMove.mark);
+    }
+    shell.setRoom(response.room);
+  } catch (error) {
+    shell.setPendingMove(null);
+    clearBattleshipReveals();
+    shell.rerender();
+    shell.showTurnStatus(null, error.message);
+    playInvalidMove();
+  }
+}
+
+// A reveal plays in up to three phases: an optional "settle" pause (so the
+// board can switch to the defending view), a radar scan, then the hit/miss
+// result. Reveals are queued so a player's own offence reveal and the incoming
+// defence reveal play back to back instead of clobbering each other.
+function enqueueBattleshipReveals(reveals) {
+  if (!reveals.length) return;
+  battleshipRevealQueue.push(...reveals);
+  if (!battleshipResultReveal) advanceBattleshipRevealQueue();
+}
+
+function advanceBattleshipRevealQueue() {
+  const next = battleshipRevealQueue.shift();
+  if (!next) {
+    shell.rerender();
+    return;
+  }
+  showBattleshipResultReveal(next);
+}
+
+function showBattleshipResultReveal(reveal) {
+  const settleMs = Math.max(0, Number(reveal.settleMs || 0));
+  const now = Date.now();
+  const radarStart = now + settleMs;
+  const radarUntil = radarStart + BATTLESHIP_RADAR_MS;
+  const active = {
+    ...reveal,
+    pendingUntil: settleMs ? radarStart : 0,
+    radarUntil,
+    until: radarUntil + BATTLESHIP_RESULT_MS,
+  };
+  battleshipResultReveal = active;
+  window.clearTimeout(battleshipResultTimer);
+  // Repaint when the radar scan begins (after the settle pause)...
+  if (settleMs) {
+    window.setTimeout(() => {
+      if (battleshipResultReveal === active) shell.rerender();
+    }, settleMs);
+  }
+  // ...play the hit/miss cue and repaint when the scan resolves...
+  window.setTimeout(() => {
+    if (battleshipResultReveal !== active) return;
+    if (active.hit) playBattleshipHit();
+    else playBattleshipMiss();
+    shell.rerender();
+  }, radarUntil - now);
+  // ...then clear and move on to the next queued reveal.
+  battleshipResultTimer = window.setTimeout(() => {
+    if (battleshipResultReveal !== active) return;
+    battleshipResultReveal = null;
+    advanceBattleshipRevealQueue();
+  }, active.until - now);
+  shell.rerender();
+}
+
+function clearBattleshipReveals() {
+  battleshipRevealQueue = [];
+  battleshipResultReveal = null;
+  window.clearTimeout(battleshipResultTimer);
+  battleshipResultTimer = null;
+}
+
+// Reveal every attack that landed since the last snapshot, in order. A bot
+// game folds the human's shot and the bot's reply into one snapshot, so the
+// diff (not last_move, which is always the bot's) is what surfaces the
+// player's own offence reveal alongside the incoming defence reveal.
+function showBattleshipAttackReveal(previousRoom, room) {
+  if (!shell.isBattleshipGameState(room.game)) return;
+  if (!previousRoom || !previousRoom.game || previousRoom.code !== room.code) return;
+  const selectedSeat = battleshipViewerSeat(room);
+  if (!selectedSeat) return;
+  // Detect new attacks by content, not array index. The Worker caps game.events
+  // to a sliding window (slice(-40)), so once a long game fills it the length
+  // stops growing and an index diff would miss every later attack — that's why
+  // reveals "stopped after a while". Cells are unique per player, so key on those.
+  const attackKey = (move) => `${move.player}:${move.row}:${move.col}`;
+  const seenAttacks = new Set(
+    (Array.isArray(previousRoom.game.events) ? previousRoom.game.events : [])
+      .filter((move) => move && move.type === "attack")
+      .map(attackKey),
+  );
+  const events = Array.isArray(room.game.events) ? room.game.events : [];
+  const newAttacks = events.filter((move) => move && move.type === "attack" && !seenAttacks.has(attackKey(move)));
+  const reveals = [];
+  const sunkByYou = [];
+  for (const move of newAttacks) {
+    const ownAttack = move.player === selectedSeat.mark;
+    // The Worker keeps ship_id on a sinking move, so name the ship you just sank.
+    if (ownAttack && move.sunk) {
+      const ship = (room.game.fleet || []).find((item) => item.id === move.ship_id);
+      sunkByYou.push(ship ? ship.name : "ship");
+    }
+    const view = ownAttack ? "offence" : "defence";
+    if (battleshipViewMode !== "auto" && battleshipViewMode !== view) continue;
+    reveals.push({
+      code: room.code,
+      player: selectedSeat.mark,
+      view,
+      row: Number(move.row),
+      col: Number(move.col),
+      hit: Boolean(move.hit),
+      sunk: Boolean(move.sunk),
+      attackText: randomBattleshipAttackPhrase(),
+      resultText: randomBattleshipResultPhrase(Boolean(move.hit), Boolean(move.sunk)),
+      settleMs: view === "defence" && battleshipViewMode === "auto" ? BATTLESHIP_DEFENCE_SETTLE_MS : 0,
+    });
+  }
+  enqueueBattleshipReveals(reveals);
+  for (const shipName of sunkByYou) shell.showInfoPrompt("Battleship", `You sunk my ${shipName}!`);
+}
+
+function syncBattleshipReviewMark(game) {
+  if (!shell.isBattleshipGameState(game) || game.phase !== "complete") return;
+  const room = shell.getRoom();
+  const selectedSeat = battleshipViewerSeat(room);
+  const currentReviewSeat = room.players.find((player) => player.mark === battleshipReviewMark);
+  if (currentReviewSeat) return;
+  battleshipReviewMark = selectedSeat && selectedSeat.mark || (room.players.find((player) => player.mark) || {}).mark || "";
+}
+
+function battleshipViewerSeat(room) {
+  if (!room || !Array.isArray(room.players)) return null;
+  return room.players.find((player) => player.id === shell.getDeviceSelectedPlayerId() && player.mark)
+    || room.players.find((player) => player.id === shell.getSelectedPlayerId() && player.mark)
+    || null;
+}
+
+function battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer) {
+  if (reveal && reveal.view === "offence") return selectedSeat;
+  if (reveal && reveal.view === "defence") return selectedSeat;
+  if (activeView === "offence") return selectedSeat || currentTurnPlayer;
+  if (activeView === "defence") return selectedSeat || currentTurnPlayer;
+  return currentTurnPlayer || selectedSeat;
+}
+
+function activeBattleshipResultReveal(room, selectedSeat) {
+  if (!room || !selectedSeat || !battleshipResultReveal) return null;
+  if (battleshipResultReveal.code !== room.code || battleshipResultReveal.player !== selectedSeat.mark) return null;
+  if (Date.now() > battleshipResultReveal.until) {
+    battleshipResultReveal = null;
+    return null;
+  }
+  return battleshipResultReveal;
+}
+
+// The mark whose board the player switch should highlight during live play.
+function visibleBattleshipPlayerMark(room) {
+  const selectedSeat = battleshipViewerSeat(room);
+  const opponent = selectedSeat ? room.players.find((player) => player.mark && player.mark !== selectedSeat.mark) : null;
+  const currentTurnPlayer = room.players.find((player) => player.mark === room.game.current_player);
+  const reveal = activeBattleshipResultReveal(room, selectedSeat);
+  const yourTurn = selectedSeat && selectedSeat.mark === room.game.current_player;
+  const activeView = reveal && reveal.view
+    ? reveal.view
+    : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
+  const visiblePlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
+  return visiblePlayer && visiblePlayer.mark || "";
+}
+
+// Review-mark accessors for the shell's completed-game player switch.
+function getBattleshipReviewMark() {
+  return battleshipReviewMark;
+}
+
+function setBattleshipReviewMark(mark) {
+  battleshipReviewMark = mark;
+}
+
+export {
+  renderBattleshipGame,
+  clearBattleshipDraft,
+  showBattleshipAttackReveal,
+  syncBattleshipReviewMark,
+  visibleBattleshipPlayerMark,
+  getBattleshipReviewMark,
+  setBattleshipReviewMark,
+};

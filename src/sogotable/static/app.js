@@ -21,8 +21,16 @@ import { renderGameList } from "./games/game-list-view.js";
 import { buildRoomRenderKey } from "./games/render-keys.js";
 import { renderBoxesGame } from "./games/boxes/client.js";
 import { renderQuoridorGame, resetQuoridorDraft } from "./games/quoridor/client.js";
-import { renderBattleshipGame, clearBattleshipDraft } from "./games/battleship/client.js";
-import { randomBattleshipAttackPhrase, randomBattleshipResultPhrase } from "./games/battleship/phrases.js";
+import {
+  renderBattleshipGame,
+  clearBattleshipDraft,
+  wireBattleship,
+  showBattleshipAttackReveal,
+  syncBattleshipReviewMark,
+  visibleBattleshipPlayerMark,
+  getBattleshipReviewMark,
+  setBattleshipReviewMark,
+} from "./games/battleship/client.js";
 import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
 import { wireGameOptions } from "./controllers/game-options.js";
 import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKey, wireGameStats } from "./controllers/game-stats.js";
@@ -90,8 +98,6 @@ import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
 import {
   setSoundEnabled,
   setSoundVolumeLevel,
-  playBattleshipHit,
-  playBattleshipMiss,
   playClick,
   playConfirm,
   playInvalidMove,
@@ -140,16 +146,8 @@ let lastSelectedPlayerStatsKey = "";
 let selectedPlayerStatsRequestId = 0;
 let playerApiAvailable = true;
 let lastLegalBoardsKey = "";
-let battleshipViewMode = "auto";
-let battleshipResultReveal = null;
-let battleshipResultTimer = null;
-let battleshipRevealQueue = [];
-let battleshipReviewMark = "";
 let lastRenderedRoomKey = "";
 let pendingMove = null;
-const BATTLESHIP_RADAR_MS = 1000;          // radar scan before the hit/miss lands
-const BATTLESHIP_RESULT_MS = 2000;         // how long the hit/miss stays up
-const BATTLESHIP_DEFENCE_SETTLE_MS = 250;  // let the defence board settle before an incoming reveal
 let playerOwnerTokens = loadPlayerOwnerTokens(); setOwnerTokenHealer((pid) => { delete playerOwnerTokens[pid]; savePlayerOwnerTokens(); return ensureOwnerToken(pid); });
 let handledResetRequestKey = "";
 let selectedGameEntryRequestId = 0;
@@ -181,6 +179,29 @@ document.addEventListener("DOMContentLoaded", () => {
     openBotOpponentModal,
   });
   wireRoomSounds({ localRoomSeat, isTenThousandGameState, isTacticalGameState, isBoxesGameState, isBotPlayer });
+  wireBattleship({
+    getRoom: () => currentRoom,
+    getPendingMove: () => pendingMove,
+    setPendingMove: (value) => { pendingMove = value; },
+    selectedPlayer,
+    isBattleshipGameState,
+    isBotPlayer,
+    moveIntentKey,
+    getDeviceSelectedPlayerId,
+    getSelectedPlayerId,
+    ensureOwnerToken,
+    api,
+    setRoom,
+    rerender: renderGame,
+    showTurnStatus,
+    setTurnStatusText,
+    setTurnColorVariables,
+    scheduleWinOverlay,
+    showInfoPrompt,
+    isHexColor,
+    mixColorWithWhite,
+    colorWithAlpha,
+  });
   wireTenThousandFarkleAck({ isTenThousandGameState, localRoomSeat, getCurrentRoom: () => currentRoom, makeTenThousandAction });
   wireInvites({
     getCurrentRoom: () => currentRoom,
@@ -1313,46 +1334,6 @@ async function makeMove(board, cell, lineId = "") {
   }
 }
 
-async function makeBattleshipAction(action) {
-  const player = selectedPlayer();
-  if (!player || !currentRoom || !isBattleshipGameState(currentRoom.game)) return;
-  const selectedSeat = currentRoom.players.find((seat) => seat.id === player.id);
-  if (!selectedSeat || isBotPlayer(selectedSeat)) return;
-  if (currentRoom.game.status === "playing" && selectedSeat.mark !== currentRoom.game.current_player) return;
-  const moveKey = moveIntentKey(currentRoom, player.id, null, null, JSON.stringify(action));
-  if (pendingMove) return;
-  playClick();
-  pendingMove = {
-    key: moveKey,
-    roomCode: currentRoom.code,
-    moveCount: currentRoom.game.move_count,
-  };
-  renderGame();
-  try {
-    const response = await api("/api/room/move", {
-      code: currentRoom.code,
-      player_id: player.id,
-      owner_token: await ensureOwnerToken(player.id),
-      action, game_epoch: currentRoom.game_epoch,
-    });
-    pendingMove = null;
-    // Don't clear reveals here: setRoom enqueues the fresh ones from the event
-    // diff, and a live WebSocket broadcast may already be playing this move's
-    // reveal before this response resolves.
-    if (action.type === "place_fleet" || action.type === "auto_place") {
-      const selectedSeatAfterMove = currentRoom.players.find((seat) => seat.id === player.id);
-      clearBattleshipDraft(currentRoom.code, selectedSeatAfterMove && selectedSeatAfterMove.mark);
-    }
-    setRoom(response.room);
-  } catch (error) {
-    pendingMove = null;
-    clearBattleshipReveals();
-    renderGame();
-    showTurnStatus(null, error.message);
-    playInvalidMove();
-  }
-}
-
 async function makeQuoridorAction(action) {
   const player = selectedPlayer();
   if (!player || !currentRoom || !isQuoridorGameState(currentRoom.game)) return;
@@ -1515,67 +1496,6 @@ async function startYahtzeeGame(options) {
   }
 }
 
-// A reveal plays in up to three phases: an optional "settle" pause (so the
-// board can switch to the defending view), a radar scan, then the hit/miss
-// result. Reveals are queued so a player's own offence reveal and the incoming
-// defence reveal play back to back instead of clobbering each other.
-function enqueueBattleshipReveals(reveals) {
-  if (!reveals.length) return;
-  battleshipRevealQueue.push(...reveals);
-  if (!battleshipResultReveal) advanceBattleshipRevealQueue();
-}
-
-function advanceBattleshipRevealQueue() {
-  const next = battleshipRevealQueue.shift();
-  if (!next) {
-    renderGame();
-    return;
-  }
-  showBattleshipResultReveal(next);
-}
-
-function showBattleshipResultReveal(reveal) {
-  const settleMs = Math.max(0, Number(reveal.settleMs || 0));
-  const now = Date.now();
-  const radarStart = now + settleMs;
-  const radarUntil = radarStart + BATTLESHIP_RADAR_MS;
-  const active = {
-    ...reveal,
-    pendingUntil: settleMs ? radarStart : 0,
-    radarUntil,
-    until: radarUntil + BATTLESHIP_RESULT_MS,
-  };
-  battleshipResultReveal = active;
-  window.clearTimeout(battleshipResultTimer);
-  // Repaint when the radar scan begins (after the settle pause)...
-  if (settleMs) {
-    window.setTimeout(() => {
-      if (battleshipResultReveal === active) renderGame();
-    }, settleMs);
-  }
-  // ...play the hit/miss cue and repaint when the scan resolves...
-  window.setTimeout(() => {
-    if (battleshipResultReveal !== active) return;
-    if (active.hit) playBattleshipHit();
-    else playBattleshipMiss();
-    renderGame();
-  }, radarUntil - now);
-  // ...then clear and move on to the next queued reveal.
-  battleshipResultTimer = window.setTimeout(() => {
-    if (battleshipResultReveal !== active) return;
-    battleshipResultReveal = null;
-    advanceBattleshipRevealQueue();
-  }, active.until - now);
-  renderGame();
-}
-
-function clearBattleshipReveals() {
-  battleshipRevealQueue = [];
-  battleshipResultReveal = null;
-  window.clearTimeout(battleshipResultTimer);
-  battleshipResultTimer = null;
-}
-
 function setRoom(room) {
   if (isStaleRoomSnapshot(currentRoom, room)) return;
   if (currentRoom && room && currentRoom.code === room.code && Number(room.revision) > Number(currentRoom.revision || 0) + 1) console.info(`[sync] recovered ${Number(room.revision) - Number(currentRoom.revision) - 1} missed broadcast(s) — rev ${currentRoom.revision}→${room.revision}`);
@@ -1637,55 +1557,6 @@ function localRoomSeat(room) {
     || null;
 }
 
-// Reveal every attack that landed since the last snapshot, in order. A bot
-// game folds the human's shot and the bot's reply into one snapshot, so the
-// diff (not last_move, which is always the bot's) is what surfaces the
-// player's own offence reveal alongside the incoming defence reveal.
-function showBattleshipAttackReveal(previousRoom, room) {
-  if (!isBattleshipGameState(room.game)) return;
-  if (!previousRoom || !previousRoom.game || previousRoom.code !== room.code) return;
-  const selectedSeat = battleshipViewerSeat(room);
-  if (!selectedSeat) return;
-  // Detect new attacks by content, not array index. The Worker caps game.events
-  // to a sliding window (slice(-40)), so once a long game fills it the length
-  // stops growing and an index diff would miss every later attack — that's why
-  // reveals "stopped after a while". Cells are unique per player, so key on those.
-  const attackKey = (move) => `${move.player}:${move.row}:${move.col}`;
-  const seenAttacks = new Set(
-    (Array.isArray(previousRoom.game.events) ? previousRoom.game.events : [])
-      .filter((move) => move && move.type === "attack")
-      .map(attackKey),
-  );
-  const events = Array.isArray(room.game.events) ? room.game.events : [];
-  const newAttacks = events.filter((move) => move && move.type === "attack" && !seenAttacks.has(attackKey(move)));
-  const reveals = [];
-  const sunkByYou = [];
-  for (const move of newAttacks) {
-    const ownAttack = move.player === selectedSeat.mark;
-    // The Worker keeps ship_id on a sinking move, so name the ship you just sank.
-    if (ownAttack && move.sunk) {
-      const ship = (room.game.fleet || []).find((item) => item.id === move.ship_id);
-      sunkByYou.push(ship ? ship.name : "ship");
-    }
-    const view = ownAttack ? "offence" : "defence";
-    if (battleshipViewMode !== "auto" && battleshipViewMode !== view) continue;
-    reveals.push({
-      code: room.code,
-      player: selectedSeat.mark,
-      view,
-      row: Number(move.row),
-      col: Number(move.col),
-      hit: Boolean(move.hit),
-      sunk: Boolean(move.sunk),
-      attackText: randomBattleshipAttackPhrase(),
-      resultText: randomBattleshipResultPhrase(Boolean(move.hit), Boolean(move.sunk)),
-      settleMs: view === "defence" && battleshipViewMode === "auto" ? BATTLESHIP_DEFENCE_SETTLE_MS : 0,
-    });
-  }
-  enqueueBattleshipReveals(reveals);
-  for (const shipName of sunkByYou) showInfoPrompt("Battleship", `You sunk my ${shipName}!`);
-}
-
 async function handleIncomingResetRequest() {
   if (!currentRoom || !currentRoom.reset_request) {
     handledResetRequestKey = "";
@@ -1740,27 +1611,7 @@ function renderGame() {
   syncBattleshipReviewMark(game);
   renderGamePlayerSwitch();
   if (isBattleshipGameState(game)) {
-    renderBattleshipGame({
-      room: currentRoom,
-      pendingMove,
-      viewMode: battleshipViewMode,
-      setViewMode: (mode) => { battleshipViewMode = mode; },
-      reviewMark: battleshipReviewMark,
-      setReviewMark: (mark) => { battleshipReviewMark = mark; },
-      viewerSeat: battleshipViewerSeat,
-      visiblePlayer: battleshipVisiblePlayer,
-      activeReveal: activeBattleshipResultReveal,
-      makeAction: makeBattleshipAction,
-      clearReveals: clearBattleshipReveals,
-      rerender: renderGame,
-      showTurnStatus,
-      setTurnStatusText,
-      setTurnColorVariables,
-      scheduleWinOverlay,
-      isHexColor,
-      mixColorWithWhite,
-      colorWithAlpha,
-    });
+    renderBattleshipGame();
     return;
   }
   if (isQuoridorGameState(game)) {
@@ -1877,41 +1728,8 @@ function renderGame() {
   });
 }
 
-function syncBattleshipReviewMark(game) {
-  if (!isBattleshipGameState(game) || game.phase !== "complete") return;
-  const selectedSeat = battleshipViewerSeat(currentRoom);
-  const currentReviewSeat = currentRoom.players.find((player) => player.mark === battleshipReviewMark);
-  if (currentReviewSeat) return;
-  battleshipReviewMark = selectedSeat && selectedSeat.mark || (currentRoom.players.find((player) => player.mark) || {}).mark || "";
-}
-
 function isCompletedRoom(room) {
   return Boolean(room && (room.status === "completed" || ["x_won", "o_won", "draw"].includes(room.game.status)));
-}
-
-function battleshipViewerSeat(room) {
-  if (!room || !Array.isArray(room.players)) return null;
-  return room.players.find((player) => player.id === getDeviceSelectedPlayerId() && player.mark)
-    || room.players.find((player) => player.id === getSelectedPlayerId() && player.mark)
-    || null;
-}
-
-function battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer) {
-  if (reveal && reveal.view === "offence") return selectedSeat;
-  if (reveal && reveal.view === "defence") return selectedSeat;
-  if (activeView === "offence") return selectedSeat || currentTurnPlayer;
-  if (activeView === "defence") return selectedSeat || currentTurnPlayer;
-  return currentTurnPlayer || selectedSeat;
-}
-
-function activeBattleshipResultReveal(room, selectedSeat) {
-  if (!room || !selectedSeat || !battleshipResultReveal) return null;
-  if (battleshipResultReveal.code !== room.code || battleshipResultReveal.player !== selectedSeat.mark) return null;
-  if (Date.now() > battleshipResultReveal.until) {
-    battleshipResultReveal = null;
-    return null;
-  }
-  return battleshipResultReveal;
 }
 
 function canRoomSeatMove(seat, game) {
@@ -1985,7 +1803,7 @@ function renderGamePlayerSwitch() {
     const scoreText = tacticalScoreText(roomPlayer);
     const label = document.createElement(isBattleshipReview ? "button" : "div");
     if (isBattleshipReview) label.type = "button";
-    const selectedReview = isBattleshipReview && roomPlayer.mark === (battleshipReviewMark || currentRoom.players[0].mark);
+    const selectedReview = isBattleshipReview && roomPlayer.mark === (getBattleshipReviewMark() || currentRoom.players[0].mark);
     label.className = `player-switch-button ${highlighted ? "current-turn" : ""} ${selectedReview ? "current-turn" : ""}`;
     label.setAttribute("aria-current", highlighted ? "true" : "false");
     if (highlighted || selectedReview) applyPlayerLabelTurnColor(label, roomPlayer);
@@ -1993,25 +1811,12 @@ function renderGamePlayerSwitch() {
     if (isBattleshipReview) {
       label.setAttribute("aria-pressed", selectedReview ? "true" : "false");
       label.addEventListener("click", () => {
-        battleshipReviewMark = roomPlayer.mark;
+        setBattleshipReviewMark(roomPlayer.mark);
         renderGame();
       });
     }
     host.appendChild(label);
   });
-}
-
-function visibleBattleshipPlayerMark(room) {
-  const selectedSeat = battleshipViewerSeat(room);
-  const opponent = selectedSeat ? room.players.find((player) => player.mark && player.mark !== selectedSeat.mark) : null;
-  const currentTurnPlayer = room.players.find((player) => player.mark === room.game.current_player);
-  const reveal = activeBattleshipResultReveal(room, selectedSeat);
-  const yourTurn = selectedSeat && selectedSeat.mark === room.game.current_player;
-  const activeView = reveal && reveal.view
-    ? reveal.view
-    : battleshipViewMode === "auto" ? (yourTurn ? "offence" : "defence") : battleshipViewMode;
-  const visiblePlayer = battleshipVisiblePlayer(activeView, reveal, selectedSeat, opponent, currentTurnPlayer);
-  return visiblePlayer && visiblePlayer.mark || "";
 }
 
 function applyPlayerLabelTurnColor(element, player) {
