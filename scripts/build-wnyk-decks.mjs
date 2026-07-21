@@ -11,9 +11,14 @@ const raw = JSON.parse(
   readFileSync(join(root, "AI", "cah", "data", "cah-all-compact.json"), "utf8"),
 );
 
+// classic still comes from the JSON Against Humanity dataset. The family
+// deck's CAH cards come from OFFICIAL sources instead (2026-07-20
+// reconciliation): whites from fe-official-white.json (CAH's own site JS,
+// current revision) and blacks from fe-official-black.json (extracted from the
+// official print-and-play PDF) — the dataset's "Public Beta" family pack was
+// contaminated with community strays and is no longer a source.
 const PACKS = {
   classic: "CAH Base Set",
-  family: "CAH: Family Edition (Free Print & Play Public Beta)",
 };
 
 // Short card-face provenance labels, shown centered at the bottom of every
@@ -107,36 +112,8 @@ const FIXES = new Map([
   ["When I am a billionare, I shall erect a 50-foot statue to commemorate _.", "When I am a billionaire, I shall erect a 50-foot statue to commemorate _."],
   ["Your security clearance has been suspended beause of your shameful past involving _.", "Your security clearance has been suspended because of your shameful past involving _."], // beause
   ["In a world ravaged by _ our only solace is _.", "In a world ravaged by _, our only solace is _."], // missing comma (dedupes)
-  // Family Edition white
-  ["A big, and I mean BIG turle.", "A big, and I mean BIG turtle."], // turle
-  ["A dollw that pees real pee!", "A doll that pees real pee!"], // dollw
-  ["Debating cartoon logic", "Debating cartoon logic."],
-  ["Drinkig a whole bottle of ranch.", "Drinking a whole bottle of ranch."], // Drinkig
-  ["Farting Antelopes", "Farting antelopes."],
-  ["Getting scalded in the fave with hot beans.", "Getting scalded in the face with hot beans."], // fave
-  ["Getting struck in the toilet.", "Getting stuck in the toilet."], // struck
-  ["Girly drinks", "Girly drinks."],
-  ["Going ballistic", "Going ballistic."],
-  ["Kisisng mom on the lips.", "Kissing mom on the lips."], // Kisisng
-  ["Mayonaise.", "Mayonnaise."], // Mayonaise
-  ["One tought mama.", "One tough mama."], // tought
-  ["Polka dot underwear", "Polka dot underwear."],
-  ["Shoplifiting.", "Shoplifting."], // Shoplifiting
-  ["The loose skin at the joing of the elbow known as \"the weenus.\"", "The loose skin at the joint of the elbow known as \"the weenus.\""], // joing
-  ["The sweet honking or Karen's bassoon.", "The sweet honking of Karen's bassoon."], // or→of
-  ["Think, nasty burps.", "Thick, nasty burps."], // Think→Thick
-  ["Thousands of lasagna", "Thousands of lasagna."],
-  ["Trekkies", "Trekkies."],
-  ["Urban legends", "Urban legends."],
-  ["Your fce.", "Your face."], // fce
-  // Family Edition black
-  ["Alright, which one of you little terds is responsible for _?!", "Alright, which one of you little turds is responsible for _?!"], // terds
-  ["Attention students. This is Principal Butthead. Please remember that we do not alow _ in the hallway. Thank you.", "Attention students. This is Principal Butthead. Please remember that we do not allow _ in the hallway. Thank you."], // alow
-  ["Hey guys. I just want to tell all my followers who are struggling wit _: it DOES get better.", "Hey guys. I just want to tell all my followers who are struggling with _: it DOES get better."], // wit
-  ["New from Mattel! It's BUNGO: The Game of _.\"", "New from Mattel! It's BUNGO: The Game of _."], // stray unopened quote
-  ["Oh Dark Lord, we show out devotion with a humble offering of _!", "Oh Dark Lord, we show our devotion with a humble offering of _!"], // out→our
-  ["Thanks for watching! IF you want to seee more vids of _, smash that subscribe.", "Thanks for watching! If you want to see more vids of _, smash that subscribe."], // IF/seee
-  ["When i pooped, what came out?", "When I pooped, what came out?"], // lowercase I
+  // (Family Edition typo fixes removed 2026-07-20: the family deck no longer
+  // reads the beta dataset — official sources carry corrected text.)
 ]);
 const fixText = (t) => (FIXES.has(t) ? FIXES.get(t) : t);
 
@@ -178,7 +155,15 @@ const KID_BLOCKED = new Set([
   "Feminist men.",
   "Hey guys. I just want to tell all my followers who are struggling with _: it DOES get better.",
   "Chinese campaign clothing.",
+  // 2026-07-20 official-list reconciliation — same strict bar applied to cards
+  // that exist in CAH's CURRENT official Family Edition but not the beta:
+  "Three glasses of red wine.", // alcohol
+  "Going to Hell.", // damnation-as-punchline (religion cluster)
+  "How school slowly breaks your spirit and drains your will to live.", // despair played straight
+  "Oh, that's my mom's friend Carl. He comes over and helps her with _.", // affair innuendo
 ]);
+const normKey = (t) => t.replace(/\s+/g, " ").trim().toLowerCase();
+const BLOCKED_KEYS = new Set([...BLOCKED, ...KID_BLOCKED].map(normKey));
 const kidBlocked = (key, text) => key === "family" && KID_BLOCKED.has(text);
 
 const decks = {};
@@ -211,6 +196,23 @@ for (const [key, packName] of Object.entries(PACKS)) {
   }
 }
 
+// Family deck from OFFICIAL sources (blocklists apply, case-insensitive on
+// normalized text; the official lists are already clean of typos/strays).
+const feWhite = JSON.parse(
+  readFileSync(join(root, "workers", "games", "wnyk", "fe-official-white.json"), "utf8"),
+);
+const feBlack = JSON.parse(
+  readFileSync(join(root, "workers", "games", "wnyk", "fe-official-black.json"), "utf8"),
+);
+decks.family = {
+  white: feWhite.white
+    .filter((t) => !BLOCKED_KEYS.has(normKey(t)))
+    .map((t) => ({ text: t, pack: PACK_LABELS.family })),
+  black: feBlack.black
+    .filter((b) => b.pick >= 1 && b.pick <= 3 && !BLOCKED_KEYS.has(normKey(b.text)))
+    .map((b) => ({ text: b.text, pick: b.pick, pack: PACK_LABELS.family })),
+};
+
 // The SOGO Kids Pack (original SogoTable content, committed in the game subtree)
 // extends the family deck. APPEND ONLY, after the CAH cards: card-rating keys are
 // "family:<index>", so earlier indexes must never shift between regenerations.
@@ -233,7 +235,9 @@ decks.family.black.push(
 const lines = [];
 lines.push("// GENERATED by scripts/build-wnyk-decks.mjs — DO NOT EDIT BY HAND.");
 lines.push("// Card text from Cards Against Humanity (cardsagainsthumanity.com),");
-lines.push("// CC BY-NC-SA 4.0, via JSON Against Humanity (github.com/crhallberg/json-against-humanity).");
+lines.push("// CC BY-NC-SA 4.0, via JSON Against Humanity (github.com/crhallberg/json-against-humanity)");
+lines.push("// for the classic deck; the family deck's CAH cards come from CAH's official");
+lines.push("// Family Edition site list + print-and-play PDF (see fe-official-*.json).");
 lines.push("// UI OBLIGATION: the game's help/about screen must credit Cards Against");
 lines.push("// Humanity and note the CC BY-NC-SA 4.0 license when the frontend ships.");
 lines.push("// Server-only deck data for Well, Now You Know: the worker deals");

@@ -337,7 +337,10 @@ const FILE_CAP_EXCEPTIONS = {
   // cruft list, and exact-dupe black-card dedupe landed in the build script.
   // 2026-07-20 (strict kid-deck pass): re-pinned after KID_BLOCKED pulled 28
   // suspicious Family Edition cards (family-deck only; classic untouched).
-  "workers/games/wnyk/decks.js": 2188 + WORKING_BUFFER,
+  // 2026-07-20 (official-source reconciliation): family CAH cards now come from
+  // CAH's OFFICIAL Family Edition site list + print-and-play PDF blacks
+  // (fe-official-*.json) instead of the contaminated beta dataset pack.
+  "workers/games/wnyk/decks.js": 2397 + WORKING_BUFFER,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];
