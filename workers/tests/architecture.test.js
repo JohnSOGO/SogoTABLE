@@ -326,6 +326,11 @@ const FILE_CAP_EXCEPTIONS = {
   // to games/mystic-wood/board-input.js (2026-07-15), dropping render.js from 756 to 689.
   // Pinned below the 800 global backstop to lock the room in — extract again before it regrows.
   "src/sogotable/static/games/mystic-wood/render.js": 689 + WORKING_BUFFER,
+  // GENERATED pure-data module (card text, one card per line for diffability),
+  // emitted by scripts/build-wnyk-decks.mjs — not code, so the god-CODE backstop
+  // doesn't apply. Reviewed exception per the 2026-07-20 placement receipt.
+  // Re-run the build script and re-pin here if the offered packs ever change.
+  "workers/games/wnyk/decks.js": 1992 + WORKING_BUFFER,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];
