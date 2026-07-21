@@ -5,14 +5,13 @@
 // near-white paper, black prompts near-black paper.
 export const WNYK_CSS = `
 #macroBoard:has(.wnyk-root){display:block;aspect-ratio:auto;background:none;border:none;}
-/* While WNYK is on screen, hide the NAME text in the shell's upper
-   player-switch strip — the game's own seat strip (.wk-seat-name) already
-   names everyone, so the strip keeps only its avatar icons. Gated on :has
-   (in-module precedent above) so it applies exactly while .wnyk-root is
-   mounted in the board and self-cleans the moment any other game renders —
-   no marker class to forget on unmount, and re-renders of the strip can't
-   bring the names back. Buttons and .avatar icons stay untouched. */
-#game:has(#macroBoard .wnyk-root) #gamePlayerSwitch .player-switch-button > span:not(.avatar){display:none;}
+/* While WNYK is on screen, hide the shell's upper player-switch strip
+   ENTIRELY — the game's own seat strip (.wk-seats) already shows every
+   player with the turn marker, so the strip is pure duplication here.
+   Gated on :has so it applies exactly while .wnyk-root is mounted in the
+   board and self-cleans the moment any other game renders — no marker
+   class to forget on unmount, and shell re-renders can't bring it back. */
+#game:has(#macroBoard .wnyk-root) #gamePlayerSwitch{display:none;}
 .wnyk-root{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;
  width:100%;box-sizing:border-box;padding:14px 10px 22px;border-radius:18px;
  background:var(--bg);
@@ -39,6 +38,7 @@ export const WNYK_CSS = `
  border-radius:999px;min-height:26px;padding:0 8px;font-size:.74rem;cursor:pointer;white-space:nowrap;}
 /* Black prompt card: near-black paper, light text, in every theme. */
 .wnyk-root .wk-black{width:100%;max-width:480px;box-sizing:border-box;padding:16px 18px;border-radius:14px;
+ text-align:center;
  background:#1b1815;color:#f4f1e8;border:2px solid #000;box-shadow:inset 0 -3px 0 rgba(255,255,255,.05),0 3px 8px rgba(0,0,0,.3);
  font-weight:800;font-size:1.05rem;line-height:1.45;}
 .wnyk-root .wk-black .wk-gap{border-bottom:2px solid #f4f1e8;padding:0 4px;min-width:56px;display:inline-block;
@@ -57,10 +57,13 @@ export const WNYK_CSS = `
  box-shadow:inset 0 -3px 0 rgba(0,0,0,.07),0 2px 5px rgba(0,0,0,.22);
  font-weight:700;font-size:.92rem;line-height:1.35;min-height:108px;
  transition:transform .12s ease,box-shadow .12s ease;}
-.wnyk-root .wk-card .wk-card-body{flex:1 1 auto;min-width:0;}
+/* Card text sits centered, both axes, in the body area (footer/badges keep
+   their spots); long text wraps centered — acceptable, it's card text. */
+.wnyk-root .wk-card .wk-card-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;
+ align-items:center;justify-content:center;text-align:center;}
 .wnyk-root .wk-card .wk-card-foot,.wnyk-root .wk-sentence .wk-card-foot{flex:0 0 auto;height:20px;
  display:flex;align-items:center;justify-content:center;padding:0 28px;}
-.wnyk-root .wk-card .wk-card-author{display:block;margin-top:6px;font-size:.72rem;font-style:italic;
+.wnyk-root .wk-card .wk-card-author{display:block;max-width:100%;margin-top:6px;font-size:.72rem;font-style:italic;
  font-weight:600;color:#8a5a10;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* Source-pack label: centered in the fixed footer row of EVERY face (footer
    padding clears the corner thumbs), so faces with and without thumbs or
