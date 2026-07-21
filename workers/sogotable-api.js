@@ -30,6 +30,9 @@ import {
   moveHandlerFor, newGame, gameToDict, gameToDictForViewer, legalMoves, chooseBotMove, makeMove,
   initGameSeats, applyGameStartOptions, resetRoomGame, ensureBattleshipBotFleets,
 } from "./games/handlers.js";
+// Game↔card-library composition (write-in library + rating tallies into game
+// creation and out of game resolution) — extracted owner; the entry only routes.
+import { gameLibraryStartInputs, harvestGameLibrary } from "./game-library.js";
 // Room wire projection (public room/summary/invite dicts + viewer projection +
 // revision/freshness bookkeeping) — extracted owner; the entry only routes.
 import {
@@ -640,8 +643,9 @@ async function routeRequest(method, url, payload, data, options = {}) {
       if (room.started) throw new Error("Game already started.");
       if (!room.players.length) throw new Error("Add at least one player.");
       // Host lobby options (e.g. 10,000's opening minimum) — per-game, owned by
-      // the dispatch table's applyStartOptions field.
-      applyGameStartOptions(room.game, payload);
+      // the dispatch table's applyStartOptions field. Server-derived library
+      // inputs spread LAST so a client payload can't spoof its own card library.
+      applyGameStartOptions(room.game, { ...payload, ...gameLibraryStartInputs(data) });
       startRoom(room);
       bumpRoomRevision(room);
       return { ok: true, room: roomToDict(data, room) };
@@ -684,6 +688,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
         moveHandler.applyAction(room.game, mark, payload);
         bumpRoomRevision(room);
         recordCompletedRoomStats(data, room);
+        harvestGameLibrary(data, room);
         if (!moveHandler.resolvesBotsInternally && autoBotMoves) runBotTurns(data, room);
         return { ok: true, room: roomToDict(data, room) };
       }
@@ -692,6 +697,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       makeMove(room.game, Number(payload.board), Number(payload.cell), payload.line_id);
       bumpRoomRevision(room);
       recordCompletedRoomStats(data, room);
+      harvestGameLibrary(data, room);
       if (autoBotMoves) runBotTurns(data, room);
       return { ok: true, room: roomToDict(data, room) };
     }
@@ -702,6 +708,12 @@ async function routeRequest(method, url, payload, data, options = {}) {
       await assertPlayerOwner(data, requesterId, payload.owner_token, options);
       if (!room.players.some((player) => player.id === requesterId)) throw new Error("Only a seated player can reset the game.");
       const resetStatus = handleResetVote(room, requesterId, payload.approve !== false);
+      // A reset built a fresh game via carryOptionsOnReset + initSeats — re-inject
+      // FRESH library inputs (never stale pools) and re-seed so the deal sees them.
+      if (!resetStatus && room.started) {
+        applyGameStartOptions(room.game, gameLibraryStartInputs(data));
+        initGameSeats(room.game, room.players);
+      }
       if (autoBotMoves && !resetStatus) runBotTurns(data, room);
       const result = { ok: true, room: roomToDict(data, room) };
       if (resetStatus) result.reset = resetStatus;
@@ -1126,6 +1138,7 @@ function runBotTurns(data, room) {
     else makeMove(room.game, move.board, move.cell, move.line_id);
     bumpRoomRevision(room);
     recordCompletedRoomStats(data, room);
+    harvestGameLibrary(data, room);
     moves += 1;
   }
   return moves ? { ok: true, room: roomToDict(data, room), bot_moves: moves } : null;

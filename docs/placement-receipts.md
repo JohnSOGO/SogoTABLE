@@ -1056,3 +1056,49 @@ PLACEMENT RECEIPT
 - New owner row: | `workers/card-ratings.js` | Card rating store: per-card 👍/👎 vote tallies +
                 net-threshold removal decisions over data.card_ratings | `workers/sogotable-api.js` |
 ```
+
+## 2026-07-20 — WNYK port: game↔card-library composition (new owner row)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Where does WNYK's worker-entry orchestration wiring live — creation-time library
+                inputs into game creation, and resolution-time harvest (appendCustomCards /
+                applyCardRatings / retireCustomCard) — entry-inline vs a new leaf, and is a new
+                handlers.js hook needed?
+- Verdict:      workers/game-library.js  [NEW owner row] — game-agnostic composer of the two
+                stores; entry calls it in ~7 lines (start inject via the EXISTING
+                applyStartOptions hook with server inputs spread last, reset re-inject, and one
+                harvest line beside each of the three recordCompletedRoomStats sites).
+- Flow stage:   orchestrate (entry coordinates) + persist/record (the leaf composes the stores);
+                deck inputs remain apply-stage plain data, rules stay pure.
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js (live: entry
+                1229/1254, WORKING_BUFFER 25, 800 backstop, review-export closure test),
+                workers/sogotable-api.js (create/start/move/reset/runBotTurns sites),
+                workers/games/handlers.js (full), workers/games/wnyk/rules.js
+                (newWnykGame/setWnykOptions contract, new_custom_cards/new_card_ratings),
+                workers/custom-cards.js + workers/card-ratings.js exports,
+                docs/placement-receipts.md (2026-07-20 WNYK entries),
+                src/sogotable/static/review-export.js (allowlist carries workers/sogotable-api.js).
+- Considerations:
+    - Entry is at exactly its re-pin (1229/1254): 25–50 inline lines would cross the ceiling AND
+      add a library-bookkeeping concern to a router — rejected as the top-heavy move.
+    - Rejected workers/wnyk-library.js: the module never touches WNYK internals — it operates on
+      the generic new_custom_cards/new_card_ratings contract and the two stores, and future
+      write-in/rating games ride the same seam free.
+    - Rejected a new handlers.js hook or data-aware rows: applyStartOptions already carries the
+      per-game part (setWnykOptions was built to take the library as plain data); giving dispatch
+      rows `data` access would smuggle storage into the dispatch layer.
+    - Standing receipt honored: neither leaf store imports the other; the "composition root" duty
+      is discharged by a NAMED composer the entry calls, not by entry-inline growth.
+    - Threats avoided: entry ceiling breach; client-spoofed library via the start payload (server
+      inputs spread last); a bot-finished game skipping the harvest (all three resolution sites
+      wired); review-export white-screen (three worker paths added to the allowlist).
+    - Implementation note: harvest gates on game.status === "complete" and DRAINS the two game
+      arrays as it persists — the engine recomputes new_card_ratings while play continues, so an
+      earlier harvest would double count on the next recount; drain-once is the idempotence.
+- Reorganizer:  NONE — entry stays pinned at 1229+25 (post-wiring: 1242/1254).
+- New owner row: | `workers/game-library.js` | Game↔card-library composition: creation-time deck
+                inputs (active customs + removed keys + usage map) and resolution-time harvest
+                (append write-ins, apply ratings, retire rating-removed customs) across the
+                custom-cards + card-ratings stores | `workers/sogotable-api.js` |
+```
