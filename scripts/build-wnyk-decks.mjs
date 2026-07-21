@@ -167,6 +167,22 @@ const normKey = (t) => t.replace(/\s+/g, " ").trim().toLowerCase();
 const BLOCKED_KEYS = new Set([...BLOCKED, ...KID_BLOCKED].map(normKey));
 const kidBlocked = (key, text) => key === "family" && KID_BLOCKED.has(text);
 
+// Near-duplicate drops (2026-07-20 dedupe pass, workers/games/wnyk/classic-dupes.json):
+// the dataset's "Base Set" is a pre-merged union of the US/UK/CA/AU editions, so
+// the same joke appears as 2-7 regional/spelling variants; each group keeps one.
+// Applied to the classic deck only, after FIXES. Every entry must still match a
+// live card, so stale entries fail the build instead of rotting silently.
+const dupes = JSON.parse(
+  readFileSync(join(root, "workers", "games", "wnyk", "classic-dupes.json"), "utf8"),
+);
+const DUPE_DROP = new Set(dupes.drop);
+const dupesSeen = new Set();
+const dupeDrop = (key, text) => {
+  if (key !== "classic" || !DUPE_DROP.has(text)) return false;
+  dupesSeen.add(text);
+  return true;
+};
+
 const decks = {};
 for (const [key, packName] of Object.entries(PACKS)) {
   const pack = raw.packs.find((p) => p.name === packName);
@@ -181,7 +197,7 @@ for (const [key, packName] of Object.entries(PACKS)) {
           .map(fixText),
       ),
     ]
-      .filter((t) => !kidBlocked(key, t))
+      .filter((t) => !kidBlocked(key, t) && !dupeDrop(key, t))
       .map((t) => ({ text: t, pack: label })),
     black: [],
   };
@@ -191,9 +207,16 @@ for (const [key, packName] of Object.entries(PACKS)) {
     if (b.pick < 1 || b.pick > 3 || BLOCKED.has(b.text)) continue;
     const text = fixText(b.text);
     if (kidBlocked(key, text)) continue;
+    if (dupeDrop(key, text)) continue;
     if (seenBlack.has(text)) continue; // exact-dupe transcriptions in the dataset
     seenBlack.add(text);
     decks[key].black.push({ text, pick: b.pick, pack: label });
+  }
+}
+{
+  const stale = dupes.drop.filter((t) => !dupesSeen.has(t));
+  if (stale.length) {
+    throw new Error(`classic-dupes.json entries no longer match any card:\n${stale.join("\n")}`);
   }
 }
 
