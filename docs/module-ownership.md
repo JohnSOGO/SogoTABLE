@@ -59,6 +59,7 @@ concern), then implement.
 | `workers/projections.js` | Public projections (player + bot views) | `workers/sogotable-api.js` |
 | `workers/bug-reports.js` | Bug-report store: append / list / clear / resolve-reopen-delete by id over data.bug_reports | `workers/sogotable-api.js` |
 | `workers/custom-cards.js` | Custom card library store: append / list / retire attributed write-in cards over data.custom_cards | `workers/sogotable-api.js` |
+| `workers/card-ratings.js` | Card rating store: per-card 👍/👎 vote tallies + net-threshold removal decisions over data.card_ratings | `workers/sogotable-api.js` |
 | `workers/test-players.js` | Reserved test-player identities | `workers/sogotable-api.js` |
 | `workers/platform/auth.js` | Owner-token + Sogo superuser auth primitives | `workers/sogotable-api.js` |
 | `workers/platform/http.js` | JSON response + CORS | — |

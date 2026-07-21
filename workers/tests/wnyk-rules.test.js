@@ -115,7 +115,7 @@ test("options: target score clamps, deck selects, custom cards load and carry ov
   setWnykOptions(g, { target_score: 99 });
   assert.equal(g.options.target_score, 15);
   setWnykOptions(g, { target_score: 7, custom_cards: [{ text: "  spaced   out  ", author: "Ann" }, { text: "", author: "ghost" }] });
-  assert.deepEqual(g.custom_pool, [{ text: "spaced out", author: "Ann" }]);
+  assert.deepEqual(g.custom_pool, [{ text: "spaced out", author: "Ann", id: "" }]);
   // Reset carry-over pattern (the future handlers row): options + library re-apply.
   const g2 = newWnykGame();
   setWnykOptions(g2, { ...g.options, custom_cards: g.custom_pool });
@@ -512,4 +512,126 @@ test("winning: Most Liked ties share the title", () => {
   assert.equal(g.players.P2.likes, 3);
   assert.equal(g.players.P3.likes, 3);
   assert.deepEqual(g.most_liked, { likes: 3, marks: ["P2", "P3"] });
+});
+
+// ---- card rating (spec 5b) ---------------------------------------------------
+
+test("rating: up, switch, retract — one standing vote, anonymous aggregate", () => {
+  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
+  const key = `classic:${g.players.P2.hand[0].i}`;
+  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "up" });
+  assert.equal(g.players.P2.ratings[key], "up");
+  assert.deepEqual(g.new_card_ratings, [{ card: key, up: 1, down: 0 }]);
+  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "down" }); // switch
+  assert.deepEqual(g.new_card_ratings, [{ card: key, up: 0, down: 1 }]);
+  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "down" }); // retract
+  assert.equal(g.players.P2.ratings[key], undefined);
+  assert.deepEqual(g.new_card_ratings, []);
+  // Rating never leaks into the public move stream.
+  assert.notEqual(g.last_move.type, "rate");
+  assert.ok(g.events.every((event) => event.type !== "rate"));
+});
+
+test("rating: aggregate spans players and sorts by key", () => {
+  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
+  const p2Key = `classic:${g.players.P2.hand[0].i}`;
+  const p3Key = `classic:${g.players.P3.hand[0].i}`;
+  makeWnykMove(g, "P2", { type: "rate", card: p2Key, vote: "up" });
+  makeWnykMove(g, "P3", { type: "rate", card: p3Key, vote: "down" });
+  const sorted = [
+    { card: p2Key, up: 1, down: 0 },
+    { card: p3Key, up: 0, down: 1 },
+  ].sort((a, b) => (a.card < b.card ? -1 : 1));
+  assert.deepEqual(g.new_card_ratings, sorted);
+});
+
+test("rating: hand-only — but retract/switch survives the card leaving the hand", () => {
+  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
+  // Not in P2's hand (identity shuffle: low indexes stay in the pile).
+  assert.throws(() => makeWnykMove(g, "P2", { type: "rate", card: "classic:0", vote: "down" }), /own hand/);
+  assert.throws(() => makeWnykMove(g, "P2", { type: "rate", card: "", vote: "up" }), /own hand/);
+  assert.throws(() => makeWnykMove(g, "P2", { type: "rate", card: "classic:0" }), /"up" or "down"/);
+  const key = `classic:${g.players.P2.hand[0].i}`;
+  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "up" });
+  makeWnykMove(g, "P2", { type: "submit", cards: [0] }); // the rated card leaves the hand
+  assert.ok(!g.players.P2.hand.some((ref) => `classic:${ref.i}` === key));
+  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "down" }); // switch still legal
+  assert.equal(g.players.P2.ratings[key], "down");
+  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "down" }); // retract still legal
+  assert.equal(g.players.P2.ratings[key], undefined);
+  // But a never-rated card outside the hand still refuses.
+  assert.throws(() => makeWnykMove(g, "P2", { type: "rate", card: "classic:1", vote: "up" }), /own hand/);
+});
+
+test("rating: bots never rate; blanks carry no rate key", () => {
+  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), bot("B1", "Bot")] });
+  assert.throws(() => makeWnykMove(g, "B1", { type: "rate", card: "classic:1", vote: "up" }), /Bot seats/);
+  // Force-blank draw: constant-0 RNG blanks the first human draw.
+  const blanked = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")], random: () => 0 });
+  const dict = wnykGameToDict(blanked);
+  const p1 = dict.players.find((seat) => seat.mark === "P1");
+  const blankAt = blanked.players.P1.hand.findIndex((ref) => ref.b);
+  assert.ok(blankAt >= 0);
+  assert.equal(p1.hand_rate_keys[blankAt], null);
+});
+
+test("rating: custom library cards rate as custom:<id>", () => {
+  const g = setup({
+    seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")],
+    customCards: [{ text: "Zing", author: "Ann", id: "lib1" }],
+  });
+  // Identity shuffle puts the custom ref at the pile top — P1 drew it first.
+  const holder = g.seat_order.find((mark) => g.players[mark].hand.some((ref) => ref.c !== undefined));
+  assert.ok(holder, "custom card was dealt");
+  makeWnykMove(g, holder, { type: "rate", card: "custom:lib1", vote: "down" });
+  assert.deepEqual(g.new_card_ratings, [{ card: "custom:lib1", up: 0, down: 1 }]);
+});
+
+test("rating: projections keep votes private to their seat, reveal included", () => {
+  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
+  const key = `classic:${g.players.P2.hand[0].i}`;
+  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "up" });
+  const dict = wnykGameToDict(g);
+  const own = wnykGameToDictForViewer(dict, "P2", "playing");
+  assert.deepEqual(own.players.find((seat) => seat.mark === "P2").ratings, { [key]: "up" });
+  const other = wnykGameToDictForViewer(dict, "P3", "playing");
+  const p2ForOther = other.players.find((seat) => seat.mark === "P2");
+  assert.ok(!("ratings" in p2ForOther));
+  assert.ok(!("hand_rate_keys" in p2ForOther));
+  // Full reveal opens hands but never the private votes or their hand keys.
+  const revealed = wnykGameToDictForViewer(dict, "P3", "completed");
+  const p2Revealed = revealed.players.find((seat) => seat.mark === "P2");
+  assert.ok(p2Revealed.hand.every((card) => card && card.text));
+  assert.ok(!("ratings" in p2Revealed));
+  assert.ok(!("hand_rate_keys" in p2Revealed));
+});
+
+test("removed cards: excluded from piles and hands, standard and custom", () => {
+  setWnykDecks(riggedDecks());
+  setWnykRandom(() => 0.99);
+  setWnykNow(() => now);
+  const g = newWnykGame(
+    [{ text: "Zing", author: "Ann", id: "lib1" }],
+    ["classic:59", "custom:lib1"],
+  );
+  initWnykSeats(g, [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")]);
+  const everywhere = [
+    ...g.draw_pile,
+    ...g.seat_order.flatMap((mark) => g.players[mark].hand),
+  ];
+  assert.ok(everywhere.every((ref) => ref.i !== 59));
+  assert.ok(everywhere.every((ref) => ref.c === undefined));
+  // The options seam carries the list too (reset carry-over path).
+  const g2 = newWnykGame();
+  setWnykOptions(g2, { removed_cards: ["classic:2", "classic:2", "", 42] });
+  assert.deepEqual(g2.removed_cards, ["classic:2", "42"]);
+});
+
+test("removed cards: curating away the whole deck falls back rather than wedging", () => {
+  setWnykDecks(riggedDecks({ whites: 5 }));
+  setWnykRandom(() => 0.99);
+  setWnykNow(() => now);
+  const g = newWnykGame([], [0, 1, 2, 3, 4].map((i) => `classic:${i}`));
+  initWnykSeats(g, [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")]);
+  g.seat_order.forEach((mark) => assert.equal(g.players[mark].hand.length, WNYK_HAND_SIZE));
 });

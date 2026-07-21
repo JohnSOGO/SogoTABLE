@@ -1015,3 +1015,44 @@ PLACEMENT RECEIPT
       game) or private hands leak into public broadcasts.
 - Reorganizer:  NONE. New owner row: NONE.
 ```
+
+## 2026-07-20 — WNYK card rating (crowd curation): durable ratings store
+
+Follow-up consult for AI/cah/RULES.md §5b (players 👍/👎 dealt cards; lifetime tallies; net −3
+removes a card from future decks).
+
+```
+PLACEMENT RECEIPT
+- Ask:          Where does WNYK's durable cross-game card-rating store (👍/👎 tallies + net −3
+                removal, spec AI/cah/RULES.md §5b) live — extend workers/custom-cards.js or a new
+                leaf — and who owns the rating-driven retire of a custom card + the threshold const?
+- Verdict:      workers/card-ratings.js  [NEW owner row] — data.card_ratings in the app_state blob,
+                bug-reports/custom-cards pattern. Cross-module retire: orchestration (worker entry,
+                at registration/wiring time) composes applyCardRatings → retireCustomCard; neither
+                leaf imports the other. Threshold constant: owned by workers/card-ratings.js
+                (CARD_TEXT_LIMIT precedent); engine records raw votes only. Engine-side ruling
+                (rate action → game.new_card_ratings in workers/games/wnyk/rules.js) confirmed
+                unchanged.
+- Flow stage:   persist room state + record outcome (tally/removal at game resolution); the deal
+                exclusion is apply-stage input data passed in at room creation, rules stay pure.
+- Sources read: docs/module-ownership.md, docs/modularity.md, docs/wu-wei-method.md,
+                workers/tests/architecture.test.js (live: worker entry 1229/1254, 800 backstop,
+                WORKING_BUFFER 25), AI/cah/RULES.md §5b, docs/placement-receipts.md (2026-07-20 WNYK
+                receipts), workers/custom-cards.js (67 lines), workers/games/wnyk/rules.js.
+- Considerations:
+    - Rejected Option A (broaden custom-cards.js): objection is concern count, not size — its row
+      names one concern (write-in library lifecycle); rating tallies over standard-deck keys is a
+      second lifecycle with different data and reasons to change. "General card library" is the
+      junk-drawer trajectory the map exists to stop.
+    - Rejected leaf-to-leaf import for the retire flip: card-ratings importing custom-cards would
+      make the rating store own write-in lifecycle; modularity.md places spanning behavior at the
+      boundary — the worker entry already holds `data` and composes both pure stores.
+    - Rejected engine- or config-owned threshold: library curation policy is cross-game and applied
+      at persist time, not during play; no config owner exists and one consumer doesn't justify one.
+    - Stability caveat recorded: store keys are opaque; per-deck+index keys go stale if decks.js is
+      regenerated with different pack filtering — header comment owed.
+    - Threat avoided: a second concern accreting in a young store module, and rules touching storage.
+- Reorganizer:  NONE — no capped file pressured; new leaf under the 800 backstop.
+- New owner row: | `workers/card-ratings.js` | Card rating store: per-card 👍/👎 vote tallies +
+                net-threshold removal decisions over data.card_ratings | `workers/sogotable-api.js` |
+```

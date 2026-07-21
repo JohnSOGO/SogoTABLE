@@ -18,6 +18,11 @@
 // in game.new_custom_cards for the custom-card library (persistence happens
 // upstream — rules never touch storage; the library merges back in through
 // newWnykGame/setWnykOptions as plain data).
+// Card rating (spec §5b): players thumb dealt cards 👍/👎 (private, one
+// standing vote per card per player per game, bots never rate); aggregates
+// ride game.new_card_ratings for the lifetime store (workers/card-ratings.js),
+// and the store's removed-card list comes back in as plain data
+// (removed_cards) excluded from dealing. Details in ./ratings.js.
 // Skip votes (MojoSOGO 2026-07-20): no auto-timeouts — after a decision has
 // been pending 2 minutes, the other HUMAN players may vote to skip the stalled
 // seat; 2/3 majority of eligible voters executes it (shared skip-vote.js
@@ -39,6 +44,10 @@ import { WNYK_DECKS } from "./decks.js";
 import { clampInteger } from "../util.js";
 import { castSkipVote, pruneSkipVotes, normalizeSkipVotes } from "../skip-vote.js";
 import { wnykBotSubmission, wnykBotJudge } from "./ai.js";
+import {
+  wnykRateCardKey, applyWnykRate, wnykRemovedSet,
+  normalizeWnykSeatRatings, normalizeWnykRemovedCards, normalizeWnykNewCardRatings,
+} from "./ratings.js";
 
 // Fresh opaque id, registry-style. At UI-port time this literal moves into
 // GAME_IDS in the shared registry and this line becomes GAME_IDS.wnyk (the
@@ -80,14 +89,16 @@ export function setWnykDecks(decks) {
 
 // ---------- game construction ----------
 
-// Custom library cards arrive as plain data ({ text, author }) — from
-// orchestration at creation, or via setWnykOptions' custom_cards field.
-export function newWnykGame(customCards = []) {
+// Custom library cards arrive as plain data ({ text, author, id }) — from
+// orchestration at creation, or via setWnykOptions' custom_cards field — and
+// so does the rating store's removed-card key list (removed_cards).
+export function newWnykGame(customCards = [], removedCards = []) {
   return {
     game_id: WNYK_GAME_ID,
     status: "playing",
     options: { target_score: TARGET_SCORE_DEFAULT, deck: "classic" },
     custom_pool: normalizeWnykCustomCards(customCards),
+    removed_cards: normalizeWnykRemovedCards(removedCards),
     round: 0,
     phase: "submitting",
     judge: null,
@@ -100,6 +111,7 @@ export function newWnykGame(customCards = []) {
     final_pick: null,
     round_result: null,
     new_custom_cards: [],
+    new_card_ratings: [],
     most_liked: null,
     winner: null,
     skip_votes: {},
@@ -121,6 +133,7 @@ export function setWnykOptions(game, payload) {
   }
   if (Object.prototype.hasOwnProperty.call(wnykDecks, payload.deck)) game.options.deck = payload.deck;
   if (Array.isArray(payload.custom_cards)) game.custom_pool = normalizeWnykCustomCards(payload.custom_cards);
+  if (Array.isArray(payload.removed_cards)) game.removed_cards = normalizeWnykRemovedCards(payload.removed_cards);
 }
 
 function normalizeWnykCustomCards(cards) {
@@ -129,6 +142,8 @@ function normalizeWnykCustomCards(cards) {
     .map((card) => ({
       text: cleanWnykText(card && card.text),
       author: String(card && card.author || "").trim().slice(0, 40),
+      // Library id — carried so rating keys can name the card (`custom:<id>`).
+      id: String(card && card.id || "").trim().slice(0, 40),
     }))
     .filter((card) => card.text)
     .slice(0, 500);
@@ -154,6 +169,7 @@ export function initWnykSeats(game, seats) {
       pending_blank: false,
       submitted: false,
       skipped: false,
+      ratings: {},
       is_bot: Boolean(seat && seat.kind === "bot"),
     };
   });
@@ -165,6 +181,7 @@ export function initWnykSeats(game, seats) {
   game.winner = null;
   game.most_liked = null;
   game.new_custom_cards = [];
+  game.new_card_ratings = [];
   game.move_count = 0;
   game.last_move = null;
   game.events = [];
@@ -185,10 +202,20 @@ function wnykDeck(game) {
 // submitted write-in. Text materializes only in the dict projection.
 function buildWnykPiles(game) {
   const deck = wnykDeck(game);
-  const whites = deck.white.map((_, index) => ({ i: index }));
-  game.custom_pool.forEach((_, index) => whites.push({ c: index }));
+  const whites = wnykWhiteRefs(game, deck, () => true);
   game.draw_pile = shuffleWnyk(whites);
   game.black_pile = shuffleWnyk(deck.black.map((_, index) => index));
+}
+
+// Every white-card ref passing `keep`, minus the rating store's removed cards.
+// If curation would empty the pool entirely, deal the uncurated deck instead —
+// a removed card on the table beats a wedged game.
+function wnykWhiteRefs(game, deck, keep) {
+  const removed = wnykRemovedSet(game);
+  const refs = deck.white.map((_, index) => ({ i: index }));
+  game.custom_pool.forEach((_, index) => refs.push({ c: index }));
+  const kept = refs.filter((ref) => keep(ref) && !removed.has(wnykRateCardKey(game, ref)));
+  return kept.length ? kept : refs.filter(keep);
 }
 
 function shuffleWnyk(items) {
@@ -223,10 +250,7 @@ function rebuildWnykDrawPile(game) {
     });
   });
   const deck = wnykDeck(game);
-  const fresh = deck.white.map((_, index) => ({ i: index })).filter((ref) => !inUse.has(wnykRefKey(ref)));
-  game.custom_pool.forEach((_, index) => {
-    if (!inUse.has(`c:${index}`)) fresh.push({ c: index });
-  });
+  const fresh = wnykWhiteRefs(game, deck, (ref) => !inUse.has(wnykRefKey(ref)));
   game.draw_pile = shuffleWnyk(fresh.length ? fresh : deck.white.map((_, index) => ({ i: index })));
 }
 
@@ -328,6 +352,10 @@ export function wnykGameToDict(game) {
       mark,
       name: seat.name,
       hand: seat.hand.map((ref) => wnykCardFace(game, ref)),
+      // Rate keys line up index-for-index with `hand` so the client can draw
+      // the thumbs; null = not rateable (blanks, write-ins).
+      hand_rate_keys: seat.hand.map((ref) => wnykRateCardKey(game, ref)),
+      ratings: { ...seat.ratings },
       score: seat.score,
       likes: seat.likes,
       blank_received: seat.blank_received,
@@ -376,10 +404,16 @@ export function wnykGameToDictForViewer(game, viewerMark, roomStatusValue) {
   const projected = structuredClone(game);
   const revealAll = roomStatusValue === "completed" || projected.status === "complete";
   if (Array.isArray(projected.players)) {
-    projected.players = projected.players.map((seat) => (seat.mark === viewerMark || revealAll ? seat : {
-      ...seat,
-      hand: Array.isArray(seat.hand) ? seat.hand.map(() => null) : [],
-    }));
+    // Ratings (and the hand-aligned rate keys, which would name masked hand
+    // cards) are private to their seat in EVERY phase — full reveal included.
+    projected.players = projected.players.map((seat) => {
+      if (seat.mark === viewerMark) return seat;
+      const { ratings: _ratings, hand_rate_keys: _keys, ...masked } = seat;
+      return revealAll ? masked : {
+        ...masked,
+        hand: Array.isArray(seat.hand) ? seat.hand.map(() => null) : [],
+      };
+    });
   }
   if (!Array.isArray(projected.submissions)) return projected;
   if (revealAll) return projected;
@@ -434,6 +468,7 @@ function normalizeWnykGame(game) {
       pending_blank: Boolean(seat.pending_blank),
       submitted: Boolean(seat.submitted),
       skipped: Boolean(seat.skipped),
+      ratings: normalizeWnykSeatRatings(seat.ratings),
       is_bot: Boolean(seat.is_bot),
     };
   });
@@ -449,6 +484,8 @@ function normalizeWnykGame(game) {
   game.final_pick = Number.isInteger(game.final_pick) ? game.final_pick : null;
   game.round_result = game.round_result || null;
   game.new_custom_cards = Array.isArray(game.new_custom_cards) ? game.new_custom_cards.slice(0, 200) : [];
+  game.new_card_ratings = normalizeWnykNewCardRatings(game.new_card_ratings);
+  game.removed_cards = normalizeWnykRemovedCards(game.removed_cards);
   game.most_liked = game.most_liked || null;
   game.winner = game.seat_order.includes(game.winner) ? game.winner : null;
   game.skip_votes = normalizeSkipVotes(game.skip_votes);
@@ -477,10 +514,12 @@ export function makeWnykMove(game, mark, action) {
     applyWnykConfirm(game, mark);
   } else if (type === "next_round") {
     applyWnykNextRound(game);
+  } else if (type === "rate") {
+    applyWnykRate(game, mark, action);
   } else if (type === "skip_vote") {
     applyWnykSkipVote(game, mark, String(action.target || ""));
   } else {
-    throw new Error("Action must be submit, like, unlike, promote, confirm, next_round, or skip_vote.");
+    throw new Error("Action must be submit, like, unlike, promote, confirm, next_round, rate, or skip_vote.");
   }
   game.skip_votes = pruneSkipVotes(game.skip_votes, (target) => wnykSkipEligibility(game, target));
   resolveWnykBots(game);
