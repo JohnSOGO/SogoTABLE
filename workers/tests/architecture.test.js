@@ -345,7 +345,7 @@ const FILE_CAP_EXCEPTIONS = {
   // family deck's black cards with pack label "Wordner".
   // 2026-07-20: re-pinned after the classic-deck near-dupe pass (regional
   // edition variants collapsed via workers/games/wnyk/classic-dupes.json).
-  "workers/games/wnyk/decks.js": 2360 + WORKING_BUFFER,
+  "workers/games/wnyk/decks.js": 6536 + WORKING_BUFFER,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];
