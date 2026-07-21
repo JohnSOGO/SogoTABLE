@@ -333,7 +333,9 @@ const FILE_CAP_EXCEPTIONS = {
   // 2026-07-20: re-pinned after the SOGO Kids Pack merge (200w/50b, append-only
   // so family:<i> rating keys stay stable), the kid-deck curation blocklist, and
   // per-card pack provenance labels ({text, pack} entries; still one card/line).
-  "workers/games/wnyk/decks.js": 2235 + WORKING_BUFFER,
+  // 2026-07-20 (typo sweep): re-pinned after the FIXES map, expanded BLOCKED
+  // cruft list, and exact-dupe black-card dedupe landed in the build script.
+  "workers/games/wnyk/decks.js": 2216 + WORKING_BUFFER,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];
