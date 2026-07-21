@@ -8,82 +8,12 @@ import {
 } from "../games/wnyk/rules.js";
 import { wnykBotSubmission, wnykBotJudge } from "../games/wnyk/ai.js";
 import { castSkipVote } from "../games/skip-vote.js";
+import {
+  human, bot, riggedDecks, clock, setup, seeded, resetWnykSeams, releasePrompt,
+  submitFirstCard, submissionIdOf, readAloud, playRound, playRoundWithLike,
+} from "./wnyk-fixtures.js";
 
-const human = (mark, name) => ({ mark, name, kind: "human" });
-const bot = (mark, name) => ({ mark, name, kind: "bot" });
-
-// A rigged deck so tests never depend on real card text. With the constant
-// 0.99 RNG below every Fisher–Yates shuffle is the identity (j === i for all
-// i < 100), draws pop from the END of the built pile, and the 5% blank roll
-// never fires (0.99 > 0.05). With the constant 0 RNG the FIRST draw by any
-// blank-eligible human is a blank.
-function riggedDecks({ whites = 60, blacks = 10, lastPick = 1 } = {}) {
-  return {
-    classic: {
-      white: Array.from({ length: whites }, (_, i) => ({ text: `White ${i}`, pack: "Base Set" })),
-      black: Array.from({ length: blacks }, (_, i) => ({
-        text: `Prompt ${i} _`,
-        pick: i === blacks - 1 ? lastPick : 1,
-        pack: "Base Set",
-      })),
-    },
-    family: {
-      // Mixed provenance like the real family deck (CAH cards + SOGO Kids).
-      white: Array.from({ length: whites }, (_, i) => ({
-        text: `Fam ${i}`,
-        pack: i % 2 ? "SOGO Kids" : "Family Edition",
-      })),
-      black: Array.from({ length: blacks }, (_, i) => ({ text: `FamPrompt ${i} _`, pick: 1, pack: "Family Edition" })),
-    },
-  };
-}
-
-let now = 1_000_000;
-function setup({ seats, decks = riggedDecks(), random = () => 0.99, customCards = [] } = {}) {
-  now = 1_000_000;
-  setWnykDecks(decks);
-  setWnykRandom(random);
-  setWnykNow(() => now);
-  const g = newWnykGame(customCards);
-  initWnykSeats(g, seats);
-  return g;
-}
-
-function seeded(seed) {
-  let s = seed >>> 0;
-  setWnykRandom(() => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 2 ** 32;
-  });
-}
-
-function submitFirstCard(g, mark) {
-  const index = g.players[mark].hand.findIndex((ref) => !ref.b);
-  makeWnykMove(g, mark, { type: "submit", cards: [index] });
-}
-
-function submissionIdOf(g, mark) {
-  const submission = g.submissions.find((entry) => entry.mark === mark);
-  assert.ok(submission, `no submission from ${mark}`);
-  return submission.id;
-}
-
-// Play a full pick-1 round to a chosen winner (all-human tables).
-function playRound(g, winnerMark) {
-  const judge = g.judge;
-  g.seat_order.filter((mark) => mark !== judge && !g.players[mark].is_bot)
-    .forEach((mark) => submitFirstCard(g, mark));
-  assert.equal(g.phase, "judging");
-  makeWnykMove(g, judge, { type: "promote", submission: submissionIdOf(g, winnerMark) });
-  makeWnykMove(g, judge, { type: "confirm" });
-  if (g.status === "playing") makeWnykMove(g, judge, { type: "next_round" });
-}
-
-test.afterEach(() => {
-  setWnykRandom(Math.random);
-  setWnykNow(null);
-  setWnykDecks(null);
-});
+test.afterEach(resetWnykSeams);
 
 // ---- setup -------------------------------------------------------------------
 
@@ -139,6 +69,7 @@ test("round: submissions collect hidden, reveal shuffles in, judge triages, winn
   submitFirstCard(g, "P3");
   assert.equal(g.phase, "judging");
   assert.equal(g.submissions.length, 2);
+  readAloud(g);
   const p2Id = submissionIdOf(g, "P2");
   const p3Id = submissionIdOf(g, "P3");
   makeWnykMove(g, "P1", { type: "like", submission: p3Id });
@@ -177,6 +108,7 @@ test("round: pick-2 prompt takes two cards in order and refills both", () => {
   assert.equal(g.players.P2.hand.length, WNYK_HAND_SIZE - 2);
   assert.throws(() => makeWnykMove(g, "P3", { type: "submit", cards: [0] }), /exactly 2 different cards/);
   makeWnykMove(g, "P3", { type: "submit", cards: [0, 1] });
+  readAloud(g);
   makeWnykMove(g, "P1", { type: "promote", submission: submissionIdOf(g, "P2") });
   makeWnykMove(g, "P1", { type: "confirm" });
   makeWnykMove(g, "P1", { type: "next_round" });
@@ -192,6 +124,7 @@ test("round: guards — judge cannot submit, no double submit, judge-only triage
   submitFirstCard(g, "P3");
   submitFirstCard(g, "P4");
   assert.equal(g.phase, "judging");
+  readAloud(g);
   assert.throws(() => makeWnykMove(g, "P2", { type: "like", submission: 0 }), /Only the judge/);
   assert.throws(() => makeWnykMove(g, "P1", { type: "confirm" }), /Promote one submission/);
 });
@@ -208,8 +141,13 @@ test("bots: a bot submits automatically and a bot judge triages to a finished ro
   assert.equal(g.round_result.type, "win");
   assert.ok(["P2", "P3"].includes(g.round_result.winner));
   makeWnykMove(g, "P2", { type: "next_round" });
-  // Judge is now P2: the bot's submission arrives without any human action.
+  // Judge is now P2 and must release the new prompt; the bot holds with the
+  // humans through the grace and submits on the first post-grace human move.
   assert.equal(g.judge, "P2");
+  assert.equal(g.phase, "prompt");
+  releasePrompt(g);
+  assert.equal(g.players.B1.submitted, false, "bots hold through the release grace");
+  submitFirstCard(g, "P3");
   assert.equal(g.players.B1.submitted, true);
 });
 
@@ -274,6 +212,7 @@ test("write-ins: blank plays with text, reveals with attribution, records a libr
   makeWnykMove(g, "P2", { type: "submit", cards: [blankIndex], writein: longText });
   submitFirstCard(g, "P3");
   assert.equal(g.phase, "judging");
+  readAloud(g);
   const dict = wnykGameToDict(g);
   const writeinEntry = dict.submissions.find((entry) => entry.has_writein);
   assert.equal(writeinEntry.cards[0].text.length, WNYK_WRITEIN_MAX_LENGTH);
@@ -305,6 +244,7 @@ test("write-ins: a losing write-in still shows its credit at round end and still
   const blankIndex = g.players.P2.hand.findIndex((ref) => ref.b);
   makeWnykMove(g, "P2", { type: "submit", cards: [blankIndex], writein: "the loser" });
   submitFirstCard(g, "P3");
+  readAloud(g);
   makeWnykMove(g, "P1", { type: "promote", submission: submissionIdOf(g, "P3") });
   makeWnykMove(g, "P1", { type: "confirm" });
   assert.deepEqual(g.new_custom_cards, [{ text: "the loser", author: "Ben" }]);
@@ -325,6 +265,7 @@ test("custom cards: library cards merge into the deck and wear their author on t
   const face = wnykGameToDict(g).players[0].hand[0];
   assert.deepEqual(face, { blank: false, text: "From the library", author: "Alice", writein: false, pack: "House Deck" });
   playRound(g, "P2"); // round 1 out of the way; judge is now P2
+  releasePrompt(g);
   makeWnykMove(g, "P1", { type: "submit", cards: [0] });
   submitFirstCard(g, "P3");
   // Library attribution is public card-face text even while marks are masked.
@@ -366,7 +307,7 @@ test("pack labels: every projected card face names its source pack", () => {
   // and the labels ride the viewer projection untouched.
   setWnykDecks(riggedDecks());
   setWnykRandom(() => 0.99);
-  setWnykNow(() => now);
+  setWnykNow(() => clock.now);
   const g3 = newWnykGame();
   setWnykOptions(g3, { deck: "family" });
   initWnykSeats(g3, [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")]);
@@ -401,7 +342,8 @@ test("sanitizer: hands, submissions, and authorship mask per phase for every vie
 
   submitFirstCard(g, "P3");
   assert.equal(g.phase, "judging");
-  // Judging: texts public, every mark masked (judge included), draw piles absent.
+  readAloud(g);
+  // Triage (stage 2): texts public, every mark masked (judge included), draw piles absent.
   ["P1", "P2", "P3", null].forEach((viewer) => {
     const projected = wnykGameToDictForViewer(wnykGameToDict(g), viewer, "active");
     assert.equal(projected.submissions.length, 2);
@@ -436,6 +378,7 @@ test("sanitizer: triage state (likes, final pick, tally) is public during judgin
   const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
   submitFirstCard(g, "P2");
   submitFirstCard(g, "P3");
+  readAloud(g);
   const id = submissionIdOf(g, "P2");
   makeWnykMove(g, "P1", { type: "like", submission: id });
   makeWnykMove(g, "P1", { type: "promote", submission: id });
@@ -451,7 +394,7 @@ test("skip votes: gated two minutes, 2/3 of other humans, a skipped submitter mi
   submitFirstCard(g, "P2");
   submitFirstCard(g, "P3");
   assert.throws(() => makeWnykMove(g, "P2", { type: "skip_vote", target: "P4" }), /after two minutes/);
-  now += WNYK_SKIP_DELAY_MS;
+  clock.now += WNYK_SKIP_DELAY_MS;
   assert.throws(() => makeWnykMove(g, "P2", { type: "skip_vote", target: "P2" }), /cannot be skipped/);
   makeWnykMove(g, "P2", { type: "skip_vote", target: "P4" });
   assert.equal(g.phase, "submitting", "one vote of three eligible must not skip");
@@ -464,6 +407,7 @@ test("skip votes: gated two minutes, 2/3 of other humans, a skipped submitter mi
   assert.equal(g.players.P4.skipped, true);
   assert.equal(g.phase, "judging");
   assert.equal(g.submissions.length, 2);
+  readAloud(g);
   makeWnykMove(g, "P1", { type: "promote", submission: submissionIdOf(g, "P2") });
   makeWnykMove(g, "P1", { type: "confirm" });
   assert.equal(g.players.P4.score, 0);
@@ -477,9 +421,10 @@ test("skip votes: a skipped judge discards the prompt but liked authors keep the
   submitFirstCard(g, "P3");
   submitFirstCard(g, "P4");
   assert.equal(g.phase, "judging");
+  readAloud(g);
   const likedId = submissionIdOf(g, "P3");
   makeWnykMove(g, "P1", { type: "like", submission: likedId });
-  now += WNYK_SKIP_DELAY_MS;
+  clock.now += WNYK_SKIP_DELAY_MS;
   makeWnykMove(g, "P2", { type: "skip_vote", target: "P1" });
   makeWnykMove(g, "P3", { type: "skip_vote", target: "P1" });
   assert.equal(g.phase, "round_end");
@@ -492,9 +437,10 @@ test("skip votes: a skipped judge discards the prompt but liked authors keep the
 
 test("skip votes: bots are never targets and never voters", () => {
   const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal"), bot("B1", "Bot")] });
-  // The bot submitted instantly; only humans can stall.
+  // The first post-grace human move brings the bot in; only humans can stall.
+  submitFirstCard(g, "P2");
   assert.equal(g.players.B1.submitted, true);
-  now += WNYK_SKIP_DELAY_MS;
+  clock.now += WNYK_SKIP_DELAY_MS;
   assert.throws(() => makeWnykMove(g, "P2", { type: "skip_vote", target: "B1" }), /cannot be skipped/);
   // Eligible voters for P3 are the other humans only: ceil(2 × 2/3) = 2.
   makeWnykMove(g, "P1", { type: "skip_vote", target: "P3" });
@@ -519,17 +465,6 @@ test("skip-vote protocol: injected threshold passes at the majority; default sta
 });
 
 // ---- winning -----------------------------------------------------------------
-
-// Like `playRound`, but the judge also Likes one losing submission first.
-function playRoundWithLike(g, winnerMark, likedMark) {
-  const judge = g.judge;
-  g.seat_order.filter((mark) => mark !== judge && !g.players[mark].is_bot)
-    .forEach((mark) => submitFirstCard(g, mark));
-  if (likedMark) makeWnykMove(g, judge, { type: "like", submission: submissionIdOf(g, likedMark) });
-  makeWnykMove(g, judge, { type: "promote", submission: submissionIdOf(g, winnerMark) });
-  makeWnykMove(g, judge, { type: "confirm" });
-  if (g.status === "playing") makeWnykMove(g, judge, { type: "next_round" });
-}
 
 test("winning: first to the target takes the game; Most Liked is the second podium", () => {
   const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
@@ -560,126 +495,4 @@ test("winning: Most Liked ties share the title", () => {
   assert.equal(g.players.P2.likes, 3);
   assert.equal(g.players.P3.likes, 3);
   assert.deepEqual(g.most_liked, { likes: 3, marks: ["P2", "P3"] });
-});
-
-// ---- card rating (spec 5b) ---------------------------------------------------
-
-test("rating: up, switch, retract — one standing vote, anonymous aggregate", () => {
-  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
-  const key = `classic:${g.players.P2.hand[0].i}`;
-  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "up" });
-  assert.equal(g.players.P2.ratings[key], "up");
-  assert.deepEqual(g.new_card_ratings, [{ card: key, up: 1, down: 0 }]);
-  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "down" }); // switch
-  assert.deepEqual(g.new_card_ratings, [{ card: key, up: 0, down: 1 }]);
-  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "down" }); // retract
-  assert.equal(g.players.P2.ratings[key], undefined);
-  assert.deepEqual(g.new_card_ratings, []);
-  // Rating never leaks into the public move stream.
-  assert.notEqual(g.last_move.type, "rate");
-  assert.ok(g.events.every((event) => event.type !== "rate"));
-});
-
-test("rating: aggregate spans players and sorts by key", () => {
-  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
-  const p2Key = `classic:${g.players.P2.hand[0].i}`;
-  const p3Key = `classic:${g.players.P3.hand[0].i}`;
-  makeWnykMove(g, "P2", { type: "rate", card: p2Key, vote: "up" });
-  makeWnykMove(g, "P3", { type: "rate", card: p3Key, vote: "down" });
-  const sorted = [
-    { card: p2Key, up: 1, down: 0 },
-    { card: p3Key, up: 0, down: 1 },
-  ].sort((a, b) => (a.card < b.card ? -1 : 1));
-  assert.deepEqual(g.new_card_ratings, sorted);
-});
-
-test("rating: hand-only — but retract/switch survives the card leaving the hand", () => {
-  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
-  // Not in P2's hand (identity shuffle: low indexes stay in the pile).
-  assert.throws(() => makeWnykMove(g, "P2", { type: "rate", card: "classic:0", vote: "down" }), /own hand/);
-  assert.throws(() => makeWnykMove(g, "P2", { type: "rate", card: "", vote: "up" }), /own hand/);
-  assert.throws(() => makeWnykMove(g, "P2", { type: "rate", card: "classic:0" }), /"up" or "down"/);
-  const key = `classic:${g.players.P2.hand[0].i}`;
-  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "up" });
-  makeWnykMove(g, "P2", { type: "submit", cards: [0] }); // the rated card leaves the hand
-  assert.ok(!g.players.P2.hand.some((ref) => `classic:${ref.i}` === key));
-  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "down" }); // switch still legal
-  assert.equal(g.players.P2.ratings[key], "down");
-  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "down" }); // retract still legal
-  assert.equal(g.players.P2.ratings[key], undefined);
-  // But a never-rated card outside the hand still refuses.
-  assert.throws(() => makeWnykMove(g, "P2", { type: "rate", card: "classic:1", vote: "up" }), /own hand/);
-});
-
-test("rating: bots never rate; blanks carry no rate key", () => {
-  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), bot("B1", "Bot")] });
-  assert.throws(() => makeWnykMove(g, "B1", { type: "rate", card: "classic:1", vote: "up" }), /Bot seats/);
-  // Force-blank draw: constant-0 RNG blanks the first human draw.
-  const blanked = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")], random: () => 0 });
-  const dict = wnykGameToDict(blanked);
-  const p1 = dict.players.find((seat) => seat.mark === "P1");
-  const blankAt = blanked.players.P1.hand.findIndex((ref) => ref.b);
-  assert.ok(blankAt >= 0);
-  assert.equal(p1.hand_rate_keys[blankAt], null);
-});
-
-test("rating: custom library cards rate as custom:<id>", () => {
-  const g = setup({
-    seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")],
-    customCards: [{ text: "Zing", author: "Ann", id: "lib1" }],
-  });
-  // Identity shuffle puts the custom ref at the pile top — P1 drew it first.
-  const holder = g.seat_order.find((mark) => g.players[mark].hand.some((ref) => ref.c !== undefined));
-  assert.ok(holder, "custom card was dealt");
-  makeWnykMove(g, holder, { type: "rate", card: "custom:lib1", vote: "down" });
-  assert.deepEqual(g.new_card_ratings, [{ card: "custom:lib1", up: 0, down: 1 }]);
-});
-
-test("rating: projections keep votes private to their seat, reveal included", () => {
-  const g = setup({ seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")] });
-  const key = `classic:${g.players.P2.hand[0].i}`;
-  makeWnykMove(g, "P2", { type: "rate", card: key, vote: "up" });
-  const dict = wnykGameToDict(g);
-  const own = wnykGameToDictForViewer(dict, "P2", "playing");
-  assert.deepEqual(own.players.find((seat) => seat.mark === "P2").ratings, { [key]: "up" });
-  const other = wnykGameToDictForViewer(dict, "P3", "playing");
-  const p2ForOther = other.players.find((seat) => seat.mark === "P2");
-  assert.ok(!("ratings" in p2ForOther));
-  assert.ok(!("hand_rate_keys" in p2ForOther));
-  // Full reveal opens hands but never the private votes or their hand keys.
-  const revealed = wnykGameToDictForViewer(dict, "P3", "completed");
-  const p2Revealed = revealed.players.find((seat) => seat.mark === "P2");
-  assert.ok(p2Revealed.hand.every((card) => card && card.text));
-  assert.ok(!("ratings" in p2Revealed));
-  assert.ok(!("hand_rate_keys" in p2Revealed));
-});
-
-test("removed cards: excluded from piles and hands, standard and custom", () => {
-  setWnykDecks(riggedDecks());
-  setWnykRandom(() => 0.99);
-  setWnykNow(() => now);
-  const g = newWnykGame(
-    [{ text: "Zing", author: "Ann", id: "lib1" }],
-    ["classic:59", "custom:lib1"],
-  );
-  initWnykSeats(g, [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")]);
-  const everywhere = [
-    ...g.draw_pile,
-    ...g.seat_order.flatMap((mark) => g.players[mark].hand),
-  ];
-  assert.ok(everywhere.every((ref) => ref.i !== 59));
-  assert.ok(everywhere.every((ref) => ref.c === undefined));
-  // The options seam carries the list too (reset carry-over path).
-  const g2 = newWnykGame();
-  setWnykOptions(g2, { removed_cards: ["classic:2", "classic:2", "", 42] });
-  assert.deepEqual(g2.removed_cards, ["classic:2", "42"]);
-});
-
-test("removed cards: curating away the whole deck falls back rather than wedging", () => {
-  setWnykDecks(riggedDecks({ whites: 5 }));
-  setWnykRandom(() => 0.99);
-  setWnykNow(() => now);
-  const g = newWnykGame([], [0, 1, 2, 3, 4].map((i) => `classic:${i}`));
-  initWnykSeats(g, [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")]);
-  g.seat_order.forEach((mark) => assert.equal(g.players[mark].hand.length, WNYK_HAND_SIZE));
 });

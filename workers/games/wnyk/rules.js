@@ -4,12 +4,24 @@
 // table at UI-port time (registration deliberately deferred so the game stays
 // invisible until then); tests import the engine directly.
 //
-// Ruleset (AI/cah/RULES.md): rotating judge; a black prompt card (pick 1-3);
-// every other seat secretly submits that many white cards from a 10-card hand;
-// submissions reveal anonymously in shuffled order; the judge triages
-// (like/unlike shortlist, promote one to Final, confirm) — the winner scores a
-// round point, and every liked submission (winner always counts as liked)
-// credits its author one Like toward the game-long "Most Liked" title. First
+// Ruleset (AI/cah/RULES.md): rotating judge. Each round opens with a PROMPT
+// STAGE (§3 step 2): the black card (pick 1-3) is drawn JUDGE-ONLY — the
+// judge may 👎-swap it (logged under "<deck>:b:<i>" keys, capped per round;
+// prompts get no implicit up-vote, so black entries stay played:0 and the
+// store's threshold degrades to downs-only) and then `release`s it to the
+// table; submissions inside the 5s post-release grace are rejected server-
+// side. Both piles draw lowest-lifetime-dealt first (card_usage plain-data
+// input; random within equal-usage buckets), so fresh cards surface before
+// well-worn ones. Every other seat then secretly submits that many white
+// cards from a 10-card hand; submissions reveal anonymously in shuffled
+// order. Judging is TWO STAGES
+// (§6, the tabletop read-aloud ritual): stage 1 "read-aloud" — cards show one
+// at a time to the whole room (reveal_cursor; judge hearts the current card
+// or advances with `next`, no going back); stage 2 "triage" — all cards on
+// the board (like/unlike shortlist seeded by the stage-1 hearts, promote one
+// to Final, confirm) — the winner scores a round point, and every liked
+// submission (winner always counts as liked) credits its author one Like
+// toward the game-long "Most Liked" title. First
 // to the target score (default 7) wins; Most Liked is the second podium spot.
 // Write-ins: max ONE blank card per player per game — 5% chance on any drawn
 // card, or dealt on the third round win if the lucky draw never fired. A blank
@@ -18,8 +30,12 @@
 // in game.new_custom_cards for the custom-card library (persistence happens
 // upstream — rules never touch storage; the library merges back in through
 // newWnykGame/setWnykOptions as plain data).
-// Card rating (spec §5b): players thumb dealt cards 👍/👎 (private, one
-// standing vote per card per player per game, bots never rate); aggregates
+// Card rating (spec §5b, revised 2026-07-20 — 👎-only): a downvote on a held
+// card IS a dump — the card discards and its slot refills via the normal draw
+// path, once per round per player, irreversible; playing a card is the
+// implicit upvote (no 👍 control). The engine also passively counts, per card
+// per game, times dealt into a human hand and times played — "dealt but never
+// played" is quiet negative signal. Aggregates ({card, down, dealt, played})
 // ride game.new_card_ratings for the lifetime store (workers/card-ratings.js),
 // and the store's removed-card list comes back in as plain data
 // (removed_cards) excluded from dealing. Details in ./ratings.js.
@@ -30,91 +46,77 @@
 // skipped). A skipped submitter misses the round; a skipped judge discards the
 // prompt — no point, but likes already given still count.
 //
-// DANGER ZONE: wnykGameToDictForViewer is the ONLY thing hiding other hands,
-// pre-reveal submissions, and pre-confirm authorship (fresh write-in
-// attribution included — a this-round write-in names its submitter). Library
-// custom-card attribution is public card-face text and never masks. Keep its
-// behaviour exactly.
-//
-// RNG: one seedable seam (setWnykRandom) — pile shuffles (Fisher–Yates), the
-// 5% blank roll (one value per draw by a blank-eligible human), and the reveal
-// shuffle all flow through it. Time: one seam (setWnykNow) feeding
-// phase_started_at, read only to gate skip votes.
-import { WNYK_DECKS } from "./decks.js";
+// Module seams (all intra-wnyk, acyclic): ./runtime.js owns the shared
+// constants and the RNG/time/deck test seams; ./projection.js owns the dict
+// shape, the per-viewer sanitizer (THE hidden-info boundary — see its DANGER
+// ZONE note), and untrusted-state normalization; ./ratings.js owns the
+// crowd-curation cluster. This file owns construction and every transition;
+// it re-exports the public surface so consumers import from rules.js alone.
 import { clampInteger } from "../util.js";
-import { castSkipVote, pruneSkipVotes, normalizeSkipVotes } from "../skip-vote.js";
+import { castSkipVote, pruneSkipVotes } from "../skip-vote.js";
 import { wnykBotSubmission, wnykBotJudge } from "./ai.js";
 import {
-  wnykRateCardKey, applyWnykRate, wnykRemovedSet,
-  normalizeWnykSeatRatings, normalizeWnykRemovedCards, normalizeWnykNewCardRatings,
+  wnykRateCardKey, wnykBlackCardKey, wnykBlackRateKey, applyWnykRate, wnykRemovedSet,
+  wnykCountCardStat, wnykCountKeyStat, recountWnykCardRatings,
+  normalizeWnykRemovedCards, normalizeWnykCardUsage,
 } from "./ratings.js";
+import {
+  WNYK_GAME_ID, WNYK_HAND_SIZE, WNYK_MIN_SEATS, WNYK_WRITEIN_MAX_LENGTH,
+  WNYK_SKIP_DELAY_MS, WNYK_SKIP_THRESHOLD, WNYK_SUBMIT_GRACE_MS,
+  WNYK_BLACK_SWAPS_PER_ROUND, TARGET_SCORE_MIN, TARGET_SCORE_MAX,
+  TARGET_SCORE_DEFAULT, wnykRandom, wnykNow, wnykDeckData,
+} from "./runtime.js";
+import {
+  wnykDeck, cleanWnykText, normalizeWnykCustomCards, normalizeWnykGame,
+} from "./projection.js";
 
-// Fresh opaque id, registry-style. At UI-port time this literal moves into
-// GAME_IDS in the shared registry and this line becomes GAME_IDS.wnyk (the
-// game is deliberately unregistered until then, so isWnykGame must not call
-// cleanGameId — it throws on ids the registry doesn't know).
-export const WNYK_GAME_ID = "c9d4e72a81f5";
-export const WNYK_HAND_SIZE = 10;
-export const WNYK_MIN_SEATS = 3;
-export const WNYK_WRITEIN_MAX_LENGTH = 80;
-export const WNYK_SKIP_DELAY_MS = 2 * 60 * 1000;
-export const WNYK_SKIP_THRESHOLD = 2 / 3;
-// Card-face provenance label for house-made cards (blanks, write-ins, library
-// custom cards); deck cards carry their generated pack label from decks.js.
-export const WNYK_HOUSE_PACK = "House Deck";
+export {
+  WNYK_GAME_ID, WNYK_HAND_SIZE, WNYK_MIN_SEATS, WNYK_WRITEIN_MAX_LENGTH,
+  WNYK_SKIP_DELAY_MS, WNYK_SKIP_THRESHOLD, WNYK_SUBMIT_GRACE_MS,
+  WNYK_BLACK_SWAPS_PER_ROUND, WNYK_HOUSE_PACK,
+  setWnykRandom, setWnykNow, setWnykDecks,
+} from "./runtime.js";
+export { wnykGameToDict, wnykGameToDictForViewer } from "./projection.js";
+
 const WNYK_BLANK_CHANCE = 0.05;
 const WNYK_BLANK_WIN_COUNT = 3;
-const WNYK_PHASES = ["submitting", "judging", "round_end"];
-const TARGET_SCORE_MIN = 3;
-const TARGET_SCORE_MAX = 15;
-const TARGET_SCORE_DEFAULT = 7;
 
 export function isWnykGame(game) {
   return Boolean(game && game.game_id === WNYK_GAME_ID);
-}
-
-let wnykRandom = Math.random;
-export function setWnykRandom(fn) {
-  wnykRandom = typeof fn === "function" ? fn : Math.random;
-}
-
-let wnykNow = () => Date.now();
-export function setWnykNow(fn) {
-  wnykNow = typeof fn === "function" ? fn : () => Date.now();
-}
-
-// Deck seam (tests only): swap the generated card data for a tiny rigged deck
-// so tests don't depend on real card text. Shape must match WNYK_DECKS.
-let wnykDecks = WNYK_DECKS;
-export function setWnykDecks(decks) {
-  wnykDecks = decks && typeof decks === "object" ? decks : WNYK_DECKS;
 }
 
 // ---------- game construction ----------
 
 // Custom library cards arrive as plain data ({ text, author, id }) — from
 // orchestration at creation, or via setWnykOptions' custom_cards field — and
-// so does the rating store's removed-card key list (removed_cards).
-export function newWnykGame(customCards = [], removedCards = []) {
+// so do the rating store's removed-card key list (removed_cards) and the
+// lifetime usage map (card_usage: {key → lifetime dealt}, driving the
+// fresh-cards-first pile priority for both colors).
+export function newWnykGame(customCards = [], removedCards = [], cardUsage = {}) {
   return {
     game_id: WNYK_GAME_ID,
     status: "playing",
     options: { target_score: TARGET_SCORE_DEFAULT, deck: "classic" },
     custom_pool: normalizeWnykCustomCards(customCards),
     removed_cards: normalizeWnykRemovedCards(removedCards),
+    card_usage: normalizeWnykCardUsage(cardUsage),
     round: 0,
     phase: "submitting",
     judge: null,
     black_card: null,
+    black_swaps: 0,
+    released_at: 0,
     seat_order: [],
     players: {},
     draw_pile: [],
     black_pile: [],
     submissions: [],
+    reveal_cursor: 0,
     final_pick: null,
     round_result: null,
     new_custom_cards: [],
     new_card_ratings: [],
+    card_stats: {},
     most_liked: null,
     winner: null,
     skip_votes: {},
@@ -134,26 +136,10 @@ export function setWnykOptions(game, payload) {
   if (Number.isInteger(target)) {
     game.options.target_score = clampInteger(target, TARGET_SCORE_MIN, TARGET_SCORE_MAX, TARGET_SCORE_DEFAULT);
   }
-  if (Object.prototype.hasOwnProperty.call(wnykDecks, payload.deck)) game.options.deck = payload.deck;
+  if (Object.prototype.hasOwnProperty.call(wnykDeckData(), payload.deck)) game.options.deck = payload.deck;
   if (Array.isArray(payload.custom_cards)) game.custom_pool = normalizeWnykCustomCards(payload.custom_cards);
   if (Array.isArray(payload.removed_cards)) game.removed_cards = normalizeWnykRemovedCards(payload.removed_cards);
-}
-
-function normalizeWnykCustomCards(cards) {
-  if (!Array.isArray(cards)) return [];
-  return cards
-    .map((card) => ({
-      text: cleanWnykText(card && card.text),
-      author: String(card && card.author || "").trim().slice(0, 40),
-      // Library id — carried so rating keys can name the card (`custom:<id>`).
-      id: String(card && card.id || "").trim().slice(0, 40),
-    }))
-    .filter((card) => card.text)
-    .slice(0, 500);
-}
-
-function cleanWnykText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim().slice(0, WNYK_WRITEIN_MAX_LENGTH);
+  if (payload.card_usage && typeof payload.card_usage === "object") game.card_usage = normalizeWnykCardUsage(payload.card_usage);
 }
 
 export function initWnykSeats(game, seats) {
@@ -172,6 +158,7 @@ export function initWnykSeats(game, seats) {
       pending_blank: false,
       submitted: false,
       skipped: false,
+      dump_used: false,
       ratings: {},
       is_bot: Boolean(seat && seat.kind === "bot"),
     };
@@ -185,6 +172,7 @@ export function initWnykSeats(game, seats) {
   game.most_liked = null;
   game.new_custom_cards = [];
   game.new_card_ratings = [];
+  game.card_stats = {};
   game.move_count = 0;
   game.last_move = null;
   game.events = [];
@@ -196,18 +184,49 @@ export function initWnykSeats(game, seats) {
 
 // ---------- decks & dealing ----------
 
-function wnykDeck(game) {
-  return wnykDecks[game.options.deck] || wnykDecks.classic || WNYK_DECKS.classic;
-}
-
 // Card refs stay tiny in the state blob: { i } = deck white card index,
 // { c } = custom-library index, { b: 1 } = a blank in hand, { w: text } = a
 // submitted write-in. Text materializes only in the dict projection.
 function buildWnykPiles(game) {
   const deck = wnykDeck(game);
   const whites = wnykWhiteRefs(game, deck, () => true);
-  game.draw_pile = shuffleWnyk(whites);
-  game.black_pile = shuffleWnyk(deck.black.map((_, index) => index));
+  game.draw_pile = orderWnykPileByUsage(game, whites, (ref) => wnykRateCardKey(game, ref));
+  refillWnykBlackPile(game);
+}
+
+// Fresh-cards-first priority (spec §3 step 2, both colors): a full shuffle,
+// then a STABLE sort by lifetime dealt count DESCENDING — draws pop from the
+// end, so the least-dealt cards surface first and equal-usage buckets keep
+// their full random order. An empty usage map degrades to a pure shuffle.
+function orderWnykPileByUsage(game, items, keyOf) {
+  const usage = (item) => game.card_usage[keyOf(item)] || 0;
+  return shuffleWnyk(items).sort((a, b) => usage(b) - usage(a));
+}
+
+// Black pile: removed prompts excluded (same anti-wedge fallback as whites),
+// usage-prioritized like the whites.
+function refillWnykBlackPile(game) {
+  const deck = wnykDeck(game);
+  const removed = wnykRemovedSet(game);
+  const all = deck.black.map((_, index) => index);
+  const kept = all.filter((index) => !removed.has(wnykBlackCardKey(game.options.deck, index)));
+  game.black_pile = orderWnykPileByUsage(
+    game,
+    kept.length ? kept : all,
+    (index) => wnykBlackCardKey(game.options.deck, index),
+  );
+}
+
+// Draw the next prompt to the judge (round start and 👎-swaps). Counted as
+// dealt regardless of the judge's kind — unlike hands, the prompt is seen by
+// the whole table once released. Prompts get NO played count, ever.
+function drawWnykBlackCard(game) {
+  if (!game.black_pile.length) refillWnykBlackPile(game);
+  const index = game.black_pile.pop();
+  const black = wnykDeck(game).black[index];
+  game.black_card = { text: black.text, pick: black.pick, pack: black.pack || null, i: index };
+  wnykCountKeyStat(game, wnykBlackRateKey(game), "dealt");
+  recountWnykCardRatings(game);
 }
 
 // Every white-card ref passing `keep`, minus the rating store's removed cards.
@@ -254,22 +273,30 @@ function rebuildWnykDrawPile(game) {
   });
   const deck = wnykDeck(game);
   const fresh = wnykWhiteRefs(game, deck, (ref) => !inUse.has(wnykRefKey(ref)));
-  game.draw_pile = shuffleWnyk(fresh.length ? fresh : deck.white.map((_, index) => ({ i: index })));
+  game.draw_pile = orderWnykPileByUsage(
+    game,
+    fresh.length ? fresh : deck.white.map((_, index) => ({ i: index })),
+    (ref) => wnykRateCardKey(game, ref),
+  );
 }
 
 function drawWnykCard(game, mark) {
   const seat = game.players[mark];
+  let ref;
   if (!seat.blank_received && seat.pending_blank) {
     seat.blank_received = true;
     seat.pending_blank = false;
-    return { b: 1 };
-  }
-  if (!seat.is_bot && !seat.blank_received && wnykRandom() < WNYK_BLANK_CHANCE) {
+    ref = { b: 1 };
+  } else if (!seat.is_bot && !seat.blank_received && wnykRandom() < WNYK_BLANK_CHANCE) {
     seat.blank_received = true;
-    return { b: 1 };
+    ref = { b: 1 };
+  } else {
+    if (!game.draw_pile.length) rebuildWnykDrawPile(game);
+    ref = game.draw_pile.pop();
   }
-  if (!game.draw_pile.length) rebuildWnykDrawPile(game);
-  return game.draw_pile.pop();
+  // Passive "times dealt" signal — human hands only (see ratings.js).
+  if (!seat.is_bot) wnykCountCardStat(game, ref, "dealt");
+  return ref;
 }
 
 function refillWnykHands(game) {
@@ -277,6 +304,7 @@ function refillWnykHands(game) {
     const seat = game.players[mark];
     while (seat.hand.length < WNYK_HAND_SIZE) seat.hand.push(drawWnykCard(game, mark));
   });
+  recountWnykCardRatings(game);
 }
 
 function startWnykRound(game) {
@@ -285,26 +313,71 @@ function startWnykRound(game) {
   game.seat_order.forEach((mark) => {
     game.players[mark].submitted = false;
     game.players[mark].skipped = false;
+    game.players[mark].dump_used = false;
   });
-  if (!game.black_pile.length) game.black_pile = shuffleWnyk(wnykDeck(game).black.map((_, index) => index));
-  const blackIndex = game.black_pile.pop();
-  const black = wnykDeck(game).black[blackIndex];
-  game.black_card = { text: black.text, pick: black.pick, pack: black.pack || null };
+  drawWnykBlackCard(game);
+  game.black_swaps = 0;
+  game.released_at = 0;
   game.submissions = [];
   game.final_pick = null;
   game.round_result = null;
   game.skip_votes = {};
-  game.phase = "submitting";
+  // Prompt stage: the judge reads (and may 👎-swap) the prompt before
+  // releasing it to the table. The event carries NO black_card — events are
+  // public and the prompt is judge-only until release.
+  game.phase = "prompt";
   game.phase_started_at = wnykNow();
   game.move_count += 1;
-  game.last_move = { type: "round", round: game.round, judge: game.judge, black_card: game.black_card, move_count: game.move_count };
+  game.last_move = { type: "round", round: game.round, judge: game.judge, move_count: game.move_count };
   pushWnykEvent(game, game.last_move);
+}
+
+// The judge releases the prompt to the table, opening submissions. The 5s
+// grace (WNYK_SUBMIT_GRACE_MS) is enforced server-side in applyWnykSubmit;
+// the submitters' vote-to-skip stall clock starts here.
+function applyWnykRelease(game, mark) {
+  if (game.phase !== "prompt") throw new Error("The prompt is already out.");
+  if (mark !== game.judge) throw new Error("Only the judge reveals the prompt.");
+  game.phase = "submitting";
+  game.released_at = wnykNow();
+  game.phase_started_at = wnykNow();
+  game.move_count += 1;
+  game.last_move = { type: "release", round: game.round, move_count: game.move_count };
+  pushWnykEvent(game, game.last_move);
+}
+
+// The judge's 👎 on the CURRENT prompt during the prompt stage: logged under
+// the black key namespace and the prompt is dumped and replaced — the vote
+// and the swap are the same act (white-card dump symmetry). Capped per round
+// so a judge can't bulk-downvote the prompt deck by chaining every swap; each
+// swap logs one honest down on a distinct card. Like white rating this stays
+// out of the public move stream (others can't see the prompt yet anyway), and
+// it deliberately does NOT re-arm the judge's stall clock — swapping is not
+// progress; releasing is.
+function applyWnykRateBlack(game, mark, key) {
+  if (mark !== game.judge || game.phase !== "prompt") {
+    throw new Error("Only the judge downvotes the prompt, before releasing it.");
+  }
+  if (game.black_swaps >= WNYK_BLACK_SWAPS_PER_ROUND) {
+    throw new Error(`The judge may swap at most ${WNYK_BLACK_SWAPS_PER_ROUND} prompts per round.`);
+  }
+  game.players[mark].ratings[key] = "down"; // one counted vote per card per player per game
+  game.black_swaps += 1;
+  drawWnykBlackCard(game);
 }
 
 // ---------- queries ----------
 
 function wnykSubmitterMarks(game) {
   return game.seat_order.filter((mark) => mark !== game.judge);
+}
+
+// Judging stage 1 ("read-aloud", spec §6): submissions reveal one at a time —
+// reveal_cursor is the id of the card currently being read; ids beyond it are
+// hidden from EVERYONE. When the cursor passes the last submission, stage 2
+// (the triage board) begins.
+function wnykInReadAloud(game) {
+  return game.phase === "judging" && game.reveal_cursor < game.submissions.length;
 }
 
 function wnykAllSubmissionsIn(game) {
@@ -325,121 +398,12 @@ function wnykSkipEligibility(game, targetMark) {
     if (targetMark === game.judge || target.submitted || target.skipped) return null;
     return humanMarks(game).filter((mark) => mark !== targetMark);
   }
-  if (game.phase === "judging") {
+  // A judge can stall reading the prompt or judging — skippable in both.
+  if (game.phase === "prompt" || game.phase === "judging") {
     if (targetMark !== game.judge) return null;
     return humanMarks(game).filter((mark) => mark !== targetMark);
   }
   return null;
-}
-
-// ---------- projections ----------
-
-// Every face carries `pack` — the small centered provenance label at the
-// bottom of the card. House-made cards (blanks, write-ins, library customs)
-// all read "House Deck"; deck cards carry their generated pack label.
-function wnykCardFace(game, ref) {
-  if (!ref || typeof ref !== "object") return null;
-  if (ref.b) return { blank: true, text: null, author: null, writein: false, pack: WNYK_HOUSE_PACK };
-  if (ref.w !== undefined) return { blank: false, text: String(ref.w), author: game.players[ref.by] ? game.players[ref.by].name : String(ref.by || ""), writein: true, pack: WNYK_HOUSE_PACK };
-  if (ref.c !== undefined) {
-    const card = game.custom_pool[ref.c];
-    return card ? { blank: false, text: card.text, author: card.author, writein: false, pack: WNYK_HOUSE_PACK } : null;
-  }
-  const card = wnykDeck(game).white[ref.i];
-  return card === undefined ? null : { blank: false, text: card.text, author: null, writein: false, pack: card.pack || null };
-}
-
-export function wnykGameToDict(game) {
-  normalizeWnykGame(game);
-  const players = game.seat_order.map((mark) => {
-    const seat = game.players[mark];
-    return {
-      mark,
-      name: seat.name,
-      hand: seat.hand.map((ref) => wnykCardFace(game, ref)),
-      // Rate keys line up index-for-index with `hand` so the client can draw
-      // the thumbs; null = not rateable (blanks, write-ins).
-      hand_rate_keys: seat.hand.map((ref) => wnykRateCardKey(game, ref)),
-      ratings: { ...seat.ratings },
-      score: seat.score,
-      likes: seat.likes,
-      blank_received: seat.blank_received,
-      submitted: seat.submitted,
-      skipped: seat.skipped,
-      is_bot: seat.is_bot,
-      is_judge: mark === game.judge,
-    };
-  });
-  const submissions = game.submissions.map((submission, index) => ({
-    id: submission.id === undefined ? index : submission.id,
-    mark: submission.mark,
-    cards: submission.cards.map((ref) => wnykCardFace(game, ref)),
-    liked: Boolean(submission.liked),
-    has_writein: submission.cards.some((ref) => ref && ref.w !== undefined),
-  }));
-  const {
-    players: _seats, submissions: _subs, draw_pile: _draw, black_pile: _black, custom_pool: _pool,
-    ...publicGame
-  } = game;
-  return {
-    ...publicGame,
-    game_id: WNYK_GAME_ID,
-    players,
-    submissions,
-    draw_count: game.draw_pile.length,
-    skip_delay_ms: WNYK_SKIP_DELAY_MS,
-  };
-}
-
-// Per-viewer projection (Worker gameToDictForViewer seam, Liar's Dice
-// precedent). Receives the DICT shape. Masks, per phase:
-//   - other players' hands → nulls (count preserved) unless the game is over;
-//   - submitting: a viewer sees only their OWN submission — everyone else's
-//     (contents AND existence beyond the public submitted flag) drops;
-//   - judging: submission texts are public in their shuffled order, but every
-//     submitter mark and every fresh write-in author masks — the judge is a
-//     viewer like any other here (library custom-card authors are card-face
-//     text and stay);
-//   - round_end: the winning submission reveals its mark ("well, now you
-//     know"), and every fresh write-in shows its "written by" credit (spec §5:
-//     attribution shows on reveal, win or lose); non-winner marks stay
-//     anonymous;
-//   - game over (or room completed): full reveal.
-export function wnykGameToDictForViewer(game, viewerMark, roomStatusValue) {
-  const projected = structuredClone(game);
-  const revealAll = roomStatusValue === "completed" || projected.status === "complete";
-  if (Array.isArray(projected.players)) {
-    // Ratings (and the hand-aligned rate keys, which would name masked hand
-    // cards) are private to their seat in EVERY phase — full reveal included.
-    projected.players = projected.players.map((seat) => {
-      if (seat.mark === viewerMark) return seat;
-      const { ratings: _ratings, hand_rate_keys: _keys, ...masked } = seat;
-      return revealAll ? masked : {
-        ...masked,
-        hand: Array.isArray(seat.hand) ? seat.hand.map(() => null) : [],
-      };
-    });
-  }
-  if (!Array.isArray(projected.submissions)) return projected;
-  if (revealAll) return projected;
-  if (projected.phase === "submitting") {
-    projected.submissions = projected.submissions.filter((submission) => submission.mark === viewerMark);
-    return projected;
-  }
-  const winnerId = projected.round_result && projected.round_result.type === "win"
-    ? projected.round_result.submission_id
-    : null;
-  projected.submissions = projected.submissions.map((submission) => {
-    const revealed = projected.phase === "round_end" && submission.id === winnerId;
-    if (revealed) return submission;
-    const maskWriteinAuthor = projected.phase === "judging";
-    return {
-      ...submission,
-      mark: null,
-      cards: (submission.cards || []).map((card) => (card && card.writein && maskWriteinAuthor ? { ...card, author: null } : card)),
-    };
-  });
-  return projected;
 }
 
 export function wnykScoreByMark(game) {
@@ -447,57 +411,6 @@ export function wnykScoreByMark(game) {
   const scores = {};
   game.seat_order.forEach((mark) => { scores[mark] = Number(game.players[mark].score || 0); });
   return scores;
-}
-
-function normalizeWnykGame(game) {
-  game.game_id = WNYK_GAME_ID;
-  game.status = game.status === "complete" ? "complete" : "playing";
-  if (!game.options || typeof game.options !== "object") game.options = {};
-  game.options = {
-    target_score: clampInteger(game.options.target_score, TARGET_SCORE_MIN, TARGET_SCORE_MAX, TARGET_SCORE_DEFAULT),
-    deck: Object.prototype.hasOwnProperty.call(wnykDecks, game.options.deck) ? game.options.deck : "classic",
-  };
-  game.custom_pool = normalizeWnykCustomCards(game.custom_pool);
-  game.round = clampInteger(game.round, 0, 999999, 0);
-  game.phase = WNYK_PHASES.includes(game.phase) ? game.phase : "submitting";
-  game.seat_order = Array.isArray(game.seat_order) ? game.seat_order.map(String) : [];
-  if (!game.players || typeof game.players !== "object") game.players = {};
-  game.seat_order.forEach((mark) => {
-    const seat = game.players[mark] || {};
-    game.players[mark] = {
-      name: String(seat.name || mark).trim().slice(0, 40) || mark,
-      hand: Array.isArray(seat.hand) ? seat.hand.filter((ref) => ref && typeof ref === "object").slice(0, WNYK_HAND_SIZE) : [],
-      score: clampInteger(seat.score, 0, 999999, 0),
-      likes: clampInteger(seat.likes, 0, 999999, 0),
-      blank_received: Boolean(seat.blank_received),
-      pending_blank: Boolean(seat.pending_blank),
-      submitted: Boolean(seat.submitted),
-      skipped: Boolean(seat.skipped),
-      ratings: normalizeWnykSeatRatings(seat.ratings),
-      is_bot: Boolean(seat.is_bot),
-    };
-  });
-  game.judge = game.seat_order.includes(game.judge) ? game.judge : null;
-  game.black_card = game.black_card && typeof game.black_card === "object"
-    ? { text: String(game.black_card.text || ""), pick: clampInteger(game.black_card.pick, 1, 3, 1), pack: game.black_card.pack ? String(game.black_card.pack) : null }
-    : null;
-  game.draw_pile = Array.isArray(game.draw_pile) ? game.draw_pile : [];
-  game.black_pile = Array.isArray(game.black_pile) ? game.black_pile : [];
-  game.submissions = Array.isArray(game.submissions)
-    ? game.submissions.filter((submission) => submission && game.seat_order.includes(submission.mark) && Array.isArray(submission.cards))
-    : [];
-  game.final_pick = Number.isInteger(game.final_pick) ? game.final_pick : null;
-  game.round_result = game.round_result || null;
-  game.new_custom_cards = Array.isArray(game.new_custom_cards) ? game.new_custom_cards.slice(0, 200) : [];
-  game.new_card_ratings = normalizeWnykNewCardRatings(game.new_card_ratings);
-  game.removed_cards = normalizeWnykRemovedCards(game.removed_cards);
-  game.most_liked = game.most_liked || null;
-  game.winner = game.seat_order.includes(game.winner) ? game.winner : null;
-  game.skip_votes = normalizeSkipVotes(game.skip_votes);
-  game.phase_started_at = Number.isFinite(game.phase_started_at) ? game.phase_started_at : 0;
-  game.move_count = clampInteger(game.move_count, 0, 999999, 0);
-  game.last_move = game.last_move || null;
-  game.events = Array.isArray(game.events) ? game.events.slice(-60) : [];
 }
 
 // ---------- transitions ----------
@@ -511,6 +424,10 @@ export function makeWnykMove(game, mark, action) {
   const type = String(action && action.type || "").trim();
   if (type === "submit") {
     applyWnykSubmit(game, mark, Array.isArray(action.cards) ? action.cards.map(Number) : [], action.writein);
+  } else if (type === "release") {
+    applyWnykRelease(game, mark);
+  } else if (type === "next") {
+    applyWnykNext(game, mark);
   } else if (type === "like" || type === "unlike") {
     applyWnykLike(game, mark, Number(action.submission), type === "like");
   } else if (type === "promote") {
@@ -520,20 +437,34 @@ export function makeWnykMove(game, mark, action) {
   } else if (type === "next_round") {
     applyWnykNextRound(game);
   } else if (type === "rate") {
-    applyWnykRate(game, mark, action);
+    // The current prompt's key routes to the black path; everything else is a
+    // white-card (hand) downvote.
+    const rateKey = String(action && action.card || "").trim();
+    if (rateKey && rateKey === wnykBlackRateKey(game)) {
+      applyWnykRateBlack(game, mark, rateKey);
+    } else {
+      applyWnykRate(game, mark, action, { drawCard: () => drawWnykCard(game, mark) });
+    }
   } else if (type === "skip_vote") {
     applyWnykSkipVote(game, mark, String(action.target || ""));
   } else {
-    throw new Error("Action must be submit, like, unlike, promote, confirm, next_round, rate, or skip_vote.");
+    throw new Error("Action must be submit, release, next, like, unlike, promote, confirm, next_round, rate, or skip_vote.");
   }
   game.skip_votes = pruneSkipVotes(game.skip_votes, (target) => wnykSkipEligibility(game, target));
   resolveWnykBots(game);
 }
 
 function applyWnykSubmit(game, mark, indices, writeinText) {
+  if (game.phase === "prompt") throw new Error("The judge is still reading the prompt.");
   if (game.phase !== "submitting") throw new Error("Submissions are closed — the judge is deciding.");
   if (mark === game.judge) throw new Error("The judge sits this one out — you pick the winner.");
   const seat = game.players[mark];
+  // Server-authoritative release grace: a racing client can't submit before
+  // the table has had a beat to read the prompt. Bots are driven server-side
+  // (resolveWnykBots holds them through the grace), so they skip the check.
+  if (!seat.is_bot && wnykNow() - game.released_at < WNYK_SUBMIT_GRACE_MS) {
+    throw new Error("Read the prompt first — submissions open a moment after the reveal.");
+  }
   if (seat.submitted) throw new Error("You already submitted this round.");
   if (seat.skipped) throw new Error("The table voted to move on without you this round.");
   const pick = game.black_card.pick;
@@ -558,6 +489,12 @@ function applyWnykSubmit(game, mark, indices, writeinText) {
     const ref = seat.hand[index];
     return ref.b ? { w: writein, by: mark } : ref;
   });
+  // Passive "times played" signal — human plays only (see ratings.js); blanks
+  // and write-ins key as null and never count.
+  if (!seat.is_bot) {
+    indices.forEach((index) => wnykCountCardStat(game, seat.hand[index], "played"));
+    recountWnykCardRatings(game);
+  }
   indices.slice().sort((a, b) => b - a).forEach((index) => seat.hand.splice(index, 1));
   game.submissions.push({ id: null, mark, cards, liked: false });
   seat.submitted = true;
@@ -575,6 +512,7 @@ function revealWnykSubmissions(game) {
   }
   game.submissions = shuffleWnyk(game.submissions);
   game.submissions.forEach((submission, index) => { submission.id = index; });
+  game.reveal_cursor = 0; // stage 1: the first card is on the table
   game.final_pick = null;
   game.phase = "judging";
   game.phase_started_at = wnykNow();
@@ -595,11 +533,30 @@ function assertWnykJudge(game, mark) {
   if (mark !== game.judge) throw new Error("Only the judge triages submissions.");
 }
 
+// Advance the read-aloud cursor (judge action {type:"next"}). Deliberately no
+// reverse action — no going back during the read-aloud (spec §6).
+function applyWnykNext(game, mark) {
+  assertWnykJudge(game, mark);
+  if (!wnykInReadAloud(game)) throw new Error("Every submission is on the table — pick a winner.");
+  game.reveal_cursor += 1;
+  game.phase_started_at = wnykNow(); // each judge action re-arms the stall clock
+  game.move_count += 1;
+  game.last_move = { type: "next", revealed: game.reveal_cursor, move_count: game.move_count };
+  pushWnykEvent(game, game.last_move);
+}
+
 function applyWnykLike(game, mark, id, liked) {
   assertWnykJudge(game, mark);
+  if (wnykInReadAloud(game)) {
+    // Stage 1: the heart applies to the card being read; no un-hearting until
+    // the triage board (stage 2).
+    if (!liked) throw new Error("No un-hearting during the read-aloud — sort it out on the triage board.");
+    if (id !== game.reveal_cursor) throw new Error("Heart the card being read.");
+  }
   const submission = wnykSubmissionById(game, id);
   submission.liked = liked;
   if (!liked && game.final_pick === id) game.final_pick = null;
+  game.phase_started_at = wnykNow();
   game.move_count += 1;
   game.last_move = { type: liked ? "like" : "unlike", submission: id, move_count: game.move_count };
   pushWnykEvent(game, game.last_move);
@@ -607,11 +564,13 @@ function applyWnykLike(game, mark, id, liked) {
 
 function applyWnykPromote(game, mark, id) {
   assertWnykJudge(game, mark);
+  if (wnykInReadAloud(game)) throw new Error("Finish the read-aloud first.");
   if (id === null || id === undefined || id === "") {
     game.final_pick = null;
   } else {
     game.final_pick = wnykSubmissionById(game, Number(id)).id;
   }
+  game.phase_started_at = wnykNow();
   game.move_count += 1;
   game.last_move = { type: "promote", submission: game.final_pick, move_count: game.move_count };
   pushWnykEvent(game, game.last_move);
@@ -619,6 +578,7 @@ function applyWnykPromote(game, mark, id) {
 
 function applyWnykConfirm(game, mark) {
   assertWnykJudge(game, mark);
+  if (wnykInReadAloud(game)) throw new Error("Finish the read-aloud first.");
   if (game.final_pick === null) throw new Error("Promote one submission to Final before confirming.");
   const winning = wnykSubmissionById(game, game.final_pick);
   const winnerSeat = game.players[winning.mark];
@@ -724,12 +684,28 @@ function pushWnykEvent(game, event) {
 function resolveWnykBots(game) {
   for (let guard = 0; guard < 2000; guard += 1) {
     if (game.status !== "playing") return;
+    if (game.phase === "prompt") {
+      const judgeSeat = game.players[game.judge];
+      if (!judgeSeat || !judgeSeat.is_bot) return;
+      // Bot judges never downvote prompts — straight to release.
+      applyWnykRelease(game, game.judge);
+      continue;
+    }
     if (game.phase === "submitting") {
       const pending = wnykSubmitterMarks(game).find((mark) => {
         const seat = game.players[mark];
         return seat.is_bot && !seat.submitted && !seat.skipped;
       });
       if (!pending) return; // waiting on humans (or the reveal already fired)
+      // Bots hold with the humans through the release grace so the table
+      // never sees instant submissions — the first post-grace human move
+      // resolves them. With no human submitter left to trigger a later move
+      // (bots-only submitters), they go immediately instead of wedging.
+      const humanPending = wnykSubmitterMarks(game).some((mark) => {
+        const seat = game.players[mark];
+        return !seat.is_bot && !seat.submitted && !seat.skipped;
+      });
+      if (humanPending && wnykNow() - game.released_at < WNYK_SUBMIT_GRACE_MS) return;
       const seat = game.players[pending];
       const playable = seat.hand.map((ref, index) => (ref && ref.b ? null : index)).filter((index) => index !== null);
       let indices = wnykBotSubmission({ playable: playable.slice(), pick: game.black_card.pick, random: wnykRandom });
@@ -743,9 +719,13 @@ function resolveWnykBots(game) {
       const judgeSeat = game.players[game.judge];
       if (!judgeSeat || !judgeSeat.is_bot) return;
       const choice = wnykBotJudge({ ids: game.submissions.map((submission) => submission.id), random: wnykRandom });
-      (choice && Array.isArray(choice.likes) ? choice.likes : []).forEach((id) => {
-        if (game.submissions.some((submission) => submission.id === id)) applyWnykLike(game, game.judge, id, true);
-      });
+      const likes = new Set(choice && Array.isArray(choice.likes) ? choice.likes : []);
+      // Stage 1: read each card aloud, hearting the planned ones as they come
+      // up (ids are read order), then run the triage board.
+      while (wnykInReadAloud(game)) {
+        if (likes.has(game.reveal_cursor)) applyWnykLike(game, game.judge, game.reveal_cursor, true);
+        applyWnykNext(game, game.judge);
+      }
       const winnerId = choice && game.submissions.some((submission) => submission.id === choice.winner)
         ? choice.winner
         : game.submissions[0].id;
