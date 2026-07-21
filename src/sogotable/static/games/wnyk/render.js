@@ -78,9 +78,23 @@ function wnykRepaint() {
   if (wnykLastCtx) renderWnykGame(wnykLastCtx);
 }
 
+// Scroll back to the page top after a VIEW-ADVANCING action (commit /
+// release / next / confirm / next round / start) so the next phase's content
+// is immediately in view instead of the old scroll depth (MojoSOGO
+// 2026-07-21). Never on ratings/dumps, selection taps, or triage likes —
+// those keep the current view. The header chrome is not sticky, so the top
+// of main.app lands at the viewport top. Respects prefers-reduced-motion.
+var WNYK_SCROLL_ACTIONS = { submit: true, release: true, next: true, confirm: true, next_round: true };
+function wnykScrollToTop() {
+  if (!window.scrollTo) return;
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+}
+
 // Wrap the async shell makeMove: same call shape the seam expects, plus the
 // one-paint swap-animation flags a successful 👎 dump earns (the harness got
-// these from its sim; here they derive from the action + the pre-move hand).
+// these from its sim; here they derive from the action + the pre-move hand),
+// plus the scroll-on-advance above.
 function wnykWrapMakeMove(ctx, localMark) {
   return function (action) {
     var swapTarget = null;
@@ -101,6 +115,9 @@ function wnykWrapMakeMove(ctx, localMark) {
         else wnykSwapIdx = swapTarget.idx;
       });
     }
+    if (action && WNYK_SCROLL_ACTIONS[action.type]) {
+      Promise.resolve(result).then(function (err) { if (!err) wnykScrollToTop(); });
+    }
     return result;
   };
 }
@@ -118,6 +135,7 @@ export function renderWnykGame(ctx) {
     playAgain: function () {
       var reset = document.getElementById("resetGame");
       if (reset) reset.click();
+      wnykScrollToTop(); // back to the lobby — surface the top
     },
   });
   wnykUi.roomEpoch = (ctx.room ? ctx.room.code : "") + "#" + (ctx.room ? ctx.room.game_epoch : "");
@@ -189,6 +207,7 @@ function renderWnykLobby(host, ctx) {
       '<div class="hx-seg" data-hx-opt="deck"><button type="button" data-v="classic" class="hx-on">Classic</button><button type="button" data-v="family">Kid-Friendly</button></div></div>' +
       "</div>",
     getStartArg: function (lobbyHost) {
+      wnykScrollToTop(); // Start Game advances the view — surface the top
       var options = {};
       lobbyHost.querySelectorAll("[data-hx-opt]").forEach(function (seg) {
         var on = seg.querySelector(".hx-on");
