@@ -16,15 +16,42 @@ const PACKS = {
   family: "CAH: Family Edition (Free Print & Play Public Beta)",
 };
 
+// Short card-face provenance labels, shown centered at the bottom of every
+// card face (MojoSOGO, 2026-07-20). Custom/write-in cards get "House Deck"
+// in the engine; these cover the generated decks.
+const PACK_LABELS = { classic: "Base Set", family: "Family Edition" };
+const KIDS_LABEL = "SOGO Kids";
+
+// Curation blocklist (MojoSOGO, 2026-07-20): cards in the source packs that
+// don't belong at a kids' table — heavy themes (divorce, alcohol, religion-as-
+// punchline, disease) plus public-beta cruft that is clearly not a real CAH
+// print card (typos, community insertions). Removing a card SHIFTS the deck
+// indexes behind it, which invalidates "family:<i>" rating keys — acceptable
+// while the game is unregistered with zero live ratings; once live, curate via
+// the card-ratings removal path instead of this list.
+const BLOCKED = new Set([
+  "The divorce.",
+  "Beer.",
+  "Getting drunk.",
+  "Completely drunk organizers.",
+  "Jesus's death.",
+  "Getting skin cancer after 5 minutes at Takapuna beach",
+  "Comign back from the dead.",
+]);
+
 const decks = {};
 for (const [key, packName] of Object.entries(PACKS)) {
   const pack = raw.packs.find((p) => p.name === packName);
   if (!pack) throw new Error(`pack not found in dataset: ${packName}`);
+  const label = PACK_LABELS[key];
   decks[key] = {
-    white: [...new Set(pack.white.map((i) => raw.white[i]))],
+    white: [...new Set(pack.white.map((i) => raw.white[i]))]
+      .filter((t) => !BLOCKED.has(t))
+      .map((t) => ({ text: t, pack: label })),
     black: pack.black
       .map((i) => raw.black[i])
-      .filter((b) => b.pick >= 1 && b.pick <= 3),
+      .filter((b) => b.pick >= 1 && b.pick <= 3 && !BLOCKED.has(b.text))
+      .map((b) => ({ text: b.text, pick: b.pick, pack: label })),
   };
 }
 
@@ -34,13 +61,17 @@ for (const [key, packName] of Object.entries(PACKS)) {
 const kidsPack = JSON.parse(
   readFileSync(join(root, "workers", "games", "wnyk", "sogo-kids-pack.json"), "utf8"),
 );
-const familyWhite = new Set(decks.family.white);
-decks.family.white.push(...kidsPack.white.filter((t) => !familyWhite.has(t)));
+const familyWhite = new Set(decks.family.white.map((c) => c.text));
+decks.family.white.push(
+  ...kidsPack.white
+    .filter((t) => !familyWhite.has(t))
+    .map((t) => ({ text: t, pack: KIDS_LABEL })),
+);
 const familyBlack = new Set(decks.family.black.map((b) => b.text));
 decks.family.black.push(
-  ...kidsPack.black.filter(
-    (b) => b.pick >= 1 && b.pick <= 3 && !familyBlack.has(b.text),
-  ),
+  ...kidsPack.black
+    .filter((b) => b.pick >= 1 && b.pick <= 3 && !familyBlack.has(b.text))
+    .map((b) => ({ text: b.text, pick: b.pick, pack: KIDS_LABEL })),
 );
 
 const lines = [];
@@ -56,12 +87,16 @@ lines.push("export const WNYK_DECKS = Object.freeze({");
 for (const [key, deck] of Object.entries(decks)) {
   lines.push(`  ${key}: Object.freeze({`);
   lines.push("    white: Object.freeze([");
-  for (const text of deck.white) lines.push(`      ${JSON.stringify(text)},`);
+  for (const card of deck.white) {
+    lines.push(
+      `      Object.freeze({ text: ${JSON.stringify(card.text)}, pack: ${JSON.stringify(card.pack)} }),`,
+    );
+  }
   lines.push("    ]),");
   lines.push("    black: Object.freeze([");
   for (const card of deck.black) {
     lines.push(
-      `      Object.freeze({ text: ${JSON.stringify(card.text)}, pick: ${card.pick} }),`,
+      `      Object.freeze({ text: ${JSON.stringify(card.text)}, pick: ${card.pick}, pack: ${JSON.stringify(card.pack)} }),`,
     );
   }
   lines.push("    ]),");

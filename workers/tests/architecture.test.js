@@ -330,9 +330,10 @@ const FILE_CAP_EXCEPTIONS = {
   // emitted by scripts/build-wnyk-decks.mjs — not code, so the god-CODE backstop
   // doesn't apply. Reviewed exception per the 2026-07-20 placement receipt.
   // Re-run the build script and re-pin here if the offered packs ever change.
-  // 2026-07-20: re-pinned after the original SOGO Kids Pack (200w/50b) merged
-  // into the family deck (append-only, so family:<i> rating keys stay stable).
-  "workers/games/wnyk/decks.js": 2242 + WORKING_BUFFER,
+  // 2026-07-20: re-pinned after the SOGO Kids Pack merge (200w/50b, append-only
+  // so family:<i> rating keys stay stable), the kid-deck curation blocklist, and
+  // per-card pack provenance labels ({text, pack} entries; still one card/line).
+  "workers/games/wnyk/decks.js": 2235 + WORKING_BUFFER,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];

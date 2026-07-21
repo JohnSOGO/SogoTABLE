@@ -20,15 +20,20 @@ const bot = (mark, name) => ({ mark, name, kind: "bot" });
 function riggedDecks({ whites = 60, blacks = 10, lastPick = 1 } = {}) {
   return {
     classic: {
-      white: Array.from({ length: whites }, (_, i) => `White ${i}`),
+      white: Array.from({ length: whites }, (_, i) => ({ text: `White ${i}`, pack: "Base Set" })),
       black: Array.from({ length: blacks }, (_, i) => ({
         text: `Prompt ${i} _`,
         pick: i === blacks - 1 ? lastPick : 1,
+        pack: "Base Set",
       })),
     },
     family: {
-      white: Array.from({ length: whites }, (_, i) => `Fam ${i}`),
-      black: Array.from({ length: blacks }, (_, i) => ({ text: `FamPrompt ${i} _`, pick: 1 })),
+      // Mixed provenance like the real family deck (CAH cards + SOGO Kids).
+      white: Array.from({ length: whites }, (_, i) => ({
+        text: `Fam ${i}`,
+        pack: i % 2 ? "SOGO Kids" : "Family Edition",
+      })),
+      black: Array.from({ length: blacks }, (_, i) => ({ text: `FamPrompt ${i} _`, pick: 1, pack: "Family Edition" })),
     },
   };
 }
@@ -318,7 +323,7 @@ test("custom cards: library cards merge into the deck and wear their author on t
   });
   // Identity shuffle: the appended custom card is the first card dealt (to P1).
   const face = wnykGameToDict(g).players[0].hand[0];
-  assert.deepEqual(face, { blank: false, text: "From the library", author: "Alice", writein: false });
+  assert.deepEqual(face, { blank: false, text: "From the library", author: "Alice", writein: false, pack: "House Deck" });
   playRound(g, "P2"); // round 1 out of the way; judge is now P2
   makeWnykMove(g, "P1", { type: "submit", cards: [0] });
   submitFirstCard(g, "P3");
@@ -329,6 +334,49 @@ test("custom cards: library cards merge into the deck and wear their author on t
   assert.equal(entry.cards[0].author, "Alice");
   assert.equal(entry.mark, null);
   assert.equal(entry.cards[0].writein, false);
+});
+
+// ---- pack provenance ---------------------------------------------------------
+
+test("pack labels: every projected card face names its source pack", () => {
+  // Classic game: deck faces read Base Set, the library custom card House Deck.
+  const g = setup({
+    seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")],
+    customCards: [{ text: "From the library", author: "Alice" }],
+  });
+  const dict = wnykGameToDict(g);
+  assert.equal(dict.black_card.pack, "Base Set");
+  assert.equal(dict.players[0].hand[0].pack, "House Deck"); // identity shuffle: custom card dealt first
+  dict.players[0].hand.slice(1).forEach((face) => assert.equal(face.pack, "Base Set"));
+
+  // Blanks in hand and submitted write-ins are house cards too.
+  const g2 = setup({
+    seats: [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")],
+    random: () => 0,
+  });
+  const dict2 = wnykGameToDict(g2);
+  const blankFace = dict2.players.flatMap((seat) => seat.hand).find((face) => face.blank);
+  assert.equal(blankFace.pack, "House Deck");
+  const blankIndex = g2.players.P2.hand.findIndex((ref) => ref.b);
+  makeWnykMove(g2, "P2", { type: "submit", cards: [blankIndex], writein: "house card" });
+  const writeinFace = wnykGameToDict(g2).submissions.find((entry) => entry.has_writein).cards[0];
+  assert.equal(writeinFace.pack, "House Deck");
+
+  // Family game: the mixed rigged deck surfaces both CAH and SOGO Kids labels,
+  // and the labels ride the viewer projection untouched.
+  setWnykDecks(riggedDecks());
+  setWnykRandom(() => 0.99);
+  setWnykNow(() => now);
+  const g3 = newWnykGame();
+  setWnykOptions(g3, { deck: "family" });
+  initWnykSeats(g3, [human("P1", "Ann"), human("P2", "Ben"), human("P3", "Cal")]);
+  const dict3 = wnykGameToDict(g3);
+  assert.equal(dict3.black_card.pack, "Family Edition");
+  const packs = new Set(dict3.players.flatMap((seat) => seat.hand).map((face) => face.pack));
+  assert.deepEqual([...packs].sort(), ["Family Edition", "SOGO Kids"]);
+  const ownView = wnykGameToDictForViewer(dict3, "P1", "active");
+  const ownPacks = new Set(ownView.players.find((seat) => seat.mark === "P1").hand.map((face) => face.pack));
+  assert.deepEqual([...ownPacks].sort(), ["Family Edition", "SOGO Kids"]);
 });
 
 // ---- sanitizer ---------------------------------------------------------------

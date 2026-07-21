@@ -59,6 +59,9 @@ export const WNYK_MIN_SEATS = 3;
 export const WNYK_WRITEIN_MAX_LENGTH = 80;
 export const WNYK_SKIP_DELAY_MS = 2 * 60 * 1000;
 export const WNYK_SKIP_THRESHOLD = 2 / 3;
+// Card-face provenance label for house-made cards (blanks, write-ins, library
+// custom cards); deck cards carry their generated pack label from decks.js.
+export const WNYK_HOUSE_PACK = "House Deck";
 const WNYK_BLANK_CHANCE = 0.05;
 const WNYK_BLANK_WIN_COUNT = 3;
 const WNYK_PHASES = ["submitting", "judging", "round_end"];
@@ -286,7 +289,7 @@ function startWnykRound(game) {
   if (!game.black_pile.length) game.black_pile = shuffleWnyk(wnykDeck(game).black.map((_, index) => index));
   const blackIndex = game.black_pile.pop();
   const black = wnykDeck(game).black[blackIndex];
-  game.black_card = { text: black.text, pick: black.pick };
+  game.black_card = { text: black.text, pick: black.pick, pack: black.pack || null };
   game.submissions = [];
   game.final_pick = null;
   game.round_result = null;
@@ -331,17 +334,19 @@ function wnykSkipEligibility(game, targetMark) {
 
 // ---------- projections ----------
 
+// Every face carries `pack` — the small centered provenance label at the
+// bottom of the card. House-made cards (blanks, write-ins, library customs)
+// all read "House Deck"; deck cards carry their generated pack label.
 function wnykCardFace(game, ref) {
   if (!ref || typeof ref !== "object") return null;
-  if (ref.b) return { blank: true, text: null, author: null, writein: false };
-  if (ref.w !== undefined) return { blank: false, text: String(ref.w), author: game.players[ref.by] ? game.players[ref.by].name : String(ref.by || ""), writein: true };
+  if (ref.b) return { blank: true, text: null, author: null, writein: false, pack: WNYK_HOUSE_PACK };
+  if (ref.w !== undefined) return { blank: false, text: String(ref.w), author: game.players[ref.by] ? game.players[ref.by].name : String(ref.by || ""), writein: true, pack: WNYK_HOUSE_PACK };
   if (ref.c !== undefined) {
     const card = game.custom_pool[ref.c];
-    return card ? { blank: false, text: card.text, author: card.author, writein: false } : null;
+    return card ? { blank: false, text: card.text, author: card.author, writein: false, pack: WNYK_HOUSE_PACK } : null;
   }
-  const deck = wnykDeck(game);
-  const text = deck.white[ref.i];
-  return text === undefined ? null : { blank: false, text, author: null, writein: false };
+  const card = wnykDeck(game).white[ref.i];
+  return card === undefined ? null : { blank: false, text: card.text, author: null, writein: false, pack: card.pack || null };
 }
 
 export function wnykGameToDict(game) {
@@ -474,7 +479,7 @@ function normalizeWnykGame(game) {
   });
   game.judge = game.seat_order.includes(game.judge) ? game.judge : null;
   game.black_card = game.black_card && typeof game.black_card === "object"
-    ? { text: String(game.black_card.text || ""), pick: clampInteger(game.black_card.pick, 1, 3, 1) }
+    ? { text: String(game.black_card.text || ""), pick: clampInteger(game.black_card.pick, 1, 3, 1), pack: game.black_card.pack ? String(game.black_card.pack) : null }
     : null;
   game.draw_pile = Array.isArray(game.draw_pile) ? game.draw_pile : [];
   game.black_pile = Array.isArray(game.black_pile) ? game.black_pile : [];
