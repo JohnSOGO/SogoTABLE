@@ -1,7 +1,10 @@
-// Unanimous barrier-skip vote protocol — shared by every game with a
-// SKIP_PLAYER barrier escape (product decision, MojoSOGO 2026-07-04: a skip is
-// a PROPOSAL, never a unilateral act; it executes only when every eligible
-// waiter has joined it).
+// Barrier-skip vote protocol — shared by every game with a SKIP_PLAYER
+// barrier escape (product decision, MojoSOGO 2026-07-04: a skip is a
+// PROPOSAL, never a unilateral act; it executes only when enough eligible
+// waiters have joined it). The default threshold is UNANIMOUS; a game may
+// inject a lower fraction (MojoSOGO 2026-07-20: Well, Now You Know skips on a
+// 2/3 majority of eligible voters) — existing callers pass no threshold and
+// keep the unanimous behavior exactly.
 //
 // Pure rules-stage logic: plain data in, plain data out. No DOM, no transport,
 // no storage, no game imports — each game passes in its own eligibility
@@ -25,9 +28,11 @@ export function normalizeSkipVotes(value) {
 // Toggle `voterMark`'s vote to skip `targetMark`. `eligibleMarks` is the full
 // set of marks allowed to vote on this target right now (the caller has
 // already validated the actor and target); votes from marks that are no
-// longer eligible are dropped before tallying. Returns the next votes object
-// and whether the surviving votes are unanimous across the eligible set.
-export function castSkipVote(rawVotes, voterMark, targetMark, eligibleMarks) {
+// longer eligible are dropped before tallying. Returns the next votes object,
+// whether the surviving votes are unanimous across the eligible set, and
+// whether they meet `threshold` (a fraction of the eligible set, default 1 =
+// unanimous; the vote count needed is ceil(eligible × threshold), min 1).
+export function castSkipVote(rawVotes, voterMark, targetMark, eligibleMarks, threshold = 1) {
   const votes = normalizeSkipVotes(rawVotes);
   const eligible = (Array.isArray(eligibleMarks) ? eligibleMarks : []).map(String);
   const voter = String(voterMark);
@@ -38,9 +43,11 @@ export function castSkipVote(rawVotes, voterMark, targetMark, eligibleMarks) {
   const next = { ...votes };
   if (current.size) next[target] = [...current];
   else delete next[target];
+  const needed = Math.max(1, Math.ceil(eligible.length * Math.min(1, Math.max(0, Number(threshold) || 1))));
   return {
     votes: next,
     unanimous: eligible.length > 0 && eligible.every((mark) => current.has(mark)),
+    passed: eligible.length > 0 && current.size >= needed,
   };
 }
 
