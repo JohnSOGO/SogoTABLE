@@ -1,0 +1,439 @@
+{
+ "name": "Wordner",
+ "source": "Wordner Print & Play PDF (wordner.com, 2013)",
+ "license": "Free to print, play, and share; non-commercial (printed in the PDF). Credit Wordner in the game's help/about UI.",
+ "black": [
+  {
+   "text": "My secret talent is _.",
+   "pick": 1
+  },
+  {
+   "text": "I got a new job at _.",
+   "pick": 1
+  },
+  {
+   "text": "I saw an extensive museum exhibit of _.",
+   "pick": 1
+  },
+  {
+   "text": "I saw your user profile on _.",
+   "pick": 1
+  },
+  {
+   "text": "My answer to world peace is _.",
+   "pick": 1
+  },
+  {
+   "text": "I downloaded an app that helps me _.",
+   "pick": 1
+  },
+  {
+   "text": "My doctor told me that I have _.",
+   "pick": 1
+  },
+  {
+   "text": "My town put up a monument to honor _.",
+   "pick": 1
+  },
+  {
+   "text": "My awesome new band is named _.",
+   "pick": 1
+  },
+  {
+   "text": "Paleontologists now believe the dinosaurs were killed by _.",
+   "pick": 1
+  },
+  {
+   "text": "My school's mascot was _.",
+   "pick": 1
+  },
+  {
+   "text": "Historians now believe the Titanic sank after _.",
+   "pick": 1
+  },
+  {
+   "text": "One time, my parents grounded me for _.",
+   "pick": 1
+  },
+  {
+   "text": "My clown name is _.",
+   "pick": 1
+  },
+  {
+   "text": "While on the moon, Neil Armstrong _.",
+   "pick": 1
+  },
+  {
+   "text": "I enjoy dressing up babies as _.",
+   "pick": 1
+  },
+  {
+   "text": "I'm reading a self-help book called _.",
+   "pick": 1
+  },
+  {
+   "text": "I totaled my car after crashing into _.",
+   "pick": 1
+  },
+  {
+   "text": "My secret to success is _.",
+   "pick": 1
+  },
+  {
+   "text": "Why did the chicken cross the road?",
+   "pick": 1
+  },
+  {
+   "text": "On New Year's Eve, my town drops _.",
+   "pick": 1
+  },
+  {
+   "text": "This Halloween, I am going to dress up as _.",
+   "pick": 1
+  },
+  {
+   "text": "I just gorged myself on _.",
+   "pick": 1
+  },
+  {
+   "text": "During his spare time, Darth Vader enjoyed _.",
+   "pick": 1
+  },
+  {
+   "text": "I was late this morning because _.",
+   "pick": 1
+  },
+  {
+   "text": "In her favorite bag, the Queen of England keeps _.",
+   "pick": 1
+  },
+  {
+   "text": "What's that smell?",
+   "pick": 1
+  },
+  {
+   "text": "My credit card was stolen and used to purchase hundreds of _.",
+   "pick": 1
+  },
+  {
+   "text": "Run! We're being chased by _.",
+   "pick": 1
+  },
+  {
+   "text": "Call 911! I just _.",
+   "pick": 1
+  },
+  {
+   "text": "Somewhere at the bottom of the ocean lies _.",
+   "pick": 1
+  },
+  {
+   "text": "Once I accepted a dare to _.",
+   "pick": 1
+  },
+  {
+   "text": "I've been watching a new kid's show called _.",
+   "pick": 1
+  },
+  {
+   "text": "Winston Churchill had a bad habit of _.",
+   "pick": 1
+  },
+  {
+   "text": "My cat sometimes looks at me and wonders _.",
+   "pick": 1
+  },
+  {
+   "text": "McDonald's Happy Meals now include _.",
+   "pick": 1
+  },
+  {
+   "text": "Nations are now settling their differences by _.",
+   "pick": 1
+  },
+  {
+   "text": "On their first mission, Batman and Robin attempted to _.",
+   "pick": 1
+  },
+  {
+   "text": "My dog has found a way to _.",
+   "pick": 1
+  },
+  {
+   "text": "One of the most popular baby foods is _.",
+   "pick": 1
+  },
+  {
+   "text": "I saw a new science fiction movie called _.",
+   "pick": 1
+  },
+  {
+   "text": "An exciting new TV show challenges contestants to _.",
+   "pick": 1
+  },
+  {
+   "text": "Luxury toilets now include _.",
+   "pick": 1
+  },
+  {
+   "text": "Shucks. I seem to have lost my _.",
+   "pick": 1
+  },
+  {
+   "text": "My friend accidentally sent me a picture of _.",
+   "pick": 1
+  },
+  {
+   "text": "Farmers are making cows happier by _.",
+   "pick": 1
+  },
+  {
+   "text": "Breaking News: The President just _.",
+   "pick": 1
+  },
+  {
+   "text": "High up in the castle's tower, the prince noticed _.",
+   "pick": 1
+  },
+  {
+   "text": "A large truck overturned on the highway and released _.",
+   "pick": 1
+  },
+  {
+   "text": "In his greatest pep talk, the coach asked the team to _.",
+   "pick": 1
+  },
+  {
+   "text": "My doctor told me I need to cut back on _.",
+   "pick": 1
+  },
+  {
+   "text": "People who wear Hawaiian shirts are more likely to _.",
+   "pick": 1
+  },
+  {
+   "text": "Jack and Jill went up the hill to _.",
+   "pick": 1
+  },
+  {
+   "text": "What are you going to do with those extra tater tots?",
+   "pick": 1
+  },
+  {
+   "text": "In his next movie, Jim Carrey will play _.",
+   "pick": 1
+  },
+  {
+   "text": "Everything got quiet as the outlaw entered the saloon and _.",
+   "pick": 1
+  },
+  {
+   "text": "Elvis was recently sighted _.",
+   "pick": 1
+  },
+  {
+   "text": "When I returned from vacation, my entire house was _.",
+   "pick": 1
+  },
+  {
+   "text": "Thanks to Scrooge's generosity, Tiny Tim grew up and _.",
+   "pick": 1
+  },
+  {
+   "text": "Russia has built a massive skyscraper shaped like _.",
+   "pick": 1
+  },
+  {
+   "text": "What happened to your clothes?",
+   "pick": 1
+  },
+  {
+   "text": "On their first date, Mickey and Minnie _.",
+   "pick": 1
+  },
+  {
+   "text": "During the summer, Santa can be found _.",
+   "pick": 1
+  },
+  {
+   "text": "How did you get so cool?",
+   "pick": 1
+  },
+  {
+   "text": "My least favorite chore as a child was _.",
+   "pick": 1
+  },
+  {
+   "text": "More people are using Google to find _.",
+   "pick": 1
+  },
+  {
+   "text": "After reaching orbit, the astronaut realized _.",
+   "pick": 1
+  },
+  {
+   "text": "The beaver family enjoyed nibbling on trees, building dams, and _.",
+   "pick": 1
+  },
+  {
+   "text": "In a highly anticipated remake of Old Yeller _.",
+   "pick": 1
+  },
+  {
+   "text": "The boy was called to the principal's office after _.",
+   "pick": 1
+  },
+  {
+   "text": "You aren't going to believe this, but I just saw _.",
+   "pick": 1
+  },
+  {
+   "text": "Frankenstein's one pleasure in life was _.",
+   "pick": 1
+  },
+  {
+   "text": "I quietly looked through the keyhole and saw _.",
+   "pick": 1
+  },
+  {
+   "text": "I just hate it when people dress up their dogs like _.",
+   "pick": 1
+  },
+  {
+   "text": "Walking through the museum, the night watchman noticed _.",
+   "pick": 1
+  },
+  {
+   "text": "Unfortunately for the man, he had a birthmark shaped like _.",
+   "pick": 1
+  },
+  {
+   "text": "In Jurassic Park, things went from bad to worse after _.",
+   "pick": 1
+  },
+  {
+   "text": "As a kid, Lord Voldemort would go to the park and _.",
+   "pick": 1
+  },
+  {
+   "text": "Family Gatherings + Camp Fires = _.",
+   "pick": 1
+  },
+  {
+   "text": "On his shoulder, the old pirate kept _.",
+   "pick": 1
+  },
+  {
+   "text": "For a small fee, airlines are now offering _.",
+   "pick": 1
+  },
+  {
+   "text": "Unknown to the family, their neurotic cat was plotting to _.",
+   "pick": 1
+  },
+  {
+   "text": "My first job was _.",
+   "pick": 1
+  },
+  {
+   "text": "What is that kangaroo carrying in its pouch?",
+   "pick": 1
+  },
+  {
+   "text": "This year, all new cars come standard with _.",
+   "pick": 1
+  },
+  {
+   "text": "What happened to all of the brownies?",
+   "pick": 1
+  },
+  {
+   "text": "The girl received a $100 gift certificate for _.",
+   "pick": 1
+  },
+  {
+   "text": "Unknown to his wife, the husband was _.",
+   "pick": 1
+  },
+  {
+   "text": "Breaking News: Tokyo is being attacked by giant _.",
+   "pick": 1
+  },
+  {
+   "text": "During show and tell, the boy stood up in class and _.",
+   "pick": 1
+  },
+  {
+   "text": "Filled with rage, the Prime Minister flipped the table, stood up, and _.",
+   "pick": 1
+  },
+  {
+   "text": "In their sterile lab, the scientists were able to _.",
+   "pick": 1
+  },
+  {
+   "text": "The family's picnic was ruined by thousands of _.",
+   "pick": 1
+  },
+  {
+   "text": "Once while playing spin-the-bottle, I had to kiss _.",
+   "pick": 1
+  },
+  {
+   "text": "Back in my day, things were so tough we _.",
+   "pick": 1
+  },
+  {
+   "text": "Before becoming a sailor, Popeye dreamed of _.",
+   "pick": 1
+  },
+  {
+   "text": "Why are you blushing?",
+   "pick": 1
+  },
+  {
+   "text": "Einstein is thought to have kept a diary filled with _.",
+   "pick": 1
+  },
+  {
+   "text": "The test asked students to explain the difference between _.",
+   "pick": 1
+  },
+  {
+   "text": "The CEO called an emergency meeting to discuss _.",
+   "pick": 1
+  },
+  {
+   "text": "I always top my sundaes with _.",
+   "pick": 1
+  },
+  {
+   "text": "Under his stovepipe hat, Abe Lincoln kept _.",
+   "pick": 1
+  },
+  {
+   "text": "The sign on my treehouse reads _.",
+   "pick": 1
+  },
+  {
+   "text": "This Thanksgiving, I am stuffing my turkey with _.",
+   "pick": 1
+  },
+  {
+   "text": "How did we end up in this jail cell together?",
+   "pick": 1
+  },
+  {
+   "text": "My favorite color of crayon is _.",
+   "pick": 1
+  },
+  {
+   "text": "My latest social media status update said _.",
+   "pick": 1
+  },
+  {
+   "text": "In a surprise move, the military has replaced their guns with _.",
+   "pick": 1
+  }
+ ]
+}
