@@ -140,6 +140,47 @@ const FIXES = new Map([
 ]);
 const fixText = (t) => (FIXES.has(t) ? FIXES.get(t) : t);
 
+// Strict kid-deck pass (MojoSOGO directive 2026-07-20: "pull anything
+// suspicious"; bar = a cautious parent at the table; when in doubt, pull).
+// FAMILY DECK ONLY — the classic deck is adult by design and stays whole.
+// Matched against post-FIXES text, after the global BLOCKED filter.
+const KID_BLOCKED = new Set([
+  // Sexual innuendo / adult-smirk double meanings (+ fluids, profanity):
+  "Happy Endings.",
+  "Tossed salads and scrambled eggs.",
+  "Twig and berries.",
+  "Balls. Big balls. Really big balls.",
+  "Slapping that butt.",
+  "Pubes held together in a little ponytail holder.",
+  "Johnny Depp, dancing all sexy.",
+  "Peeing into everyone's mouth.",
+  "A huge bitch.",
+  // Drugs / alcohol / smoking:
+  "Cigarettes.",
+  "Illegal drugs.",
+  "Girly drinks.",
+  // Heavy or dark played straight (death, crime, fascist imagery, nightmare):
+  "Murdering.",
+  "A dead body.",
+  "Eating a baby.",
+  "Screaming and screaming and never waking up.",
+  "Burning books.",
+  "Shoplifting.",
+  // Occult-as-punchline cluster:
+  "Satan.",
+  "The Denver Satanic Gardens.",
+  "Unleashing a hell demon that will destroy our world.",
+  "Sacrificing Uncle Tim.",
+  "Oh Dark Lord, we show our devotion with a humble offering of _!",
+  // Targets real groups / requires adult context / unverifiable oddity:
+  "Being adopted.",
+  "Racism, sexism, and homophobia.",
+  "Feminist men.",
+  "Hey guys. I just want to tell all my followers who are struggling with _: it DOES get better.",
+  "Chinese campaign clothing.",
+]);
+const kidBlocked = (key, text) => key === "family" && KID_BLOCKED.has(text);
+
 const decks = {};
 for (const [key, packName] of Object.entries(PACKS)) {
   const pack = raw.packs.find((p) => p.name === packName);
@@ -153,7 +194,9 @@ for (const [key, packName] of Object.entries(PACKS)) {
           .filter((t) => !BLOCKED.has(t))
           .map(fixText),
       ),
-    ].map((t) => ({ text: t, pack: label })),
+    ]
+      .filter((t) => !kidBlocked(key, t))
+      .map((t) => ({ text: t, pack: label })),
     black: [],
   };
   const seenBlack = new Set();
@@ -161,6 +204,7 @@ for (const [key, packName] of Object.entries(PACKS)) {
     const b = raw.black[i];
     if (b.pick < 1 || b.pick > 3 || BLOCKED.has(b.text)) continue;
     const text = fixText(b.text);
+    if (kidBlocked(key, text)) continue;
     if (seenBlack.has(text)) continue; // exact-dupe transcriptions in the dataset
     seenBlack.add(text);
     decks[key].black.push({ text, pick: b.pick, pack: label });
