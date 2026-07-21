@@ -5,6 +5,14 @@
 // near-white paper, black prompts near-black paper.
 export const WNYK_CSS = `
 #macroBoard:has(.wnyk-root){display:block;aspect-ratio:auto;background:none;border:none;}
+/* While WNYK is on screen, hide the NAME text in the shell's upper
+   player-switch strip — the game's own seat strip (.wk-seat-name) already
+   names everyone, so the strip keeps only its avatar icons. Gated on :has
+   (in-module precedent above) so it applies exactly while .wnyk-root is
+   mounted in the board and self-cleans the moment any other game renders —
+   no marker class to forget on unmount, and re-renders of the strip can't
+   bring the names back. Buttons and .avatar icons stay untouched. */
+#game:has(#macroBoard .wnyk-root) #gamePlayerSwitch .player-switch-button > span:not(.avatar){display:none;}
 .wnyk-root{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;
  width:100%;box-sizing:border-box;padding:14px 10px 22px;border-radius:18px;
  background:var(--bg);
@@ -106,14 +114,15 @@ export const WNYK_CSS = `
 /* Commit bar: always present while submitting — disabled, never hidden. */
 .wnyk-root .wk-commitbar{width:100%;max-width:480px;display:grid;gap:6px;}
 .wnyk-root .wk-commit-hint{margin:0;text-align:center;font-size:.76rem;color:var(--wk-muted);white-space:nowrap;}
-/* Judge triage: three columns, same layout on every device; columns scroll. */
-.wnyk-root .wk-triage{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%;max-width:640px;}
+/* Judge triage: All + Favorite side by side, Final full-width below them —
+   same layout on every device; portrait columns scroll compactly. */
+.wnyk-root .wk-triage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%;max-width:640px;}
 .wnyk-root .wk-col{display:flex;flex-direction:column;gap:8px;background:var(--wk-panel);
  border:1px solid var(--wk-line);border-radius:12px;padding:8px;min-height:170px;max-height:46dvh;
  overflow-y:auto;box-sizing:border-box;}
 .wnyk-root .wk-col-h{margin:0;text-align:center;font-size:.82rem;font-weight:800;white-space:nowrap;
  color:var(--wk-muted);}
-.wnyk-root .wk-col.wk-col-final{border-color:var(--wk-gold);}
+.wnyk-root .wk-col.wk-col-final{border-color:var(--wk-gold);grid-column:1 / -1;}
 /* The confirm action is unmistakable: success-green when armed (a card sits
    in Final), neutral while disabled — disabled, never hidden. The Final
    column wears the matching green accent when occupied. */
@@ -196,5 +205,15 @@ export const WNYK_CSS = `
   .wnyk-root .wk-black{font-size:.96rem;}
   .wnyk-root .wk-sub .wk-card{font-size:.72rem;}
   .wnyk-root .wk-col-h{font-size:.74rem;}
+}
+/* Landscape / wide viewports: every triage card visible at once — NO inner
+   scroll. Columns become wrapping grids that grow (tiles side by side, the
+   full-width Final row fits the most); only the page scrolls if truly
+   needed. Portrait phones keep the compact scrolling columns above. */
+@media (orientation:landscape){
+  .wnyk-root .wk-triage{max-width:none;}
+  .wnyk-root .wk-col{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+   align-content:start;min-height:0;max-height:none;overflow:visible;}
+  .wnyk-root .wk-col-h,.wnyk-root .wk-col .wk-confirm{grid-column:1 / -1;}
 }
 `;

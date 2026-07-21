@@ -150,12 +150,15 @@ export function wnykSeatsHtml(esc, game, localMark, skipGates) {
   }).join("") + "</div>";
 }
 
-// Standings table, sorted by score (platform standard); likes feed Most Liked.
+// Standings table, sorted by score (platform standard). No ❤️ column — the
+// hearts tally means nothing mid-game (MojoSOGO 2026-07-21); likes still
+// accumulate silently (they keep the sort tiebreak) and surface at game end
+// as the Most Liked podium title.
 export function wnykStandingsHtml(esc, game) {
   var rows = game.players.slice().sort(function (a, b) { return b.score - a.score || b.likes - a.likes; });
-  return '<table class="wk-stand"><thead><tr><th></th><th>🏆</th><th>❤️</th></tr></thead><tbody>' +
+  return '<table class="wk-stand"><thead><tr><th></th><th>🏆</th></tr></thead><tbody>' +
     rows.map(function (seat) {
-      return "<tr><td class=\"wk-stand-name\">" + esc(seat.name) + "</td><td>" + seat.score + "</td><td>" + seat.likes + "</td></tr>";
+      return "<tr><td class=\"wk-stand-name\">" + esc(seat.name) + "</td><td>" + seat.score + "</td></tr>";
     }).join("") + "</tbody></table>";
 }
 
