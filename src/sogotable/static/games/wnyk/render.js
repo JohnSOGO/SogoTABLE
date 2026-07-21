@@ -85,10 +85,19 @@ function wnykRepaint() {
 // those keep the current view. The header chrome is not sticky, so the top
 // of main.app lands at the viewport top. Respects prefers-reduced-motion.
 var WNYK_SCROLL_ACTIONS = { submit: true, release: true, next: true, confirm: true, next_round: true };
+// Scroll target is the GAME content, not the page top: the header/title
+// chrome scrolls OFF and the view starts at the .wk-msg hint strip
+// (fallback: .wnyk-root, e.g. the lobby). Deferred a frame so the
+// post-action repaint has rebuilt the target before we scroll to it.
 function wnykScrollToTop() {
-  if (!window.scrollTo) return;
-  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  var scroll = function () {
+    var target = document.querySelector(".wnyk-root .wk-msg") || document.querySelector(".wnyk-root");
+    if (!target || !target.scrollIntoView) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  };
+  if (window.requestAnimationFrame) window.requestAnimationFrame(scroll);
+  else scroll();
 }
 
 // Wrap the async shell makeMove: same call shape the seam expects, plus the
@@ -553,6 +562,20 @@ function wireWnyk(host, ctx) {
   host.querySelectorAll("[data-act]").forEach(function (button) {
     button.addEventListener("click", function () {
       var act = button.getAttribute("data-act");
+      // Press-time feedback for single-shot buttons waiting on the server
+      // round-trip: disable immediately (the :disabled dim is the cue; label
+      // unchanged). Success re-enables by rebuild — the next snapshot repaint
+      // re-renders the controls; an error re-enables in place and the msg
+      // strip shows it. Read-aloud ❤️/Next lock as a pair; Release also locks
+      // the prompt 👎 (no mid-flight swaps). Commit locks inside wnykCommit
+      // so the swipe path shares it.
+      var lockSelector = act === "heart" || act === "ra_next" ? '[data-act="heart"],[data-act="ra_next"]'
+        : act === "release" ? '[data-act="release"],[data-act="dump_black"]'
+        : act === "confirm" ? '[data-act="confirm"]'
+        : null;
+      var locked = lockSelector ? Array.prototype.slice.call(host.querySelectorAll(lockSelector)) : [];
+      locked.forEach(function (b) { b.disabled = true; });
+      var unlock = function () { locked.forEach(function (b) { b.disabled = false; }); };
       if (act === "commit") { wnykCommit(ctx, me); return; }
       if (act === "composer_cancel") {
         wnykUi.selection = wnykUi.selection.filter(function (idx) { return !(me && me.hand[idx] && me.hand[idx].blank); });
@@ -561,20 +584,32 @@ function wireWnyk(host, ctx) {
         ctx.repaint();
         return;
       }
-      if (act === "release") { ctx.makeMove({ type: "release" }); return; }
+      if (act === "release") {
+        Promise.resolve(ctx.makeMove({ type: "release" })).then(function (err) { if (err) unlock(); });
+        return;
+      }
       if (act === "dump_black") { ctx.makeMove({ type: "rate", card: button.getAttribute("data-black-key") }); return; }
       if (act === "heart") {
         // ❤️ hearts AND advances in one tap (UI sugar only — the engine
         // contract stays two distinct actions: like, then next).
         Promise.resolve(ctx.makeMove({ type: "like", submission: Number(button.getAttribute("data-sub")) }))
-          .then(function (heartErr) { if (!heartErr) ctx.makeMove({ type: "next" }); });
+          .then(function (heartErr) {
+            if (heartErr) { unlock(); return; }
+            Promise.resolve(ctx.makeMove({ type: "next" })).then(function (err) { if (err) unlock(); });
+          });
         return;
       }
-      if (act === "ra_next") { ctx.makeMove({ type: "next" }); return; }
+      if (act === "ra_next") {
+        Promise.resolve(ctx.makeMove({ type: "next" })).then(function (err) { if (err) unlock(); });
+        return;
+      }
       if (act === "like" || act === "unlike") { ctx.makeMove({ type: act, submission: Number(button.getAttribute("data-sub")) }); return; }
       if (act === "promote") { ctx.makeMove({ type: "promote", submission: Number(button.getAttribute("data-sub")) }); return; }
       if (act === "demote") { ctx.makeMove({ type: "promote", submission: null }); return; }
-      if (act === "confirm") { ctx.makeMove({ type: "confirm" }); return; }
+      if (act === "confirm") {
+        Promise.resolve(ctx.makeMove({ type: "confirm" })).then(function (err) { if (err) unlock(); });
+        return;
+      }
       if (act === "next_round") { ctx.makeMove({ type: "next_round" }); return; }
       if (act === "play_again") { ctx.playAgain(); return; }
     });
@@ -594,10 +629,14 @@ function wireWnyk(host, ctx) {
 }
 
 function wnykCommit(ctx, me) {
+  // Press-time feedback (button AND swipe path): Commit disables at once;
+  // an error re-enables it in place, success re-renders the whole view.
+  var commit = ctx.host ? ctx.host.querySelector('[data-act="commit"]') : null;
+  if (commit) commit.disabled = true;
   var hasBlank = wnykUi.selection.some(function (idx) { return me && me.hand[idx] && me.hand[idx].blank; });
-  ctx.makeMove({
+  Promise.resolve(ctx.makeMove({
     type: "submit",
     cards: wnykUi.selection.slice(),
     writein: hasBlank ? wnykUi.composerText : undefined,
-  });
+  })).then(function (err) { if (err && commit) commit.disabled = false; });
 }
