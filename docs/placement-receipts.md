@@ -1102,3 +1102,16 @@ PLACEMENT RECEIPT
                 (append write-ins, apply ratings, retire rating-removed customs) across the
                 custom-cards + card-ratings stores | `workers/sogotable-api.js` |
 ```
+
+## 2026-07-20 — WNYK registration EXECUTED (deferred receipt closed)
+
+The 2026-07-20 "Worker dispatch registration — DEFERRED" receipt is now executed at the
+UI port (MojoSOGO approved go-live; the developed UI lifted verbatim from
+AI/cah/preview.html's LIFT SEAM blocks per the hard port rule). One commit carries, as
+that receipt required: the registry row (GAME_IDS.wnyk — the id literal moved from
+wnyk/runtime.js to the registry, Mazewright precedent), the game-kinds predicate, the
+app.js import + dispatch, the render-keys slice, the games/wnyk/ client module
+(manifest/render/cards/styles), and the handlers.js row TOGETHER WITH the
+gameToDictForViewer chain line (hidden-info game — the sanitizer line may never trail
+the row). Review-export allowlist extended with the six worker-side and four
+client-side wnyk modules for the import-closure guard.

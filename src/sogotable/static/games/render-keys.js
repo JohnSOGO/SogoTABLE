@@ -90,6 +90,21 @@ export function buildRoomRenderKey(room, gameId) {
       first_trick: room.game.first_trick,
       legal_plays: room.game.legal_plays,
       round_results: room.game.round_results,
+      // well, now you know — seat data (hands/rate keys/dump_used) rides in
+      // `players_state`; the sanitizer masks other hands, pre-cursor
+      // submissions, and the unreleased prompt before this key builds.
+      // `options`/`phase`/`round`/`scores` are shared above.
+      black_card: room.game.black_card,
+      submissions: room.game.submissions,
+      reveal_cursor: room.game.reveal_cursor,
+      released_at: room.game.released_at,
+      final_pick: room.game.final_pick,
+      round_result: room.game.round_result,
+      most_liked: room.game.most_liked,
+      skip_votes: room.game.skip_votes,
+      phase_started_at: room.game.phase_started_at,
+      black_swaps: room.game.black_swaps,
+      draw_count: room.game.draw_count,
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,

@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   EventHubDurableObject, RoomDurableObject, RoomFactoryDurableObject, tenThousandTest,
   MockHibernatedSocket, MockRateLimitBinding,
-  CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID, RTTA_GAME_ID, ZOMBIE_DICE_GAME_ID, LIARS_DICE_GAME_ID, NO_THANKS_GAME_ID, HEARTS_GAME_ID, POTION_LAB_GAME_ID, MYSTIC_WOOD_GAME_ID, HEX_ID_PATTERN,
+  CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID, RTTA_GAME_ID, ZOMBIE_DICE_GAME_ID, LIARS_DICE_GAME_ID, NO_THANKS_GAME_ID, HEARTS_GAME_ID, POTION_LAB_GAME_ID, MYSTIC_WOOD_GAME_ID, WNYK_GAME_ID, HEX_ID_PATTERN,
   makeEnv, makeProductionEnv, makeStrictEnvWithRooms, makeEnvWithRooms, makeEnvWithEvents,
   player, request, get, post, createActiveRoom, withMockRandom, mutateState, stateData,
 } from "./helpers.js";
@@ -338,8 +338,8 @@ test("lists ready games from the hosted game registry", async () => {
   const listed = await get(env, "/api/games");
 
   assert.equal(listed.ok, true);
-  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID, MYSTIC_WOOD_GAME_ID, ZOMBIE_DICE_GAME_ID, LIARS_DICE_GAME_ID, RTTA_GAME_ID, NO_THANKS_GAME_ID, HEARTS_GAME_ID, POTION_LAB_GAME_ID]);
-  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready"]);
+  assert.deepEqual(listed.games.map((game) => game.id), [CLASSIC_GAME_ID, TACTICAL_GAME_ID, BOXES_GAME_ID, BATTLESHIP_GAME_ID, QUORIDOR_GAME_ID, TEN_THOUSAND_GAME_ID, YAHTZEE_GAME_ID, MAZEWRIGHT_GAME_ID, MYSTIC_WOOD_GAME_ID, ZOMBIE_DICE_GAME_ID, LIARS_DICE_GAME_ID, RTTA_GAME_ID, NO_THANKS_GAME_ID, HEARTS_GAME_ID, WNYK_GAME_ID, POTION_LAB_GAME_ID]);
+  assert.deepEqual(listed.games.map((game) => game.availability), ["ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready", "ready"]);
   assert.equal(listed.games[0].name, "Super Tic Tac Toe");
   assert.equal(listed.games[1].name, "Super Tic Tactical Toe");
   assert.equal(listed.games[2].name, "Dots and Boxes");
@@ -358,6 +358,8 @@ test("lists ready games from the hosted game registry", async () => {
   assert.equal(listed.games[12].player_count, null);
   assert.equal(listed.games[13].name, "♥ Hearts");
   assert.equal(listed.games[13].player_count, null);
+  assert.equal(listed.games[14].name, "Well, Now You Know");
+  assert.equal(listed.games[14].player_count, null);
   assert.equal(listed.games.every((game) => HEX_ID_PATTERN.test(game.id)), true);
   assert.equal(listed.games.every((game) => typeof game.summary === "string" && game.summary.length > 0), true);
 });

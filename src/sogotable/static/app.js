@@ -95,6 +95,7 @@ import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { renderRttaGame } from "./games/rtta/render.js";
 import { renderPotionLabGame } from "./games/potion-lab/render.js";
 import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
+import { renderWnykGame } from "./games/wnyk/render.js";
 import {
   setSoundEnabled,
   setSoundVolumeLevel,
@@ -120,7 +121,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -1654,10 +1655,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,

@@ -25,6 +25,7 @@ export const GAME_IDS = {
   hearts: "f2a8d5c3b917",
   potionLab: "e7c1a4b9d206",
   mysticWood: "a9f2c7e14b83",
+  wnyk: "c9d4e72a81f5",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -208,6 +209,19 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["hearts", "black_lady", "black_maria"],
+  },
+  {
+    id: GAME_IDS.wnyk,
+    lobbyMode: "hostStart",
+    name: "Well, Now You Know",
+    summary: "Fill-in-the-blank party game: the judge reads a black card aloud, everyone answers from a hidden hand, and the reveal shows the whole sentence — and what kind of person you really are. Write-ins join the family deck forever.",
+    players: "3+ players",
+    player_count: null,
+    host_start: true,
+    category: "card",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["wnyk", "cah", "well_now_you_know", "cards_against_humanity"],
   },
   {
     id: GAME_IDS.potionLab,

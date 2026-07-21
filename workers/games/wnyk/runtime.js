@@ -5,12 +5,11 @@
 // time. rules.js re-exports the public surface, so consumers (the future
 // handlers row, tests) keep importing from rules.js alone.
 import { WNYK_DECKS } from "./decks.js";
+import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
 
-// Fresh opaque id, registry-style. At UI-port time this literal moves into
-// GAME_IDS in the shared registry and this line becomes GAME_IDS.wnyk (the
-// game is deliberately unregistered until then, so isWnykGame must not call
-// cleanGameId — it throws on ids the registry doesn't know).
-export const WNYK_GAME_ID = "c9d4e72a81f5";
+// The opaque id lives in the shared registry (Mazewright/RTTA precedent —
+// registration executed at the 2026-07-20 UI port).
+export const WNYK_GAME_ID = GAME_IDS.wnyk;
 export const WNYK_HAND_SIZE = 10;
 export const WNYK_MIN_SEATS = 3;
 export const WNYK_WRITEIN_MAX_LENGTH = 80;

@@ -78,6 +78,9 @@ import {
 import {
   MYSTIC_WOOD_GAME_ID, isMysticWoodGame, newMysticWoodGame, initMysticWoodSeats, makeMysticWoodMove, mysticWoodGameToDict,
 } from "./mystic-wood/rules.js";
+import {
+  WNYK_GAME_ID, isWnykGame, newWnykGame, initWnykSeats, setWnykOptions, makeWnykMove, wnykGameToDict, wnykGameToDictForViewer,
+} from "./wnyk/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -141,6 +144,16 @@ const GAME_HANDLERS = [
     applyAction: (game, mark, payload) => makePotionLabMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initPotionLabSeats },
   { id: MYSTIC_WOOD_GAME_ID, is: isMysticWoodGame, create: newMysticWoodGame, toDict: mysticWoodGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeMysticWoodMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initMysticWoodSeats },
+  { id: WNYK_GAME_ID, is: isWnykGame, create: newWnykGame, toDict: wnykGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeWnykMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initWnykSeats,
+    // WNYK host options (target score, deck) share the seam with the entry's
+    // server-injected card library (custom_cards / removed_cards / card_usage).
+    // A reset carries only the HOST options — the entry re-injects a FRESH
+    // library and re-seeds, so stale pools never survive a rematch.
+    applyStartOptions: (game, payload) => setWnykOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isWnykGame(prevGame) && prevGame.options) setWnykOptions(nextGame, { target_score: prevGame.options.target_score, deck: prevGame.options.deck });
+    } },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -195,6 +208,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isNoThanksGame(game)) return noThanksGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isHeartsGame(game)) return heartsGameToDictForViewer(game, viewerMark);
   if (isPotionLabGame(game)) return potionLabGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isWnykGame(game)) return wnykGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }
 
