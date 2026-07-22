@@ -290,6 +290,47 @@ decks.family.black.push(
     .map((b) => ({ text: b.text, pick: b.pick, pack: WORDNER_LABEL })),
 );
 
+// Original SOGO kid packs (MojoSOGO 2026-07-21): themed, kid-clean, each a
+// committed sogo-kid-*-pack.json source. They join the FAMILY deck here and
+// the classic deck in the merge block below (kid-clean content plays fine at
+// the adult table). Append-only after Wordner.
+const KID_PACKS = [
+  ["sogo-kid-videogame-pack.json", "Video Game Logic"],
+  ["sogo-kid-tuber-pack.json", "Kid-Tuber"],
+  ["sogo-kid-school-pack.json", "School Life"],
+  ["sogo-kid-brainrot-pack.json", "Brainrot"],
+  ["sogo-kid-dino-pack.json", "Dino Facts"],
+  ["sogo-kid-space-pack.json", "Space Camp"],
+  ["sogo-kid-pets-pack.json", "Pet Crimes"],
+  ["sogo-kid-camp-pack.json", "Camp Chaos"],
+].map(([file, label]) => [
+  JSON.parse(readFileSync(join(root, "workers", "games", "wnyk", file), "utf8")),
+  label,
+]);
+for (const [pack, label] of KID_PACKS) {
+  const famW = new Set(decks.family.white.map((c) => normKey(c.text)));
+  decks.family.white.push(
+    ...pack.white
+      .filter(
+        (t) =>
+          !famW.has(normKey(t)) && !BLOCKED_KEYS.has(normKey(t)) && !peopleBlocked(t),
+      )
+      .map((t) => ({ text: t, pack: label })),
+  );
+  const famB = new Set(decks.family.black.map((b) => normKey(b.text)));
+  decks.family.black.push(
+    ...pack.black
+      .filter(
+        (b) =>
+          b.pick >= 1 && b.pick <= 3 &&
+          !famB.has(normKey(b.text)) &&
+          !BLOCKED_KEYS.has(normKey(b.text)) &&
+          !peopleBlocked(b.text),
+      )
+      .map((b) => ({ text: b.text, pick: b.pick, pack: label })),
+  );
+}
+
 // The CLASSIC deck carries EVERY pack (MojoSOGO, 2026-07-21): adults get the
 // full library — the Base Set plus ALL other OFFICIAL CAH packs in the
 // dataset (Red/Blue/Green Box, the numbered expansions, themed and PAX
@@ -345,6 +386,12 @@ decks.family.black.push(
   addBlack(feBlack.black, PACK_LABELS.family);
   addBlack(kidsPack.black, KIDS_LABEL);
   addBlack(wordnerPack.black, WORDNER_LABEL);
+
+  // Kid packs play at the adult table too.
+  for (const [pack, label] of KID_PACKS) {
+    addWhite(pack.white, label);
+    addBlack(pack.black, label);
+  }
 
   // Original SOGO adult packs (MojoSOGO 2026-07-21) — CLASSIC ONLY, never the
   // family deck. Each is a committed sogo-*-pack.json source in the game subtree.
