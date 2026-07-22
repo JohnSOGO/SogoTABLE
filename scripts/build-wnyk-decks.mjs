@@ -346,13 +346,24 @@ decks.family.black.push(
   addBlack(kidsPack.black, KIDS_LABEL);
   addBlack(wordnerPack.black, WORDNER_LABEL);
 
-  // The Conspiracy Pack (original SogoTable content, MojoSOGO 2026-07-21):
-  // adult tin-foil satire — CLASSIC ONLY, never the family deck.
-  const conspiracyPack = JSON.parse(
-    readFileSync(join(root, "workers", "games", "wnyk", "sogo-conspiracy-pack.json"), "utf8"),
-  );
-  addWhite(conspiracyPack.white, "Conspiracy");
-  addBlack(conspiracyPack.black, "Conspiracy");
+  // Original SOGO adult packs (MojoSOGO 2026-07-21) — CLASSIC ONLY, never the
+  // family deck. Each is a committed sogo-*-pack.json source in the game subtree.
+  const ADULT_PACKS = [
+    ["sogo-conspiracy-pack.json", "Conspiracy"],
+    ["sogo-ai-overlords-pack.json", "AI Overlords"],
+    ["sogo-millennial-pack.json", "Millennial Decay"],
+    ["sogo-gig-pack.json", "Gig Life"],
+    ["sogo-doomscroll-pack.json", "Doomscroll"],
+    ["sogo-bdsm-pack.json", "BDSM"],
+    ["sogo-consent-pack.json", "Consent Culture"],
+  ];
+  for (const [file, label] of ADULT_PACKS) {
+    const pack = JSON.parse(
+      readFileSync(join(root, "workers", "games", "wnyk", file), "utf8"),
+    );
+    addWhite(pack.white, label);
+    addBlack(pack.black, label);
+  }
 }
 
 // Staleness guard (classic-dupes precedent): every people-blocked entry must

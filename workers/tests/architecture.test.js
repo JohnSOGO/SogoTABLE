@@ -345,7 +345,7 @@ const FILE_CAP_EXCEPTIONS = {
   // family deck's black cards with pack label "Wordner".
   // 2026-07-21: re-pinned after the no-people/no-politics purge (8 packs +
   // 333 named-person cards removed via workers/games/wnyk/people-blocked.json).
-  "workers/games/wnyk/decks.js": 6274 + WORKING_BUFFER,
+  "workers/games/wnyk/decks.js": 6873 + WORKING_BUFFER,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];
