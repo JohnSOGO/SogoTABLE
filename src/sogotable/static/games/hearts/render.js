@@ -14,7 +14,7 @@
 // seat's direction (~1.5s of room for a lone play, faster when consecutive
 // plays chain), a finished trick dwells, then glides to its winner. Nothing
 // interactive unlocks until the replay catches up.
-import { renderHostStartLobby } from "../lobby.js";
+import { renderHeartsLobby } from "./lobby.js";
 import { playingCardHtml, sortPlayingCards, cardRankLabel, CARD_SUIT_GLYPHS, cardSuit, PLAYING_CARD_CSS } from "../playing-cards.js";
 import { HEARTS_CSS } from "./styles.js";
 import {
@@ -99,48 +99,10 @@ export function renderHeartsGame(ctx) {
   renderHeartsPlay(host, ctx);
 }
 
-// ---------- pre-game lobby: the optional rules live here ----------
-
-function renderHeartsLobby(host, ctx) {
-  const seatCount = Array.isArray(ctx.room && ctx.room.players) ? ctx.room.players.length : 0;
-  renderHostStartLobby(host, ctx, {
-    wrap: "hearts-root",
-    heading: "Players",
-    blurb: seatCount === 4
-      ? "Four seats filled — deal them in."
-      : `Hearts seats exactly four (${seatCount}/4) — invite players or bots to fill the table.`,
-    extraHtml: `
-      <div class="hx-options">
-        <div class="hx-opt"><div class="hx-opt-label"><b>Jack of Diamonds</b><span>taking the J♦ scores −10</span></div>
-          <div class="hx-seg" data-hx-opt="jack_of_diamonds"><button type="button" data-v="false" class="hx-on">Off</button><button type="button" data-v="true">On</button></div></div>
-        <div class="hx-opt"><div class="hx-opt-label"><b>No blood on trick one</b><span>no hearts or Q♠ on the first trick</span></div>
-          <div class="hx-seg" data-hx-opt="no_blood_first_trick"><button type="button" data-v="true" class="hx-on">On</button><button type="button" data-v="false">Off</button></div></div>
-        <div class="hx-opt"><div class="hx-opt-label"><b>Shooting the moon</b><span>old: others +26 · new: shooter −26</span></div>
-          <div class="hx-seg" data-hx-opt="moon_style"><button type="button" data-v="old" class="hx-on">Old</button><button type="button" data-v="new">New</button></div></div>
-        <div class="hx-opt"><div class="hx-opt-label"><b>Play to</b><span>lowest score wins at the line</span></div>
-          <div class="hx-seg" data-hx-opt="target_score"><button type="button" data-v="50">50</button><button type="button" data-v="75">75</button><button type="button" data-v="100" class="hx-on">100</button></div></div>
-      </div>`,
-    getStartArg: (lobbyHost) => {
-      const options = {};
-      lobbyHost.querySelectorAll("[data-hx-opt]").forEach((seg) => {
-        const on = seg.querySelector(".hx-on");
-        const value = on ? on.getAttribute("data-v") : null;
-        if (value === null) return;
-        options[seg.getAttribute("data-hx-opt")] = value === "true" ? true : value === "false" ? false : (/^\d+$/.test(value) ? Number(value) : value);
-      });
-      return options;
-    },
-    onMount: (lobbyHost) => {
-      lobbyHost.querySelectorAll("[data-hx-opt] button").forEach((button) => {
-        button.addEventListener("click", () => {
-          button.parentElement.querySelectorAll("button").forEach((other) => other.classList.remove("hx-on"));
-          button.classList.add("hx-on");
-          playClick();
-        });
-      });
-    },
-  });
-}
+// ---------- pre-game lobby ----------
+// Lives in ./lobby.js (own seam since 2026-07-21): the shared host-start
+// template plus the optional-rules picker, with the host's selections
+// persisted across lobby repaints (keyed by room+epoch).
 
 // ---------- in-game ----------
 

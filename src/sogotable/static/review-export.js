@@ -98,6 +98,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/playing-cards.js",
   "src/sogotable/static/games/hearts/manifest.js",
   "src/sogotable/static/games/hearts/render.js",
+  "src/sogotable/static/games/hearts/lobby.js",
   "src/sogotable/static/games/hearts/styles.js",
   "src/sogotable/static/games/zombie-dice/manifest.js",
   "src/sogotable/static/games/zombie-dice/render.js",
