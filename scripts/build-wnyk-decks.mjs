@@ -25,7 +25,7 @@ const PACKS = {
 // card face (MojoSOGO, 2026-07-20). Custom/write-in cards get "House Deck"
 // in the engine; these cover the generated decks.
 const PACK_LABELS = { classic: "Base Set", family: "Family Edition" };
-const KIDS_LABEL = "SOGO Kids";
+const KIDS_LABEL = "SOGO Kids 🧠";
 const WORDNER_LABEL = "Wordner";
 
 // Curation blocklist (MojoSOGO, 2026-07-20): cards in the source packs that
@@ -295,14 +295,14 @@ decks.family.black.push(
 // the classic deck in the merge block below (kid-clean content plays fine at
 // the adult table). Append-only after Wordner.
 const KID_PACKS = [
-  ["sogo-kid-videogame-pack.json", "Video Game Logic"],
-  ["sogo-kid-tuber-pack.json", "Kid-Tuber"],
-  ["sogo-kid-school-pack.json", "School Life"],
-  ["sogo-kid-brainrot-pack.json", "Brainrot"],
-  ["sogo-kid-dino-pack.json", "Dino Facts"],
-  ["sogo-kid-space-pack.json", "Space Camp"],
-  ["sogo-kid-pets-pack.json", "Pet Crimes"],
-  ["sogo-kid-camp-pack.json", "Camp Chaos"],
+  ["sogo-kid-videogame-pack.json", "Video Game Logic 🧠"],
+  ["sogo-kid-tuber-pack.json", "Kid-Tuber 🧠"],
+  ["sogo-kid-school-pack.json", "School Life 🧠"],
+  ["sogo-kid-brainrot-pack.json", "Brainrot 🧠"],
+  ["sogo-kid-dino-pack.json", "Dino Facts 🧠"],
+  ["sogo-kid-space-pack.json", "Space Camp 🧠"],
+  ["sogo-kid-pets-pack.json", "Pet Crimes 🧠"],
+  ["sogo-kid-camp-pack.json", "Camp Chaos 🧠"],
 ].map(([file, label]) => [
   JSON.parse(readFileSync(join(root, "workers", "games", "wnyk", file), "utf8")),
   label,
@@ -396,13 +396,13 @@ for (const [pack, label] of KID_PACKS) {
   // Original SOGO adult packs (MojoSOGO 2026-07-21) — CLASSIC ONLY, never the
   // family deck. Each is a committed sogo-*-pack.json source in the game subtree.
   const ADULT_PACKS = [
-    ["sogo-conspiracy-pack.json", "Conspiracy"],
-    ["sogo-ai-overlords-pack.json", "AI Overlords"],
-    ["sogo-millennial-pack.json", "Millennial Decay"],
-    ["sogo-gig-pack.json", "Gig Life"],
-    ["sogo-doomscroll-pack.json", "Doomscroll"],
-    ["sogo-bdsm-pack.json", "BDSM"],
-    ["sogo-consent-pack.json", "Consent Culture"],
+    ["sogo-conspiracy-pack.json", "Conspiracy 🧠"],
+    ["sogo-ai-overlords-pack.json", "AI Overlords 🧠"],
+    ["sogo-millennial-pack.json", "Millennial Decay 🧠"],
+    ["sogo-gig-pack.json", "Gig Life 🧠"],
+    ["sogo-doomscroll-pack.json", "Doomscroll 🧠"],
+    ["sogo-bdsm-pack.json", "BDSM 🧠"],
+    ["sogo-consent-pack.json", "Consent Culture 🧠"],
   ];
   for (const [file, label] of ADULT_PACKS) {
     const pack = JSON.parse(
