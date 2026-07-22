@@ -343,9 +343,9 @@ const FILE_CAP_EXCEPTIONS = {
   // 2026-07-20 (Wordner pack): re-pinned after the 108 Wordner prompt cards
   // (wordner-pack.json, free-to-share non-commercial license) joined the
   // family deck's black cards with pack label "Wordner".
-  // 2026-07-20: re-pinned after the classic-deck near-dupe pass (regional
-  // edition variants collapsed via workers/games/wnyk/classic-dupes.json).
-  "workers/games/wnyk/decks.js": 6536 + WORKING_BUFFER,
+  // 2026-07-21: re-pinned after the no-people/no-politics purge (8 packs +
+  // 333 named-person cards removed via workers/games/wnyk/people-blocked.json).
+  "workers/games/wnyk/decks.js": 6274 + WORKING_BUFFER,
 };
 test(`architecture: no source file silently grows past ${GLOBAL_FILE_CAP} lines`, () => {
   const offenders = [];

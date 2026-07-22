@@ -167,6 +167,20 @@ const normKey = (t) => t.replace(/\s+/g, " ").trim().toLowerCase();
 const BLOCKED_KEYS = new Set([...BLOCKED, ...KID_BLOCKED].map(normKey));
 const kidBlocked = (key, text) => key === "family" && KID_BLOCKED.has(text);
 
+// No real people, no politics (MojoSOGO, 2026-07-21; workers/games/wnyk/people-blocked.json):
+// whole politics-dense packs are dropped from the classic merge, and any card
+// referencing a real modern person by name is removed from EVERY deck source
+// (kept by design: historical canon, religious/mythical figures, fictional
+// characters, band-brand names, generic titles — the JSON's note has the bar).
+// Applied case-insensitively on normalized post-FIXES text; a staleness check
+// below fails the build if an entry stops matching any source card.
+const people = JSON.parse(
+  readFileSync(join(root, "workers", "games", "wnyk", "people-blocked.json"), "utf8"),
+);
+const PEOPLE_PACKS = new Set(people.packs);
+const PEOPLE_KEYS = new Set(people.cards.map(normKey));
+const peopleBlocked = (text) => PEOPLE_KEYS.has(normKey(text));
+
 // Near-duplicate drops (2026-07-20 dedupe pass, workers/games/wnyk/classic-dupes.json):
 // the dataset's "Base Set" is a pre-merged union of the US/UK/CA/AU editions, so
 // the same joke appears as 2-7 regional/spelling variants; each group keeps one.
@@ -197,7 +211,7 @@ for (const [key, packName] of Object.entries(PACKS)) {
           .map(fixText),
       ),
     ]
-      .filter((t) => !kidBlocked(key, t) && !dupeDrop(key, t))
+      .filter((t) => !kidBlocked(key, t) && !dupeDrop(key, t) && !peopleBlocked(t))
       .map((t) => ({ text: t, pack: label })),
     black: [],
   };
@@ -208,6 +222,7 @@ for (const [key, packName] of Object.entries(PACKS)) {
     const text = fixText(b.text);
     if (kidBlocked(key, text)) continue;
     if (dupeDrop(key, text)) continue;
+    if (peopleBlocked(text)) continue;
     if (seenBlack.has(text)) continue; // exact-dupe transcriptions in the dataset
     seenBlack.add(text);
     decks[key].black.push({ text, pick: b.pick, pack: label });
@@ -230,10 +245,10 @@ const feBlack = JSON.parse(
 );
 decks.family = {
   white: feWhite.white
-    .filter((t) => !BLOCKED_KEYS.has(normKey(t)))
+    .filter((t) => !BLOCKED_KEYS.has(normKey(t)) && !peopleBlocked(t))
     .map((t) => ({ text: t, pack: PACK_LABELS.family })),
   black: feBlack.black
-    .filter((b) => b.pick >= 1 && b.pick <= 3 && !BLOCKED_KEYS.has(normKey(b.text)))
+    .filter((b) => b.pick >= 1 && b.pick <= 3 && !BLOCKED_KEYS.has(normKey(b.text)) && !peopleBlocked(b.text))
     .map((b) => ({ text: b.text, pick: b.pick, pack: PACK_LABELS.family })),
 };
 
@@ -246,13 +261,13 @@ const kidsPack = JSON.parse(
 const familyWhite = new Set(decks.family.white.map((c) => c.text));
 decks.family.white.push(
   ...kidsPack.white
-    .filter((t) => !familyWhite.has(t))
+    .filter((t) => !familyWhite.has(t) && !peopleBlocked(t))
     .map((t) => ({ text: t, pack: KIDS_LABEL })),
 );
 const familyBlack = new Set(decks.family.black.map((b) => b.text));
 decks.family.black.push(
   ...kidsPack.black
-    .filter((b) => b.pick >= 1 && b.pick <= 3 && !familyBlack.has(b.text))
+    .filter((b) => b.pick >= 1 && b.pick <= 3 && !familyBlack.has(b.text) && !peopleBlocked(b.text))
     .map((b) => ({ text: b.text, pick: b.pick, pack: KIDS_LABEL })),
 );
 
@@ -269,7 +284,8 @@ decks.family.black.push(
       (b) =>
         b.pick >= 1 && b.pick <= 3 &&
         !familyBlackAll.has(b.text) &&
-        !BLOCKED_KEYS.has(normKey(b.text)),
+        !BLOCKED_KEYS.has(normKey(b.text)) &&
+        !peopleBlocked(b.text),
     )
     .map((b) => ({ text: b.text, pick: b.pick, pack: WORDNER_LABEL })),
 );
@@ -294,24 +310,25 @@ decks.family.black.push(
   const classicBlackSet = new Set(decks.classic.black.map((b) => normKey(b.text)));
   for (const p of raw.packs) {
     if (!p.official || p.name === PACKS.classic || EXCLUDED_OFFICIAL.test(p.name)) continue;
+    if (PEOPLE_PACKS.has(p.name)) continue; // politics-dense packs, dropped wholesale
     const label = packLabel(p.name);
     for (const i of p.white) {
       const t = fixText(raw.white[i]);
-      if (BLOCKED.has(t) || DUPE_DROP.has(t) || classicWhiteSet.has(normKey(t))) continue;
+      if (BLOCKED.has(t) || DUPE_DROP.has(t) || peopleBlocked(t) || classicWhiteSet.has(normKey(t))) continue;
       classicWhiteSet.add(normKey(t));
       decks.classic.white.push({ text: t, pack: label });
     }
     for (const i of p.black) {
       const b = raw.black[i];
       const t = fixText(b.text);
-      if (b.pick < 1 || b.pick > 3 || BLOCKED.has(t) || DUPE_DROP.has(t) || classicBlackSet.has(normKey(t))) continue;
+      if (b.pick < 1 || b.pick > 3 || BLOCKED.has(t) || DUPE_DROP.has(t) || peopleBlocked(t) || classicBlackSet.has(normKey(t))) continue;
       classicBlackSet.add(normKey(t));
       decks.classic.black.push({ text: t, pick: b.pick, pack: label });
     }
   }
   const addWhite = (texts, pack) => {
     for (const t of texts) {
-      if (classicWhiteSet.has(normKey(t))) continue;
+      if (peopleBlocked(t) || classicWhiteSet.has(normKey(t))) continue;
       classicWhiteSet.add(normKey(t));
       decks.classic.white.push({ text: t, pack });
     }
@@ -320,7 +337,7 @@ decks.family.black.push(
   addWhite(kidsPack.white, KIDS_LABEL);
   const addBlack = (cards, pack) => {
     for (const b of cards) {
-      if (b.pick < 1 || b.pick > 3 || classicBlackSet.has(normKey(b.text))) continue;
+      if (b.pick < 1 || b.pick > 3 || peopleBlocked(b.text) || classicBlackSet.has(normKey(b.text))) continue;
       classicBlackSet.add(normKey(b.text));
       decks.classic.black.push({ text: b.text, pick: b.pick, pack });
     }
@@ -328,6 +345,39 @@ decks.family.black.push(
   addBlack(feBlack.black, PACK_LABELS.family);
   addBlack(kidsPack.black, KIDS_LABEL);
   addBlack(wordnerPack.black, WORDNER_LABEL);
+
+  // The Conspiracy Pack (original SogoTable content, MojoSOGO 2026-07-21):
+  // adult tin-foil satire — CLASSIC ONLY, never the family deck.
+  const conspiracyPack = JSON.parse(
+    readFileSync(join(root, "workers", "games", "wnyk", "sogo-conspiracy-pack.json"), "utf8"),
+  );
+  addWhite(conspiracyPack.white, "Conspiracy");
+  addBlack(conspiracyPack.black, "Conspiracy");
+}
+
+// Staleness guard (classic-dupes precedent): every people-blocked entry must
+// still match a card in some deck source (post-FIXES), and every dropped pack
+// name must still exist in the dataset — otherwise the list is rotting.
+{
+  const sourceKeys = new Set();
+  for (const p of raw.packs) {
+    if (!p.official) continue;
+    for (const i of p.white) sourceKeys.add(normKey(fixText(raw.white[i])));
+    for (const i of p.black) sourceKeys.add(normKey(fixText(raw.black[i].text)));
+  }
+  for (const t of feWhite.white) sourceKeys.add(normKey(t));
+  for (const b of feBlack.black) sourceKeys.add(normKey(b.text));
+  for (const t of kidsPack.white) sourceKeys.add(normKey(t));
+  for (const b of kidsPack.black) sourceKeys.add(normKey(b.text));
+  for (const b of wordnerPack.black) sourceKeys.add(normKey(b.text));
+  const staleCards = people.cards.filter((t) => !sourceKeys.has(normKey(t)));
+  const packNames = new Set(raw.packs.map((p) => p.name));
+  const stalePacks = people.packs.filter((n) => !packNames.has(n));
+  if (staleCards.length || stalePacks.length) {
+    throw new Error(
+      `people-blocked.json entries no longer match any source:\n${[...stalePacks, ...staleCards].join("\n")}`,
+    );
+  }
 }
 
 const lines = [];
