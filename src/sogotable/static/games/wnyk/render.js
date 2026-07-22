@@ -89,7 +89,14 @@ var WNYK_SCROLL_ACTIONS = { submit: true, release: true, next: true, confirm: tr
 // chrome scrolls OFF and the view starts at the .wk-msg hint strip
 // (fallback: .wnyk-root, e.g. the lobby). Deferred a frame so the
 // post-action repaint has rebuilt the target before we scroll to it.
+// A short cooldown dedupes the two triggers (local action + the phase-change
+// detector below) when one action causes both.
+var wnykScrollCooldownMs = 250;
+var wnykLastScrollAt = 0;
 function wnykScrollToTop() {
+  var now = Date.now();
+  if (now - wnykLastScrollAt < wnykScrollCooldownMs) return;
+  wnykLastScrollAt = now;
   var scroll = function () {
     var target = document.querySelector(".wnyk-root .wk-msg") || document.querySelector(".wnyk-root");
     if (!target || !target.scrollIntoView) return;
@@ -172,7 +179,20 @@ export function renderWnykGame(ctx) {
     }
   }
   renderWnyk(view);
+  // Scroll on SCREEN changes too — including remote snapshot repaints (the
+  // judge released, the round ended: events the local player didn't cause).
+  // The signature is lobby/game + status + phase + read-aloud-vs-triage +
+  // round + room/epoch; same-phase repaints (hearts, triage moves, cursor
+  // advances) never scroll. First render sets the baseline without
+  // scrolling; local-action scrolls dedupe via the shared cooldown.
+  var screen = [wnykUi.roomEpoch, ctx.started ? "g" : "l",
+    ctx.game ? ctx.game.status : "", ctx.game ? ctx.game.phase : "",
+    ctx.started && ctx.game && wnykInReadAloud(ctx.game) ? "ra" : "st",
+    ctx.game ? ctx.game.round : ""].join("|");
+  if (wnykLastScreen !== null && screen !== wnykLastScreen) wnykScrollToTop();
+  wnykLastScreen = screen;
 }
+var wnykLastScreen = null;
 
 /* ===========================================================================
    LIFTED SEAM (verbatim below — see header)
@@ -358,6 +378,15 @@ function wnykSubmittingHtml(esc, game, me) {
     return parts.join("");
   }
   var pick = game.black_card ? game.black_card.pick : 1;
+  // Commit sits BELOW the black prompt and ABOVE the hand (MojoSOGO
+  // 2026-07-21) — full-width button, so grace-countdown label changes and
+  // selection state never shift layout. The tap/swipe hint stays with the
+  // hand below; 5-second grace: held disabled (never hidden) with the count.
+  var graceSec = Math.ceil((wnykUi.graceMsLeft || 0) / 1000);
+  var canCommit = wnykCanCommit(me, pick) && graceSec <= 0;
+  parts.push('<div class="wk-commitbar">' +
+    '<button type="button" class="primary" data-act="commit"' + (canCommit ? "" : " disabled") + ">" +
+    (graceSec > 0 ? "Commit in " + graceSec + "…" : "Commit") + "</button></div>");
   parts.push('<div class="wk-hand">' + me.hand.map(function (face, idx) {
     var at = wnykUi.selection.indexOf(idx);
     // The 👎 binds to hand_rate_keys (index-aligned with hand; null = not
@@ -373,6 +402,7 @@ function wnykSubmittingHtml(esc, game, me) {
       key: rateKey,
     });
   }).join("") + "</div>");
+  parts.push('<p class="wk-commit-hint">tap to raise · tap again to lower · swipe a raised card up to commit</p>');
   parts.push('<div class="wk-dumpbadge' + (me.dump_used ? " wk-spent" : "") + '">' +
     (me.dump_used ? "👎 used this round" : "👎 ready — downvote dumps the card for a fresh draw") + "</div>");
   if (wnykUi.composerOpen) {
@@ -382,14 +412,6 @@ function wnykSubmittingHtml(esc, game, me) {
       '<div class="wk-composer-row"><span class="wk-count" id="wnykComposerCount">' + count + "/80</span>" +
       '<button type="button" class="secondary" data-act="composer_cancel">Cancel</button></div></div>');
   }
-  // 5-second grace after release: Commit is held (disabled, never hidden,
-  // same button = no layout shift) with a visible count; selection is free.
-  var graceSec = Math.ceil((wnykUi.graceMsLeft || 0) / 1000);
-  var canCommit = wnykCanCommit(me, pick) && graceSec <= 0;
-  parts.push('<div class="wk-commitbar">' +
-    '<button type="button" class="primary" data-act="commit"' + (canCommit ? "" : " disabled") + ">" +
-    (graceSec > 0 ? "Commit in " + graceSec + "…" : "Commit") + "</button>" +
-    '<p class="wk-commit-hint">tap to raise · tap again to lower · swipe a raised card up to commit</p></div>');
   return parts.join("");
 }
 
@@ -553,7 +575,7 @@ function wireWnyk(host, ctx) {
       var count = host.querySelector("#wnykComposerCount");
       if (count) count.textContent = composer.value.length + "/80";
       var commit = host.querySelector('[data-act="commit"]');
-      if (commit) commit.disabled = !wnykCanCommit(me, pick);
+      if (commit) commit.disabled = !wnykCanCommit(me, pick) || (wnykUi.graceMsLeft || 0) > 0;
       var gap = host.querySelector(".wk-black .wk-gap");
       if (gap && wnykUi.selection.length) { gap.classList.add("wk-filled"); gap.textContent = composer.value.trim() || "…"; }
     });
