@@ -117,15 +117,19 @@ export const WNYK_CSS = `
 /* Commit bar: always present while submitting — disabled, never hidden. */
 .wnyk-root .wk-commitbar{width:100%;max-width:480px;display:grid;gap:6px;}
 .wnyk-root .wk-commit-hint{margin:0;text-align:center;font-size:.76rem;color:var(--wk-muted);white-space:nowrap;}
-/* Judge triage: All + Favorite side by side, Final full-width below them —
-   same layout on every device; portrait columns scroll compactly. */
-.wnyk-root .wk-triage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%;max-width:640px;}
-.wnyk-root .wk-col{display:flex;flex-direction:column;gap:8px;background:var(--wk-panel);
- border:1px solid var(--wk-line);border-radius:12px;padding:8px;min-height:170px;max-height:46dvh;
- overflow-y:auto;box-sizing:border-box;}
-.wnyk-root .wk-col-h{margin:0;text-align:center;font-size:.82rem;font-weight:800;white-space:nowrap;
- color:var(--wk-muted);}
-.wnyk-root .wk-col.wk-col-final{border-color:var(--wk-gold);grid-column:1 / -1;}
+/* Judge triage: three FULL-WIDTH sections stacked vertically — 📋 All,
+   ❤️ Favorite, 🏆 Final. Tiles wrap in a grid inside each section; sections
+   grow and the PAGE scrolls — no inner scroll in either orientation. Empty
+   sections keep their header + a stable min-height, so promoting a card
+   never jolts the layout. */
+.wnyk-root .wk-triage{display:grid;grid-template-columns:1fr;gap:8px;width:100%;max-width:640px;}
+.wnyk-root .wk-col{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;
+ align-content:start;background:var(--wk-panel);border:1px solid var(--wk-line);border-radius:12px;
+ padding:8px;min-height:96px;box-sizing:border-box;}
+.wnyk-root .wk-col-h{grid-column:1 / -1;margin:0;text-align:center;font-size:.82rem;font-weight:800;
+ white-space:nowrap;color:var(--wk-muted);}
+.wnyk-root .wk-col .wk-confirm{grid-column:1 / -1;}
+.wnyk-root .wk-col.wk-col-final{border-color:var(--wk-gold);}
 /* The confirm action is unmistakable: success-green when armed (a card sits
    in Final), neutral while disabled — disabled, never hidden. The Final
    column wears the matching green accent when occupied. */
@@ -208,15 +212,12 @@ export const WNYK_CSS = `
   .wnyk-root .wk-black{font-size:.96rem;}
   .wnyk-root .wk-sub .wk-card{font-size:.72rem;}
   .wnyk-root .wk-col-h{font-size:.74rem;}
+  /* narrower tile minimum so small phones keep ~2 tiles per section row */
+  .wnyk-root .wk-col{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
 }
-/* Landscape / wide viewports: every triage card visible at once — NO inner
-   scroll. Columns become wrapping grids that grow (tiles side by side, the
-   full-width Final row fits the most); only the page scrolls if truly
-   needed. Portrait phones keep the compact scrolling columns above. */
+/* Landscape / wide viewports: the stacked sections widen to the full board
+   so their wrapping tile grids fit more per row (no-inner-scroll holds). */
 @media (orientation:landscape){
   .wnyk-root .wk-triage{max-width:none;}
-  .wnyk-root .wk-col{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
-   align-content:start;min-height:0;max-height:none;overflow:visible;}
-  .wnyk-root .wk-col-h,.wnyk-root .wk-col .wk-confirm{grid-column:1 / -1;}
 }
 `;
