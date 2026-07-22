@@ -198,7 +198,25 @@ var wnykLastScreen = null;
    LIFTED SEAM (verbatim below — see header)
    ========================================================================== */
 
-var wnykUi = { key: "", selection: [], composerOpen: false, composerText: "" };
+var wnykUi = { key: "", selection: [], composerOpen: false, composerText: "", lobbyKey: "", lobbyOptions: null };
+
+// Host option selections survive lobby repaints (MojoSOGO bug 2026-07-21:
+// every room snapshot — a bot invite, a join — rebuilds the lobby DOM, and
+// the DOM was the only state, so the Deck toggle silently reset to Classic
+// and a family game started on the adult deck). Keyed by room+epoch; a new
+// room or a reset returns to the defaults.
+var WNYK_LOBBY_DEFAULTS = { target_score: 7, deck: "classic" };
+function wnykLobbyOptions() {
+  if (wnykUi.lobbyKey !== wnykUi.roomEpoch) {
+    wnykUi.lobbyKey = wnykUi.roomEpoch;
+    wnykUi.lobbyOptions = Object.assign({}, WNYK_LOBBY_DEFAULTS);
+  }
+  return wnykUi.lobbyOptions;
+}
+
+function wnykParseOptionValue(value) {
+  return /^\d+$/.test(value) ? Number(value) : value;
+}
 
 function wnykResetUiIfStale(game) {
   var key = wnykUi.roomEpoch + ":" + game.round + ":" + game.phase;
@@ -222,6 +240,12 @@ function renderWnyk(ctx) {
 // ---- lobby (shared host-start template + WNYK host options) ----
 function renderWnykLobby(host, ctx) {
   var seats = (ctx.room && ctx.room.players || []).length;
+  // Each toggle's hx-on derives from the STORED selection, never hardcoded —
+  // a lobby repaint re-renders the host's actual choices.
+  var stored = wnykLobbyOptions();
+  var hxOn = function (name, value) {
+    return String(stored[name]) === String(value) ? ' class="hx-on"' : "";
+  };
   renderHostStartLobby(host, ctx, {
     wrap: "wnyk-root",
     heading: "Players",
@@ -231,26 +255,27 @@ function renderWnykLobby(host, ctx) {
     extraHtml:
       '<div class="hx-options">' +
       '<div class="hx-opt"><div class="hx-opt-label"><b>Play to</b><span>first to this many round wins</span></div>' +
-      '<div class="hx-seg" data-hx-opt="target_score"><button type="button" data-v="5">5</button><button type="button" data-v="7" class="hx-on">7</button><button type="button" data-v="10">10</button></div></div>' +
+      '<div class="hx-seg" data-hx-opt="target_score"><button type="button" data-v="5"' + hxOn("target_score", 5) + '>5</button><button type="button" data-v="7"' + hxOn("target_score", 7) + '>7</button><button type="button" data-v="10"' + hxOn("target_score", 10) + ">10</button></div></div>" +
       '<div class="hx-opt"><div class="hx-opt-label"><b>Deck</b><span>Classic is adult — Kid-Friendly for family play</span></div>' +
-      '<div class="hx-seg" data-hx-opt="deck"><button type="button" data-v="classic" class="hx-on">Classic</button><button type="button" data-v="family">Kid-Friendly</button></div></div>' +
+      '<div class="hx-seg" data-hx-opt="deck"><button type="button" data-v="classic"' + hxOn("deck", "classic") + '>Classic</button><button type="button" data-v="family"' + hxOn("deck", "family") + ">Kid-Friendly</button></div></div>" +
       "</div>",
     getStartArg: function (lobbyHost) {
       wnykScrollToTop(); // Start Game advances the view — surface the top
+      // The store is authoritative; the DOM scrape is only a fallback.
       var options = {};
       lobbyHost.querySelectorAll("[data-hx-opt]").forEach(function (seg) {
         var on = seg.querySelector(".hx-on");
         if (!on) return;
-        var value = on.getAttribute("data-v");
-        options[seg.getAttribute("data-hx-opt")] = /^\d+$/.test(value) ? Number(value) : value;
+        options[seg.getAttribute("data-hx-opt")] = wnykParseOptionValue(on.getAttribute("data-v"));
       });
-      return options;
+      return Object.assign(options, wnykLobbyOptions());
     },
     onMount: function (lobbyHost) {
       lobbyHost.querySelectorAll("[data-hx-opt] button").forEach(function (button) {
         button.addEventListener("click", function () {
           button.parentElement.querySelectorAll("button").forEach(function (other) { other.classList.remove("hx-on"); });
           button.classList.add("hx-on");
+          wnykLobbyOptions()[button.parentElement.getAttribute("data-hx-opt")] = wnykParseOptionValue(button.getAttribute("data-v"));
         });
       });
     },
