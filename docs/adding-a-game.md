@@ -377,6 +377,14 @@ game hits (all learned on Yahtzee):
   `addBot` / `startGame` callbacks; pass `wrap: "<game>-root"` so your macro-board
   neutralizer applies, plus a `heading`/`blurb`, and `extraHtml` + `getStartArg`
   for a start option (the 10,000 opening-score select is the worked example).
+  **Host-option state must NOT live in the DOM** (hard rule, 2026-07-28): the
+  lobby repaints on every room snapshot — a bot invite or player join rebuilds
+  `extraHtml` and silently resets any hardcoded default selection (this bug
+  shipped a family game on the adult deck in WNYK, and Hearts had it too).
+  Store the host's selections in module state keyed by room+epoch, derive the
+  selected classes from that store on every render, and make `getStartArg` read
+  the store as authoritative — WNYK's `wnykUi.lobbyOptions` and Hearts'
+  `games/hearts/lobby.js` are the worked examples.
   Mazewright, Yahtzee, and 10,000 all render through this one template now — there
   are no hand-rolled lobby copies left to migrate. Which screen a game gets is
   declared explicitly by its `lobbyMode` in `registry.js` (`"hostStart"` for the
