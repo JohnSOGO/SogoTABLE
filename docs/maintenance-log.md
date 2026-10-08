@@ -4,10 +4,7 @@ Health receipts from the `code-steward` agent (whole-codebase sustainability
 audits), newest first. The steward is read-only; each entry records what it found
 and what was done in response.
 
-Cadence is milestone-driven (game ships, lock declared, release). As a safety net,
-a `SessionStart` hook (`scripts/steward-overdue-check.mjs`, wired in
-`.claude/settings.json`) reads this log at every Claude launch and suggests an
-audit when the newest entry is stale (>14 days or >150 commits since).
+Cadence is milestone-driven (game ships, lock declared, release).
 
 ---
 
