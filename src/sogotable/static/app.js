@@ -93,6 +93,7 @@ import { renderNoThanksGame } from "./games/no-thanks/render.js";
 import { renderHeartsGame } from "./games/hearts/render.js";
 import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import { renderMazewrightGame } from "./games/mazewright/render.js";
+import { wireChessTutor } from "./games/chess-tutor/index.js";
 import { renderRttaGame } from "./games/rtta/render.js";
 import { renderPotionLabGame } from "./games/potion-lab/render.js";
 import { renderRealmwrightGame } from "./games/realmwright/render.js";
@@ -275,6 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("superCloseRoom").addEventListener("click", closeCurrentRoomAsSuperuser);
   document.getElementById("resetGame").addEventListener("click", resetGame);
   wirePromptControls();
+  wireChessTutor({ deviceSelectedPlayer });
   wireWinOverlay({ getRoom: () => currentRoom });
   bindRefreshTitleControls();
   realtime.connectAppEvents();
