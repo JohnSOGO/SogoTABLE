@@ -31,6 +31,7 @@ concern), then implement.
 | `src/sogotable/static/realtime.js` | Room + app-event WebSocket controller | — |
 | `src/sogotable/static/storage.js` | localStorage/sessionStorage keys + load/migrate helpers | — |
 | `src/sogotable/static/sound.js` | Audio synthesis + playback | — |
+| `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map (cue name → recorded file URL or null); no logic | `src/sogotable/static/sound.js` |
 | `src/sogotable/static/color-utils.js` | Colour math | — |
 | `src/sogotable/static/html-utils.js` | HTML escaping + markup helpers | — |
 | `src/sogotable/static/review-export.js` | Admin source-review ZIP export + the export allowlist | — |

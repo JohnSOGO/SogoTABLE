@@ -62,7 +62,12 @@ export const ASSETS = {
   cardBack: null,
   drinkBack: null,
   tableBg: null,
-  sounds: { play: null, react: null, drink: null, coins: null, hit: null, gamble: null, out: null, win: null, tick: null, turn: null },
+  sounds: {
+    play: new URL("./sounds/play.mp3", import.meta.url).href,
+    react: null, drink: null,
+    coins: new URL("./sounds/coins.mp3", import.meta.url).href,
+    hit: null, gamble: null, out: null, win: null, tick: null, turn: null,
+  },
 };
 
 export function paletteFor(theme) {
