@@ -268,6 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("playerModal").addEventListener("click", closePlayerModalOnBackdrop);
   document.getElementById("exportReviewZip").addEventListener("click", exportReviewZip);
   document.getElementById("forgetSogoAdmin").addEventListener("click", forgetSogoAdmin);
+  document.getElementById("openAssetReview").addEventListener("click", openAssetReviewScreen);
   wireAppearancePicker();
   document.getElementById("closeInvitePlayerModal").addEventListener("click", closeInvitePlayerModal);
   document.getElementById("invitePlayerModal").addEventListener("click", closeInvitePlayerModalOnBackdrop);
@@ -979,6 +980,16 @@ function renderIntroAdminActions() {
   if (exportButton) exportButton.classList.toggle("hidden", !active);
   const forgetButton = document.getElementById("forgetSogoAdmin");
   if (forgetButton) forgetButton.classList.toggle("hidden", !active);
+  document.getElementById("adminGames")?.classList.toggle("hidden", !active);
+}
+
+// Admin-only Asset Review, loaded on demand so it stays off every family's boot path.
+async function openAssetReviewScreen() {
+  if (!isSogoSuperuserSelected()) return;
+  const review = await import("./admin/asset-review/index.js");
+  review.wireAssetReview({ api, passcode: () => ensureSogoSuperuserPasscode(deviceSelectedPlayer()), reviewer: () => deviceSelectedPlayer()?.name || "" });
+  showScreen("assetReview");
+  void review.openAssetReview();
 }
 
 async function exportReviewZip() {

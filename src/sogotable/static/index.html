@@ -81,6 +81,12 @@
           <div class="games-list">
             <button id="openChessTutor" class="game-card" type="button" data-screen="chessTutor">♞ Chess Tutor</button>
           </div>
+          <div id="adminGames" class="hidden">
+            <h2>Admin</h2>
+            <div class="games-list">
+              <button id="openAssetReview" class="game-card" type="button">🎧 Asset Review</button>
+            </div>
+          </div>
         </div>
         <p id="gamesNeedPlayer" class="games-need-player hidden">Select or create a player above to choose a game.</p>
       </section>
@@ -93,6 +99,16 @@
           <span></span>
         </header>
         <div class="ct-mount chess-tutor-root"></div>
+      </section>
+
+      <section id="assetReview" class="screen">
+        <header class="topbar">
+          <button class="ghost icon-button" data-screen="games" aria-label="Back" title="Back">🔙</button>
+          <span></span>
+          <h2>🎧 Asset Review</h2>
+          <span></span>
+        </header>
+        <div class="asset-review-root"></div>
       </section>
 
       <section id="gameSelected" class="screen">

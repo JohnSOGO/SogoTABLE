@@ -22,3 +22,6 @@ src/sogotable/static/revision.json
 .worktrees/
 test-results/
 playwright-report/
+
+# Local exports from scripts/export-asset-reviews.mjs
+/asset-review/

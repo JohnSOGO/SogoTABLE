@@ -20,6 +20,7 @@ const REVIEW_EXPORT_FILES = [
   "workers/room-seats.js",
   "workers/player-rooms.js",
   "workers/bug-reports.js",
+  "workers/asset-reviews.js",
   "workers/custom-cards.js",
   "workers/card-ratings.js",
   "workers/game-library.js",

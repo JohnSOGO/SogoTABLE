@@ -1615,3 +1615,26 @@ PLACEMENT RECEIPT
     - Ceiling re-pinned at 2092 + WORKING_BUFFER
 - New owner row: none (client/active-games.js row amended)
 ```
+
+```
+PLACEMENT RECEIPT
+- Ask:          Place "Asset Review", a superuser-only lobby tool for playing/viewing every generated sound, alternate
+                take and picture and recording approve/reject + note + chosen take + regenerate flag, stored
+                server-side and exportable to JSON/Markdown
+- Verdict:      src/sogotable/static/admin/asset-review/{index,catalog,takes,render,waveform,report,styles}.js +
+                workers/asset-reviews.js + scripts/export-asset-reviews.mjs (exempt); shell wiring in app.js/index.html,
+                routes in workers/sogotable-api.js  [NEW owner rows]
+- Flow stage:   admin tooling outside the gameplay flow (capture + render client-side, validate + persist in a leaf)
+- Considerations:
+    - Rejected games/asset-review/: the catalog reads every game's assets.js, which the layering test forbids
+      for a game module, and it is not a registry game
+    - Loaded by dynamic import from the click handler, so no game asset module joins the boot path
+    - Writes use a quiet side-effect profile (save, no room/app-hub notify); keyed upsert + caps keep the
+      single state row small
+    - Implementer deviation: the entry is an "Admin" card under Learn on the games screen (MojoSOGO asked for
+      an admin "game" in the lobby) instead of an intro-screen button; it is static index.html markup like
+      Chess Tutor and does not touch game-list-view.js
+    - Synth previews temporarily blank one override (SOUND_FILES / ASSETS.sounds) around the real cue call,
+      so sound.js and the game sfx.js files are unchanged
+- New owner row: 8 (seven admin/asset-review modules + workers/asset-reviews.js)
+```
