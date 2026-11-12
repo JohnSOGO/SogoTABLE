@@ -30,6 +30,7 @@ export const GAME_IDS = {
   chineseCheckers: "6bc129b1bbed",
   lastOrders: "618a2d361857",
   tracklayers: "7c31e9a05b42",
+  tradewinds: "08a6c9699a46",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -293,5 +294,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["tracklayers", "track_layers", "train_routes", "rail_routes"],
+  },
+  {
+    id: GAME_IDS.tradewinds,
+    lobbyMode: "hostStart",
+    name: "🏝️ Tradewind Isles",
+    summary: "Settle a fresh island every game: the dice pay out timber, clay, fiber, fruit and stone, then everyone builds and trades at the same time. Lay boardwalks, raise huts and lodges, outfox the Mischief Monkey and be first to the renown target. 2–6 players; bots fill the table.",
+    players: "2–6 players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["tradewinds", "tradewind_isles", "tradewind-isles", "island_trading", "island-trading"],
   },
 ];

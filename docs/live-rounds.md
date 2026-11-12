@@ -11,6 +11,9 @@ This document captures the SogoTable timing-mode ideology from the incoming `AI/
 > **Realmwright** ([game-realmwright.md](game-realmwright.md)) is the first live
 > round on a **shared board**: one tile per seat per round, placements resolve
 > immediately in server order, stale intents are rejected with a reason.
+> **Tradewind Isles** ([game-tradewinds.md](game-tradewinds.md)) runs a whole
+> build-and-trade phase as a live round after one shared roll: contested corners go
+> to the first valid build, and the loser keeps its cards.
 
 ## Core Idea
 
