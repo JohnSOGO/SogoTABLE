@@ -1,3 +1,5 @@
+import { SOUND_FILES } from "./sound-files.js";
+
 const STORAGE_KEY = "sogotable.soundEnabled";
 const VOLUME_LEVEL_KEY = "sogotable.soundVolumeLevel";
 const DEFAULT_VOLUME = 0.045;
@@ -184,6 +186,14 @@ export function playSoundFile(url, volume = 0.6) {
   }
 }
 
+// Global cue with an optional recorded file (sound-files.js). The file plays
+// when one is mapped; otherwise, or if it cannot start, the synth cue runs.
+function cue(name, synth, volume = 0.35) {
+  const url = SOUND_FILES[name];
+  if (url && playSoundFile(url, volume)) return;
+  synth();
+}
+
 export function playClick() {
   playTone({ frequency: 420, duration: 0.035, type: "square", volume: 0.018 });
 }
@@ -212,132 +222,164 @@ export function playTurnChanged(mark = "X") {
 }
 
 export function playInviteReceived() {
-  playSequence([
-    { frequency: 620, duration: 0.075, type: "sine", volume: 0.034 },
-    { frequency: 830, duration: 0.1, type: "sine", volume: 0.034, delay: 0.09 },
-  ]);
+  cue("invite", () => {
+    playSequence([
+      { frequency: 620, duration: 0.075, type: "sine", volume: 0.034 },
+      { frequency: 830, duration: 0.1, type: "sine", volume: 0.034, delay: 0.09 },
+    ]);
+  });
 }
 
 export function playPlayerJoined() {
-  playSequence([
-    { frequency: 440, duration: 0.06, type: "triangle", volume: 0.028 },
-    { frequency: 660, duration: 0.08, type: "triangle", volume: 0.03, delay: 0.07 },
-  ]);
+  cue("playerJoined", () => {
+    playSequence([
+      { frequency: 440, duration: 0.06, type: "triangle", volume: 0.028 },
+      { frequency: 660, duration: 0.08, type: "triangle", volume: 0.03, delay: 0.07 },
+    ]);
+  });
 }
 
 export function playRoomCreated() {
-  playSequence([
-    { frequency: 520, duration: 0.06, type: "sine", volume: 0.03 },
-    { frequency: 780, duration: 0.08, type: "sine", volume: 0.032, delay: 0.07 },
-  ]);
+  cue("roomCreated", () => {
+    playSequence([
+      { frequency: 520, duration: 0.06, type: "sine", volume: 0.03 },
+      { frequency: 780, duration: 0.08, type: "sine", volume: 0.032, delay: 0.07 },
+    ]);
+  });
 }
 
 export function playWin() {
-  playSequence([
-    { frequency: 523, duration: 0.08, type: "sine", volume: 0.04 },
-    { frequency: 659, duration: 0.08, type: "sine", volume: 0.04, delay: 0.08 },
-    { frequency: 1046, duration: 0.13, type: "sine", volume: 0.042, delay: 0.16 },
-  ]);
+  cue("win", () => {
+    playSequence([
+      { frequency: 523, duration: 0.08, type: "sine", volume: 0.04 },
+      { frequency: 659, duration: 0.08, type: "sine", volume: 0.04, delay: 0.08 },
+      { frequency: 1046, duration: 0.13, type: "sine", volume: 0.042, delay: 0.16 },
+    ]);
+  });
 }
 
 export function playLose() {
-  playSequence([
-    { frequency: 392, duration: 0.09, type: "triangle", volume: 0.028 },
-    { frequency: 294, duration: 0.12, type: "triangle", volume: 0.026, delay: 0.1 },
-  ]);
+  cue("lose", () => {
+    playSequence([
+      { frequency: 392, duration: 0.09, type: "triangle", volume: 0.028 },
+      { frequency: 294, duration: 0.12, type: "triangle", volume: 0.026, delay: 0.1 },
+    ]);
+  });
 }
 
 // 10,000 dice tumbling: a few short, slightly detuned knocks.
 export function playDiceRoll() {
-  playSequence([
-    { frequency: 220, duration: 0.05, type: "square", volume: 0.022, slideTo: 175 },
-    { frequency: 320, duration: 0.045, type: "square", volume: 0.02, delay: 0.05, slideTo: 250 },
-    { frequency: 200, duration: 0.05, type: "triangle", volume: 0.021, delay: 0.1, slideTo: 150 },
-  ]);
+  cue("diceRoll", () => {
+    playSequence([
+      { frequency: 220, duration: 0.05, type: "square", volume: 0.022, slideTo: 175 },
+      { frequency: 320, duration: 0.045, type: "square", volume: 0.02, delay: 0.05, slideTo: 250 },
+      { frequency: 200, duration: 0.05, type: "triangle", volume: 0.021, delay: 0.1, slideTo: 150 },
+    ]);
+  });
 }
 
 // Setting aside scoring dice: a light upward blip.
 export function playScorePick() {
-  playTone({ frequency: 660, duration: 0.05, type: "sine", volume: 0.026, slideTo: 880 });
+  cue("scorePick", () => {
+    playTone({ frequency: 660, duration: 0.05, type: "sine", volume: 0.026, slideTo: 880 });
+  });
 }
 
 // Banking the turn score: a satisfying two-note cash-in.
 export function playBank() {
-  playSequence([
-    { frequency: 700, duration: 0.07, type: "sine", volume: 0.032, slideTo: 980 },
-    { frequency: 1040, duration: 0.11, type: "sine", volume: 0.034, delay: 0.08 },
-  ]);
+  cue("bank", () => {
+    playSequence([
+      { frequency: 700, duration: 0.07, type: "sine", volume: 0.032, slideTo: 980 },
+      { frequency: 1040, duration: 0.11, type: "sine", volume: 0.034, delay: 0.08 },
+    ]);
+  });
 }
 
 // Farkle (busted roll): a downward bust tone.
 export function playFarkle() {
-  playSequence([
-    { frequency: 300, duration: 0.1, type: "sawtooth", volume: 0.03, slideTo: 150 },
-    { frequency: 170, duration: 0.16, type: "triangle", volume: 0.028, delay: 0.09, slideTo: 90 },
-  ]);
+  cue("farkle", () => {
+    playSequence([
+      { frequency: 300, duration: 0.1, type: "sawtooth", volume: 0.03, slideTo: 150 },
+      { frequency: 170, duration: 0.16, type: "triangle", volume: 0.028, delay: 0.09, slideTo: 90 },
+    ]);
+  });
 }
 
 // Card games (Hearts): a quick riffle of soft knocks as the hands fan out.
 export function playCardDeal() {
-  playSequence(Array.from({ length: 6 }, (_, i) => (
-    { frequency: 340 - i * 18, duration: 0.035, type: "triangle", volume: 0.02, delay: i * 0.07, slideTo: 240 - i * 12 }
-  )));
+  cue("cardDeal", () => {
+    playSequence(Array.from({ length: 6 }, (_, i) => (
+      { frequency: 340 - i * 18, duration: 0.035, type: "triangle", volume: 0.02, delay: i * 0.07, slideTo: 240 - i * 12 }
+    )));
+  });
 }
 
 // A card landing on the table: one soft snap.
 export function playCardPlay() {
-  playSequence([
-    { frequency: 290, duration: 0.04, type: "triangle", volume: 0.026, slideTo: 200 },
-    { frequency: 170, duration: 0.05, type: "sine", volume: 0.022, delay: 0.03 },
-  ]);
+  cue("cardPlay", () => {
+    playSequence([
+      { frequency: 290, duration: 0.04, type: "triangle", volume: 0.026, slideTo: 200 },
+      { frequency: 170, duration: 0.05, type: "sine", volume: 0.022, delay: 0.03 },
+    ]);
+  });
 }
 
 // Sweeping a finished trick off the table.
 export function playTrickTake() {
-  playSequence([
-    { frequency: 420, duration: 0.09, type: "sine", volume: 0.024, slideTo: 240 },
-    { frequency: 196, duration: 0.11, type: "sine", volume: 0.026, delay: 0.09, slideTo: 150 },
-  ]);
+  cue("trickTake", () => {
+    playSequence([
+      { frequency: 420, duration: 0.09, type: "sine", volume: 0.024, slideTo: 240 },
+      { frequency: 196, duration: 0.11, type: "sine", volume: 0.026, delay: 0.09, slideTo: 150 },
+    ]);
+  });
 }
 
 // The first heart hits the table: a small minor turn.
 export function playHeartsBroken() {
-  playSequence([
-    { frequency: 392, duration: 0.12, type: "sine", volume: 0.028 },
-    { frequency: 311, duration: 0.17, type: "sine", volume: 0.028, delay: 0.1 },
-  ]);
+  cue("heartsBroken", () => {
+    playSequence([
+      { frequency: 392, duration: 0.12, type: "sine", volume: 0.028 },
+      { frequency: 311, duration: 0.17, type: "sine", volume: 0.028, delay: 0.1 },
+    ]);
+  });
 }
 
 // The Queen of Spades lands: a low, unmistakable growl.
 export function playQueenSpades() {
-  playSequence([
-    { frequency: 147, duration: 0.22, type: "sawtooth", volume: 0.026, slideTo: 110 },
-    { frequency: 98, duration: 0.28, type: "triangle", volume: 0.026, delay: 0.08, slideTo: 73 },
-  ]);
+  cue("queenSpades", () => {
+    playSequence([
+      { frequency: 147, duration: 0.22, type: "sawtooth", volume: 0.026, slideTo: 110 },
+      { frequency: 98, duration: 0.28, type: "triangle", volume: 0.026, delay: 0.08, slideTo: 73 },
+    ]);
+  });
 }
 
 // The Mystic Horn scatters the knights: a low brass call answered a fifth up, then four bright
 // pips — one per stop of the knights' tour — fading as the wood settles. Runs about 2s, the
 // length of the scatter animation.
 export function playMysticHorn() {
-  playSequence([
-    { frequency: 131, duration: 0.42, type: "sawtooth", volume: 0.03, slideTo: 196 },
-    { frequency: 196, duration: 0.4, type: "triangle", volume: 0.034, delay: 0.3, slideTo: 262 },
-    { frequency: 294, duration: 0.55, type: "sine", volume: 0.03, delay: 0.62 },
-    { frequency: 392, duration: 0.5, type: "triangle", volume: 0.028, delay: 0.72, slideTo: 523 },
-    ...Array.from({ length: 4 }, (_, i) => (
-      { frequency: 660 + i * 110, duration: 0.06, type: "sine", volume: 0.02, delay: 1.15 + i * 0.2, slideTo: 990 + i * 110 }
-    )),
-    { frequency: 98, duration: 0.5, type: "triangle", volume: 0.026, delay: 1.5, slideTo: 73 },
-  ]);
+  cue("mysticHorn", () => {
+    playSequence([
+      { frequency: 131, duration: 0.42, type: "sawtooth", volume: 0.03, slideTo: 196 },
+      { frequency: 196, duration: 0.4, type: "triangle", volume: 0.034, delay: 0.3, slideTo: 262 },
+      { frequency: 294, duration: 0.55, type: "sine", volume: 0.03, delay: 0.62 },
+      { frequency: 392, duration: 0.5, type: "triangle", volume: 0.028, delay: 0.72, slideTo: 523 },
+      ...Array.from({ length: 4 }, (_, i) => (
+        { frequency: 660 + i * 110, duration: 0.06, type: "sine", volume: 0.02, delay: 1.15 + i * 0.2, slideTo: 990 + i * 110 }
+      )),
+      { frequency: 98, duration: 0.5, type: "triangle", volume: 0.026, delay: 1.5, slideTo: 73 },
+    ]);
+  });
 }
 
 // Somebody shot the moon: a rising fanfare.
 export function playMoonShot() {
-  playSequence([
-    { frequency: 392, duration: 0.14, type: "triangle", volume: 0.032 },
-    { frequency: 494, duration: 0.14, type: "triangle", volume: 0.032, delay: 0.12 },
-    { frequency: 587, duration: 0.14, type: "triangle", volume: 0.034, delay: 0.24 },
-    { frequency: 784, duration: 0.22, type: "triangle", volume: 0.036, delay: 0.36 },
-  ]);
+  cue("moonShot", () => {
+    playSequence([
+      { frequency: 392, duration: 0.14, type: "triangle", volume: 0.032 },
+      { frequency: 494, duration: 0.14, type: "triangle", volume: 0.032, delay: 0.12 },
+      { frequency: 587, duration: 0.14, type: "triangle", volume: 0.034, delay: 0.24 },
+      { frequency: 784, duration: 0.22, type: "triangle", volume: 0.036, delay: 0.36 },
+    ]);
+  });
 }

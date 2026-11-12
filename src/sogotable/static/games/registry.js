@@ -29,6 +29,7 @@ export const GAME_IDS = {
   realmwright: "4d8e2b6a9c13",
   chineseCheckers: "6bc129b1bbed",
   lastOrders: "618a2d361857",
+  tracklayers: "7c31e9a05b42",
   tradewinds: "08a6c9699a46",
 };
 
@@ -280,6 +281,19 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["last_orders", "last-orders", "lastorders", "tavern_brawl", "tavern-brawl"],
+  },
+  {
+    id: GAME_IDS.tracklayers,
+    lobbyMode: "hostStart",
+    name: "🚂 Tracklayers",
+    summary: "Collect coloured rail cards, claim routes across the Lantern Isles and link the cities on your secret tickets. Everyone moves at the same time each round; the longest line earns a bonus. 2–5 players; bots fill the table.",
+    players: "2–5 players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["tracklayers", "track_layers", "train_routes", "rail_routes"],
   },
   {
     id: GAME_IDS.tradewinds,

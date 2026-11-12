@@ -31,6 +31,7 @@ concern), then implement.
 | `src/sogotable/static/realtime.js` | Room + app-event WebSocket controller | — |
 | `src/sogotable/static/storage.js` | localStorage/sessionStorage keys + load/migrate helpers | — |
 | `src/sogotable/static/sound.js` | Audio synthesis + playback | — |
+| `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map (cue name → recorded file URL or null); no logic | `src/sogotable/static/sound.js` |
 | `src/sogotable/static/color-utils.js` | Colour math | — |
 | `src/sogotable/static/html-utils.js` | HTML escaping + markup helpers | — |
 | `src/sogotable/static/review-export.js` | Admin source-review ZIP export + the export allowlist | — |
@@ -53,6 +54,7 @@ concern), then implement.
 | `src/sogotable/static/controllers/invites.js` | Invite / opponent flows (remote / bot / local) | — |
 | `src/sogotable/static/games/registry.js` | Single game registry — metadata source of truth | — |
 | `src/sogotable/static/games/game-kinds.js` | Client game-kind predicates (classify a room game blob by id) | `src/sogotable/static/app.js` |
+| `src/sogotable/static/games/room-render-dispatch.js` | Host-start room render dispatch — game-id-keyed table of per-game render functions | `src/sogotable/static/app.js` |
 | `src/sogotable/static/games/render-keys.js` | Room render-cache key | — |
 | `src/sogotable/static/games/lobby.js` | Shared pre-game lobby — mode-driven (fixed-capacity/auto-start + host-start) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/games/game-list-view.js` | Game-select list view | — |

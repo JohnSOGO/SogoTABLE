@@ -85,6 +85,9 @@ import {
   REALMWRIGHT_GAME_ID, isRealmwrightGame, newRealmwrightGame, initRealmwrightSeats, setRealmwrightOptions, makeRealmwrightMove, realmwrightGameToDict, realmwrightGameToDictForViewer,
 } from "./realmwright/rules.js";
 import {
+  TRACKLAYERS_GAME_ID, isTracklayersGame, newTracklayersGame, initTracklayersSeats, setTracklayersOptions, makeTracklayersMove, tracklayersGameToDict, tracklayersGameToDictForViewer,
+} from "./tracklayers/rules.js";
+import {
   CHINESE_CHECKERS_GAME_ID, isChineseCheckersGame, newChineseCheckersGame, initChineseCheckersSeats, setChineseCheckersOptions, makeChineseCheckersMove, chineseCheckersGameToDict, chineseCheckersGameToDictForViewer,
 } from "./chinese-checkers/rules.js";
 import {
@@ -174,6 +177,14 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isRealmwrightGame(prevGame) && prevGame.options) setRealmwrightOptions(nextGame, { realm_options: prevGame.options });
     } },
+  { id: TRACKLAYERS_GAME_ID, is: isTracklayersGame, create: newTracklayersGame, toDict: tracklayersGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeTracklayersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initTracklayersSeats,
+    // Host option (trains per seat 25/35/45) from the lobby, applied at
+    // /api/room/start and carried across a reset.
+    applyStartOptions: (game, payload) => setTracklayersOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isTracklayersGame(prevGame) && prevGame.options) setTracklayersOptions(nextGame, { tracklayers_options: prevGame.options });
+    } },
   { id: CHINESE_CHECKERS_GAME_ID, is: isChineseCheckersGame, create: newChineseCheckersGame, toDict: chineseCheckersGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeChineseCheckersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initChineseCheckersSeats,
     // Host options (jumps, marbles, capture, teams, stay-in-goal, no-parking,
@@ -255,6 +266,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isPotionLabGame(game)) return potionLabGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isWnykGame(game)) return wnykGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isRealmwrightGame(game)) return realmwrightGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isTracklayersGame(game)) return tracklayersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isChineseCheckersGame(game)) return chineseCheckersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isTradewindsGame(game)) return tradewindsGameToDictForViewer(game, viewerMark, roomStatusValue);

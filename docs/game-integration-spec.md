@@ -293,7 +293,7 @@ need it.
 
 | Style | `timingMode` | Actions resolve… | Contention rule | Reference |
 |---|---|---|---|---|
-| **Simultaneous submit** (preferred) | `"simultaneousSubmit"` | **together** when the barrier closes | a deterministic **rule** decides — arrival order never matters | Potion Lab (per-pick draft) |
+| **Simultaneous submit** (preferred) | `"simultaneousSubmit"` | **together** when the barrier closes | a deterministic **rule** decides — arrival order never matters | Potion Lab (per-pick draft); [Tracklayers](game-tracklayers.md) (one hidden action per round, rotating priority) |
 | Live round | `"liveRound"` | **immediately** as each commit arrives | **server-received order** — first commit wins, by design | RTTA (first-builder monument VP); Realmwright (shared tile board: a later placement that no longer fits is rejected with a reason) |
 
 Choose **simultaneous submit** when players compete for the *same* shared thing
