@@ -146,7 +146,7 @@ function stackItemHtml(vm, it, i, n, negated) {
 }
 
 function ringHtml(vm) {
-  const w = vm.window;
+  const w = vm.reaction;
   if (!w) return "";
   const total = Math.max(1, Number(vm.game.options && vm.game.options.react_seconds) || 8) * 1000;
   return `<div class="lo-ring-wrap" aria-hidden="true">
@@ -190,7 +190,7 @@ function lastDrinkHtml(vm) {
 }
 
 export function barHtml(vm) {
-  const w = vm.window;
+  const w = vm.reaction;
   const ghost = !w && vm.ghost ? vm.ghost : null;
   const stack = w ? w.stack : ghost ? ghost.stack : [];
   const negated = ghost ? ghost.negated : new Set();

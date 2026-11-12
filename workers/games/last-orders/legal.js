@@ -7,13 +7,13 @@ import { living, isLiving, isLocked, discardMax } from "./engine.js";
 const opponents = (game, mark) => living(game).filter((m) => m !== mark);
 
 export function topItem(game) {
-  const st = game.window && game.window.stack;
+  const st = game.reaction && game.reaction.stack;
   return st && st.length ? st[st.length - 1] : null;
 }
 
 // Marks that may still act in the open window (and so hold it open).
 export function windowEligible(game) {
-  const w = game.window;
+  const w = game.reaction;
   if (!w) return [];
   const top = topItem(game);
   if (w.kind === "gamble" && !top) {
@@ -26,7 +26,7 @@ export function windowEligible(game) {
 // Targets a card may take in the current window for `mark`, or null if the
 // card cannot be played there. [] means "playable, no target needed".
 function windowTargets(game, mark, def) {
-  const w = game.window;
+  const w = game.reaction;
   const top = topItem(game);
   if (w.kind === "gamble" && !top) {
     const g = game.gamble;
@@ -51,7 +51,7 @@ function windowTargets(game, mark, def) {
 
 function turnTargets(game, mark, def) {
   const t = game.turn;
-  if (!t || t.mark !== mark || game.window) return null;
+  if (!t || t.mark !== mark || game.reaction) return null;
   if (t.phase === "action" && def.kind === "action") {
     if (t.actions_left <= 0 && !def.free) return null;
     if (def.target === "opponent") {
@@ -72,7 +72,7 @@ export function playableFor(game, mark) {
   const out = {};
   if (game.status !== "playing" || game.phase !== "play" || !isLiving(game, mark)) return out;
   const seat = game.players[mark];
-  const w = game.window;
+  const w = game.reaction;
   if (w && w.passed.includes(mark)) return out; // a pass holds until a new card lands on top
   seat.hand.forEach((c) => {
     const def = cardDef(c.id);
@@ -84,18 +84,18 @@ export function playableFor(game, mark) {
 }
 
 export function canPass(game, mark) {
-  const w = game.window;
+  const w = game.reaction;
   return Boolean(w && windowEligible(game).includes(mark) && !w.passed.includes(mark));
 }
 
 export function orderTargets(game, mark) {
   const t = game.turn;
-  if (!t || t.mark !== mark || t.phase !== "order" || game.window) return [];
+  if (!t || t.mark !== mark || t.phase !== "order" || game.reaction) return [];
   return opponents(game, mark);
 }
 
 export function discardLimit(game, mark) {
   const t = game.turn;
-  if (!t || t.mark !== mark || t.phase !== "discard" || game.window) return 0;
+  if (!t || t.mark !== mark || t.phase !== "discard" || game.reaction) return 0;
   return discardMax(game.players[mark]);
 }

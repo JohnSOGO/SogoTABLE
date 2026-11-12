@@ -7,7 +7,7 @@
 //
 // TURN MODEL: classic order around the table (discard → action → order a
 // drink → drink), plus short TIMED reaction windows that anyone may answer.
-// The Worker has no timers, so every deadline (window close, bot think
+// The Worker has no timers, so every deadline (reaction close, bot think
 // time) is a timestamp; the projection carries `next_due_at` and a seated
 // human's phone sends TICK when it passes. Any arriving action first catches
 // the table up to "now".
@@ -106,7 +106,7 @@ const bump = (game) => { game.step = (Number(game.step) || 0) + 1; };
 export function newLastOrdersGame() {
   return {
     game_id: LAST_ORDERS_GAME_ID, status: "playing", phase: "pick", step: 0, round: 0, move_count: 0,
-    options: normalizeLastOrdersOptions(null), seat_order: [], players: {}, turn: null, window: null, gamble: null,
+    options: normalizeLastOrdersOptions(null), seat_order: [], players: {}, turn: null, reaction: null, gamble: null,
     drink_deck: [], drink_discard: [], event_deck: [], event_discard: [], event: null, last_drink: null,
     start_index: 0, uid_seq: 0, out_seq: 0, events: [], skip_votes: {}, winner: null, results: null,
   };
@@ -216,13 +216,13 @@ function nextTurn(game, now) {
 // ---------- windows ----------
 
 function openWindow(game, kind, now) {
-  game.window = { kind, stack: [], closes_at: now + windowMs(game), passed: [], plans: {} };
+  game.reaction = { kind, stack: [], closes_at: now + windowMs(game), passed: [], plans: {} };
   if (kind === "gamble") planBots(game, now);
   bump(game);
 }
 
 function pushItem(game, item, now) {
-  const w = game.window;
+  const w = game.reaction;
   w.stack.push(item);
   w.passed = [];
   w.closes_at = now + windowMs(game);
@@ -234,7 +234,7 @@ function pushItem(game, item, now) {
 // Every bot-like seat that may act gets a decision AND a think time, whether
 // it will react or pass, so nobody can tell early which bots hold answers.
 function planBots(game, now) {
-  const w = game.window;
+  const w = game.reaction;
   w.plans = {};
   windowEligible(game).forEach((m) => {
     const seat = game.players[m];
@@ -246,7 +246,7 @@ function planBots(game, now) {
 }
 
 function stepWindow(game, now) {
-  const w = game.window;
+  const w = game.reaction;
   const due = Object.keys(w.plans).filter((m) => w.plans[m].at <= now).sort((a, b) => w.plans[a].at - w.plans[b].at);
   if (due.length) {
     const m = due[0];
@@ -275,9 +275,9 @@ function discardItem(game, item) {
 }
 
 function closeWindow(game, now) {
-  const w = game.window;
+  const w = game.reaction;
   if (w.kind === "gamble" && !w.stack.length) {
-    game.window = null;
+    game.reaction = null;
     finishGamble(game);
     checkOuts(game);
     bump(game);
@@ -285,7 +285,7 @@ function closeWindow(game, now) {
   }
   const base = resolveStack(game);
   w.stack.forEach((it) => discardItem(game, it));
-  game.window = null;
+  game.reaction = null;
   if (base && base.kind === "drink") {
     game.last_drink = { drink: base.card, spikes: [...(base.spikes || [])], by: base.by, target: base.target, canceled: Boolean(base.canceled) };
   }
@@ -332,7 +332,7 @@ function playCard(game, mark, uid, target, now) {
   const seat = game.players[mark];
   const card = takeFromHand(seat, uid);
   const def = cardDef(card.id);
-  if (game.window) {
+  if (game.reaction) {
     const top = topItem(game);
     if (def.kind === "gamble") {
       pushItem(game, { uid, by: mark, kind: "gamble", card: card.id, target: game.gamble ? game.gamble.leader : null }, now);
@@ -349,7 +349,7 @@ function playCard(game, mark, uid, target, now) {
 
 function doDiscard(game, mark, uids, now) {
   const max = discardLimit(game, mark);
-  if (!game.turn || game.turn.mark !== mark || game.turn.phase !== "discard" || game.window) throw new Error("It isn't your discard step.");
+  if (!game.turn || game.turn.mark !== mark || game.turn.phase !== "discard" || game.reaction) throw new Error("It isn't your discard step.");
   const list = [...new Set((Array.isArray(uids) ? uids : []).map(String))];
   if (list.length > max) throw new Error(`You may discard at most ${max} cards.`);
   const seat = game.players[mark];
@@ -364,7 +364,7 @@ function doDiscard(game, mark, uids, now) {
 }
 
 function doEndAction(game, mark, now) {
-  if (!game.turn || game.turn.mark !== mark || game.turn.phase !== "action" || game.window) throw new Error("It isn't your action step.");
+  if (!game.turn || game.turn.mark !== mark || game.turn.phase !== "action" || game.reaction) throw new Error("It isn't your action step.");
   game.turn.phase = "order";
   advanceBotClock(game, now);
   bump(game);
@@ -444,7 +444,7 @@ function advance(game, now) {
     guard += 1;
     let moved;
     if (game.phase === "pick") moved = maybeFinishPick(game, now);
-    else if (game.window) moved = stepWindow(game, now);
+    else if (game.reaction) moved = stepWindow(game, now);
     else moved = stepTurn(game, now);
     if (!moved) return;
   }
@@ -452,7 +452,7 @@ function advance(game, now) {
 
 function nextDueAt(game) {
   if (game.status !== "playing" || game.phase !== "play") return 0;
-  const w = game.window;
+  const w = game.reaction;
   if (w) return Math.min(w.closes_at, ...Object.values(w.plans).map((p) => p.at));
   const t = game.turn;
   return t && isBotLike(game.players[t.mark]) ? t.act_at : 0;
@@ -463,7 +463,7 @@ function nextDueAt(game) {
 function skipTarget(game) {
   if (game.phase === "pick") return null;
   const t = game.turn;
-  if (!t || game.window) return null;
+  if (!t || game.reaction) return null;
   const seat = game.players[t.mark];
   return seat && !seat.is_bot && !seat.auto && isLiving(game, t.mark) ? t.mark : null;
 }
@@ -534,10 +534,10 @@ export function makeLastOrdersMove(game, mark, action) {
     case "ORDER": doOrder(game, mark, String(a.target || ""), a.spike ? String(a.spike) : null, now); break;
     case "PASS":
       if (!canPass(game, mark)) {
-        if (game.window && game.window.passed.includes(mark)) break; // duplicate pass
+        if (game.reaction && game.reaction.passed.includes(mark)) break; // duplicate pass
         throw new Error("There's nothing to pass on right now.");
       }
-      game.window.passed.push(mark);
+      game.reaction.passed.push(mark);
       break;
     default: throw new Error(`Unknown action "${type}".`);
   }
@@ -568,7 +568,7 @@ function privateFor(game, mark) {
 
 export function lastOrdersGameToDict(game) {
   normalizeLastOrdersGame(game);
-  const w = game.window;
+  const w = game.reaction;
   const priv = {};
   game.seat_order.forEach((m) => { if (!game.players[m].is_bot) priv[m] = privateFor(game, m); });
   return {
@@ -587,7 +587,7 @@ export function lastOrdersGameToDict(game) {
       };
     }),
     turn: game.turn ? { mark: game.turn.mark, phase: game.turn.phase, actions_left: game.turn.actions_left } : null,
-    window: w ? {
+    reaction: w ? {
       kind: w.kind, closes_at: w.closes_at, passed: [...w.passed], eligible: windowEligible(game),
       stack: w.stack.map((it) => ({ uid: it.uid, by: it.by, kind: it.kind, card: it.card, target: it.target, canceled: Boolean(it.canceled), soften: it.soften || 0, spikes: [...(it.spikes || [])] })),
     } : null,
@@ -605,7 +605,7 @@ export function lastOrdersGameToDictForViewer(dict, viewerMark) {
   delete projected.private;
   const ids = new Set();
   (projected.me ? projected.me.hand : []).forEach((c) => ids.add(c.id));
-  if (projected.window) projected.window.stack.forEach((it) => { ids.add(it.card); it.spikes.forEach((s) => ids.add(s)); });
+  if (projected.reaction) projected.reaction.stack.forEach((it) => { ids.add(it.card); it.spikes.forEach((s) => ids.add(s)); });
   if (projected.last_drink) { ids.add(projected.last_drink.drink); projected.last_drink.spikes.forEach((s) => ids.add(s)); }
   if (projected.event) ids.add(projected.event);
   (projected.events || []).forEach((e) => { ["card", "drink", "event", "source"].forEach((k) => { if (e[k]) ids.add(e[k]); }); });
@@ -660,6 +660,6 @@ function normalizeLastOrdersGame(game) {
   game.winner = game.seat_order.includes(game.winner) ? game.winner : null;
   game.results = Array.isArray(game.results) ? game.results : null;
   if (game.turn && !game.players[game.turn.mark]) game.turn = null;
-  if (game.window && !(Array.isArray(game.window.stack) && Array.isArray(game.window.passed))) game.window = null;
-  if (game.window && (!game.window.plans || typeof game.window.plans !== "object")) game.window.plans = {};
+  if (game.reaction && !(Array.isArray(game.reaction.stack) && Array.isArray(game.reaction.passed))) game.reaction = null;
+  if (game.reaction && (!game.reaction.plans || typeof game.reaction.plans !== "object")) game.reaction.plans = {};
 }

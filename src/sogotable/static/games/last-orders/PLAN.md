@@ -168,7 +168,7 @@ game = {
   players: { P1: { is_bot, level, character, grit, buzz, gold, hand: [{uid, id}], deck: [...], discard: [...],
                    line: [{ drink, spikes: [...] }], out: null | "passed_out" | "knocked_out" | "broke", out_order, pick_done } },
   turn: { mark, phase: "discard" | "action" | "order" | "drink", actions_left, act_at },
-  window: null | { kind: "react" | "gamble", stack: [Item], closes_at, passed: [marks], plans: { [botMark]: { at, uid, target } | { at, pass: true } } },
+  reaction: null | { kind: "react" | "gamble", stack: [Item], closes_at, passed: [marks], plans: { [botMark]: { at, uid, target } | { at, pass: true } } },
   gamble: null | { leader, pot, in: [marks] },
   drink_deck, drink_discard, event_deck, event, events: [], skip_votes, winner, results,
 }
@@ -209,7 +209,7 @@ whether a bot will react is never visible early.
   players: [{ mark, is_bot, level, character, grit, buzz, gold, out, out_order,
               hand_count, deck_count, line_count, picked }],
   turn: { mark, phase, actions_left },
-  window: null | { kind, closes_at, stack: [{ uid, by, kind, card, target, canceled, soften }], passed: [marks], eligible: [marks] },
+  reaction: null | { kind, closes_at, stack: [{ uid, by, kind, card, target, canceled, soften }], passed: [marks], eligible: [marks] },
   gamble: null | { leader, pot, in },
   event: null | eventId,
   drink_deck_count, last_drink: { drink, spikes, by, target } | null,

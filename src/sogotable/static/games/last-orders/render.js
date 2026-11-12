@@ -152,7 +152,7 @@ function setToast(text, kind = "error") {
 // When a window resolves, keep its stack on the bar for a beat (crossing out
 // what the server's events say was canceled), so the play can be read.
 function trackGhost(game, fresh) {
-  const w = game.window;
+  const w = game.reaction;
   const prev = S.prevStack;
   const baseNow = w && w.stack.length ? w.stack[0].uid : null;
   if (prev && prev.length && (!w || baseNow !== prev[0].uid)) {
@@ -173,7 +173,7 @@ function trackGhost(game, fresh) {
 function modeOf(game, info) {
   const me = info.me;
   if (!me || !info.mySeat || info.mySeat.out || game.status !== "playing" || game.phase !== "play") return "idle";
-  if (game.window) return me.can_pass ? "window" : "idle";
+  if (game.reaction) return me.can_pass ? "window" : "idle";
   const t = game.turn;
   if (!t || t.mark !== info.myMark) return "idle";
   if (t.phase === "discard" || t.phase === "action" || t.phase === "order") return t.phase;
@@ -181,7 +181,7 @@ function modeOf(game, info) {
 }
 
 function reconcile(game, info) {
-  const w = game.window;
+  const w = game.reaction;
   const t = game.turn;
   const top = w && w.stack.length ? w.stack[w.stack.length - 1].uid : "";
   const selKey = `${game.phase}|${t ? `${t.mark}:${t.phase}` : ""}|${w ? `${w.kind}:${w.stack.length}:${top}` : ""}`;
@@ -218,7 +218,7 @@ function skipInfo(ctx, info) {
   } else {
     const t = g.turn;
     const p = t ? info.players.find((x) => x.mark === t.mark) : null;
-    if (!p || g.window || p.is_bot || p.auto || p.out || p.mark === info.myMark) return null;
+    if (!p || g.reaction || p.is_bot || p.auto || p.out || p.mark === info.myMark) return null;
     target = p.mark;
     voters = humans.filter((h) => h.mark !== target).map((h) => h.mark);
   }
@@ -353,7 +353,7 @@ function buildViewModel(ctx, info) {
   return {
     esc, theme: currentTheme(), game: g, me, myMark: info.myMark, mySeat: info.mySeat, players: info.players,
     nameOf: (m) => nameOf(ctx, m), colorOf: (m) => colorOf(ctx, m),
-    turnMark: g.turn && g.phase === "play" ? g.turn.mark : null, window: g.window, gamble: g.gamble, defs: g.defs || {},
+    turnMark: g.turn && g.phase === "play" ? g.turn.mark : null, reaction: g.reaction, gamble: g.gamble, defs: g.defs || {},
     prefs: prefs(), showPlayable: !(g.options && g.options.show_playable === false),
     mode, sel: S.sel, target: S.target, discardSel: S.discardSel, orderTarget: S.orderTarget, orderSpike: S.orderSpike,
     targetables, chosenTarget, sending: S.sending, ghost: S.ghost, primerOpen: S.primerOpen,
@@ -453,7 +453,7 @@ function paint(ctx, fresh) {
   armRings(root, g);
   ensureCountdown();
   if (complete && S.sawPlaying && !S.winPlayed) { S.winPlayed = true; playCue("win"); }
-  fxAfterPaint(root, { fresh, items: g.window ? g.window.stack : [], game: g, labels: reducedMotion() ? null : statLabels });
+  fxAfterPaint(root, { fresh, items: g.reaction ? g.reaction.stack : [], game: g, labels: reducedMotion() ? null : statLabels });
 }
 
 // ---------- countdown (window.closes_at on the local clock) ----------

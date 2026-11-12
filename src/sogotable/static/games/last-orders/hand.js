@@ -75,7 +75,7 @@ function phaseParts(vm) {
   if (g.status === "complete") return { prompt: "", body: "" };
   if (!me || !seat) return { prompt: UI.spectating, body: "" };
   if (seat.out) return { prompt: UI.youAreOut(outText(seat.out)), body: "" };
-  const w = g.window;
+  const w = g.reaction;
   const turn = g.turn;
   const myTurn = turn && turn.mark === vm.myMark;
   if (vm.sending) return { prompt: UI.sending, body: "" };
@@ -121,7 +121,7 @@ function phaseParts(vm) {
 }
 
 function waitingOn(vm) {
-  const w = vm.game.window;
+  const w = vm.game.reaction;
   if (!w) return "";
   const waiting = (w.eligible || []).filter((m) => !(w.passed || []).includes(m));
   return waiting.length ? `<div class="lo-waiting">${vm.esc(UI.waitingOn(waiting.map((m) => vm.nameOf(m))))}</div>` : "";
@@ -129,8 +129,8 @@ function waitingOn(vm) {
 
 export function controlsHtml(vm) {
   const { prompt, body } = phaseParts(vm);
-  const mineTurn = vm.game.turn && vm.game.turn.mark === vm.myMark && !vm.game.window;
-  const heading = vm.game.window ? "" : mineTurn ? `<span class="lo-phase-tag">${vm.esc(UI.yourTurn)} · ${vm.esc(phaseName(vm.game.turn.phase))}</span>` : "";
+  const mineTurn = vm.game.turn && vm.game.turn.mark === vm.myMark && !vm.game.reaction;
+  const heading = vm.game.reaction ? "" : mineTurn ? `<span class="lo-phase-tag">${vm.esc(UI.yourTurn)} · ${vm.esc(phaseName(vm.game.turn.phase))}</span>` : "";
   return `<div class="lo-prompt">${heading}<span>${vm.esc(prompt)}</span></div>${body}${detailHtml(vm)}`;
 }
 

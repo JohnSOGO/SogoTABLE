@@ -82,11 +82,11 @@ test("last orders: viewer projection hides other hands and the decks", () => {
 test("last orders: an action opens a timed window and resolves when everyone passes", () => {
   const game = duel(["base:gorrum:headbutt"], []);
   move(game, "P1", { type: "PLAY", uid: "a0", target: "P2" });
-  assert.ok(game.window);
-  assert.equal(game.window.closes_at, now + 8000);
+  assert.ok(game.reaction);
+  assert.equal(game.reaction.closes_at, now + 8000);
   assert.equal(game.players.P2.grit, 20);
   move(game, "P2", { type: "PASS" });
-  assert.equal(game.window, null);
+  assert.equal(game.reaction, null);
   assert.equal(game.players.P2.grit, 17);
   assert.equal(game.turn.phase, "order", "no action left → straight to ordering");
 });
@@ -97,7 +97,7 @@ test("last orders: the window closes on its own clock (TICK)", () => {
   assert.throws(() => makeLastOrdersMove(game, "P1", { type: "TICK" }), /Nothing is due/);
   now += 8000;
   makeLastOrdersMove(game, "P1", { type: "TICK" });
-  assert.equal(game.window, null);
+  assert.equal(game.reaction, null);
   assert.equal(game.players.P2.grit, 17);
 });
 
@@ -109,7 +109,7 @@ test("last orders: negate cancels, a counter-negate restores (LIFO stack)", () =
   assert.equal(view(game, "P2").me.can_pass, false, "can't answer your own card");
   move(game, "P1", { type: "PLAY", uid: "a1" });
   move(game, "P2", { type: "PASS" });
-  assert.equal(game.window, null);
+  assert.equal(game.reaction, null);
   assert.equal(game.players.P2.grit, 17, "the counter cancelled the dodge");
   assert.ok(game.players.P2.discard.includes("base:gorrum:not-on-my-watch"));
 });
@@ -129,9 +129,9 @@ test("last orders: refusing a drink, and drinks raise buzz with closing time", (
   move(game, "P1", { type: "ORDER", target: "P2" });
   assert.equal(game.players.P2.line.length, 1);
   // P1 now drinks the ale P2 ordered earlier; only P1 may still answer it.
-  assert.equal(game.window.stack[0].kind, "drink");
-  assert.equal(game.window.stack[0].target, "P1");
-  assert.deepEqual(game.window.passed, []);
+  assert.equal(game.reaction.stack[0].kind, "drink");
+  assert.equal(game.reaction.stack[0].target, "P1");
+  assert.deepEqual(game.reaction.passed, []);
   move(game, "P1", { type: "PASS" });
   // P2's turn: discard, end action, order, then drink the ordered drink.
   assert.equal(game.turn.mark, "P2");
@@ -142,7 +142,7 @@ test("last orders: refusing a drink, and drinks raise buzz with closing time", (
   game.turn.phase = "order";
   game.step += 1;
   move(game, "P2", { type: "ORDER", target: "P1" });
-  assert.equal(game.window.stack[0].card, "base:drink:barrel-stout");
+  assert.equal(game.reaction.stack[0].card, "base:drink:barrel-stout");
   move(game, "P2", { type: "PLAY", uid: "z1" });
   move(game, "P1", { type: "PASS" });
   assert.equal(game.players.P2.buzz, 0, "refused");
@@ -161,7 +161,7 @@ test("last orders: gambling — antes, take the lead, leader wins the pot", () =
   const game = duel(["base:gorrum:arm-wrestle"], ["base:gorrum:lucky-knuckles"]);
   move(game, "P1", { type: "PLAY", uid: "a0" });
   move(game, "P2", { type: "PASS" });
-  assert.equal(game.window.kind, "gamble");
+  assert.equal(game.reaction.kind, "gamble");
   assert.deepEqual(game.gamble, { leader: "P1", pot: 2, in: ["P1", "P2"] });
   assert.equal(game.players.P2.gold, 9);
   assert.equal(view(game, "P1").me.can_pass, false, "the leader holds no say");

@@ -233,7 +233,7 @@ export function isLocked(item) {
 // Resolve top-down: each reaction acts on the nearest live item beneath it,
 // then the base item (bottom) resolves. Returns the base item (or null).
 export function resolveStack(game) {
-  const stack = game.window.stack;
+  const stack = game.reaction.stack;
   for (let i = stack.length - 1; i >= 1; i -= 1) {
     const it = stack[i];
     if (it.canceled) continue;
@@ -384,7 +384,7 @@ function pickTiebreak(game, marks) {
 export function completeGame(game, winner) {
   game.status = "complete";
   game.winner = winner || null;
-  game.window = null;
+  game.reaction = null;
   game.gamble = null;
   if (game.turn) game.turn.act_at = 0;
   const order = [...game.seat_order].sort((a, b) => {

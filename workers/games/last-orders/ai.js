@@ -133,7 +133,7 @@ export function botReact(game, mark, level) {
   let harm = 0;
   if (top.kind === "reaction") {
     // Someone answered something: counter it if it was aimed at my card.
-    const beneath = game.window.stack[game.window.stack.length - 2];
+    const beneath = game.reaction.stack[game.reaction.stack.length - 2];
     harm = beneath && beneath.by === mark ? 3 : 0;
   } else if (top.kind === "gamble") {
     harm = game.gamble && game.gamble.leader === mark ? Math.min(4, game.gamble.pot / 2) : 0;
