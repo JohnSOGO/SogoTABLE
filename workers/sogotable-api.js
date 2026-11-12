@@ -1,6 +1,6 @@
 // Platform + persistence helpers (extracted so the Worker entry owns routing, not
 // HTTP/CORS/rate-limit/storage plumbing).
-import { json, readJson, corsHeadersFor } from "./platform/http.js";
+import { json, readJson, corsHeadersFor, versionHeadersFor } from "./platform/http.js";
 import { rateLimitRequest } from "./platform/rate-limit.js";
 import {
   assertPlayerOwner, assertSogoSuperuser, assertSogoPasscode, isSogoSuperuser,
@@ -92,7 +92,7 @@ function sideEffectsFor(method, pathname) {
 
 export default {
   async fetch(request, env) {
-    const corsHeaders = corsHeadersFor(request);
+    const cors = corsHeadersFor(request), corsHeaders = cors && { ...cors, ...versionHeadersFor(env) };
     if (!corsHeaders) return json({ ok: false, error: "Origin is not allowed." }, 403, {});
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
     const url = new URL(request.url);
