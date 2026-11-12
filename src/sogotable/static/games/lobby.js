@@ -160,6 +160,7 @@ function inviteStatusText(invite) {
 }
 
 function roomPlayerHtml(player) {
-  const label = player.kind === "bot" ? `${player.mark || "Waiting"} Bot` : player.mark || "Waiting";
+  const base = player.kind === "bot" ? `${player.mark || "Waiting"} Bot` : player.mark || "Waiting";
+  const label = player.away ? `${base} · left the table` : base;
   return `${avatarHtml(player)}<strong>${escapeHtml(player.name)}</strong><span>${escapeHtml(label)}</span>`;
 }

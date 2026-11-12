@@ -450,7 +450,7 @@ Exit behavior:
 
 - `Exit` opens a Yes/No confirmation.
 - Yes lets the selected player leave without requiring agreement from the other player.
-- The current hosted implementation closes the game room so browsers return to `GAME_SELECTED` for the current game type.
+- Before start the player's seat is removed (host passes on); after start their seat is marked away and the others keep playing. The leaver returns to `GAME_SELECTED` and can rejoin via Re-enter Game. The room closes only when no human is left, or immediately for hot-seat tables.
 - No keeps the player in the game.
 
 Reset behavior:
@@ -610,7 +610,7 @@ Exit behavior:
 - Ask Yes/No before closing.
 - Confirmation copy must make it clear the local player is leaving.
 - The exiting player does not need the other player to agree.
-- The current hosted implementation closes the game room so browsers return to `GAME_SELECTED` for the current game type.
+- Before start the player's seat is removed (host passes on); after start their seat is marked away and the others keep playing. The leaver returns to `GAME_SELECTED` and can rejoin via Re-enter Game. The room closes only when no human is left, or immediately for hot-seat tables.
 
 Reset behavior:
 
@@ -659,7 +659,7 @@ Local hot-seat completion:
 Room lifecycle:
 
 - Completed rooms are not listed as open or in-progress games.
-- Exit still requires local Yes/No and then leaves/closes the room.
+- Exit still requires local Yes/No and then leaves the seat (closing the room only when no human is left).
 - Sogo superuser cleanup can close any listed room from the selected-game room cards or the game header after confirmation. The UI only shows this action when the selected roster profile is named `Sogo` or `MojoSOGO` and has passed the passcode gate for the current tab session; the Worker remains authoritative through `POST /api/room/close`.
 - Sogo superuser API cleanup can also cancel pending invites through `POST /api/invite/cancel` when a target is stuck and cannot respond. This is currently an API/admin recovery path, not a normal room-screen control.
 - `Play Again` requires both seated players to agree, then starts a fresh board with the same seated players.

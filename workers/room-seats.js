@@ -70,14 +70,50 @@ export function playerMark(room, playerId) {
   return player ? player.mark : null;
 }
 
+// A human seat still at the table: not a bot, and not marked away after leaving.
+function isPresentHuman(seat) {
+  return !isBotSeat(seat) && !seat.away;
+}
+
+// Exit from a table. Before the game starts the seat is simply removed (marks
+// re-packed, host handed to the next human). After it starts, seats and marks
+// are fixed by the game state, so the seat is marked `away` and the game keeps
+// going for everyone else; the player can come back and rejoin. The room is
+// only deleted once no present human remains. Returns
+// { outcome: "removed" | "away" | "delete" }; throws if the requester is not seated.
+export function leaveRoomSeat(room, playerId) {
+  const index = room.players.findIndex((seat) => seat.id === playerId);
+  if (index < 0) throw new Error("You are not at this table.");
+  if (room.local_mode) return { outcome: "delete" }; // hot-seat: one phone owns the whole table
+  if (!room.started) {
+    room.players.splice(index, 1);
+    repackHostStartMarks(room);
+    room.reset_votes = (room.reset_votes || []).filter((id) => id !== playerId);
+  } else {
+    room.players[index].away = true;
+  }
+  if (!room.players.some(isPresentHuman)) return { outcome: "delete" };
+  if (room.host_id === playerId) room.host_id = room.players.find(isPresentHuman).id;
+  return { outcome: room.started ? "away" : "removed" };
+}
+
+// Rejoin by a player who already holds a seat: they are back at the table.
+export function returnToRoomSeat(room, playerId) {
+  const seat = room.players.find((item) => item.id === playerId);
+  if (!seat || !seat.away) return false;
+  delete seat.away;
+  return true;
+}
+
 export function handleResetVote(room, requesterId, approve) {
   if (!approve) {
     room.reset_votes = [];
     return "declined";
   }
   if (!room.reset_votes.includes(requesterId)) room.reset_votes.push(requesterId);
-  room.players.filter(isBotSeat).forEach((bot) => {
-    if (!room.reset_votes.includes(bot.id)) room.reset_votes.push(bot.id);
+  // Bots and players who left the table never block a reset or rematch.
+  room.players.filter((seat) => !isPresentHuman(seat)).forEach((seat) => {
+    if (!room.reset_votes.includes(seat.id)) room.reset_votes.push(seat.id);
   });
   if (room.players.length > 1 && room.reset_votes.length < room.players.length) return "pending";
   room.reset_votes = [];

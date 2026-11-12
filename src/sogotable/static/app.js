@@ -564,7 +564,7 @@ async function autoOpenActiveRoomForSelectedPlayer({ allowHidden = false } = {})
   if (!player || !gameSelectedScreen || (!allowHidden && !gameSelectedScreen.classList.contains("active"))) return false;
   const room = currentGameRooms.find((item) => (
     item.status === "active" &&
-    item.players.some((seat) => seat.id === player.id)
+    item.players.some((seat) => seat.id === player.id && !seat.away)
   ));
   if (!room || (currentRoom && currentRoom.code === room.code)) return false;
   try {
@@ -661,7 +661,7 @@ async function enterRoomSummary(summary) {
     return;
   }
   const selectedSeat = freshSummary.players.find((seat) => seat.id === player.id);
-  if (selectedSeat) {
+  if (selectedSeat && !selectedSeat.away) {
     setRoom(freshSummary);
     showScreen("game");
     return;
@@ -1198,8 +1198,15 @@ async function attemptCreateRoom(retried) {
   }
 }
 
+function exitGameConfirmText(room) {
+  const others = room ? room.players.filter((seat) => seat.kind !== "bot" && !seat.away && seat.id !== getDeviceSelectedPlayerId()) : [];
+  if (!room || room.local_mode || !others.length) return "Exit and close this table?";
+  if (!room.started) return "Leave this table? The others stay in the lobby.";
+  return "Leave this game? Everyone else keeps playing, and you can rejoin from Current Games.";
+}
+
 async function closeGame() {
-  const confirmed = await confirmAction("Exit game?", "Exit this game and return to the game lobby?");
+  const confirmed = await confirmAction("Exit game?", exitGameConfirmText(currentRoom));
   if (!confirmed) return;
   const roomToClose = currentRoom;
   restoreLocalGameHomePlayer(roomToClose);

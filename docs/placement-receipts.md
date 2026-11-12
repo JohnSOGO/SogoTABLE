@@ -1358,3 +1358,22 @@ PLACEMENT RECEIPT
       `scoreByMark` field on the handlers.js dispatch table.
 - New owner row: none
 ```
+
+## 2026-11-12 — Exit leaves your seat instead of closing the table
+Commit: fix(rooms): exit leaves your seat instead of deleting the table for everyone (this entry's commit)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Room leave keeps the room: auth always required; before start remove the seat, re-pack
+                marks, hand off host, delete when no humans left; after start mark the seat away and keep
+                the room; rejoin clears away; away seats auto-vote on reset.
+- Verdict:      workers/room-seats.js  [owner row landed with the REORG above]. Route stays thin in
+                workers/sogotable-api.js.
+- Flow stage:   orchestrate (room seat coordination).
+- Considerations:
+    - Hot-seat (local_mode) tables close on exit: one phone owns every seat.
+    - Client: autoOpenActiveRoomForSelectedPlayer skips away seats (otherwise the leaver is pulled
+      straight back in); Re-enter on an away seat goes through /api/room/join, which clears away.
+    - Out of scope, recorded: an away seat holding the current turn stalls the game (no bot takeover).
+- New owner row: none
+```

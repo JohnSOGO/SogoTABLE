@@ -43,7 +43,7 @@ import {
 // mark re-pack, reset-vote tally) — extracted owner; the entry only routes.
 import {
   addPlayerToRoom, activateRoomIfReady, startRoom, playerMark, handleResetVote,
-  ensureRoomSeatColors, safeHexColor, repackHostStartMarks,
+  ensureRoomSeatColors, safeHexColor, repackHostStartMarks, leaveRoomSeat, returnToRoomSeat,
 } from "./room-seats.js";
 // 10,000 bot internals re-exported on __test only (workers/tests/helpers.js
 // exercises them through the Worker's test surface).
@@ -584,6 +584,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
         throw new Error("This game already started — ask the host for a rematch to join.");
       }
       if (payload.local) room.local_mode = true;
+      returnToRoomSeat(room, player.id);
       addPlayerToRoom(room, player);
       activateRoomIfReady(room);
       bumpRoomRevision(room);
@@ -638,10 +639,16 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/leave") {
       const code = cleanRoomCode(payload.code || "");
       const requesterId = String(payload.requester_id || payload.player_id || "").trim();
-      if (requesterId) await assertPlayerOwner(data, requesterId, payload.owner_token, options);
+      await assertPlayerOwner(data, requesterId, payload.owner_token, options);
       const room = data.rooms[code];
-      if (room) delete data.rooms[code];
-      return { ok: true, closed: true, room_code: code };
+      if (!room) return { ok: true, closed: true, room_code: code };
+      const { outcome } = leaveRoomSeat(room, requesterId);
+      if (outcome === "delete") {
+        delete data.rooms[code];
+        return { ok: true, closed: true, room_code: code };
+      }
+      bumpRoomRevision(room);
+      return { ok: true, left: outcome, room: roomToDict(data, room) };
     }
     if (method === "POST" && url.pathname === "/api/room/close") {
       const code = cleanRoomCode(payload.code || "");

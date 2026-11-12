@@ -1528,9 +1528,15 @@ test("notifies the room durable object after meaningful room changes", async () 
   await post(env, "/api/room/move", { code: "PUSH", player_id: xSeat.id, board: 0, cell: 0 });
   assert.equal(roomObject.snapshots.at(-1).game.move_count, 1);
 
-  await post(env, "/api/room/leave", { code: "PUSH", player_id: host.id, requester_id: host.id });
+  // Host exits a live game: the table stays for the guest (host seat goes away).
+  const left = await post(env, "/api/room/leave", { code: "PUSH", player_id: host.id, requester_id: host.id });
+  assert.equal(left.left, "away");
+  assert.equal(roomObject.snapshots.at(-1).players.find((seat) => seat.id === host.id).away, true);
+  assert.deepEqual(roomObject.closed || [], []);
+  // The last human leaving closes it.
+  await post(env, "/api/room/leave", { code: "PUSH", player_id: guest.id, requester_id: guest.id });
   assert.deepEqual(roomObject.closed, ["PUSH"]);
-  assert.deepEqual(roomObject.actions, ["/api/invite/create", "/api/invite/respond", "/api/room/join", "/api/room/move", "/api/room/leave"]);
+  assert.deepEqual(roomObject.actions, ["/api/invite/create", "/api/invite/respond", "/api/room/join", "/api/room/move", "/api/room/leave", "/api/room/leave"]);
 });
 
 test("only Sogo can close any active room as superuser", async () => {
