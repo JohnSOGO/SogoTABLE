@@ -15,7 +15,7 @@ export const SHORTCUTS = [
   ["a / b", "Mark the selected source as A / B"],
   ["x", "Play A, then B"],
   ["p", "Pick the selected source as the one to use"],
-  ["y", "Approve"],
+  ["y", "Approve and open the next unreviewed"],
   ["n", "Reject"],
   ["u", "Back to not reviewed"],
   ["r", "Toggle “regenerate with my note”"],
