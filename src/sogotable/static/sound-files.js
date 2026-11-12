@@ -11,11 +11,11 @@
 const file = (name) => new URL(`./sounds/${name}.mp3`, import.meta.url).href;
 
 export const SOUND_FILES = {
-  invite: null,
-  playerJoined: null,
-  roomCreated: null,
-  win: null,
-  lose: null,
+  invite: file("invite"),
+  playerJoined: file("player-joined"),
+  roomCreated: file("room-created"),
+  win: file("win"),
+  lose: file("lose"),
   diceRoll: file("dice-roll"),
   scorePick: null,
   bank: file("bank"),
