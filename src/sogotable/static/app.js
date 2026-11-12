@@ -96,6 +96,7 @@ import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { renderRttaGame } from "./games/rtta/render.js";
 import { renderPotionLabGame } from "./games/potion-lab/render.js";
 import { renderRealmwrightGame } from "./games/realmwright/render.js";
+import { renderLastOrdersGame } from "./games/last-orders/render.js";
 import { renderChineseCheckersGame } from "./games/chinese-checkers/render.js";
 import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
 import { renderWnykGame } from "./games/wnyk/render.js";
@@ -124,7 +125,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState, isRealmwrightGameState, isChineseCheckersGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -1631,10 +1632,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game) || isRealmwrightGameState(game) || isChineseCheckersGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game) || isRealmwrightGameState(game) || isChineseCheckersGameState(game) || isLastOrdersGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : isRealmwrightGameState(game) ? renderRealmwrightGame : isChineseCheckersGameState(game) ? renderChineseCheckersGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : isRealmwrightGameState(game) ? renderRealmwrightGame : isChineseCheckersGameState(game) ? renderChineseCheckersGame : isLastOrdersGameState(game) ? renderLastOrdersGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
@@ -1764,7 +1765,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game) || isPotionLabGameState(currentRoom.game) || isMysticWoodGameState(currentRoom.game) || isRealmwrightGameState(currentRoom.game) || isChineseCheckersGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game) || isPotionLabGameState(currentRoom.game) || isMysticWoodGameState(currentRoom.game) || isRealmwrightGameState(currentRoom.game) || isChineseCheckersGameState(currentRoom.game) || isLastOrdersGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }
