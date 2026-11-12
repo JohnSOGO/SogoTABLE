@@ -46,3 +46,21 @@ test("takeResumeMarker: corrupt marker is ignored, not thrown", () => {
   sessionStorage.setItem(KEY, "{nope");
   assert.equal(update.takeResumeMarker(), null);
 });
+
+test("turnSettled: outside a live game an update applies right away", () => {
+  assert.equal(update.turnSettled(null, null, 0), true);
+  assert.equal(update.turnSettled({ inPlay: false }, null, 0), true);
+});
+
+test("turnSettled: turn-based game waits while it is my turn, goes once the turn passes", () => {
+  const snap = { turnKey: "ROOM:1:X", actions: 0 };
+  assert.equal(update.turnSettled({ inPlay: true, myTurn: true, turnKey: "ROOM:1:X" }, snap, 3), false);   // mid-turn (even after rolls/holds)
+  assert.equal(update.turnSettled({ inPlay: true, myTurn: false, turnKey: "ROOM:1:O" }, snap, 3), true);   // opponent's turn
+  assert.equal(update.turnSettled({ inPlay: true, myTurn: true, turnKey: "ROOM:1:O" }, snap, 3), true);    // hot-seat: turn moved on
+});
+
+test("turnSettled: parallel/solo game waits for my next action to land", () => {
+  const snap = { turnKey: "", actions: 2 };
+  assert.equal(update.turnSettled({ inPlay: true, myTurn: false, turnKey: "" }, snap, 2), false);
+  assert.equal(update.turnSettled({ inPlay: true, myTurn: false, turnKey: "" }, snap, 3), true);
+});
