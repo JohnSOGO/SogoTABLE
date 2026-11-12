@@ -13,7 +13,9 @@ placed. See [Live Rounds](live-rounds.md).
 
 1. Each round you are dealt one land tile. Rotate it and tap a glowing cell. A
    strong glow means it fits as rotated, and a dim dashed outline means it fits
-   in another rotation.
+   in another rotation. If the host turned **Show valid spots** off, nothing
+   glows: tap any free cell next to the board, rotate, and a red outline means
+   it doesn't fit.
 2. Optionally stand a **meeple** on one feature of that tile: a city, road,
    cloister, or (with farmers on) a field. You can only claim a feature nobody
    holds yet.
@@ -49,7 +51,7 @@ that includes fields (the *live tally* option).
 
 ## Host options
 
-Farmers on/off · live tally on/off · meeples 5–10 · small-city rule · deck
+Farmers on/off · live tally on/off · show valid spots on/off · meeples 5–10 · small-city rule · deck
 standard (72) / quick (~36) / big (×2 for big tables). Full table and wire
 contract: `src/sogotable/static/games/realmwright/PLAN.md`.
 

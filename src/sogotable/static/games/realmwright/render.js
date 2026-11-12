@@ -174,6 +174,15 @@ function tickerText(ctx) {
 // ---------- selection ----------
 const entriesAt = (legal, x, y) => legal.filter((e) => e.x === x && e.y === y);
 const rotsAt = (legal, x, y) => [...new Set(entriesAt(legal, x, y).map((e) => e.r))].sort((a, b) => a - b);
+// "Show valid spots" off: no glow, any free cell next to the board can be
+// tried in any rotation, and a spot that doesn't fit previews red with
+// Confirm disabled. Legality still comes only from the server's legal list.
+const spotsShown = (game) => !(game && game.options && game.options.show_spots === false);
+function freeNextToBoard(game, x, y) {
+  const taken = new Set((Array.isArray(game.board) ? game.board : []).map((b) => `${b.x},${b.y}`));
+  if (taken.has(`${x},${y}`)) return false;
+  return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => taken.has(`${x + dx},${y + dy}`));
+}
 function selectedEntry(legal) {
   if (!S.sel) return null;
   return legal.find((e) => e.x === S.sel.x && e.y === S.sel.y && e.r === S.sel.r) || null;
@@ -193,6 +202,7 @@ function reconcileSelection(game, me) {
   if (!S.sel) return;
   if (!seat || seat.placed || seat.skipped || game.status !== "playing") { S.sel = null; S.meeple = null; return; }
   const entry = selectedEntry(me.legal);
+  if (!entry && !spotsShown(game) && freeNextToBoard(game, S.sel.x, S.sel.y)) { S.meeple = null; return; }
   if (!entry) {
     S.sel = null; S.meeple = null;
     if (!S.sending) setFlash(UI.takenSpot, "error");
@@ -268,8 +278,9 @@ function onBoardTap(wx, wy) {
     return;
   }
   const rots = rotsAt(me.legal, x, y);
-  if (!rots.length) return;
-  const r = rots.includes(S.rot) ? S.rot : rots[0];
+  const free = !spotsShown(ctx.game);
+  if (!rots.length && !(free && freeNextToBoard(ctx.game, x, y))) return;
+  const r = free || rots.includes(S.rot) ? S.rot : rots[0];
   S.sel = { x, y, r };
   S.rot = r;
   S.meeple = null;
@@ -279,7 +290,12 @@ function onBoardTap(wx, wy) {
 }
 
 function rotate(ctx, me) {
-  if (S.sel) {
+  if (S.sel && !spotsShown(ctx.game)) {
+    S.sel.r = (S.sel.r + 1) % 4;
+    S.rot = S.sel.r;
+    const entry = selectedEntry(me.legal);
+    if (S.meeple !== null && (!entry || !entry.meeples.includes(S.meeple))) S.meeple = null;
+  } else if (S.sel) {
     const rots = rotsAt(me.legal, S.sel.x, S.sel.y);
     if (rots.length > 1) {
       const next = rots.find((r) => r > S.sel.r);
@@ -349,9 +365,12 @@ function buildViewModel(ctx, me, frame) {
   const defs = game.tile_defs || {};
   const myTile = seat && seat.tile && defs[seat.tile] ? seat.tile : null;
   const entry = selectedEntry(me.legal);
-  const preview = acting && S.sel && entry ? { ...S.sel, meeple: S.meeple, spots: entry.meeples } : null;
+  const showSpots = spotsShown(game);
+  let preview = null;
+  if (acting && S.sel && entry) preview = { ...S.sel, meeple: S.meeple, spots: entry.meeples, bad: false };
+  else if (acting && S.sel && !showSpots) preview = { ...S.sel, meeple: null, spots: [], bad: true };
   const cellMap = new Map();
-  if (acting) {
+  if (acting && showSpots) {
     me.legal.forEach((e) => {
       const k = `${e.x},${e.y}`;
       const c = cellMap.get(k) || { x: e.x, y: e.y, strong: false };
@@ -374,7 +393,9 @@ function buildViewModel(ctx, me, frame) {
   else if (seat.skipped) myStateText = UI.skipped;
   else if (!seat.tile) myStateText = UI.noTile;
   else if (!me.legal.length) myStateText = UI.noSpots;
+  else if (preview && preview.bad) myStateText = UI.noFit;
   else if (preview) myStateText = UI.previewing;
+  else if (!showSpots) myStateText = UI.findSpot;
   else myStateText = UI.ready;
 
   const rows = players.map((p) => {
@@ -415,13 +436,13 @@ function buildViewModel(ctx, me, frame) {
     palette, defs, board: Array.isArray(game.board) ? game.board : [], round: game.round, bagCount: game.bag_count || 0,
     colorOf: (m) => colorOf(ctx, m), myColor: colorOf(ctx, me.myMark), myTile, myTileDef: myTile ? defs[myTile] : null,
     rot: S.rot, handRot: preview ? preview.r : S.rot, candidates, preview,
-    choices: preview ? meepleChoices(defs[myTile], preview.spots, preview.r) : [],
+    choices: preview && !preview.bad ? meepleChoices(defs[myTile], preview.spots, preview.r) : [],
     fx: frame, bagOpen: S.bagOpen, tilesLeft: S.bagOpen ? tilesLeft(game) : null,
     canAct: acting && !pending, sending: S.sending,
-    canRotate: acting && !pending && (!S.sel || rotsAt(me.legal, S.sel.x, S.sel.y).length > 1),
-    canConfirm: acting && !pending && Boolean(preview),
+    canRotate: acting && !pending && (!S.sel || !showSpots || rotsAt(me.legal, S.sel.x, S.sel.y).length > 1),
+    canConfirm: acting && !pending && Boolean(preview) && !preview.bad,
     meeplesLeft: seat ? seat.meeples_left : 0,
-    idleChoiceText: acting ? UI.pickSpotFirst : (seat && seat.placed ? UI.statusPlaced : seat && seat.skipped ? UI.statusSkipped : ""),
+    idleChoiceText: acting ? (showSpots ? UI.pickSpotFirst : UI.pickSpotFree) : (seat && seat.placed ? UI.statusPlaced : seat && seat.skipped ? UI.statusSkipped : ""),
     myStateText, ticker: tickerText(ctx), flash: S.flash && S.flash.until > Date.now() ? S.flash : null,
     liveTally: Boolean(game.options && game.options.live_tally), rows, results, winnerNames,
     complete: game.status === "complete",

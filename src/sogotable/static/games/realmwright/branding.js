@@ -42,6 +42,7 @@ export const LOBBY = {
   options: {
     farmers: { label: "Farmers", hint: "meeples may lie in fields; fields score 3 per finished city at the end" },
     live_tally: { label: "Live tally", hint: "scoreboard shows what everyone would have if the game ended now" },
+    show_spots: { label: "Show valid spots", hint: "glow where your tile fits; off = find the spots yourself" },
     meeples: { label: "Meeples each", hint: "how many little workers every builder gets" },
     small_city: { label: "Small cities", hint: "a finished 2-tile city scores 2 instead of 4" },
     deck: { label: "Tile bag", hint: "Quick ≈ half · Standard 72 · Big ×2 for large tables" },
@@ -62,6 +63,8 @@ export const UI = {
   ready: "You're ready — place your tile anywhere.",
   readyPick: "Tap a glowing spot to place your tile.",
   previewing: "Rotate, pick a meeple spot, then Confirm.",
+  noFit: "Doesn't fit like that. Tap the tile to rotate, or try another spot.",
+  findSpot: "Tap a spot next to the board to try your tile there.",
   sending: "Placing…",
   placed: (waitingNames) => waitingNames.length
     ? `Placed! Waiting for ${listNames(waitingNames)}…`
@@ -78,6 +81,7 @@ export const UI = {
   confirm: "Confirm",
   noMeeple: () => `No ${PIECE_NAME}`,
   pickSpotFirst: "Tap a glowing spot first",
+  pickSpotFree: "Tap a spot next to the board first",
   meeplesLeft: (n) => `${n} left`,
   yourTile: "Your tile",
   zoomIn: "Zoom in",

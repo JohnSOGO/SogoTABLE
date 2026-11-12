@@ -32,7 +32,7 @@ export const REALMWRIGHT_GAME_ID = GAME_IDS.realmwright;
 const EVENT_CAP = 40;
 const DECKS = ["standard", "quick", "big"];
 export const REALMWRIGHT_DEFAULT_OPTIONS = Object.freeze({
-  farmers: "on", live_tally: true, meeples: 7, small_city: false, deck: "standard", expansions: [],
+  farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard", expansions: [],
 });
 
 export function isRealmwrightGame(game) {
@@ -90,6 +90,7 @@ export function normalizeRealmwrightOptions(raw) {
   return {
     farmers: farmersBool === null ? d.farmers : farmersBool ? "on" : "off",
     live_tally: toBool(o.live_tally, d.live_tally),
+    show_spots: toBool(o.show_spots, d.show_spots),
     meeples: clampInt(o.meeples, 5, 10, d.meeples),
     small_city: toBool(o.small_city, d.small_city),
     deck: DECKS.includes(o.deck) ? o.deck : d.deck,

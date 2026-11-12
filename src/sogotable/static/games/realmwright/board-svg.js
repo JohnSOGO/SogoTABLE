@@ -118,7 +118,7 @@ export function buildBoardMarkup(model) {
   if (preview && myTile && defs[myTile]) {
     const def = defs[myTile];
     const x = preview.x * 100; const y = preview.y * 100;
-    out += `<g class="rw-preview">
+    out += `<g class="rw-preview${preview.bad ? " rw-preview-bad" : ""}">
       <rect class="rw-preview-shadow" x="${x + 3}" y="${y + 5}" width="100" height="100" rx="3"/>
       <use href="#${symbolId(myTile, preview.r)}" x="${x}" y="${y}" width="100" height="100"/>`;
     if (preview.meeple !== null && preview.meeple !== undefined) {

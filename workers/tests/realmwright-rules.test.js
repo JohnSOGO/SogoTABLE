@@ -337,7 +337,7 @@ test("projection shape is exactly the wire contract", () => {
     "act_at", "breakdown", "is_bot", "mark", "meeples_left", "meeples_total", "placed", "projected", "projected_breakdown",
     "score", "skipped", "tile", "tile_serial",
   ]);
-  assert.deepEqual(Object.keys(d.options).sort(), ["deck", "expansions", "farmers", "live_tally", "meeples", "small_city"]);
+  assert.deepEqual(Object.keys(d.options).sort(), ["deck", "expansions", "farmers", "live_tally", "meeples", "show_spots", "small_city"]);
   assert.deepEqual(Object.keys(d.board[0]).sort(), ["by", "meeples", "round", "t", "x", "y", "r"].sort());
   assert.equal(Object.keys(d.tile_defs).length, 24);
   assert.ok(d.tile_defs[START].start);
@@ -390,9 +390,9 @@ test("skip vote: only placed humans vote, unanimous, tile back to the bag bottom
 });
 
 test("options: clamping, garbage tolerance, reset carry-over", () => {
-  assert.deepEqual(normalizeRealmwrightOptions(null), { farmers: "on", live_tally: true, meeples: 7, small_city: false, deck: "standard", expansions: [] });
-  assert.deepEqual(normalizeRealmwrightOptions({ farmers: false, live_tally: "off", meeples: 99, small_city: "true", deck: "huge", expansions: ["base", "nope", 3] }),
-    { farmers: "off", live_tally: false, meeples: 10, small_city: true, deck: "standard", expansions: [] });
+  assert.deepEqual(normalizeRealmwrightOptions(null), { farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard", expansions: [] });
+  assert.deepEqual(normalizeRealmwrightOptions({ farmers: false, live_tally: "off", show_spots: "off", meeples: 99, small_city: "true", deck: "huge", expansions: ["base", "nope", 3] }),
+    { farmers: "off", live_tally: false, show_spots: false, meeples: 10, small_city: true, deck: "standard", expansions: [] });
   assert.equal(normalizeRealmwrightOptions({ meeples: 1 }).meeples, 5);
   assert.equal(normalizeRealmwrightOptions({ meeples: "abc" }).meeples, 7);
   assert.equal(normalizeRealmwrightOptions([1, 2]).farmers, "on");

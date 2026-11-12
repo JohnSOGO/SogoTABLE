@@ -43,6 +43,8 @@ const LIGHT = `
 .realmwright-root .rw-cand-weak{fill:none;stroke:var(--rw-weak);stroke-width:1.5px;stroke-dasharray:7 6;vector-effect:non-scaling-stroke}
 .realmwright-root .rw-preview-shadow{fill:rgba(0,0,0,.28)}
 .realmwright-root .rw-preview-ring{fill:none;stroke:var(--rw-gold);stroke-width:3.5px;vector-effect:non-scaling-stroke}
+.realmwright-root .rw-preview-bad use{opacity:.6}
+.realmwright-root .rw-preview-bad .rw-preview-ring{stroke:#e0473a;stroke-dasharray:9 6}
 .realmwright-root .rw-spot-halo{fill:rgba(255,216,74,.45);transform-box:fill-box;transform-origin:center;animation:rw-spot 1.1s ease-in-out infinite}
 .realmwright-root .rw-spot-dot{fill:var(--rw-spot);stroke:var(--rw-spot-ink);stroke-width:1.6}
 .realmwright-root .rw-spot text{pointer-events:none}

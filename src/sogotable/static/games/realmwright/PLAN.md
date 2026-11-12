@@ -84,6 +84,7 @@ own tile and places it whenever they like — no waiting for turns.
 |---|---|---|---|
 | `farmers` | `"on"` / `"off"` | `"on"` | fields are claimable + scored at end |
 | `live_tally` | `true` / `false` | `true` | scoreboard shows a live **projected** total (incomplete features + fields as if the game ended now) next to the banked score |
+| `show_spots` | `true` / `false` | `true` | glow the cells where the dealt tile fits. Off: no glow; the player taps any free cell next to the board, rotates through all four turns, and a spot that does not fit previews red with Confirm disabled. The server still projects `legal` (the client checks against it; it never computes legality) |
 | `meeples` | 5–10 | 7 | meeples per seat |
 | `small_city` | `true` / `false` | `false` | completed 2-tile city scores 2, not 4 |
 | `deck` | `"standard"` / `"quick"` / `"big"` | `"standard"` | 72 tiles · ~half (ratios kept) · ×2 for big tables |
@@ -94,7 +95,7 @@ own tile and places it whenever they like — no waiting for turns.
 ```js
 {
   game_id, status: "playing" | "complete", round, move_count,
-  options: { farmers, live_tally, meeples, small_city, deck, expansions },
+  options: { farmers, live_tally, show_spots, meeples, small_city, deck, expansions },
   seat_order: ["P1", ...],
   players: { [mark]: { is_bot, level, score, meeples_left,
     breakdown: { city, road, cloister, field },
@@ -204,7 +205,7 @@ ones `final: true`.
 (receipts appended below by fresh-session gate runs)
 
 GATE Rules fidelity — 2026-11-12 — 1 gap — all 24 types / 72 tiles / 10 pennant tiles / start tile verified port-by-port (two-cap tiles: separate cities, shared field touches both); scoring probes (tie-merge, road loop, cloister+city same tile, one city → two fields, small_city, end-game incomplete) all correct · farmer-never-returned was not pinned on the rules path → test "closing a city returns its knight but never the farmer beside it"
-GATE Projection — 2026-11-12 — pass — every client read (players[].{mark,is_bot,score,projected,breakdown,projected_breakdown,meeples_left,meeples_total,tile,tile_serial,placed,skipped}, legal, board[].{x,y,t,r,by,round,meeples}, events[].{seq,type,round,mark,meeple,kind,points,marks,cells}, tile_defs, seat_order, round, status, bag_count, options.live_tally, results, skip_votes) is emitted; emitted-unread only move_count/winner/other options (harmless); shape pinned by "projection shape is exactly the wire contract"
+GATE Projection — 2026-11-12 — pass — every client read (players[].{mark,is_bot,score,projected,breakdown,projected_breakdown,meeples_left,meeples_total,tile,tile_serial,placed,skipped}, legal, board[].{x,y,t,r,by,round,meeples}, events[].{seq,type,round,mark,meeple,kind,points,marks,cells}, tile_defs, seat_order, round, status, bag_count, options.live_tally, options.show_spots, results, skip_votes) is emitted; emitted-unread only move_count/winner/other options (harmless); shape pinned by "projection shape is exactly the wire contract"
 GATE Sibling parity — 2026-11-12 — pass — bots use applyPlacement + legal list (bag count only, no order); 1 vs 12 seats finish on every deck; view state keyed room#epoch + round|serial|tile, sfx cursor primes on first snapshot (no replay on load; a socket resume without reload plays ≤6 missed cues — accepted); one layout everywhere (420px query only shrinks type), pointer events for touch + mouse
 GATE Resilience — 2026-11-12 — 3 gaps — meeple false/true/[] coerced to feature 0/1 via Number() → strict integer/digit-string parse + test · "__proto__"/"constructor" as mark or skip target resolved to Object.prototype → Object.hasOwn seat lookup + test · barrier CPU: 11 Overlord bots on the big deck ≈ 300 ms worst per barrier and a 12-bot big-deck table plays its whole game (≈1.3 s, Node) inside /api/room/start → OPEN (fine on Workers paid 30 s, exceeds free-plan 10 ms; mitigate by scaling ai.js CANDIDATES with seat count). Noted, not a bug: a skip in the dry final round puts the tile back and the extra round deals it to seat_order[0].
 
