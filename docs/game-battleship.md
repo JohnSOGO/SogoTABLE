@@ -68,3 +68,18 @@ Overlord uses stronger Battleship logic than the basic bots: Monte Carlo
 fleet placement scored against a generic attack heat map, and probability-based
 attacks with parity, information value, and hit-line finishing. The shared bot
 behavior contract lives in `docs/bots/behavior.md`.
+
+## Presentation (client only)
+
+The board is drawn as a sea stage: animated water, shaded SVG ships laid over
+the cell grid (3D look, gentle bob, optional perspective tilt), white/red pegs,
+lingering fire on damaged cells, an explosion or splash burst when a result
+lands, a sinking animation when a ship goes down, and a short board shake on
+hits. Sounds play at the existing reveal beats: gun fire or an incoming sonar
+ping + whistle at radar start, then an explosion or splash (plus a sinking
+groan and bubbles) at the result. Effects never run their own timers; they key
+off the reveal timeline, so reconnects and rerenders do not replay them.
+
+Per-device options under "Effects & helps": effects Full/Lite/Off, 3D tilt,
+grid coordinates, and a fleet tracker. Art, palette and sounds are swappable
+in `games/battleship/assets.js` (see the module README).

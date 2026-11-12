@@ -52,7 +52,7 @@ export function tweenCamera(viewport, cam, to, { ms = 300, reduced = false, onDo
   const tween = { raf: 0 };
   const step = (t) => {
     const k = Math.min(1, (t - t0) / ms);
-    const e = 1 - (1 - k) ** 3;
+    const e = k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2; // ease in-out: the whole second reads as motion
     if (k >= 1) { finish(); return; }
     cam.x = from.x + (to.x - from.x) * e;
     cam.y = from.y + (to.y - from.y) * e;

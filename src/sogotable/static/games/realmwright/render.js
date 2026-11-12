@@ -26,7 +26,7 @@ import { REALMWRIGHT_CSS } from "./styles.js";
 
 const FALLBACK_COLORS = ["#d94141", "#2f6fd6", "#e0b100", "#2e9e5b", "#8a4fc9", "#e07a1f", "#1fa3a3", "#d0499a", "#6b7a8f", "#7a5230", "#94b814", "#3b3b3b"];
 const FLASH_MS = 4500;
-const ZOOM_MS = 300;
+const ZOOM_MS = 1000; // auto-zoom in on a tapped spot, and back out after Confirm
 const ZOOM_TILE_SHARE = 0.6; // the previewed tile fills ~60% of the shorter side
 
 let stylesInjected = false;
