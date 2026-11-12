@@ -47,7 +47,8 @@ board — you will get dark-on-dark text.
 
 ## Token architecture
 
-All tokens live in `:root` in `styles.css` (`styles-games.css` defines none — it
+All tokens live in `:root` in `styles-tokens.css` (linked first, ahead of
+`styles.css`; `styles-games.css` defines none — it
 only consumes them). Light values are the source of truth; the dark block
 overrides them. Three layers:
 
@@ -156,7 +157,7 @@ recipe:
 - `storage.js` — `THEME_STORAGE_KEY`, `themePreference`, `effectiveTheme`,
   `setDarkMode`, `applyTheme`.
 - `controllers/game-options.js` — toggle wiring.
-- `styles.css` — `:root` tokens (light) + `:root[data-theme="dark"]` override.
+- `styles-tokens.css` — `:root` tokens (light) + `:root[data-theme="dark"]` override.
 - `styles-games.css` — consumes tokens; small dark block for in-game shell
   surfaces (lobby, win card/overlay, menu inputs).
 - `games/mazewright/render.js` — `MW_CSS` with dark + light `--mw-*` variants.

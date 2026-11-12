@@ -1305,3 +1305,34 @@ REORG RECEIPT
                 the per-game render fan stay in app.js (shared with other callers). No isMyTurn hook.
 - New owner row: | `src/sogotable/static/controllers/turn-status.js` | Room turn banner + player-switch strip (turn text, seat labels, turn tint) | `src/sogotable/static/app.js` |
 ```
+
+## 2026-11-12 — REORG: extract design tokens to styles-tokens.css
+Commit: refactor(css): extract :root design tokens to styles-tokens.css (this entry's commit)
+
+```
+REORG RECEIPT
+- Trigger:      src/sogotable/static/styles.css (281 lines, ceiling 299) mixed the theme token
+                palette with platform chrome; the token blocks are the named seam so upcoming
+                theming/seat-colour work lands in a tokens-only sheet.
+- Seam moved:   `:root` light tokens + `:root[data-theme="dark"]` token override (custom properties
+                + color-scheme only) from `src/sogotable/static/styles.css` to
+                `src/sogotable/static/styles-tokens.css`, linked FIRST in index.html
+                [NEW file; CSS is outside the JS ownership map — no owner row; docs/theme.md
+                updated to point at the new home]
+- Room opened:  styles.css: 281 → 206 lines (as the test counts them); ceiling 274+25 → 206+25.
+                styles-tokens.css 78 lines (under GLOBAL_FILE_CAP).
+- Behavior:     PRESERVED for rendering — moved bytes are identical (diff of tokens+styles vs the
+                old styles.css is empty) and load order keeps the same cascade order. Caller-directed
+                service-worker changes in the same commit: styles-tokens.css added to the
+                always-fresh (no-store) list, and the previously-missing styles-header.css /
+                styles-roster.css / styles-room.css added too (a cache-freshness fix — these were
+                being served through the SW cache); CACHE_NAME v100 → v101.
+                review-export allowlist gains styles-tokens.css. `npm test` all green.
+- Sources read: CLAUDE.md, docs/module-ownership.md, docs/theme.md,
+                workers/tests/architecture.test.js, src/sogotable/static/styles.css,
+                src/sogotable/static/index.html, src/sogotable/static/service-worker.js,
+                src/sogotable/static/review-export.js
+- Restraint:    Theme-gated selector overrides (`:root[data-theme="dark"] .x {…}`) stay in their
+                chrome sheets; no token values renamed or added.
+- New owner row: none
+```
