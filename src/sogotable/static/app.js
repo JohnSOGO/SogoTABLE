@@ -118,7 +118,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isTradewindsGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -171,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
     visibleBattleshipPlayerMark, getBattleshipReviewMark, setBattleshipReviewMark,
     isTacticalGameState, isBattleshipGameState, isTenThousandGameState, isYahtzeeGameState,
     isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
-    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState,
+    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isTradewindsGameState,
   });
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat();

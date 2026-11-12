@@ -20,6 +20,7 @@ import { renderRealmwrightGame } from "./realmwright/render.js";
 import { renderChineseCheckersGame } from "./chinese-checkers/render.js";
 import { renderLastOrdersGame } from "./last-orders/render.js";
 import { renderTracklayersGame } from "./tracklayers/render.js";
+import { renderTradewindsGame } from "./tradewinds/render.js";
 
 const HOST_START_RENDERERS = {
   [GAME_IDS.yahtzee]: renderYahtzeeGame,
@@ -36,6 +37,7 @@ const HOST_START_RENDERERS = {
   [GAME_IDS.chineseCheckers]: renderChineseCheckersGame,
   [GAME_IDS.lastOrders]: renderLastOrdersGame,
   [GAME_IDS.tracklayers]: renderTracklayersGame,
+  [GAME_IDS.tradewinds]: renderTradewindsGame,
 };
 
 // Returns the host-start render function for `game`, or null when the game does

@@ -24,8 +24,8 @@ const LAYOUTS = {
   },
   large: {
     radius: 3,
-    terrain: { grove: 7, meadow: 7, orchard: 7, clay: 6, quarry: 6, volcano: 4 },
-    numbers: [2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 12, 12],
+    terrain: { grove: 7, meadow: 7, orchard: 7, clay: 7, quarry: 6, volcano: 3 },
+    numbers: [2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 12, 12],
     ports: 11,
   },
 };
