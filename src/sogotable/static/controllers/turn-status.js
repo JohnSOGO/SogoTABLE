@@ -23,7 +23,7 @@ export function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (ctx.isTenThousandGameState(currentRoom.game) || ctx.isYahtzeeGameState(currentRoom.game) || ctx.isMazewrightGameState(currentRoom.game) || ctx.isRttaGameState(currentRoom.game) || ctx.isZombieDiceGameState(currentRoom.game) || ctx.isLiarsDiceGameState(currentRoom.game) || ctx.isNoThanksGameState(currentRoom.game) || ctx.isHeartsGameState(currentRoom.game) || ctx.isPotionLabGameState(currentRoom.game) || ctx.isMysticWoodGameState(currentRoom.game) || ctx.isRealmwrightGameState(currentRoom.game) || ctx.isChineseCheckersGameState(currentRoom.game) || ctx.isLastOrdersGameState(currentRoom.game) || ctx.isTracklayersGameState(currentRoom.game)) {
+  if (ctx.isTenThousandGameState(currentRoom.game) || ctx.isYahtzeeGameState(currentRoom.game) || ctx.isMazewrightGameState(currentRoom.game) || ctx.isRttaGameState(currentRoom.game) || ctx.isZombieDiceGameState(currentRoom.game) || ctx.isLiarsDiceGameState(currentRoom.game) || ctx.isNoThanksGameState(currentRoom.game) || ctx.isHeartsGameState(currentRoom.game) || ctx.isPotionLabGameState(currentRoom.game) || ctx.isMysticWoodGameState(currentRoom.game) || ctx.isRealmwrightGameState(currentRoom.game) || ctx.isChineseCheckersGameState(currentRoom.game) || ctx.isLastOrdersGameState(currentRoom.game) || ctx.isTracklayersGameState(currentRoom.game) || ctx.isReefkeepersGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }
