@@ -40,7 +40,7 @@ export function fitCamera(cam, bounds, width, height, { pad = 24, maxZoom = 1.05
   return true;
 }
 
-// Smoothly move the camera to `to` ({x,y,z}) over `ms` (ease-out cubic) with
+// Smoothly move the camera to `to` ({x,y,z}) over `ms` (ease in-out) with
 // requestAnimationFrame. Any running tween on the same camera is replaced;
 // reduced motion jumps straight there. Returns a cancel function.
 export function tweenCamera(viewport, cam, to, { ms = 300, reduced = false, onDone } = {}) {
@@ -49,7 +49,7 @@ export function tweenCamera(viewport, cam, to, { ms = 300, reduced = false, onDo
   const finish = () => { cam.x = to.x; cam.y = to.y; cam.z = to.z; cam.tween = null; applyCamera(viewport, cam); if (onDone) onDone(); };
   if (reduced || typeof requestAnimationFrame === "undefined") { finish(); return () => {}; }
   const t0 = performance.now();
-  const tween = { raf: 0 };
+  const tween = { raf: 0, to: { x: to.x, y: to.y, z: to.z } };
   const step = (t) => {
     const k = Math.min(1, (t - t0) / ms);
     const e = k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2; // ease in-out: the whole second reads as motion

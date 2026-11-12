@@ -30,7 +30,7 @@ const MAX_LAG_MS = 8000;
 let FX = blank("");
 
 function blank(key) {
-  return { key, items: [], queueEnd: 0, lastPlaceStart: -Infinity, timers: [], counters: new Map() };
+  return { key, items: [], queueEnd: 0, lastPlaceStart: -Infinity, timers: [], counters: new Map(), mineUntil: 0 };
 }
 
 // The owner wants every animation to play (camera zoom, drops, scoring
@@ -42,6 +42,12 @@ const HONOR_OS_REDUCED_MOTION = false;
 export function reducedMotion() {
   if (!HONOR_OS_REDUCED_MOTION) return false;
   try { return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch { return false; }
+}
+
+// When my own placement (its drop, meeple and any scoring it caused) has
+// finished playing — render.js holds the auto-zoom until then.
+export function fxMineUntil() {
+  return FX.mineUntil;
 }
 
 export function fxReset(key) {
@@ -88,9 +94,11 @@ export function fxEnqueue(fresh, { board, myMark, round, now = Date.now() }) {
   const finals = batch.filter((e) => e.type === "score" && e.final).length;
   const finalStep = finals ? Math.max(260, Math.min(650, 6500 / finals)) : 0;
   let finalCues = 0;
+  let afterMine = false;
   batch.forEach((e) => {
     if (e.type === "place") {
       const mine = e.mark === myMark;
+      afterMine = mine;
       const start = Math.max(t, FX.lastPlaceStart + (mine ? 0 : STAGGER));
       const meeple = placedMeeple(e, board, batch);
       const meepleAt = meeple ? start + (mine ? MY_MEEPLE_DELAY : MEEPLE_DELAY) : 0;
@@ -99,15 +107,18 @@ export function fxEnqueue(fresh, { board, myMark, round, now = Date.now() }) {
       cueAt(start, "place");
       if (meeple) cueAt(meepleAt, "meeple");
       FX.lastPlaceStart = start;
+      if (mine) FX.mineUntil = Math.max(FX.mineUntil, landed + 300);
       t = landed + (meeple ? 250 : 0);
     } else if (e.type === "score") {
       const start = e.final ? t : t + 120;
       const meeples = Array.isArray(e.meeples) ? e.meeples : [];
       const marks = Array.isArray(e.marks) ? e.marks : [];
       FX.items.push({ type: "score", start, end: start + CELEB_MS, meeples, marks, points: Number(e.points) || 0, cells: Array.isArray(e.cells) ? e.cells : [] });
+      if (afterMine) FX.mineUntil = Math.max(FX.mineUntil, start + CELEB_MS + 200);
       if (!e.final || finalCues < 3) { finalCues += e.final ? 1 : 0; cueAt(start, "complete", Number(e.points) || 0); }
       t = e.final ? start + finalStep : start + CELEB_MS;
     } else if (e.type === "round") {
+      afterMine = false;
       const start = t + 100;
       FX.items.push({ type: "round", round: e.round, start, end: start + BANNER_MS });
       cueAt(start, "round");

@@ -5,8 +5,8 @@
 // WNYK precedent): every room snapshot repaints the lobby DOM, so the DOM is
 // never the source of truth. getStartArg reads the store.
 import { renderHostStartLobby } from "../lobby.js";
-import { playClick } from "../../sound.js";
 import { LOBBY } from "./branding.js";
+import { playCue } from "./sfx.js";
 
 export const REALM_DEFAULTS = { farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard" };
 
@@ -72,7 +72,7 @@ export function renderRealmwrightLobby(host, ctx) {
             other.classList.toggle("rw-on", on);
             other.setAttribute("aria-pressed", String(on));
           });
-          playClick();
+          playCue("tap");
           if (name === "deck") {
             const hintEl = lobbyHost.querySelector(".rw-opt-hint");
             if (hintEl) hintEl.hidden = realmLobbyOptions(ctx).deck === "big";

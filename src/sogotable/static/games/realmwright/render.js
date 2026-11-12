@@ -11,7 +11,6 @@
 // by round + tile_serial — so re-renders never reset it. The DOM skeleton
 // (incl. the gesture-wired viewport) is kept across snapshots; only the panel
 // contents are repainted. All wiring is addEventListener; no app.js imports.
-import { playClick } from "../../sound.js";
 import { paletteFor } from "./assets.js";
 import { featureAnchor } from "./art.js";
 import { applyCamera, attachGestures, cancelTween, fitCamera, newCamera, tweenCamera, ZOOM_MAX, zoomAt } from "./board-view.js";
@@ -19,14 +18,15 @@ import { boardBounds, buildBoardMarkup } from "./board-svg.js";
 import { TICKER, UI } from "./branding.js";
 import { renderRealmwrightLobby } from "./lobby.js";
 import { botTickInFlight, syncBotTick } from "./bot-tick.js";
-import { countShown, fxEnqueue, fxFrame, fxOverlayMarkup, fxReset, reducedMotion, runCounters } from "./fx.js";
+import { countShown, fxEnqueue, fxFrame, fxMineUntil, fxOverlayMarkup, fxReset, reducedMotion, runCounters } from "./fx.js";
 import { bagPanelHtml, meepleChoices, resultsHtml, stripHtml, tableHtml, tilesLeft, trayHtml } from "./panels.js";
 import { consumeEvents, playCue } from "./sfx.js";
 import { REALMWRIGHT_CSS } from "./styles.js";
 
 const FALLBACK_COLORS = ["#d94141", "#2f6fd6", "#e0b100", "#2e9e5b", "#8a4fc9", "#e07a1f", "#1fa3a3", "#d0499a", "#6b7a8f", "#7a5230", "#94b814", "#3b3b3b"];
 const FLASH_MS = 4500;
-const ZOOM_MS = 1000; // auto-zoom in on a tapped spot, and back out after Confirm
+const ZOOM_MS = 1000; // auto-zoom in on a tapped spot, back out after Confirm, Fit button
+const STEP_ZOOM_MS = 350; // the + / - buttons
 const ZOOM_TILE_SHARE = 0.6; // the previewed tile fills ~60% of the shorter side
 
 let stylesInjected = false;
@@ -37,7 +37,7 @@ function freshState(key) {
   return {
     key, cam: newCamera(), selKey: "", rot: 0, sel: null, meeple: null, sending: false,
     flash: null, flashTimer: null, sawPlaying: false, winPlayed: false, lastCtx: null,
-    zoomReturn: null, bagOpen: false, fxTimer: null, dealtKey: null, fxBusy: false,
+    zoomReturn: null, zoomTimer: null, placedAt: null, bagOpen: false, fxTimer: null, dealtKey: null, fxBusy: false,
   };
 }
 
@@ -239,11 +239,12 @@ function zoomToCell(x, y) {
   const z = Math.min(ZOOM_MAX, (ZOOM_TILE_SHARE * Math.min(w, h)) / 100);
   tweenCamera(vp, S.cam, { x: w / 2 - (x * 100 + 50) * z, y: h / 2 - (y * 100 + 50) * z, z }, { ms: ZOOM_MS, reduced: reducedMotion() });
 }
-// Back to the view from before the auto-zoom (after confirm, clear or reject).
+// Out of the auto-zoom (after confirm, clear or reject): glide to the whole
+// board, centred.
 function zoomBack(viewport) {
   const back = S.zoomReturn;
   S.zoomReturn = null;
-  if (back && viewport) tweenCamera(viewport, S.cam, back, { ms: ZOOM_MS, reduced: reducedMotion() });
+  if (back && viewport) glideToFit(viewport);
 }
 // A manual pan / pinch / wheel / zoom button keeps the view the player chose.
 function onManualCamera() {
@@ -269,7 +270,7 @@ function onBoardTap(wx, wy) {
       });
       if (best !== null) {
         S.meeple = S.meeple === best ? null : best;
-        playClick();
+        playCue("tap");
         paint(ctx);
         return;
       }
@@ -284,7 +285,7 @@ function onBoardTap(wx, wy) {
   S.sel = { x, y, r };
   S.rot = r;
   S.meeple = null;
-  playClick();
+  playCue("tap");
   zoomToCell(x, y);
   paint(ctx);
 }
@@ -307,7 +308,7 @@ function rotate(ctx, me) {
   } else {
     S.rot = (S.rot + 1) % 4;
   }
-  playClick();
+  playCue("tap");
   paint(ctx);
 }
 
@@ -333,11 +334,12 @@ async function confirm(ctx, me) {
   }
   S.sending = false;
   if (typeof error === "string" && error) {
-    S.sel = null; S.meeple = null;
+    S.sel = null; S.meeple = null; S.placedAt = null;
     setFlash(error, "error");
     playCue("reject");
   } else {
     S.sel = null; S.meeple = null;
+    S.placedAt = { x: action.x, y: action.y, at: Date.now() };
     // With animation on, the fx queue plays these as my tile drops in.
     if (reducedMotion()) {
       playCue("place");
@@ -349,7 +351,7 @@ async function confirm(ctx, me) {
 
 function voteSkip(ctx, target) {
   if (movePending(ctx)) return;
-  playClick();
+  playCue("tap");
   Promise.resolve(ctx.makeMove({ type: "SKIP_PLAYER", target, round: ctx.game.round })).then((error) => {
     if (typeof error === "string" && error) { setFlash(error, "error"); playCue("reject"); repaint(); }
   }).catch(() => {});
@@ -478,18 +480,21 @@ function ensureSkeleton(host) {
   root.addEventListener("click", (e) => {
     if (!e.target.closest || !e.target.closest("[data-rw-bag]")) return;
     S.bagOpen = !S.bagOpen;
-    playClick();
+    playCue("tap");
     repaint();
   });
   root.querySelectorAll("[data-rw-zoom]").forEach((button) => {
     button.addEventListener("click", () => {
-      cancelTween(S.cam);
       onManualCamera();
       const kind = button.getAttribute("data-rw-zoom");
       const w = viewport.clientWidth; const h = viewport.clientHeight;
-      if (kind === "fit") fitToBoard(viewport);
-      else zoomAt(S.cam, kind === "in" ? 1.25 : 0.8, w / 2, h / 2);
-      applyCamera(viewport, S.cam);
+      // The buttons glide too: fit over the full zoom time, +/- in a short step.
+      if (kind === "fit") { glideToFit(viewport); return; }
+      const to = { x: S.cam.x, y: S.cam.y, z: S.cam.z };
+      if (S.cam.tween) Object.assign(to, S.cam.tween.to); // stack quick taps
+      zoomAt(to, kind === "in" ? 1.25 : 0.8, w / 2, h / 2);
+      if (kind === "out") centreOnBoard(to, w, h); // zooming out also pans the realm to the middle
+      tweenCamera(viewport, S.cam, to, { ms: STEP_ZOOM_MS, reduced: reducedMotion() });
     });
   });
   return { root, fresh: true };
@@ -501,6 +506,36 @@ function fitToBoard(viewport) {
   const me = seatInfo(ctx);
   const board = Array.isArray(ctx.game.board) ? ctx.game.board : [];
   return fitCamera(S.cam, boardBounds(board, canAct(ctx, me) ? me.legal : []), viewport.clientWidth, viewport.clientHeight);
+}
+
+function centreOnBoard(cam, w, h) {
+  const board = S.lastCtx && Array.isArray(S.lastCtx.game.board) ? S.lastCtx.game.board : [];
+  const b = boardBounds(board, []);
+  cam.x = w / 2 - ((b.minX + b.maxX + 1) / 2) * 100 * cam.z;
+  cam.y = h / 2 - ((b.minY + b.maxY + 1) / 2) * 100 * cam.z;
+}
+
+function glideToFit(viewport) {
+  const ctx = S.lastCtx;
+  if (!ctx) return;
+  const me = seatInfo(ctx);
+  const board = Array.isArray(ctx.game.board) ? ctx.game.board : [];
+  const target = { x: S.cam.x, y: S.cam.y, z: S.cam.z };
+  if (!fitCamera(target, boardBounds(board, canAct(ctx, me) ? me.legal : []), viewport.clientWidth, viewport.clientHeight)) return;
+  S.cam.fitted = true;
+  tweenCamera(viewport, S.cam, target, { ms: ZOOM_MS, reduced: reducedMotion() });
+}
+
+// Zoom-out waits for my placement to show on the board (the move reply can
+// beat the snapshot) and for its animations; never longer than ~6 s.
+function zoomHoldUntil(ctx, me) {
+  const placed = S.placedAt;
+  if (!placed) return 0;
+  const board = Array.isArray(ctx.game.board) ? ctx.game.board : [];
+  const onBoard = board.some((b) => b.x === placed.x && b.y === placed.y);
+  const cap = placed.at + 6000;
+  if (!onBoard) return Math.min(cap, Date.now() + 200);
+  return Math.min(cap, Math.max(fxMineUntil(), placed.at));
 }
 
 // True when every legal cell sits fully inside the visible viewport.
@@ -559,7 +594,13 @@ function paint(ctx) {
   clearTimeout(S.fxTimer);
   if (Number.isFinite(frame.next)) S.fxTimer = setTimeout(repaint, Math.max(16, frame.next - Date.now() + 8));
   // Auto-zoom returns once the selection is gone (confirmed, cleared, rejected).
-  if (S.zoomReturn && !S.sel && !S.sending) zoomBack(viewport);
+  // After Confirm it waits for my tile, meeple and any scoring to finish
+  // playing (zoomed in), then zooms out.
+  if (S.zoomReturn && !S.sel && !S.sending) {
+    const hold = zoomHoldUntil(ctx, me);
+    if (Date.now() >= hold) zoomBack(viewport);
+    else { clearTimeout(S.zoomTimer); S.zoomTimer = setTimeout(repaint, hold - Date.now() + 16); }
+  }
   // A fresh tile in hand (new round or redraw) re-fits the camera when any of
   // its glowing spots sit off screen, so the realm growing past the edge never
   // hides where you can build. Panning within a round is never overridden.
@@ -570,7 +611,11 @@ function paint(ctx) {
     S.cam.tileKey = tileKey;
   }
   if (!S.cam.fitted && !camBusy) {
-    if (!fitToBoard(viewport)) requestAnimationFrame(() => { if (!S.cam.fitted && fitToBoard(viewport)) applyCamera(viewport, S.cam); });
+    // The first fit is instant; a later re-fit (new tile's spots off screen)
+    // glides there so the view never jumps.
+    if (S.cam.tileKeyFitted) glideToFit(viewport);
+    else if (!fitToBoard(viewport)) requestAnimationFrame(() => { if (!S.cam.fitted && fitToBoard(viewport)) applyCamera(viewport, S.cam); });
+    if (S.cam.fitted) S.cam.tileKeyFitted = true;
   }
   applyCamera(viewport, S.cam);
 
@@ -594,7 +639,7 @@ function paint(ctx) {
       if (button.disabled) return;
       const v = button.getAttribute("data-rw-meeple");
       S.meeple = v === "none" ? null : Number(v);
-      playClick();
+      playCue("tap");
       paint(S.lastCtx || ctx);
     });
   });
