@@ -85,7 +85,7 @@ html[data-theme="dark"] .bloomwork-root{${TOKENS_DARK};${paletteCssVars("dark")}
 .bloomwork-root .bw-square-label{font-size:12px;font-weight:800;color:var(--bw-ink);background:var(--bw-panel);padding:2px 8px;border-radius:999px;
   box-shadow:inset 0 0 0 1px var(--bw-line)}
 .bloomwork-root .bw-square-empty{font-size:12px;color:var(--bw-muted);font-style:italic}
-.bloomwork-root .bw-sq{position:relative;width:38px;height:38px}
+.bloomwork-root .bw-sq,.bloomwork-root.bw-play .bw-sq{position:relative;width:38px;height:38px;flex:none}
 .bloomwork-root .bw-sq-n{position:absolute;right:-5px;bottom:-5px;min-width:18px;height:18px;border-radius:999px;background:var(--bw-ink);color:var(--bw-panel);
   font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 4px;pointer-events:none}
 .bloomwork-root .bw-sq-bird{width:34px;height:34px;margin-left:auto}
