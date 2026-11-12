@@ -1460,6 +1460,7 @@ PLACEMENT RECEIPT
     - service-worker.js unchanged: MP3s take the network-first runtime cache; not precached.
     - sound-files.js must not import sound.js (cycle).
 - New owner row: | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map … | `src/sogotable/static/sound.js` |
+```
 
 ## 2026-11-12 — Bloomwork (new game module, simultaneous-submit draft + priority barrier)
 
