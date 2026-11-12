@@ -190,3 +190,22 @@ neighbour's port `3((s+2)%4) + (2−k)`.
 ## Verification gates
 
 (receipts appended below by fresh-session gate runs)
+
+GATE Rules fidelity — 2026-11-12 — 1 gap — all 24 types / 72 tiles / 10 pennant tiles / start tile verified port-by-port (two-cap tiles: separate cities, shared field touches both); scoring probes (tie-merge, road loop, cloister+city same tile, one city → two fields, small_city, end-game incomplete) all correct · farmer-never-returned was not pinned on the rules path → test "closing a city returns its knight but never the farmer beside it"
+GATE Projection — 2026-11-12 — pass — every client read (players[].{mark,is_bot,score,projected,breakdown,projected_breakdown,meeples_left,meeples_total,tile,tile_serial,placed,skipped}, legal, board[].{x,y,t,r,by,round,meeples}, events[].{seq,type,round,mark,meeple,kind,points,marks,cells}, tile_defs, seat_order, round, status, bag_count, options.live_tally, results, skip_votes) is emitted; emitted-unread only move_count/winner/other options (harmless); shape pinned by "projection shape is exactly the wire contract"
+GATE Sibling parity — 2026-11-12 — pass — bots use applyPlacement + legal list (bag count only, no order); 1 vs 12 seats finish on every deck; view state keyed room#epoch + round|serial|tile, sfx cursor primes on first snapshot (no replay on load; a socket resume without reload plays ≤6 missed cues — accepted); one layout everywhere (420px query only shrinks type), pointer events for touch + mouse
+GATE Resilience — 2026-11-12 — 3 gaps — meeple false/true/[] coerced to feature 0/1 via Number() → strict integer/digit-string parse + test · "__proto__"/"constructor" as mark or skip target resolved to Object.prototype → Object.hasOwn seat lookup + test · barrier CPU: 11 Overlord bots on the big deck ≈ 300 ms worst per barrier and a 12-bot big-deck table plays its whole game (≈1.3 s, Node) inside /api/room/start → OPEN (fine on Workers paid 30 s, exceeds free-plan 10 ms; mitigate by scaling ai.js CANDIDATES with seat count). Noted, not a bug: a skip in the dry final round puts the tile back and the extra round deals it to seat_order[0].
+
+| Effect | Fires when | Exactly | Bounds | Owner | Pinned by |
+|---|---|---|---|---|---|
+| Setup | init | start `base:city1-road-straight` at (0,0) r0, removed from bag; bag = 71 (std) / 42 (quick) / 143 (big) shuffled; each seat `meeples` (7, 5–10); one tile dealt per seat in seat order, dead tiles discarded | 1–12 seats | rules.js initRealmwrightSeats/buildBag | init, deck option tests |
+| Placement | PLACE_TILE | empty cell, ≥1 neighbour, every touching port same kind; r 0–3 | \|x\|,\|y\| ≤ 999 | board.js fits | legality tests |
+| Meeple | with placement | ≤1, on placed tile only, merged feature unclaimed, meeples_left > 0, field only if farmers on | strict integer index | rules.js applyPlacement | loud errors, garbage meeple |
+| Road complete | placement closes | 1 / tile → majority (ties share), meeples return | loops count once per tile | board.js FEATURE_KINDS.road | completed road |
+| City complete | placement closes | 2 / tile + 2 / pennant; small_city: 2-tile city = 1/tile (+1/pennant) | — | FEATURE_KINDS.city | completed city, shared majority |
+| Cloister complete | 9 cells filled | 9 | own + 8 neighbours | FEATURE_KINDS.cloister | cloister scores 9 |
+| Farmer | never mid-game | stays until end | — | FEATURE_KINDS.field | farmer-beside-city test |
+| Dead tile | deal / after any placement | discard, redraw, tile_serial++ | bag may empty → seat sits out | rules.js drawTile/knockOnRedraw | knock-on redraw |
+| End: incomplete | bag dry, round done | road 1/tile · city 1/tile + 1/pennant · cloister 1 + neighbours | — | board.js endGameScores | end-game test |
+| End: fields | bag dry, farmers on | 3 per completed city touching the field, majority per field; a city touching several fields scores for each | — | FEATURE_KINDS.field | 3rd-edition shared city |
+| Winner | game end | highest score; ties shared (results in seat order, all tied crowned) | — | rules.js completeGame | ties at the end |

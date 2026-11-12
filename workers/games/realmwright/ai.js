@@ -90,15 +90,19 @@ export function chooseRealmwrightPlacement(game, mark, legal, rng = Math.random)
   };
   const oppWeight = OPP_WEIGHT[level] / Math.max(1, Math.sqrt(game.seat_order.length - 1));
 
-  // Bounded candidate set (random subset when the frontier is huge).
+  // Bounded candidate set (random subset when the frontier is huge). The cap
+  // shrinks on bot-heavy tables so one round barrier (every bot placing in a
+  // single Worker request) stays cheap: up to 4 bots get the full budget.
+  const bots = game.seat_order.filter((m) => game.players[m] && game.players[m].is_bot).length;
+  const cap = Math.max(12, Math.floor(CANDIDATES[level] * 4 / Math.max(4, bots)));
   let candidates = legal;
-  if (legal.length > CANDIDATES[level]) {
+  if (legal.length > cap) {
     const copy = legal.slice();
     for (let i = copy.length - 1; i > 0; i -= 1) {
       const j = Math.floor(rng() * (i + 1));
       [copy[i], copy[j]] = [copy[j], copy[i]];
     }
-    candidates = copy.slice(0, CANDIDATES[level]);
+    candidates = copy.slice(0, cap);
   }
 
   const baseline = level >= 3 ? potential(derive(game.board, defs), mark, ctx, oppWeight) : 0;

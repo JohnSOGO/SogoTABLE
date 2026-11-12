@@ -288,7 +288,9 @@ function applyPlacement(game, mark, move) {
   const rawMeeple = move.meeple;
   let meeple = null;
   if (rawMeeple !== null && rawMeeple !== undefined && rawMeeple !== "") {
-    meeple = Number(rawMeeple);
+    // Only an integer (or its digit string) names a feature: booleans, arrays
+    // and objects must not coerce to feature 0/1 via Number().
+    meeple = typeof rawMeeple === "number" || (typeof rawMeeple === "string" && /^\d{1,3}$/.test(rawMeeple)) ? Number(rawMeeple) : NaN;
     const f = Number.isInteger(meeple) ? def.features[meeple] : null;
     if (!f) throw new Error(`That tile has no feature #${rawMeeple}.`);
     if (seat.meeples_left <= 0) throw new Error("You have no meeples left — place without one.");
@@ -366,7 +368,7 @@ function completeGame(game) {
 // ---------- skip vote ----------
 
 function skippable(game, target) {
-  const seat = game.players[target];
+  const seat = Object.hasOwn(game.players, target) ? game.players[target] : null;
   return Boolean(seat && !seat.is_bot && !isDone(seat));
 }
 function skipVoters(game, target) {
@@ -398,7 +400,7 @@ function applySkip(game, mark, action) {
 export function makeRealmwrightMove(game, mark, action) {
   normalizeRealmwrightGame(game);
   if (game.status === "complete") throw new Error("Game is complete.");
-  const seat = game.players[mark];
+  const seat = Object.hasOwn(game.players, mark) ? game.players[mark] : null;
   if (!seat) throw new Error("You are not seated in this game.");
   if (seat.is_bot) throw new Error("Bot seats play automatically.");
   const type = String(action && action.type || "").trim();

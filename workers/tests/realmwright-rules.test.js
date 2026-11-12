@@ -151,6 +151,35 @@ test("loud errors: bad feature, no meeples, farmers off, bad rotation, bot seat,
   assert.throws(() => place(g, "P1", 2, 0, 0, null), /already placed/);
 });
 
+test("garbage meeple values never coerce into a feature; prototype marks are not seats", () => {
+  const g = makeGame([human("P1"), human("P2")]);
+  g.players.P1.tile = J3;
+  for (const bad of [false, true, [], [0], {}, "x", "1e0", 0.5, -1]) {
+    assert.throws(() => place(g, "P1", 1, 0, 0, bad), /no feature/, `meeple ${JSON.stringify(bad)}`);
+  }
+  for (const mark of ["__proto__", "constructor", "toString"]) {
+    assert.throws(() => makeRealmwrightMove(g, mark, { type: "PLACE_TILE" }), /not seated/);
+  }
+  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "SKIP_PLAYER", round: g.round, target: "__proto__" }), /can't be skipped/);
+  place(g, "P1", 1, 0, 0, "0"); // a digit string still names feature 0
+  assert.deepEqual(g.board[g.board.length - 1].meeples, [{ f: 0, mark: "P1" }]);
+  assert.equal(g.players.P1.meeples_left, 6);
+});
+
+test("closing a city returns its knight but never the farmer beside it", () => {
+  const g = makeGame([human("P1"), human("P2")]);
+  g.board[0].meeples = [{ f: 2, mark: "P2" }]; // farmer on the start tile's city-side field
+  g.players.P2.meeples_left = 6;
+  g.players.P1.tile = "base:city1";
+  place(g, "P1", 0, -1, 2, 0); // cap facing south closes the 2-tile city, knight on it
+  assert.equal(g.players.P1.score, 4);
+  assert.equal(g.players.P1.meeples_left, 7, "knight came home");
+  assert.deepEqual(g.board[0].meeples, [{ f: 2, mark: "P2" }], "farmer stays");
+  assert.equal(g.players.P2.meeples_left, 6);
+  const p2 = realmwrightGameToDict(g).players.find((p) => p.mark === "P2");
+  assert.equal(p2.projected, 3, "farmer will score the finished city at the end");
+});
+
 test("parallel conflict: first placement wins, second is rejected and re-places", () => {
   const g = makeGame([human("P1"), human("P2")]);
   g.players.P1.tile = "base:road-straight";
