@@ -18,6 +18,8 @@ Every file cue falls back to its synth cue (muted device, no `<audio>`, or the f
 3. Map the file in `src/sogotable/static/sound-files.js` (global cues), or in the game's `assets.js` `ASSETS.sounds` (per-game cues). Only map files that are committed.
 4. Add a row below.
 
+Win/lose jingles were chosen by melodic direction (rising for win, falling for lose) and should be confirmed by ear.
+
 Playback level: global file cues play at 0.35 (`cue()` in `sound.js`), and per-game cues use their `sfx.js` level. Both are scaled by the 5-step volume control. Tune by ear on a phone speaker at level 2.
 
 ## Files
@@ -31,13 +33,20 @@ Playback level: global file cues play at 0.35 (`cue()` in `sound.js`), and per-g
 | `static/sounds/trick-take.mp3` | global `trickTake` (Hearts) | Kenney Casino Audio 1.1, `card-shove-1.ogg` | CC0 |
 | `static/games/last-orders/sounds/play.mp3` | Last Orders `play` | Kenney Casino Audio 1.1, `card-place-2.ogg` | CC0 |
 | `static/games/last-orders/sounds/coins.mp3` | Last Orders `coins` | Kenney Casino Audio 1.1, `chips-handle-1.ogg` | CC0 |
+| `static/sounds/win.mp3` | global `win` | Kenney Music Jingles, `Steel jingles/jingles_STEEL02.ogg` | CC0 |
+| `static/sounds/lose.mp3` | global `lose` | Kenney Music Jingles, `Pizzicato jingles/jingles_PIZZI01.ogg` | CC0 |
+| `static/sounds/room-created.mp3` | global `roomCreated` | Kenney Interface Sounds, `confirmation_001.ogg` | CC0 |
+| `static/sounds/invite.mp3` | global `invite` | Kenney Interface Sounds, `glass_001.ogg` | CC0 |
+| `static/sounds/player-joined.mp3` | global `playerJoined` | Kenney Impact Sounds, `impactWood_light_000` + `_002` 170 ms apart (two knocks) | CC0 |
+| `static/games/battleship/sounds/fire.mp3` | Battleship `fire` | Kenney Sci-fi Sounds, `lowFrequency_explosion_001.ogg` | CC0 |
+| `static/games/battleship/sounds/hit.mp3` | Battleship `hit` | Kenney Sci-fi Sounds, `explosionCrunch_002.ogg` | CC0 |
 
-Kenney packs are CC0 (credit welcome but not required): Kenney Vleugels, https://kenney.nl.
+All Kenney packs (Casino Audio, Interface Sounds, Impact Sounds, Sci-fi Sounds, Music Jingles) are CC0 (credit welcome but not required): Kenney Vleugels, https://kenney.nl.
 
 ## Still synth (no file yet)
 
-- Need Kenney Impact / Music Jingles packs: Battleship `fire`, `hit`, `miss`, `sunk`, `incoming`; global `win`, `lose`, `roomCreated`, `playerJoined`, `invite`.
-- Need generation (Stable Audio Open, not installed on SogoAI as of 2026-11-12): `farkle`, `heartsBroken`, `queenSpades`, `moonShot`, `mysticHorn`.
+- No good Kenney match (no water or sinking sounds): Battleship `miss`, `sunk`, `incoming`.
+- Need generation (Stable Audio Open on SogoAI): `farkle`, `heartsBroken`, `queenSpades`, `moonShot`, `mysticHorn`, plus the Battleship three above.
 - Kept synth on purpose: `scorePick` (also Mazewright loot), UI ticks, Chinese Checkers and Realmwright cues (already tuned for their art).
 
 Service worker: MP3s use the network-first runtime cache in `static/service-worker.js`, so each file is cached after its first play and works offline from then on. They are not precached.
