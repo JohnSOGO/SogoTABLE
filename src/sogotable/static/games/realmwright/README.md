@@ -22,6 +22,8 @@ decided, and one `PLACE_TILE` (tile + optional meeple) is sent per round.
 | `panels.js` | Status strip, action tray, score table, final results (HTML strings). |
 | `lobby.js` | Host options over the shared `renderHostStartLobby`; store keyed by room+epoch; `getStartArg → { realm_options }`. |
 | `fx.js` | Animation timeline (view only): one queue of timed beats from new events — tile drop, meeple drop ~1 s later, scoring jump + "+N", round banner, last-tile pulse, score count-up, game-over sequence. Absolute start times + negative `animation-delay`, so re-renders never restart it; Plays even when the OS asks for reduced motion (`HONOR_OS_REDUCED_MOTION` in fx.js turns that back on). |
+| `deal-fx.js` | New-tile intro: the dealt tile shows large over the map for 1 s, then glides into the hand slot over 1 s (view only). |
+| `round-timer.js` | Timed play: countdown + pause button in the status bar, warning ticks from 10 s and a gong at zero (the server closes the round). |
 | `bot-tick.js` | Bot think-time nudger: maps the earliest unplaced bot's `act_at` onto the local clock (`server_now` offset) + a per-seat stagger and sends `BOT_TICK`; errors are silent, retries back off. |
 | `sfx.js` | Sound cues as tone + noise data via `sound.js` `playTones`: natural wood clacks, marimba and bell voices (no square/saw "8-bit" waves), including the UI `tap`. Event-log diffing so everyone hears completions. |
 | `styles.js` | Scoped `.realmwright-root` CSS (`rw-*` classes), `#macroBoard` / `#turnStatus` neutralisers, dark block. |

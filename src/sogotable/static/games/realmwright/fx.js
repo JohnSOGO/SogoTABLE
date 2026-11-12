@@ -26,11 +26,12 @@ const PULSE_MS = 1400;
 const BANNER_MS = 1700;
 const COUNT_MS = 650;
 const MAX_LAG_MS = 8000;
+export const SCORE_FRAME_MS = 1000; // the camera glides to frame my scoring before it plays
 
 let FX = blank("");
 
 function blank(key) {
-  return { key, items: [], queueEnd: 0, lastPlaceStart: -Infinity, timers: [], counters: new Map(), mineUntil: 0 };
+  return { key, items: [], queueEnd: 0, lastPlaceStart: -Infinity, timers: [], counters: new Map(), mineUntil: 0, scoreFrame: null };
 }
 
 // The owner wants every animation to play (camera zoom, drops, scoring
@@ -48,6 +49,12 @@ export function reducedMotion() {
 // finished playing — render.js holds the auto-zoom until then.
 export function fxMineUntil() {
   return FX.mineUntil;
+}
+
+// Where and when to frame the scoring my placement caused: { at, cells }
+// (cells as [x, y]; every scored tile plus the meeples standing on it).
+export function fxScoreFrame() {
+  return FX.scoreFrame;
 }
 
 export function fxReset(key) {
@@ -110,7 +117,14 @@ export function fxEnqueue(fresh, { board, myMark, round, now = Date.now() }) {
       if (mine) FX.mineUntil = Math.max(FX.mineUntil, landed + 300);
       t = landed + (meeple ? 250 : 0);
     } else if (e.type === "score") {
-      const start = e.final ? t : t + 120;
+      let start = e.final ? t : t + 120;
+      if (afterMine && !e.final) {
+        // First score of my placement: glide to frame it, then celebrate.
+        const cells = [...(Array.isArray(e.cells) ? e.cells : []), ...(Array.isArray(e.meeples) ? e.meeples.map((m) => [m.x, m.y]) : [])];
+        if (!FX.scoreFrame || FX.scoreFrame.at < now) FX.scoreFrame = { at: t, cells };
+        else FX.scoreFrame.cells.push(...cells);
+        if (FX.scoreFrame.at === t) start = t + SCORE_FRAME_MS;
+      }
       const meeples = Array.isArray(e.meeples) ? e.meeples : [];
       const marks = Array.isArray(e.marks) ? e.marks : [];
       FX.items.push({ type: "score", start, end: start + CELEB_MS, meeples, marks, points: Number(e.points) || 0, cells: Array.isArray(e.cells) ? e.cells : [] });
