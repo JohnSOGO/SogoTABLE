@@ -11,7 +11,7 @@
 // The DOM skeleton is kept across snapshots; each section repaints only when
 // its markup changes, and one delegated click listener handles every control.
 import { playClick } from "../../sound.js";
-import { svgDataUrl, tableBgSvg } from "./art.js";
+import { tableBgCssUrl } from "./art.js";
 import { GAME_EMOJI, GAME_NAME, UI } from "./branding.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
@@ -433,7 +433,7 @@ function paint(ctx, fresh) {
   const g = ctx.game;
   if (S.bgTheme !== vm.theme) {
     S.bgTheme = vm.theme;
-    root.style.setProperty("--lo-table-img", `url("${svgDataUrl(tableBgSvg({ theme: vm.theme }))}")`);
+    root.style.setProperty("--lo-table-img", tableBgCssUrl({ theme: vm.theme }));
   }
   const picking = g.phase === "pick" && g.status === "playing";
   const complete = g.status === "complete";

@@ -108,3 +108,8 @@ If work should proceed, include the next concrete action:
 
 [Decision and next action.]
 ```
+
+## Applied reviews
+
+- 2026-11-12, recorded sound files: `docs/audio.md` (revision 2026-11-12).
+- 2026-11-12, illustrated picture files (SVG stays the fallback): `docs/PICTURES.md`.

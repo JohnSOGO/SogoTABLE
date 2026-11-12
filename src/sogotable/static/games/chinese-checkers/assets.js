@@ -50,7 +50,8 @@ export const ASSETS = {
   // Glass look: how far the gradient lightens/darkens the seat colour.
   marbleLook: { highlight: 0.62, core: 0.08, edge: 0.42, specular: 0.85, radius: 0.40 },
   marble: null,
-  board: null,
+  // Illustrated wood inlay (docs/PICTURES.md); the star clip and holes are drawn on top.
+  board: new URL("./img/board.webp", import.meta.url).href,
   sounds: { step: null, hop: null, land: null, capture: null, bounce: null, lock: null, round: null, finish: null, win: null, reject: null, tick: null, turn: null },
 };
 
