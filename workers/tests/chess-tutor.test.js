@@ -206,3 +206,14 @@ test("chess tutor: progress normalizes junk and keeps unknown help keys out", ()
   assert.deepEqual(p.stats.days, ["2026-01-01"]);
   assert.equal(positionKey("a b c d 0 1"), "a b c d");
 });
+
+test("chess tutor: watch mode speed — faster speed means shorter waits, saved speed is clamped", async () => {
+  const { watchDelay, WATCH_SPEEDS } = await import("../../src/sogotable/static/games/chess-tutor/watch-view.js");
+  assert.ok(watchDelay(4) < watchDelay(1) && watchDelay(1) < watchDelay(0.25));
+  assert.ok(watchDelay(1, "a long explanation ".repeat(5)) > watchDelay(1, ""), "long notes get reading time");
+  assert.equal(watchDelay(99), watchDelay(1), "unknown speeds fall back to 1×");
+  assert.ok(WATCH_SPEEDS.includes(1));
+  assert.equal(normalizeProgress({ watchSpeed: 2 }).watchSpeed, 2);
+  assert.equal(normalizeProgress({ watchSpeed: 50 }).watchSpeed, 1);
+  assert.equal(emptyProgress().watchSpeed, 1);
+});

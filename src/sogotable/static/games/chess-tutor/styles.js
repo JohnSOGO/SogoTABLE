@@ -70,5 +70,12 @@ html[data-theme="dark"] .chess-tutor-root .ct-badge.ct-mastered{color:#14110e;}
 .chess-tutor-root .ct-summary{text-align:center;display:flex;flex-direction:column;gap:8px;}
 .chess-tutor-root .ct-summary .ct-big{font-size:2rem;}
 .chess-tutor-root .ct-credits{font-size:.75rem;color:var(--ct-muted);text-align:center;}
+.chess-tutor-root .ct-watch-controls{display:grid;grid-template-columns:1fr 1fr 2fr 1fr;gap:8px;}
+.chess-tutor-root .ct-speed{display:flex;align-items:center;gap:10px;font-weight:600;}
+.chess-tutor-root .ct-speed input{flex:1;accent-color:var(--ct-accent);min-height:32px;}
+.chess-tutor-root .ct-speed output{min-width:3.2em;text-align:right;font-variant-numeric:tabular-nums;}
+.chess-tutor-root .ct-line-row{display:flex;gap:8px;align-items:stretch;}
+.chess-tutor-root .ct-line-row .ct-line{flex:1;}
+.chess-tutor-root .ct-watch{flex:0 0 auto;border:1px solid var(--ct-line);background:var(--ct-chip);color:var(--ct-ink);border-radius:12px;padding:0 14px;font:inherit;font-weight:600;cursor:pointer;min-height:48px;}
 #chessTutor .ct-mount{max-width:1000px;margin:0 auto;width:100%;}
 `;

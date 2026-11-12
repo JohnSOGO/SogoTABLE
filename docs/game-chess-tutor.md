@@ -27,7 +27,7 @@ full games.
 | `scheduler.js` | Leitner spaced repetition. Pure, with the clock passed in |
 | `session.js` | Picks the next new line, finds due lines (mixed across openings) and gives weak lines extra weight in spar |
 | `progress.js` | The only module that does I/O: load, save, record a drill, and the streak |
-| `render.js`, `drill-view.js`, `board.js`, `styles.js`, `index.js` | Screens, the board wrapper, scoped CSS with dark tokens, and orchestration |
+| `render.js`, `drill-view.js`, `watch-view.js`, `board.js`, `styles.js`, `index.js` | Screens, the board wrapper, scoped CSS with dark tokens, and orchestration |
 
 Vendored libraries live in `static/vendor/`, one folder per library with its
 LICENSE, unmodified:
@@ -55,6 +55,13 @@ We deliberately did not use:
    popularity. Lines with weak or due positions get three times the weight, so
    the drill steers toward what the student is shaky on. A spar ends when the
    game leaves the book.
+
+5. **Watch it played.** Each line has a **▶ Watch** button, and each opening has
+   **Watch all lines**. Both sides' moves play out automatically with their notes
+   and arrows. There is play/pause, a step back and forward, a restart, and a
+   speed slider from 0.25× to 4×. The speed is saved per player, and long notes
+   get extra reading time. **Practice this line** jumps straight into learning or
+   drilling it. Watching is never graded.
 
 ### Grading (one card per position where it is the student's move)
 

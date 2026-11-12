@@ -96,22 +96,27 @@ export function renderOpening(host, { opening, progress, dueLineIds, now }, hand
     <div class="ct-row">
       <button type="button" class="ct-btn" data-action="learn" ${nextLine ? "" : "disabled"}>${nextLine ? `Learn: ${escapeHtml(nextLine.name)}` : "All lines learned"}</button>
       <button type="button" class="ct-btn ct-secondary" data-action="review" ${dueLineIds.length ? "" : "disabled"}>Review due (${dueLineIds.length})</button>
+      <button type="button" class="ct-btn ct-secondary" data-action="watch">▶ Watch all lines</button>
       <button type="button" class="ct-btn ct-secondary" data-action="spar" ${studied ? "" : "disabled"} title="The defender picks book replies and deviations at random, favouring your weak lines">Spar the defender</button>
     </div>
     <p class="ct-group-title">Lines</p>
     <div class="ct-lines">${opening.lines.map((line) => {
       const status = lineStatus(opening, line, progress.cards, now);
       const kind = line.kind === "trap" ? " · trap" : line.kind === "sideline" ? " · sideline" : "";
-      return `<button type="button" class="ct-line" data-line="${escapeHtml(line.id)}" data-status="${status}">
+      return `<div class="ct-line-row"><button type="button" class="ct-line" data-line="${escapeHtml(line.id)}" data-status="${status}">
         <span>${escapeHtml(line.name)}<small>${line.plies.length} moves${kind}</small></span>${STATUS_BADGE[status]}
-      </button>`;
+      </button><button type="button" class="ct-watch" data-watch-line="${escapeHtml(line.id)}" aria-label="Watch ${escapeHtml(line.name)} played" title="Watch it played">▶ Watch</button></div>`;
     }).join("")}</div>
-    <p class="ct-muted">Tap a new line to learn it, or a learned line to drill it from memory.</p>
+    <p class="ct-muted">Tap a new line to learn it, or a learned line to drill it from memory. ▶ Watch plays a line out with its explanations, at the speed you pick.</p>
     <div class="ct-row"><button type="button" class="ct-btn ct-secondary" data-action="home">All openings</button></div>`;
   host.querySelector('[data-action="learn"]').addEventListener("click", () => nextLine && handlers.learn(opening.id, nextLine.id));
   host.querySelector('[data-action="review"]').addEventListener("click", () => handlers.reviewOpening(opening.id));
   host.querySelector('[data-action="spar"]').addEventListener("click", () => handlers.spar(opening.id));
   host.querySelector('[data-action="home"]').addEventListener("click", handlers.home);
+  host.querySelector('[data-action="watch"]').addEventListener("click", () => handlers.watch(opening.id, null));
+  host.querySelectorAll("[data-watch-line]").forEach((button) => {
+    button.addEventListener("click", () => handlers.watch(opening.id, button.dataset.watchLine));
+  });
   host.querySelectorAll("[data-line]").forEach((button) => {
     button.addEventListener("click", () => {
       if (button.dataset.status === "new") handlers.learn(opening.id, button.dataset.line);

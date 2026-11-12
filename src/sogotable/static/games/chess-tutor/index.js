@@ -7,9 +7,10 @@ import { OPENINGS, TUTOR } from "./openings.js";
 import { CHESS_TUTOR_CSS } from "./styles.js";
 import { renderHome, renderOpening } from "./render.js";
 import { mountDrill } from "./drill-view.js";
+import { mountWatch } from "./watch-view.js";
 import { dueLines, nextNewLine, weaknessFor } from "./session.js";
 import { formatWait, nextDue } from "./scheduler.js";
-import { lineCardKeys } from "./session.js";
+import { lineCardKeys, lineStatus } from "./session.js";
 import { loadProgress, saveProgress, recordDrill, streak } from "./progress.js";
 
 let shell = null;
@@ -19,6 +20,7 @@ let playerId = "";
 let view = { name: "home" };
 let queue = [];
 let activeDrill = null;
+let activeWatch = null;
 
 function mountEl() {
   return document.querySelector("#chessTutor .ct-mount");
@@ -71,6 +73,7 @@ function render() {
   const title = document.getElementById("chessTutorTitle");
   if (title) title.textContent = `${TUTOR.icon} ${TUTOR.name}`;
   if (view.name === "drill") return renderDrill(host);
+  if (view.name === "watch") return renderWatch(host);
   if (view.name === "opening") {
     const opening = openingById(view.openingId);
     if (opening) {
@@ -128,6 +131,26 @@ function renderDrill(host) {
   activeDrill = { handle, opening };
 }
 
+function renderWatch(host) {
+  const opening = openingById(view.openingId);
+  const lines = view.lineId ? opening.lines.filter((l) => l.id === view.lineId) : opening.lines;
+  const back = { name: "opening", openingId: opening.id };
+  activeWatch = mountWatch(host, {
+    opening,
+    lines,
+    speed: progress.watchSpeed,
+    onSpeed: (speed) => { progress = { ...progress, watchSpeed: speed }; persist(); },
+    onPractice: (lineId) => {
+      activeWatch = null;
+      const status = lineStatus(opening, opening.lines.find((l) => l.id === lineId), progress.cards, Date.now());
+      view = back;
+      if (status === "new") handlers.learn(opening.id, lineId);
+      else handlers.drillLine(opening.id, lineId);
+    },
+    onExit: () => { activeWatch = null; view = back; render(); },
+  });
+}
+
 // Records the drill, queues follow-ups, and tells the view what "Next" does.
 function finishItem(item, drill) {
   const now = Date.now();
@@ -180,6 +203,10 @@ const handlers = {
   drillLine(openingId, lineId) {
     startQueue([{ openingId, lineId, mode: "review" }], { name: "opening", openingId });
   },
+  watch(openingId, lineId) {
+    view = { name: "watch", openingId, lineId };
+    render();
+  },
   spar(openingId) {
     startQueue([{ openingId, lineId: null, mode: "spar" }], { name: "opening", openingId });
   },
@@ -199,8 +226,10 @@ export function wireChessTutor(shellCtx) {
     } else {
       // Leaving the screen mid-drill keeps the grades earned so far.
       stopActiveDrill(true);
+      if (activeWatch) { activeWatch.dispose(); activeWatch = null; }
       queue = [];
       if (view.name === "drill") view = view.returnTo || { name: "home" };
+      if (view.name === "watch") view = { name: "opening", openingId: view.openingId };
     }
   }).observe(section, { attributes: true, attributeFilter: ["class"] });
 }

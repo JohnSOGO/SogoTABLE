@@ -235,6 +235,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/chess-tutor/scheduler.js",
   "src/sogotable/static/games/chess-tutor/session.js",
   "src/sogotable/static/games/chess-tutor/styles.js",
+  "src/sogotable/static/games/chess-tutor/watch-view.js",
   "src/sogotable/static/vendor/chessjs/LICENSE",
   "src/sogotable/static/vendor/chessjs/chess.js",
   "src/sogotable/static/vendor/cm-chessboard/LICENSE",

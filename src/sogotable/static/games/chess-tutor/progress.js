@@ -13,7 +13,7 @@ export const DEFAULT_HELPS = {
 };
 
 export function emptyProgress() {
-  return { version: 1, cards: {}, helps: { ...DEFAULT_HELPS }, stats: { drills: 0, perfect: 0, days: [], lastDay: "" } };
+  return { version: 1, cards: {}, helps: { ...DEFAULT_HELPS }, watchSpeed: 1, stats: { drills: 0, perfect: 0, days: [], lastDay: "" } };
 }
 
 export function normalizeProgress(raw) {
@@ -26,7 +26,9 @@ export function normalizeProgress(raw) {
   }
   const stats = { ...base.stats, ...(raw.stats && typeof raw.stats === "object" ? raw.stats : {}) };
   stats.days = Array.isArray(stats.days) ? stats.days.filter((d) => typeof d === "string").slice(-60) : [];
-  return { version: 1, cards, helps, stats };
+  const speed = Number(raw.watchSpeed);
+  const watchSpeed = Number.isFinite(speed) && speed >= 0.25 && speed <= 4 ? speed : 1;
+  return { version: 1, cards, helps, watchSpeed, stats };
 }
 
 export function loadProgress(playerId) {
