@@ -1157,3 +1157,62 @@ client-side wnyk modules for the import-closure guard.
     - No Date.now()/timers outside the seam default; deadlines enforced lazily per action.
 - Reorganizer:  NONE
 - New owner row: none (directory pattern)
+
+## 2026-11-12 — REORG: extract Battleship fleet geometry + theme CSS from client.js
+
+```
+REORG RECEIPT
+- Trigger:      placement-advisor flagged src/sogotable/static/games/battleship/client.js (746 lines,
+                near the 800-line GLOBAL_FILE_CAP) as too full / carrying too many concerns to absorb
+                the upcoming Battleship feature; named two seams: pure fleet geometry and theme CSS.
+- Seam moved:   (1) pure fleet geometry — randomBattleshipDraft, battleshipShipAt, battleshipShipSunk,
+                coerceBattleshipPlacement, clampNumber, battleshipPlacementValid, battleshipFleetComplete,
+                battleshipShipSize, battleshipShipCells, battleshipDraftKey — from client.js to
+                src/sogotable/static/games/battleship/fleet-geometry.js (named exports);
+                (2) dark-theme CSS string BATTLESHIP_DARK_CSS from client.js to
+                src/sogotable/static/games/battleship/styles.js, exported as BATTLESHIP_CSS
+                [EXISTING owner via the src/sogotable/static/games/ owned-directory pattern —
+                no new module-ownership row].
+- Room opened:  client.js 746 → 613 lines (187 under GLOBAL_FILE_CAP 800); fleet-geometry.js 97,
+                styles.js 48. No per-file ceiling (client.js is not in CEILINGS/FILE_CAP_EXCEPTIONS);
+                GLOBAL_FILE_CAP unchanged (shared backstop).
+- Behavior:     PRESERVED — verbatim move, no logic/name/signature changes. The draft store
+                (battleshipDrafts, battleshipDraftFor, placeBattleshipDraftShip, clearBattleshipDraft)
+                and the injector ensureBattleshipTheme stay in client.js; same <style id="battleship-theme">
+                text injected. fleet-geometry.js and styles.js are pure leaves (no DOM, no ctx, no
+                module state, no imports). client.js public exports unchanged.
+- Files rewired: client.js (imports), src/sogotable/static/review-export.js (both new files added to
+                REVIEW_EXPORT_FILES), new workers/tests/battleship-fleet-geometry.test.js.
+- Verification:  node --test workers/tests/*.test.js → 517 pass, 0 fail (incl. architecture.test.js).
+- Restraint:    renderers, reveal subsystem, move action, and draft store untouched; no worker-side
+                (workers/games/battleship/) changes; no feature code added.
+                Reorganizer: reorganizer agent (2026-11-12).
+```
+
+## 2026-11-12 — Battleship visual + sound upgrade (client-only)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Client-only Battleship upgrade — 3D-look SVG ship overlay, animated water /
+                hit / fire / splash / sink / shake fx, richer synth cues needing a
+                filtered-noise primitive, swappable assets (palette, ship art, sound files),
+                and per-device options (effects full/lite/off, tilt, coord labels, fleet
+                tracker). No server/rules/transport change.
+- Verdict:      EXISTING owners, no new owner row (src/sogotable/static/games/ dir pattern):
+                  • games/battleship/assets.js — swappable palette/ship/sound overrides (data)
+                  • games/battleship/ship-art.js — pure SVG ship builders
+                  • games/battleship/fx.js — reveal→fx markup/classes; reduced-motion + level gate;
+                    driven by the existing reveal timeline (no second timer)
+                  • games/battleship/sfx.js — cue tone data + playCue; absorbs playBattleshipHit/Miss
+                  • games/battleship/styles.js — all new CSS (styles-games.css untouched)
+                  • games/battleship/settings.js — per-device prefs (sogotable.battleship.view)
+                sound.js (EXISTING): filtered-noise voice via playTones `{type:"noise"}`.
+                client.js: wiring only (reorg-first commit made room: 746 → 613).
+- Flow stage:   render UI + record-outcome feedback. No normalize/validate/apply/persist/broadcast change.
+- Considerations:
+    - storage.js rejected for game-local prefs (platform keys only).
+    - Fleet tracker counts only Worker-revealed sunk ships on offence; no hidden-info inference.
+    - Overlay is pointer-events:none so tilt/touch hit-testing still lands on cells.
+    - Next seam when client.js regrows: reveal subsystem + move action → reveal.js.
+- New owner row: none.
+```
