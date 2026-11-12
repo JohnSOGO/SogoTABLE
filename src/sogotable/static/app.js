@@ -38,6 +38,9 @@ import { scheduleWinOverlay, hideWinOverlay, wireWinOverlay, resetWinCelebration
 import { showToast, showInfoToast } from "./controllers/toast.js";
 import { wireRoomShare, captureJoinLink, resumePendingJoin, renderRoomShare } from "./controllers/room-share.js";
 import { syncTurnAttention } from "./client/turn-attention.js";
+import * as activeGames from "./client/active-games.js";
+import { wireGameAlerts, alertNeedsMe, notificationPermission, requestNotificationPermission, takeRoomFromUrl } from "./client/game-alerts.js";
+import { wireGameSwitcher, renderGameSwitcher } from "./controllers/game-switcher.js";
 import { wireRoomList, renderCurrentGames, renderActiveGameNotice, resetRoomListKeys, playerSignature } from "./controllers/room-list.js";
 import { wireTurnStatus, renderGamePlayerSwitch, showTurnStatus, setTurnStatusText } from "./controllers/turn-status.js";
 import { downloadReviewZip } from "./review-export.js";
@@ -240,7 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshGameDefinitions();
   renderGames();
   renderAppearanceChoices();
-  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate).then(() => resumePendingJoin());   // after an auto-update, put the player back
+  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate).then(() => resumePendingJoin()).then(() => { const code = takeRoomFromUrl(); if (code) jumpToRoom(code); void activeGames.refreshActiveGames(); });   // after an auto-update, put the player back
   renderSelectedGame();
   renderSelectedPlayer();
   renderCurrentPlayer();
@@ -285,10 +288,52 @@ document.addEventListener("DOMContentLoaded", () => {
     isSuperuser: isSogoSuperuserSelected, onEnter: enterRoomSummary, onSuperClose: closeRoomAsSuperuser,
   });
   wireRoomShare({ joinRoomByCode: (code) => enterRoomSummary({ code }), hasSelectedPlayer: () => Boolean(deviceSelectedPlayer()), isSoloRoom });
+  wireMultiGame();
   captureJoinLink();
   bindRefreshTitleControls();
   realtime.connectAppEvents();
 });
+
+// Several games at once: step out to the dashboard keeping the seat, the 🎲
+// switcher, and "a game needs you" alerts (client/active-games.js decides when).
+function wireMultiGame() {
+  activeGames.configureActiveGames({
+    onNeedsMe: (entry) => alertNeedsMe({ code: entry.code, title: gameName(entry.gameId), text: "It's your move" }),
+    onChange: renderGameSwitcher,
+  });
+  wireGameSwitcher({
+    getGames: activeGames.activeGamesList, getBadgeCount: activeGames.needsMeElsewhereCount, getViewedCode: activeGames.getViewedRoomCode,
+    gameName, onOpen: jumpToRoom, onKeepSeatBack: keepSeatBack, alertState: notificationPermission, onEnableAlerts: requestNotificationPermission,
+  });
+  wireGameAlerts(jumpToRoom);
+  document.getElementById("keepSeatBack").addEventListener("click", keepSeatBack);
+}
+
+// Back to the games list without leaving: the seat, the table and the game go on.
+function keepSeatBack() {
+  if (!currentRoom) return;
+  activeGames.parkRoom(currentRoom.code);
+  if (currentRoom.local_mode) restoreLocalGameHomePlayer(currentRoom);
+  detachFromRoom();
+  showScreen("games");
+}
+
+function detachFromRoom() {
+  hostInviteStatus = null; currentRoom = null; activeGameRoom = null; lastRenderedRoomKey = "";
+  hideWinOverlay();
+  stopRoomLiveUpdates();
+}
+
+// Jump into one of my tables (switcher, alert, notification) — the current one stays seated.
+function jumpToRoom(code) {
+  if (currentRoom && currentRoom.code === code) return showScreen("game");
+  const entry = activeGames.activeGamesList().find((item) => item.code === code);
+  if (currentRoom) { activeGames.parkRoom(currentRoom.code); detachFromRoom(); }
+  if (entry && canonicalGameId(entry.gameId) !== selectedGameId) {
+    selectedGameId = canonicalGameId(entry.gameId); saveSelectedGame(); renderGames(); renderSelectedGame(); realtime.sendAppEventSubscription();
+  }
+  void enterRoomSummary({ code });
+}
 
 function bindTouchZoomGuard() {
   let lastTapTime = 0;
@@ -567,7 +612,7 @@ async function autoOpenActiveRoomForSelectedPlayer({ allowHidden = false } = {})
     item.status === "active" &&
     item.players.some((seat) => seat.id === player.id && !seat.away)
   ));
-  if (!room || (currentRoom && currentRoom.code === room.code)) return false;
+  if (!room || (currentRoom && currentRoom.code === room.code) || activeGames.isParked(room.code)) return false;
   try {
     const data = await fetchJson(roomReadUrl(room.code));
     if (!data.ok) return false;
@@ -1112,11 +1157,7 @@ async function closeGame() {
     }
   }
   forgetLocalGameHomePlayer(roomToClose);
-  hostInviteStatus = null;
-  currentRoom = null;
-  activeGameRoom = null;
-  hideWinOverlay();
-  stopRoomLiveUpdates();
+  detachFromRoom();
   refreshGameRooms();
   showScreen("gameSelected");
 }
@@ -1138,12 +1179,7 @@ async function closeRoomAsSuperuser(code) {
     if (currentRoom && currentRoom.code === code) {
       restoreLocalGameHomePlayer(currentRoom);
       forgetLocalGameHomePlayer(currentRoom);
-      hostInviteStatus = null;
-      currentRoom = null;
-      activeGameRoom = null;
-      lastRenderedRoomKey = "";
-      hideWinOverlay();
-      stopRoomLiveUpdates();
+      detachFromRoom();
       showScreen("gameSelected");
     }
     refreshGameRooms();
@@ -1400,6 +1436,7 @@ function setRoom(room) {
   renderRoomSlots();
   renderRoomShare(room, getDeviceSelectedPlayerId());
   syncTurnAttention(room, localRoomSeat(room), isSoloRoom(room));
+  activeGames.noteRoom(room);
   renderGame();
   handleIncomingResetRequest();
 }
@@ -1678,10 +1715,12 @@ function pickupAtCell(game, boardIndex, cellIndex) {
 
 function startRoomLiveUpdates() {
   if (!currentRoom) return;
+  activeGames.setViewedRoom(currentRoom.code);
   realtime.startRoomLiveUpdates(currentRoom.code);
 }
 
 function stopRoomLiveUpdates() {
+  activeGames.setViewedRoom(null);
   realtime.stopRoomLiveUpdates();
   syncTurnAttention(null);
 }
@@ -1793,12 +1832,7 @@ async function refreshHostInviteStatus() {
 function leaveClosedRoom() {
   restoreLocalGameHomePlayer(currentRoom);
   forgetLocalGameHomePlayer(currentRoom);
-  hostInviteStatus = null;
-  currentRoom = null;
-  activeGameRoom = null;
-  lastRenderedRoomKey = "";
-  hideWinOverlay();
-  stopRoomLiveUpdates();
+  detachFromRoom();
   renderGames();
   refreshGameRooms();
   showScreen("gameSelected");

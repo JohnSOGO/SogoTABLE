@@ -86,10 +86,9 @@ export function setMyTurn(isMine) {
 }
 
 // Shell hook, called with every applied room snapshot (and with null on exit).
-// Uses the platform-wide `game.current_player` convention — the same signal the
-// realtime poll and the turn-change sound already rely on. Games that track turns
-// differently (simultaneous phases, per-game turn indexes) simply never light the
-// signal; a per-game "awaiting seats" projection would be a server-side follow-up.
+// Reads the server-prepared `room.awaiting_marks` (each game's awaitingMarks, so
+// simultaneous and phase-driven games light it too), falling back to the
+// platform-wide `game.current_player` for an older snapshot without it.
 export function syncTurnAttention(room, localSeat, isSolo) {
   const remote = Boolean(room && !room.local_mode && !isSolo);
   if (!remote) {
@@ -98,5 +97,7 @@ export function syncTurnAttention(room, localSeat, isSolo) {
   }
   if (!active) startTurnAttention();
   const playing = Boolean(room.started && room.game && room.game.status === "playing");
-  setMyTurn(Boolean(playing && localSeat && localSeat.mark && localSeat.mark === room.game.current_player));
+  const mark = localSeat && localSeat.mark;
+  const waitingOnMe = Array.isArray(room.awaiting_marks) ? room.awaiting_marks.includes(mark) : mark === room.game.current_player;
+  setMyTurn(Boolean(playing && mark && waitingOnMe));
 }

@@ -28,7 +28,7 @@ concern), then implement.
 | `src/sogotable/static/client/session-store.js` | Device identity + seat-resolution priority (upstream state owner) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/client/app-update.js` | Deploy-version watch (revision.json poll + SW update + Worker-version skew), safe-reload gate, resume marker read/write, update overlay show/hide | `src/sogotable/static/app.js` |
 | `src/sogotable/static/api-client.js` | HTTP transport to the Worker | — |
-| `src/sogotable/static/realtime.js` | Room + app-event WebSocket controller | — |
+| `src/sogotable/static/realtime.js` | Room + app-event WebSocket controller + background room watchers | — |
 | `src/sogotable/static/storage.js` | localStorage/sessionStorage keys + load/migrate helpers | — |
 | `src/sogotable/static/sound.js` | Audio synthesis + playback | — |
 | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map (cue name → recorded file URL or null); no logic | `src/sogotable/static/sound.js` |
@@ -47,6 +47,9 @@ concern), then implement.
 | `src/sogotable/static/controllers/toast.js` | Non-blocking transient toast notices (replaces window.alert) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/room-share.js` | Room join-link sharing: `?join=` deep-link read/consume, navigator.share / copy, QR render | `src/sogotable/static/app.js` |
 | `src/sogotable/static/client/turn-attention.js` | Out-of-page "your turn" attention: document.title prefix, app badge, vibrate, Screen Wake Lock while a room is open — consumes a prepared is-my-turn flag, owns no turn logic | `src/sogotable/static/app.js` |
+| `src/sogotable/static/client/active-games.js` | The player's active rooms across games: seeds itself from /api/my-rooms (and on foreground), fed by snapshots + background room watchers, kept-seat (parked) set, needs-me edge detection from prepared awaiting_marks — owns no turn logic and no DOM | `src/sogotable/static/app.js` |
+| `src/sogotable/static/client/game-alerts.js` | Needs-me alert delivery: Notification permission + show (service-worker registration first), toast-with-jump, sound cue, notification-click → open room | `src/sogotable/static/app.js` |
+| `src/sogotable/static/controllers/game-switcher.js` | Active-games switcher (🎲 triggers + badge + list sheet, keep-seat back, alerts opt-in) — render + intent only, via wireGameSwitcher(ctx) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/player-appearance.js` | Player-edit appearance picker (icon + colour) | — |
 | `src/sogotable/static/controllers/superuser.js` | Sogo superuser identity + passcode gate | — |
 | `src/sogotable/static/controllers/local-seat.js` | Local hot-seat seat persistence (device-local) | — |

@@ -1598,3 +1598,20 @@ REORG RECEIPT (R2)
   controllers/room-list.js, wired with wireRoomList(ctx). Behaviour unchanged. app.js ceiling re-pinned
   2155 → 2058 (+ buffer); APP_TOP_LEVEL_LET_CAP ratcheted 25 → 23.
 ```
+
+```
+PLACEMENT RECEIPT
+- Ask:          app.js is 2097 lines against a 2083 ceiling after the multi-game shell wiring; rule between
+                re-pinning (a) and a controllers/multi-game.js (b)
+- Verdict:      app.js [EXISTING, bless-and-raise after moving 3 pieces into client/active-games.js]
+- Flow stage:   orchestrate (screen/room switching)
+- Considerations:
+    - Rejected (b): a module that only assembles a dependency bag is a pass-through; keepSeatBack /
+      jumpToRoom / detachFromRoom change shell state and stay in the shell
+    - Moved out first: the /api/my-rooms fetch, the createRoomWatcher injection, the visibilitychange
+      refresh and getPlayerId all live in active-games.js via direct downstream imports
+    - Four duplicate room-drop blocks collapsed into detachFromRoom(); no new lets (cap 23); app.js is
+      still ~70 lines below its 2165 before R2
+    - Ceiling re-pinned at 2092 + WORKING_BUFFER
+- New owner row: none (client/active-games.js row amended)
+```
