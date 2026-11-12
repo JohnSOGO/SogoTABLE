@@ -16,7 +16,13 @@ export function handHtml(vm) {
   if (!hand.length) return `<div class="lo-hand-empty">${vm.esc(UI.emptyHand)}</div>`;
   const playable = new Set(me.playable || []);
   const mode = vm.mode;
-  const cards = hand.map((c) => {
+  // Playable cards slide to the left (stable, so the rest keep their order).
+  // Only while the playable glow is on: with the help off, order stays a secret.
+  const sortPlayable = vm.showPlayable && mode !== "discard";
+  const ordered = sortPlayable
+    ? [...hand.filter((c) => playable.has(c.uid)), ...hand.filter((c) => !playable.has(c.uid))]
+    : hand;
+  const cards = ordered.map((c) => {
     const isPlayable = playable.has(c.uid);
     const def = vm.defs[c.id] || {};
     const state = {
