@@ -63,3 +63,12 @@ Picking (2026-11-12) was done by measurement, not by ear: takes with clipped (fu
 
 Service worker: MP3s use the network-first runtime cache in `static/service-worker.js`, so each file is cached after its first play and works offline from then on. They are not precached.
 | `static/sounds/card-deal.mp3`, `trick-take.mp3`, `win.mp3` (shared, no new files) | Tracklayers `draw`, `tickets`, `win` via `games/tracklayers/assets.js` | as above | CC0 |
+
+## Reviewing sounds and pictures (Asset Review)
+
+The Sogo admin's lobby has an **Admin → 🎧 Asset Review** screen (`static/admin/asset-review/`, loaded only when opened). For each sound cue it plays the shipped file, every alternate Stable Audio Open take, and the synth fallback, and "In game" plays the cue through the game's own code at game volume. It draws the waveform and shows length, peak, RMS level, size, clipped samples and leading silence against the targets above. A/B compare, "Match loudness", filters by kind, game and status, keyboard shortcuts (press `?`) and a progress count are built in. Pictures from every game's `assets.js` are listed too, shown full size and at in-game card size on light, dark or felt.
+
+Each verdict (approved / rejected / not reviewed, a note, the picked take, and a "regenerate with my note" flag) is saved by the Worker under `data.asset_reviews` (`workers/asset-reviews.js`, Sogo passcode on every route). Read them with `npm run assetreviews -- <passcode>` or the screen's Markdown/JSON export. The app never changes a shipped file: swapping in a picked take or regenerating is done afterwards from the export, and the row above is updated.
+
+Alternate takes: all four seeds of each generated cue are in `static/sounds/takes/<global|game>/<cue>/seed-<n>.mp3`, converted with the same steps as the shipped files and listed in `admin/asset-review/takes.js`. Only this screen loads them; they are not precached.
+

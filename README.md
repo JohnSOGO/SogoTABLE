@@ -96,6 +96,16 @@ npm run test:e2e
 
 Lint and formatting use the standard tools: `npm run lint` (ESLint, also in CI) and `npm run format:check` / `npm run format` (Prettier; config in `.prettierrc.json`, not yet enforced in CI so existing files are reformatted gradually rather than in one huge diff).
 
+## Asset review (admin)
+
+Signed in as the Sogo admin, the lobby shows an **Admin → 🎧 Asset Review** card. It lists every sound cue (shipped file, the Stable Audio Open takes, the synth fallback) and every picture, with approve/reject, a note, a picked take and a "regenerate with my note" flag. Verdicts are stored by the Worker. To read them later (for example in a Claude session):
+
+```sh
+npm run assetreviews -- <sogo-passcode>   # writes asset-review/review.md and review.json (git-ignored)
+```
+
+The screen also has Markdown, JSON and Copy buttons. See `docs/SOUNDS.md`.
+
 Run `npm run hooks` once per clone to install the git pre-push hook that runs `npm test` and blocks a red push (the mechanical test gate).
 
 ## Principles
