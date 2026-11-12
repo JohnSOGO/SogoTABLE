@@ -168,3 +168,11 @@ recipe:
 - `games/yahtzee/render.js` — dark `:root[data-theme="dark"] .yz-root { … }` override appended to the injected `.yz-root` styles.
 - `styles.css` — `#intro` opening-screen dark override (in the dark-fixups block).
 - `styles-games.css` — 10,000 dice-game dark fixes live in its in-game-shell dark block.
+
+## 2026-11 refresh
+
+Warmer, less pink neutrals (`--bg*`, `--line`, `--muted`), neutral secondary buttons, and a shape/depth
+scale in `styles-tokens.css`: `--radius-sm` (10px, buttons/inputs), `--radius` (14px, panels/cards),
+`--radius-lg` (22px, modals), `--shadow-sm` / `--shadow-md`, and `--font-ui` (rounded system face where
+available). Chrome sheets consume these; per-game board CSS is untouched. Buttons get a pressed state
+and a visible keyboard focus ring.
