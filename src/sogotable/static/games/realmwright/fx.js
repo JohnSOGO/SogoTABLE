@@ -11,8 +11,8 @@
 // the board should show right now (tiles still waiting are hidden, meeples
 // that already went home stay drawn through their celebration) plus the next
 // time something changes, so render.js can schedule one repaint.
-// State is keyed by room+epoch; prefers-reduced-motion skips straight to the
-// end state (render.js then never enqueues).
+// State is keyed by room+epoch. reducedMotion() (off by default, see below)
+// would skip straight to the end state.
 import { featureAnchor } from "./art.js";
 import { playCue } from "./sfx.js";
 
@@ -33,7 +33,14 @@ function blank(key) {
   return { key, items: [], queueEnd: 0, lastPlaceStart: -Infinity, timers: [], counters: new Map() };
 }
 
+// The owner wants every animation to play (camera zoom, drops, scoring
+// jumps), and a Windows "animation effects off" or phone "reduce motion"
+// setting was silently switching them all off. Flip this to true to honour
+// the OS setting again.
+const HONOR_OS_REDUCED_MOTION = false;
+
 export function reducedMotion() {
+  if (!HONOR_OS_REDUCED_MOTION) return false;
   try { return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch { return false; }
 }
 
