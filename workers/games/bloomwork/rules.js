@@ -446,7 +446,9 @@ export function bloomworkGameToDict(game) {
       round_log: seat.round_log,
     };
   });
-  const { bag, lid, next_first: _nf, players: _p, ...rest } = game;
+  const rest = { ...game };
+  const { bag, lid } = game;
+  delete rest.bag; delete rest.lid; delete rest.next_first; delete rest.players;
   return {
     ...rest,
     game_id: BLOOMWORK_GAME_ID,
