@@ -1461,3 +1461,55 @@ PLACEMENT RECEIPT
     - sound-files.js must not import sound.js (cycle).
 - New owner row: | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map … | `src/sogotable/static/sound.js` |
 ```
+## 2026-11-12 — Reefkeepers (new game module, domino drafting, simultaneous submit)
+
+- Ask:          Place a new host-start, parallel-play domino-drafting reef builder (5x5 grid,
+                region x pearls), following game-integration-spec.md with Realmwright as precedent.
+- Verdict:      workers/games/reefkeepers/ (tiles, board, rules, ai) + src/sogotable/static/games/
+                reefkeepers/ (manifest, branding, assets, art, render [+views], lobby, sfx, styles)
+                + one-row wiring (registry.js, game-kinds.js, app.js, handlers.js row +
+                gameToDictForViewer line, stats.js, review-export.js, tests/helpers.js,
+                sogotable-api.test.js list) [EXISTING owner: directory patterns]
+- Flow stage:   validate + apply (board/rules, server-authoritative at the round barrier);
+                render (client dir); record (stats.js score branch).
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js,
+                scripts/audit-ceilings.mjs, docs/placement-receipts.md, app.js, service-worker.js.
+- Considerations:
+    - app.js ~2174/2180: +1 import line only; ids appended to existing predicate lines.
+      Parallel game merges share 6 lines of headroom; crossing = re-consult, never bump.
+    - Scoring/legality in pure board.js, deck in tiles.js, so rules.js stays well under 800.
+    - Skip vote reuses workers/games/skip-vote.js; lobby reuses shared games/lobby.js.
+    - Rejected: draft/barrier logic in skip-vote.js, the shared lobby, or the shell.
+    - Hidden picks: the handlers.js row and the gameToDictForViewer line land in one commit.
+    - No reefkeepers file may import another game's module.
+- Reorganizer:  NONE
+- New owner row: none
+
+## 2026-11-12 — REORG: extract host-start render dispatch to games/room-render-dispatch.js
+
+```
+REORG RECEIPT
+- Trigger:      src/sogotable/static/app.js at 2175/2180 with several host-start games landing;
+                each new game added a render import + two predicate-list edits to app.js.
+- Seam moved:   host-start render dispatch (15 render imports, the host-start branch predicate
+                list and the render-function chooser ternary) from `src/sogotable/static/app.js`
+                to `src/sogotable/static/games/room-render-dispatch.js` as an ordered
+                HOST_START_RENDERERS table + pickHostStartRenderer(game, kinds) [NEW owner row]
+- Room opened:  app.js: 2175 → 2163 lines; ceiling stays 2155+25 (= 2180). Re-pinning at
+                2163+25 would RAISE the cap, which a reorg never does; per-game cost in app.js
+                is now zero lines, so the 17 lines of headroom are not consumed by new games.
+- Behavior:     PRESERVED — verified via `npm test` (all green); same predicate set (the old
+                condition == chooser set + Yahtzee fallback), same chooser order with Yahtzee
+                last, same render args; predicates are id-exclusive so order cannot change
+                which renderer wins. Kinds object is the same createGameKinds instance.
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js,
+                src/sogotable/static/app.js, src/sogotable/static/games/game-kinds.js,
+                src/sogotable/static/controllers/turn-status.js,
+                src/sogotable/static/review-export.js, docs/game-integration-spec.md,
+                docs/placement-receipts.md
+- Restraint:    Ten Thousand (own branch + extra args) and legacy games untouched. The
+                renderGamePlayerSwitch hide list in controllers/turn-status.js was NOT driven
+                from the table: it includes Ten Thousand and omits WNYK, so unifying would
+                change behavior. The wireTurnStatus predicate pass-through stays as-is.
+- New owner row: | `src/sogotable/static/games/room-render-dispatch.js` | Host-start game render dispatch — predicate → `render*Game` table + `pickHostStartRenderer` (kinds injected) | `src/sogotable/static/app.js` |
+```
