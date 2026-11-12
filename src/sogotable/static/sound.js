@@ -112,6 +112,27 @@ function playSequence(tones) {
   tones.forEach((tone) => playTone(tone));
 }
 
+// Generic cue seam for game modules that define their own SFX as tone data
+// (e.g. games/realmwright/sfx.js) — synthesis + mute/volume stay owned here.
+export function playTones(tones) {
+  if (Array.isArray(tones)) playSequence(tones);
+}
+
+// Play a sound file (an asset override), honouring mute + volume. Returns
+// false when it could not start so callers can fall back to a synth cue.
+export function playSoundFile(url, volume = 0.6) {
+  if (!isSoundEnabled() || !url || typeof Audio === "undefined") return false;
+  try {
+    const audio = new Audio(url);
+    audio.volume = Math.max(0, Math.min(1, volume * scaledVolume(1) / 1.55));
+    const played = audio.play();
+    if (played && played.catch) played.catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function playClick() {
   playTone({ frequency: 420, duration: 0.035, type: "square", volume: 0.018 });
 }

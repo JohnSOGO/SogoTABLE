@@ -94,6 +94,7 @@ import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { renderRttaGame } from "./games/rtta/render.js";
 import { renderPotionLabGame } from "./games/potion-lab/render.js";
+import { renderRealmwrightGame } from "./games/realmwright/render.js";
 import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
 import { renderWnykGame } from "./games/wnyk/render.js";
 import {
@@ -121,7 +122,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState, isRealmwrightGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -1655,10 +1656,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game) || isRealmwrightGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : isRealmwrightGameState(game) ? renderRealmwrightGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
@@ -1788,7 +1789,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game) || isPotionLabGameState(currentRoom.game) || isMysticWoodGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game) || isPotionLabGameState(currentRoom.game) || isMysticWoodGameState(currentRoom.game) || isRealmwrightGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }
@@ -2259,4 +2260,4 @@ function showRosterError(message) {
 function saveSelectedGame() {
   localStorage.setItem("sogotable.selectedGameId", selectedGameId);
 }
-
+

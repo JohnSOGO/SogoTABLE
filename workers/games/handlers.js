@@ -81,6 +81,9 @@ import {
 import {
   WNYK_GAME_ID, isWnykGame, newWnykGame, initWnykSeats, setWnykOptions, makeWnykMove, wnykGameToDict, wnykGameToDictForViewer,
 } from "./wnyk/rules.js";
+import {
+  REALMWRIGHT_GAME_ID, isRealmwrightGame, newRealmwrightGame, initRealmwrightSeats, setRealmwrightOptions, makeRealmwrightMove, realmwrightGameToDict, realmwrightGameToDictForViewer,
+} from "./realmwright/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -154,6 +157,14 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isWnykGame(prevGame) && prevGame.options) setWnykOptions(nextGame, { target_score: prevGame.options.target_score, deck: prevGame.options.deck });
     } },
+  { id: REALMWRIGHT_GAME_ID, is: isRealmwrightGame, create: newRealmwrightGame, toDict: realmwrightGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeRealmwrightMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initRealmwrightSeats,
+    // Host options (farmers, live tally, meeples, small city, deck) from the
+    // lobby, applied at /api/room/start and carried across a reset.
+    applyStartOptions: (game, payload) => setRealmwrightOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isRealmwrightGame(prevGame) && prevGame.options) setRealmwrightOptions(nextGame, { realm_options: prevGame.options });
+    } },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -209,6 +220,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isHeartsGame(game)) return heartsGameToDictForViewer(game, viewerMark);
   if (isPotionLabGame(game)) return potionLabGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isWnykGame(game)) return wnykGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isRealmwrightGame(game)) return realmwrightGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }
 

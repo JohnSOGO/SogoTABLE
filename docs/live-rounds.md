@@ -5,6 +5,9 @@ This document captures the SogoTable timing-mode ideology from the incoming `AI/
 > **Status:** first realized live-round game shipped — **Roll Through the Ages**
 > (`timingMode: "liveRound"`). Each player commits one turn per round in any order;
 > the round resolves once every human has submitted. See [game-rtta.md](game-rtta.md).
+> **Realmwright** ([game-realmwright.md](game-realmwright.md)) is the first live
+> round on a **shared board**: one tile per seat per round, placements resolve
+> immediately in server order, stale intents are rejected with a reason.
 
 ## Core Idea
 

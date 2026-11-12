@@ -26,6 +26,7 @@ export const GAME_IDS = {
   potionLab: "e7c1a4b9d206",
   mysticWood: "a9f2c7e14b83",
   wnyk: "c9d4e72a81f5",
+  realmwright: "4d8e2b6a9c13",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -235,5 +236,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["potion_lab", "potion-lab", "potionlab", "sushi_go", "sushi-go"],
+  },
+  {
+    id: GAME_IDS.realmwright,
+    lobbyMode: "hostStart",
+    name: "🏰 Realmwright",
+    summary: "Lay land tiles to grow one shared realm of cities, roads, cloisters and fields — and everyone places at the same time each round. Claim features with your meeples and score them as they close. One or more builders; bots fill the table.",
+    players: "1+ players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["realmwright", "realm_wright", "tile_realm", "tile_laying"],
   },
 ];
