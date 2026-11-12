@@ -14,6 +14,8 @@ This ledger records known compromises that are acceptable for the current family
 - Rate limiting is intentionally coarse. The current owner-token model protects identity mutations, and the Worker has per-client write and superuser verification limits, but there is no per-player, per-room, or adaptive abuse policy yet.
 - The service worker cache name is manually bumped when shell assets change.
 
+- Hand-rolled HTTP routing, string errors, and an unbundled frontend are scheduled for standard replacements (Hono + Zod, typed error codes, Vite + Preact/htm, OpenSkill) in staged PRs: see `docs/standard-stack-plan.md`.
+
 ## Risks
 
 - A single D1 state row increases conflict pressure as public usage grows.
