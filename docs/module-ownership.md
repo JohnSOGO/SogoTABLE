@@ -80,6 +80,7 @@ Each game owns its own subtree; per-game files do not need individual rows.
 |---|---|
 | `src/sogotable/static/games/` | A game's browser module (client / render / rules / state / manifest / index) |
 | `workers/games/` | A game's server rules + bot |
+| `src/sogotable/static/vendor/` | Vendored third-party browser libraries, one library per subdirectory, unmodified, with its LICENSE beside it (chess.js BSD-2, cm-chessboard MIT). Imported by game modules; never edited in place — upgrade by replacing the folder |
 
 ## Exempt (no architectural owner required)
 

@@ -319,6 +319,9 @@ const GLOBAL_FILE_CAP = 800;
 // Same size + WORKING_BUFFER rule as CEILINGS above (the literal is the size at the
 // last ratchet); these sit below the 800 backstop while their own split completes.
 const FILE_CAP_EXCEPTIONS = {
+  // Third-party, unmodified, vendored chess.js v1.4.0 (BSD-2). Upgrade by replacing
+  // the file and re-pinning; never edit or minify it to fit the cap.
+  "src/sogotable/static/vendor/chessjs/chess.js": 3368 + WORKING_BUFFER,
   // Per-domain split is in progress (review #5): the 10,000 domain now lives in
   // sogotable-api-ten-thousand.test.js. Ratchet this down as more domains peel off.
   "workers/tests/sogotable-api.test.js": 2262 + WORKING_BUFFER,
