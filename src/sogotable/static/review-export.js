@@ -16,6 +16,7 @@ const REVIEW_EXPORT_FILES = [
   "scripts/clear-bug-reports.mjs",
   "workers/sogotable-api.js",
   "workers/room-view.js",
+  "workers/room-seats.js",
   "workers/bug-reports.js",
   "workers/custom-cards.js",
   "workers/card-ratings.js",

@@ -1246,3 +1246,32 @@ PLACEMENT RECEIPT
     - Next seam when client.js regrows: reveal subsystem + move action → reveal.js.
 - New owner row: none.
 ```
+
+## 2026-11-12 — REORG: extract room seat roster lifecycle to workers/room-seats.js
+Commit: refactor(worker): extract seat-roster lifecycle to workers/room-seats.js (this entry's commit)
+
+```
+REORG RECEIPT
+- Trigger:      workers/sogotable-api.js was at 1242 lines against a 1254 ceiling (12 lines of
+                headroom) and is the named owner pressure for upcoming seat-lifecycle work
+                (leave / host handoff / rejoin); the seat-roster cluster is the named seam.
+- Seam moved:   Seat roster lifecycle — addPlayerToRoom, activateRoomIfReady, startRoom, playerMark,
+                handleResetVote, ensureRoomSeatColors, nonConflictingRoomColor, colorsAreTooSimilar,
+                colorDistance, safeHexColor, hexToRgb + ROOM_SEAT_COLORS, COLOR_SIMILARITY_THRESHOLD —
+                from `workers/sogotable-api.js` to `workers/room-seats.js`; plus the inline
+                host-start mark re-pack in /api/room/remove-bot extracted as
+                repackHostStartMarks(room) (guard included; only one call site existed)  [NEW owner row]
+- Room opened:  sogotable-api.js: 1242 → 1125 lines (as the test counts them); ceiling 1229+25 → 1125+25.
+                room-seats.js 138 lines.
+- Behavior:     PRESERVED — verified via `npm test` (all green); functions moved verbatim (only
+                `export` added); same error strings, same mark/colour assignment, same reset-vote
+                tally, same revision bump. Dead imports (gameUsesHostStart, resetRoomGame) dropped
+                from the entry. room-seats.js imports only game-catalog / games/bots /
+                games/handlers / room-view — never the entry.
+- Sources read: CLAUDE.md, docs/module-ownership.md, docs/modularity.md, docs/placement-receipts.md,
+                workers/tests/architecture.test.js, workers/sogotable-api.js,
+                src/sogotable/static/review-export.js
+- Restraint:    No leave/rejoin/host-handoff behavior added (owner row anticipates it; the feature
+                lands there next). lobbyViewers, bot-turn loop, routing untouched.
+- New owner row: | `workers/room-seats.js` | Room seat roster lifecycle: seat/mark assignment + colours, activation/start, leave (pre-start removal with mark re-pack + host handoff; post-start away), rejoin, reset-vote tally | `workers/sogotable-api.js` |
+```
