@@ -8,7 +8,7 @@ import { renderHostStartLobby } from "../lobby.js";
 import { LOBBY } from "./branding.js";
 import { playCue } from "./sfx.js";
 
-export const REALM_DEFAULTS = { farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard" };
+export const REALM_DEFAULTS = { farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard", time_limit: 0 };
 
 let lobbyKey = "";
 let lobbyStore = null;
@@ -54,6 +54,7 @@ export function renderRealmwrightLobby(host, ctx) {
         ${segment("show_spots", [[true, LOBBY.on], [false, LOBBY.off]], stored, esc)}
         ${segment("meeples", [5, 6, 7, 8, 9, 10].map((n) => [n, String(n)]), stored, esc)}
         ${segment("small_city", [[false, LOBBY.off], [true, LOBBY.on]], stored, esc)}
+        ${segment("time_limit", [[0, LOBBY.off], [30, "30s"], [45, "45s"], [60, "1m"], [90, "1½m"], [120, "2m"]], stored, esc)}
         ${segment("deck", [["quick", LOBBY.deckNames.quick], ["standard", LOBBY.deckNames.standard], ["big", LOBBY.deckNames.big]], stored, esc)}
         ${hint}
       </div>`,

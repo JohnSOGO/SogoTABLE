@@ -18,6 +18,7 @@ import { boardBounds, buildBoardMarkup } from "./board-svg.js";
 import { TICKER, UI } from "./branding.js";
 import { renderRealmwrightLobby } from "./lobby.js";
 import { botTickInFlight, syncBotTick } from "./bot-tick.js";
+import { clockState, clockText, clockWarn, syncRoundClock } from "./round-timer.js";
 import { countShown, fxEnqueue, fxFrame, fxMineUntil, fxOverlayMarkup, fxReset, reducedMotion, runCounters } from "./fx.js";
 import { bagPanelHtml, meepleChoices, resultsHtml, stripHtml, tableHtml, tilesLeft, trayHtml } from "./panels.js";
 import { consumeEvents, playCue } from "./sfx.js";
@@ -91,6 +92,7 @@ export function renderRealmwrightGame(ctx) {
     busy: () => S.sending || (typeof ctx.isMovePending === "function" && ctx.isMovePending()),
     send: (action) => (S.lastCtx || ctx).makeMove(action),
   });
+  syncRoundClock(key, game, me.myMark, mountedRoot);
 }
 
 function mountedRoot() {
@@ -141,6 +143,7 @@ function handleEvents(ctx, me) {
     fxEnqueue(fresh, { board: Array.isArray(ctx.game.board) ? ctx.game.board : [], myMark: me.myMark, round: ctx.game.round });
   }
   if (fresh.some((e) => e.type === "redraw" && e.mark === me.myMark)) setFlash(UI.redrawn, "info");
+  if (fresh.some((e) => e.type === "skip" && e.timeout && e.mark === me.myMark)) setFlash(UI.timedOut, "error");
   if (ctx.game.status === "playing") S.sawPlaying = true;
 }
 
@@ -164,7 +167,9 @@ function tickerText(ctx) {
       ? TICKER.score(e.marks.map(name), e.kind, e.points)
       : TICKER.scoreNobody(e.kind);
     case "redraw": return TICKER.redraw(name(e.mark));
-    case "skip": return TICKER.skip(name(e.mark));
+    case "skip": return e.timeout ? TICKER.timeout(name(e.mark)) : TICKER.skip(name(e.mark));
+    case "pause": return TICKER.pause(name(e.mark));
+    case "resume": return TICKER.resume(name(e.mark));
     case "round": return TICKER.round(e.round);
     case "end": return TICKER.end;
     default: return "";
@@ -349,6 +354,19 @@ async function confirm(ctx, me) {
   repaint();
 }
 
+// Pause / resume the round clock (any seated player; the server decides).
+function toggleClock() {
+  const ctx = S.lastCtx;
+  if (!ctx || movePending(ctx)) return;
+  const me = seatInfo(ctx);
+  const state = clockState(ctx.game);
+  if (!state || !me.mySeat || me.mySeat.is_bot) return;
+  playCue("tap");
+  Promise.resolve(ctx.makeMove({ type: state.paused ? "RESUME_TIMER" : "PAUSE_TIMER", round: ctx.game.round })).then((error) => {
+    if (typeof error === "string" && error) { setFlash(error, "error"); repaint(); }
+  }).catch(() => {});
+}
+
 function voteSkip(ctx, target) {
   if (movePending(ctx)) return;
   playCue("tap");
@@ -447,8 +465,15 @@ function buildViewModel(ctx, me, frame) {
     idleChoiceText: acting ? (showSpots ? UI.pickSpotFirst : UI.pickSpotFree) : (seat && seat.placed ? UI.statusPlaced : seat && seat.skipped ? UI.statusSkipped : ""),
     myStateText, ticker: tickerText(ctx), flash: S.flash && S.flash.until > Date.now() ? S.flash : null,
     liveTally: Boolean(game.options && game.options.live_tally), rows, results, winnerNames,
+    clock: clockView(game, seat),
     complete: game.status === "complete",
   };
+}
+
+function clockView(game, seat) {
+  const state = clockState(game);
+  if (!state) return null;
+  return { text: clockText(state.msLeft), paused: state.paused, warn: clockWarn(state), canToggle: Boolean(seat && !seat.is_bot) };
 }
 
 // ---------- paint ----------
@@ -478,6 +503,7 @@ function ensureSkeleton(host) {
   attachGestures(viewport, { getCam: () => S.cam, onTap: onBoardTap, onManual: onManualCamera });
   // Bag chip (strip, repainted) and the panel's ✕ both toggle the panel.
   root.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest("[data-rw-clock]")) { toggleClock(); return; }
     if (!e.target.closest || !e.target.closest("[data-rw-bag]")) return;
     S.bagOpen = !S.bagOpen;
     playCue("tap");

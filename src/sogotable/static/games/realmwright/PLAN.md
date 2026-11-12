@@ -85,6 +85,7 @@ own tile and places it whenever they like — no waiting for turns.
 | `farmers` | `"on"` / `"off"` | `"on"` | fields are claimable + scored at end |
 | `live_tally` | `true` / `false` | `true` | scoreboard shows a live **projected** total (incomplete features + fields as if the game ended now) next to the banked score |
 | `show_spots` | `true` / `false` | `true` | glow the cells where the dealt tile fits. Off: no glow; the player taps any free cell next to the board, rotates through all four turns, and a spot that does not fit previews red with Confirm disabled. The server still projects `legal` (the client checks against it; it never computes legality) |
+| `time_limit` | `0` / `30` / `45` / `60` / `90` / `120` | `0` | seconds per round (0 = untimed). At the deadline bots still thinking place and humans still holding a tile are skipped; `PAUSE_TIMER` / `RESUME_TIMER {round}` freeze and restart it. Projection adds `round_deadline` and `timer_paused_left` |
 | `meeples` | 5–10 | 7 | meeples per seat |
 | `small_city` | `true` / `false` | `false` | completed 2-tile city scores 2, not 4 |
 | `deck` | `"standard"` / `"quick"` / `"big"` | `"standard"` | 72 tiles · ~half (ratios kept) · ×2 for big tables |
@@ -95,7 +96,7 @@ own tile and places it whenever they like — no waiting for turns.
 ```js
 {
   game_id, status: "playing" | "complete", round, move_count,
-  options: { farmers, live_tally, show_spots, meeples, small_city, deck, expansions },
+  options: { farmers, live_tally, show_spots, time_limit, meeples, small_city, deck, expansions },
   seat_order: ["P1", ...],
   players: { [mark]: { is_bot, level, score, meeples_left,
     breakdown: { city, road, cloister, field },

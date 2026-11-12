@@ -37,6 +37,19 @@ phone sends `BOT_TICK` when a bot's time comes. A
 dropped player can be skipped by unanimous vote of those who have already
 placed (`workers/games/skip-vote.js`).
 
+## Round timer (optional)
+
+With a round timer set in the lobby, the countdown sits in the status bar
+with a ⏸ / ▶ button any seated player can use (the server freezes the time
+left). From 10 s a wooden tick sounds each second for anyone who hasn't
+placed, sharper for the last 3, and a gong at zero. At the deadline the
+server places any bot still thinking and skips every human still holding a
+tile (tile back in the bag, `skip` event with `timeout: true`); the next
+round deals. The Worker has no timers, so clients nudge it with `BOT_TICK`
+at the deadline (`bot-tick.js`); the countdown and sounds live in
+`round-timer.js`. Projection: `round_deadline` (server ms, 0 = untimed or
+paused) and `timer_paused_left` (ms).
+
 ## Scoring
 
 | Feature | Completed | End of game |
@@ -51,7 +64,7 @@ that includes fields (the *live tally* option).
 
 ## Host options
 
-Farmers on/off · live tally on/off · show valid spots on/off · meeples 5–10 · small-city rule · deck
+Farmers on/off · live tally on/off · show valid spots on/off · round timer off/30s/45s/1m/1½m/2m · meeples 5–10 · small-city rule · deck
 standard (72) / quick (~36) / big (×2 for big tables). Full table and wire
 contract: `src/sogotable/static/games/realmwright/PLAN.md`.
 

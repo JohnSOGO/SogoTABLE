@@ -47,6 +47,21 @@ const CUES = {
     { type: "noise", frequency: 3200, filter: "bandpass", q: 5, duration: 0.025, attack: 0.001, volume: 0.035 },
     { frequency: 1400, slideTo: 1100, duration: 0.03, type: "sine", volume: 0.02 },
   ],
+  // Round timer warning: a wooden tick each second from 10 s, sharper for the
+  // last 3, and a low gong when time is up.
+  tick: () => [
+    { type: "noise", frequency: 2400, filter: "bandpass", q: 6, duration: 0.03, attack: 0.001, volume: 0.06 },
+    { frequency: 1000, slideTo: 820, duration: 0.04, type: "sine", volume: 0.03 },
+  ],
+  tickUrgent: () => [
+    { type: "noise", frequency: 3400, filter: "bandpass", q: 7, duration: 0.035, attack: 0.001, volume: 0.08 },
+    { frequency: 1500, slideTo: 1250, duration: 0.06, type: "sine", volume: 0.045 },
+  ],
+  timeUp: () => [
+    ...bell(196, { volume: 0.06, decay: 1.8 }),
+    ...bell(293.66, { volume: 0.03, decay: 1.4 }),
+    { type: "noise", frequency: 300, filter: "lowpass", q: 0.7, duration: 0.25, attack: 0.004, volume: 0.05 },
+  ],
   place: () => woodClack(1),
   placeOther: () => woodClack(0.55),
   // A wooden figure tapped onto its spot: a hollow "tok".
@@ -81,7 +96,7 @@ const CUES = {
   ],
 };
 
-const OVERRIDE_KEY = { tap: "tap", place: "place", placeOther: "place", meeple: "meeple", complete: "complete", reject: "reject", round: "round", win: "win" };
+const OVERRIDE_KEY = { tick: "tick", tickUrgent: "tick", timeUp: "timeUp", tap: "tap", place: "place", placeOther: "place", meeple: "meeple", complete: "complete", reject: "reject", round: "round", win: "win" };
 
 export function playCue(name, arg) {
   const url = ASSETS.sounds && ASSETS.sounds[OVERRIDE_KEY[name]];

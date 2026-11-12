@@ -10,10 +10,18 @@ export function stripHtml(vm, esc) {
   const tickerText = vm.flash ? vm.flash.text : (vm.ticker || "");
   return `<div class="rw-strip-line">
       <span class="rw-chip-round">${esc(UI.round(vm.round))}</span>
+      ${vm.clock ? clockHtml(vm.clock, esc) : ""}
       <button type="button" class="rw-chip-bag${vm.bagOpen ? " rw-on" : ""}" data-rw-bag aria-expanded="${vm.bagOpen}" title="${esc(UI.bagOpen(vm.bagCount))}">🎒 ${vm.bagCount}</button>
       <span class="rw-mystate">${esc(vm.myStateText)}</span>
     </div>
     <div class="rw-strip-line rw-ticker${tickerClass}">${tickerText ? esc(tickerText) : "&nbsp;"}</div>`;
+}
+
+// The round clock: time left plus a pause / resume button (any seated player).
+function clockHtml(clock, esc) {
+  const label = clock.paused ? UI.clockResume : UI.clockPause;
+  return `<span class="rw-clock${clock.warn ? " rw-clock-warn" : ""}${clock.paused ? " rw-clock-paused" : ""}">⏱ <span class="rw-clock-time">${esc(clock.text)}</span>`
+    + `<button type="button" class="rw-clock-btn" data-rw-clock ${clock.canToggle ? "" : "disabled"} aria-label="${esc(label)}" title="${esc(label)}">${clock.paused ? "▶" : "⏸"}</button></span>`;
 }
 
 function directionWord(anchor) {

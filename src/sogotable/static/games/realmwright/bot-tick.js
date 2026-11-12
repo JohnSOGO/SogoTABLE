@@ -34,8 +34,13 @@ export function syncBotTick(key, game, myMark, hooks) {
   const me = players.find((p) => p.mark === myMark);
   if (!me || me.is_bot || game.status !== "playing") { cancel(); return; }
   const waiting = players.filter((p) => p.is_bot && !p.placed && !p.skipped && Number(p.act_at) > 0);
-  if (!waiting.length) { cancel(); return; }
-  const due = Math.min(...waiting.map((p) => Number(p.act_at)));
+  // Timed play: the round's deadline is due too while anyone still holds a tile.
+  const deadline = Number(game.round_deadline) || 0;
+  const open = players.some((p) => !p.placed && !p.skipped && p.tile);
+  const dues = waiting.map((p) => Number(p.act_at));
+  if (deadline > 0 && open) dues.push(deadline);
+  if (!dues.length) { cancel(); return; }
+  const due = Math.min(...dues);
   // Clock offset is measured once, when this snapshot object first arrives.
   if (!offsets.has(game)) {
     const sn = Number(game.server_now);
