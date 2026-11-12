@@ -1461,3 +1461,20 @@ PLACEMENT RECEIPT
     - sound-files.js must not import sound.js (cycle).
 - New owner row: | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map … | `src/sogotable/static/sound.js` |
 ```
+
+## 2026-11-12 — Hidden Isles (team word-clue game)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Placement for new host-start game Hidden Isles (team word-clue), per its PLAN.md
+- Verdict:      workers/games/hidden-isles/*, src/sogotable/static/games/hidden-isles/*, standard
+                game-integration-spec §4.4/§4.6 touchpoints  [EXISTING]
+- Flow stage:   validate/apply (rules.js + clues.js), bot (ai.js), render (client)
+- Considerations:
+    - Both dirs fall under the existing directory rows, so no new row is needed
+    - app.js 2173/2180: +1 line (import), no new top-level let
+    - clues.js is a shared pure helper: rules.js alone decides clue legality, ai.js only scores,
+      the client never checks legality
+    - words.js split into words.js + aliases.js to stay under the 800-line backstop
+- New owner row: none
+```

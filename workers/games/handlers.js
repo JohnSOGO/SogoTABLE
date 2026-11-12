@@ -90,6 +90,9 @@ import {
 import {
   LAST_ORDERS_GAME_ID, isLastOrdersGame, newLastOrdersGame, initLastOrdersSeats, setLastOrdersOptions, makeLastOrdersMove, lastOrdersGameToDict, lastOrdersGameToDictForViewer,
 } from "./last-orders/rules.js";
+import {
+  HIDDEN_ISLES_GAME_ID, isHiddenIslesGame, newHiddenIslesGame, initHiddenIslesSeats, setHiddenIslesOptions, carryHiddenIslesOnReset, makeHiddenIslesMove, hiddenIslesGameToDict, hiddenIslesGameToDictForViewer,
+} from "./hidden-isles/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -188,6 +191,12 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isLastOrdersGame(prevGame) && prevGame.options) setLastOrdersOptions(nextGame, { lo_options: prevGame.options });
     } },
+  { id: HIDDEN_ISLES_GAME_ID, is: isHiddenIslesGame, create: newHiddenIslesGame, toDict: hiddenIslesGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeHiddenIslesMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initHiddenIslesSeats,
+    // Host options (word pack, clue ideas, crew pointers) from the lobby; a
+    // rematch keeps the options and crews and rotates each crew's Navigator.
+    applyStartOptions: (game, payload) => setHiddenIslesOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => carryHiddenIslesOnReset(prevGame, nextGame) },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -246,6 +255,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isRealmwrightGame(game)) return realmwrightGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isChineseCheckersGame(game)) return chineseCheckersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isHiddenIslesGame(game)) return hiddenIslesGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }
 
