@@ -99,15 +99,13 @@ export function tableHtml(vm, esc) {
 
 function regionsHtml(score, esc) {
   if (!score) return "";
-  const byHab = {};
-  (score.regions || []).forEach((r) => {
-    const h = byHab[r.t] || (byHab[r.t] = { points: 0, cells: 0, pearls: 0 });
-    h.points += Number(r.points) || 0; h.cells += Number(r.size) || 0; h.pearls += Number(r.pearls) || 0;
-  });
-  const rows = HABITAT_IDS.filter((id) => byHab[id]).map((id) => {
-    const h = byHab[id];
-    return `<li>${swatchSvg(id)}<span class="rk-hab">${esc(habitatName(id))}</span><span class="rk-calc">${h.cells} · ${h.pearls}${pearlIcon()}</span><b>${h.points}</b></li>`;
-  });
+  // One row per scoring patch (cells × pearls), biggest first; pearl-less
+  // patches score 0 and fold into a single muted line.
+  const regions = (score.regions || []).map((r) => ({ t: r.t, size: Number(r.size) || 0, pearls: Number(r.pearls) || 0, points: Number(r.points) || 0 }));
+  const scoring = regions.filter((r) => r.pearls > 0).sort((x, y) => y.points - x.points || HABITAT_IDS.indexOf(x.t) - HABITAT_IDS.indexOf(y.t));
+  const blank = regions.filter((r) => r.pearls <= 0);
+  const rows = scoring.map((r) => `<li>${swatchSvg(r.t)}<span class="rk-hab">${esc(habitatName(r.t))}</span><span class="rk-calc">${r.size} × ${r.pearls}${pearlIcon()}</span><b>${r.points}</b></li>`);
+  if (blank.length) rows.push(`<li class="rk-region-blank"><span></span><span class="rk-hab">${esc(UI.noPearlPatches(blank.length))}</span><span></span><b>0</b></li>`);
   if (score.heart) rows.push(`<li><span class="rk-bonus">♥</span><span class="rk-hab">${esc(UI.heartBonus)}</span><span></span><b>+${esc(String(score.heart))}</b></li>`);
   if (score.full) rows.push(`<li><span class="rk-bonus">▣</span><span class="rk-hab">${esc(UI.fullBonus)}</span><span></span><b>+${esc(String(score.full))}</b></li>`);
   return rows.length ? `<ul class="rk-regions">${rows.join("")}</ul>` : "";

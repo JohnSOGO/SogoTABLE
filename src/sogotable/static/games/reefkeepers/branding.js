@@ -96,6 +96,7 @@ export const UI = {
   tie: "It's a tie!",
   largest: "largest patch",
   heartBonus: "Heart",
+  noPearlPatches: (n) => (n === 1 ? "1 patch with no pearls" : `${n} patches with no pearls`),
   fullBonus: "Full",
   total: "Total",
   you: "you",

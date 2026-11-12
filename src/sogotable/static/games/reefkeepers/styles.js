@@ -148,8 +148,9 @@ html[data-theme="dark"] .reefkeepers-root{${tokens(ASSETS.palette.dark)}--rk-sha
 .reefkeepers-root .rk-expanded-reef svg{width:100%;height:auto;display:block}
 
 /* score breakdown */
-.reefkeepers-root .rk-regions{list-style:none;margin:0;padding:0;flex:1 1 200px;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.reefkeepers-root .rk-regions{list-style:none;margin:0;padding:0;flex:0 0 auto;min-width:200px;display:flex;flex-direction:column;gap:4px;font-size:13px}
 .reefkeepers-root .rk-regions li{display:grid;grid-template-columns:22px minmax(0,1fr) auto 36px;align-items:center;gap:8px}
+.reefkeepers-root .rk-region-blank{color:var(--rk-muted)}
 .reefkeepers-root .rk-regions b{text-align:right;font-variant-numeric:tabular-nums}
 .reefkeepers-root .rk-hab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .reefkeepers-root .rk-calc{color:var(--rk-muted);font-size:12px;display:inline-flex;align-items:center;gap:2px;white-space:nowrap}
