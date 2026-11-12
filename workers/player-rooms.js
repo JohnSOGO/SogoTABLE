@@ -19,3 +19,12 @@ export function activeRoomForPlayer(data, playerId, gameId) {
 export function playerHasUnfinishedRoom(data, playerId) {
   return Object.values(data.rooms).some((room) => isUnfinishedSeat(room, playerId));
 }
+
+// Every unfinished table the player is seated at, across all games, ordered by
+// room code so the list is stable (the my-rooms list behind the game switcher).
+export function unfinishedRoomsForPlayer(data, playerId) {
+  if (!playerId) return [];
+  return Object.values(data.rooms)
+    .filter((room) => isUnfinishedSeat(room, playerId))
+    .sort((left, right) => String(left.code).localeCompare(String(right.code)));
+}

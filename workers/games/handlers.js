@@ -130,8 +130,27 @@ const YAHTZEE_GAME_ID = GAME_IDS.yahtzee;
 // re-seed on reset), applyStartOptions applies host lobby options at
 // /api/room/start, carryOptionsOnReset carries host options into the fresh game
 // a reset creates.
+// Per-game "who are we waiting on" readers (public projection → marks).
+import { battleshipAwaitingMarks } from "./battleship/awaiting.js";
+import { tenThousandAwaitingMarks } from "./ten-thousand/awaiting.js";
+import { zombieDiceAwaitingMarks } from "./zombie-dice/awaiting.js";
+import { yahtzeeAwaitingMarks } from "./yahtzee/awaiting.js";
+import { mazewrightAwaitingMarks } from "./mazewright/awaiting.js";
+import { rttaAwaitingMarks } from "./rtta/awaiting.js";
+import { potionLabAwaitingMarks } from "./potion-lab/awaiting.js";
+import { bloomworkAwaitingMarks } from "./bloomwork/awaiting.js";
+import { heartsAwaitingMarks } from "./hearts/awaiting.js";
+import { wnykAwaitingMarks } from "./wnyk/awaiting.js";
+import { realmwrightAwaitingMarks } from "./realmwright/awaiting.js";
+import { chineseCheckersAwaitingMarks } from "./chinese-checkers/awaiting.js";
+import { lastOrdersAwaitingMarks } from "./last-orders/awaiting.js";
+import { tracklayersAwaitingMarks } from "./tracklayers/awaiting.js";
+import { reefkeepersAwaitingMarks } from "./reefkeepers/awaiting.js";
+import { tradewindsAwaitingMarks } from "./tradewinds/awaiting.js";
+import { hiddenIslesAwaitingMarks } from "./hidden-isles/awaiting.js";
+
 const GAME_HANDLERS = [
-  { id: TEN_THOUSAND_GAME_ID, is: isTenThousandGame, create: newTenThousandGame, toDict: tenThousandGameToDict, legalMoves: () => [],
+  { id: TEN_THOUSAND_GAME_ID, is: isTenThousandGame, create: newTenThousandGame, toDict: tenThousandGameToDict, awaitingMarks: tenThousandAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeTenThousandMove(game, mark, payload.action || payload), resolvesBotsInternally: true,
     initSeats: initTenThousandSeats,
     // 10,000 host option: the opening "get on the board" bar, chosen in the
@@ -144,19 +163,19 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isTenThousandGame(prevGame) && prevGame.opening_base !== undefined) nextGame.opening_base = prevGame.opening_base;
     } },
-  { id: YAHTZEE_GAME_ID, is: isYahtzeeGame, create: newYahtzeeGame, toDict: yahtzeeGameToDict, legalMoves: () => [],
+  { id: YAHTZEE_GAME_ID, is: isYahtzeeGame, create: newYahtzeeGame, toDict: yahtzeeGameToDict, awaitingMarks: yahtzeeAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeYahtzeeMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initYahtzeeSeats },
-  { id: MAZEWRIGHT_GAME_ID, is: isMazewrightGame, create: newMazewrightGame, toDict: mazewrightGameToDict, legalMoves: () => [],
+  { id: MAZEWRIGHT_GAME_ID, is: isMazewrightGame, create: newMazewrightGame, toDict: mazewrightGameToDict, awaitingMarks: mazewrightAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeMazewrightMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initMazewrightSeats },
-  { id: RTTA_GAME_ID, is: isRttaGame, create: newRttaGame, toDict: rttaGameToDict, legalMoves: () => [],
+  { id: RTTA_GAME_ID, is: isRttaGame, create: newRttaGame, toDict: rttaGameToDict, awaitingMarks: rttaAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeRttaMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initRttaSeats },
-  { id: ZOMBIE_DICE_GAME_ID, is: isZombieDiceGame, create: newZombieDiceGame, toDict: zombieDiceGameToDict, legalMoves: () => [],
+  { id: ZOMBIE_DICE_GAME_ID, is: isZombieDiceGame, create: newZombieDiceGame, toDict: zombieDiceGameToDict, awaitingMarks: zombieDiceAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeZombieDiceMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initZombieDiceSeats },
   { id: LIARS_DICE_GAME_ID, is: isLiarsDiceGame, create: newLiarsDiceGame, toDict: liarsDiceGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeLiarsDiceMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initLiarsDiceSeats },
   { id: NO_THANKS_GAME_ID, is: isNoThanksGame, create: newNoThanksGame, toDict: noThanksGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeNoThanksMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initNoThanksSeats },
-  { id: HEARTS_GAME_ID, is: isHeartsGame, create: newHeartsGame, toDict: heartsGameToDict, legalMoves: () => [],
+  { id: HEARTS_GAME_ID, is: isHeartsGame, create: newHeartsGame, toDict: heartsGameToDict, awaitingMarks: heartsAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeHeartsMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initHeartsSeats,
     // Hearts host options (J♦, first-trick blood, moon style, target score):
     // set at /api/room/start and carried across a reset.
@@ -164,11 +183,11 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isHeartsGame(prevGame) && prevGame.options) setHeartsOptions(nextGame, prevGame.options);
     } },
-  { id: POTION_LAB_GAME_ID, is: isPotionLabGame, create: newPotionLabGame, toDict: potionLabGameToDict, legalMoves: () => [],
+  { id: POTION_LAB_GAME_ID, is: isPotionLabGame, create: newPotionLabGame, toDict: potionLabGameToDict, awaitingMarks: potionLabAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makePotionLabMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initPotionLabSeats },
   { id: MYSTIC_WOOD_GAME_ID, is: isMysticWoodGame, create: newMysticWoodGame, toDict: mysticWoodGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeMysticWoodMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initMysticWoodSeats },
-  { id: WNYK_GAME_ID, is: isWnykGame, create: newWnykGame, toDict: wnykGameToDict, legalMoves: () => [],
+  { id: WNYK_GAME_ID, is: isWnykGame, create: newWnykGame, toDict: wnykGameToDict, awaitingMarks: wnykAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeWnykMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initWnykSeats,
     // WNYK host options (target score, deck) share the seam with the entry's
     // server-injected card library (custom_cards / removed_cards / card_usage).
@@ -178,7 +197,7 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isWnykGame(prevGame) && prevGame.options) setWnykOptions(nextGame, { target_score: prevGame.options.target_score, deck: prevGame.options.deck });
     } },
-  { id: REALMWRIGHT_GAME_ID, is: isRealmwrightGame, create: newRealmwrightGame, toDict: realmwrightGameToDict, legalMoves: () => [],
+  { id: REALMWRIGHT_GAME_ID, is: isRealmwrightGame, create: newRealmwrightGame, toDict: realmwrightGameToDict, awaitingMarks: realmwrightAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeRealmwrightMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initRealmwrightSeats,
     // Host options (farmers, live tally, meeples, small city, deck) from the
     // lobby, applied at /api/room/start and carried across a reset.
@@ -186,7 +205,7 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isRealmwrightGame(prevGame) && prevGame.options) setRealmwrightOptions(nextGame, { realm_options: prevGame.options });
     } },
-  { id: TRACKLAYERS_GAME_ID, is: isTracklayersGame, create: newTracklayersGame, toDict: tracklayersGameToDict, legalMoves: () => [],
+  { id: TRACKLAYERS_GAME_ID, is: isTracklayersGame, create: newTracklayersGame, toDict: tracklayersGameToDict, awaitingMarks: tracklayersAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeTracklayersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initTracklayersSeats,
     // Host option (trains per seat 25/35/45) from the lobby, applied at
     // /api/room/start and carried across a reset.
@@ -194,7 +213,7 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isTracklayersGame(prevGame) && prevGame.options) setTracklayersOptions(nextGame, { tracklayers_options: prevGame.options });
     } },
-  { id: CHINESE_CHECKERS_GAME_ID, is: isChineseCheckersGame, create: newChineseCheckersGame, toDict: chineseCheckersGameToDict, legalMoves: () => [],
+  { id: CHINESE_CHECKERS_GAME_ID, is: isChineseCheckersGame, create: newChineseCheckersGame, toDict: chineseCheckersGameToDict, awaitingMarks: chineseCheckersAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeChineseCheckersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initChineseCheckersSeats,
     // Host options (jumps, marbles, capture, teams, stay-in-goal, no-parking,
     // anti-block, end) from the lobby, applied at /api/room/start and carried
@@ -203,7 +222,7 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isChineseCheckersGame(prevGame) && prevGame.options) setChineseCheckersOptions(nextGame, { cc_options: prevGame.options });
     } },
-  { id: LAST_ORDERS_GAME_ID, is: isLastOrdersGame, create: newLastOrdersGame, toDict: lastOrdersGameToDict, legalMoves: () => [],
+  { id: LAST_ORDERS_GAME_ID, is: isLastOrdersGame, create: newLastOrdersGame, toDict: lastOrdersGameToDict, awaitingMarks: lastOrdersAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeLastOrdersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initLastOrdersSeats,
     // Host options (reaction seconds, expansions, closing time, random patrons,
     // playable glow) from the lobby, applied at /api/room/start and carried across a reset.
@@ -211,7 +230,7 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isLastOrdersGame(prevGame) && prevGame.options) setLastOrdersOptions(nextGame, { lo_options: prevGame.options });
     } },
-  { id: REEFKEEPERS_GAME_ID, is: isReefkeepersGame, create: newReefkeepersGame, toDict: reefkeepersGameToDict, legalMoves: () => [],
+  { id: REEFKEEPERS_GAME_ID, is: isReefkeepersGame, create: newReefkeepersGame, toDict: reefkeepersGameToDict, awaitingMarks: reefkeepersAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeReefkeepersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initReefkeepersSeats,
     // Host options (reef size, heart/full bonuses, spots, live score, hints)
     // from the lobby, applied at /api/room/start and carried across a reset.
@@ -219,20 +238,20 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isReefkeepersGame(prevGame) && prevGame.options) setReefkeepersOptions(nextGame, { reef_options: prevGame.options });
     } },
-  { id: BLOOMWORK_GAME_ID, is: isBloomworkGame, create: newBloomworkGame, toDict: bloomworkGameToDict, legalMoves: () => [],
+  { id: BLOOMWORK_GAME_ID, is: isBloomworkGame, create: newBloomworkGame, toDict: bloomworkGameToDict, awaitingMarks: bloomworkAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeBloomworkMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initBloomworkSeats,
     // Host options (game length, helps) from the lobby, applied at start and carried across a reset.
     applyStartOptions: (game, payload) => setBloomworkOptions(game, payload),
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isBloomworkGame(prevGame) && prevGame.options) setBloomworkOptions(nextGame, { bloom_options: prevGame.options });
     } },
-  { id: HIDDEN_ISLES_GAME_ID, is: isHiddenIslesGame, create: newHiddenIslesGame, toDict: hiddenIslesGameToDict, legalMoves: () => [],
+  { id: HIDDEN_ISLES_GAME_ID, is: isHiddenIslesGame, create: newHiddenIslesGame, toDict: hiddenIslesGameToDict, awaitingMarks: hiddenIslesAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeHiddenIslesMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initHiddenIslesSeats,
     // Host options (word pack, clue ideas, crew pointers) from the lobby; a
     // rematch keeps the options and crews and rotates each crew's Navigator.
     applyStartOptions: (game, payload) => setHiddenIslesOptions(game, payload),
     carryOptionsOnReset: (prevGame, nextGame) => carryHiddenIslesOnReset(prevGame, nextGame) },
-  { id: TRADEWINDS_GAME_ID, is: isTradewindsGame, create: newTradewindsGame, toDict: tradewindsGameToDict, legalMoves: () => [],
+  { id: TRADEWINDS_GAME_ID, is: isTradewindsGame, create: newTradewindsGame, toDict: tradewindsGameToDict, awaitingMarks: tradewindsAwaitingMarks, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeTradewindsMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initTradewindsSeats,
     // Host options (renown target, hand limit, board size, quick setup, friendly
     // monkey, helps) from the lobby, applied at /api/room/start and carried across a reset.
@@ -240,7 +259,7 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isTradewindsGame(prevGame) && prevGame.options) setTradewindsOptions(nextGame, { ti_options: prevGame.options });
     } },
-  { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
+  { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, awaitingMarks: battleshipAwaitingMarks, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeQuoridorMove(game, mark, payload.action || payload) },
@@ -286,6 +305,18 @@ export function gameToDict(game) {
   const handler = GAME_HANDLERS.find((entry) => entry.is(game));
   if (handler) return handler.toDict(game);
   return { ...game, game_id: cleanGameId(game.game_id), legal_boards: legalBoards(game) };
+}
+
+// The seat marks this game is waiting on, read from its public projection
+// (`view` = gameToDict output). A row's awaitingMarks covers simultaneous and
+// phase-driven games; the fallback is the platform-wide current_player.
+export function awaitingMarksForGame(view) {
+  if (!view || typeof view !== "object") return [];
+  const handler = GAME_HANDLERS.find((entry) => entry.is(view));
+  const marks = handler && handler.awaitingMarks
+    ? handler.awaitingMarks(view)
+    : view.status === "playing" && view.current_player ? [view.current_player] : [];
+  return [...new Set((marks || []).filter((mark) => typeof mark === "string" && mark))];
 }
 
 export function gameToDictForViewer(game, viewerMark, roomStatusValue) {

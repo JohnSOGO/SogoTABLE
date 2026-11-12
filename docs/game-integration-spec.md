@@ -206,6 +206,7 @@ places — all additive, beside the existing games:
    | `resolvesBotsInternally` | yes for host-start | shell skips its own bot loop |
    | `applyStartOptions` | if the lobby has options | clamp every option server-side |
    | `carryOptionsOnReset` | if options exist | rematch keeps the table's rules |
+   | `awaitingMarks` | **yes** unless the game only uses `current_player` | `(view) → marks` the table waits on, read from the **public projection** (toDict output). Lives in `workers/games/<dir>/awaiting.js`. Drives `room.awaiting_marks`, the game switcher and needs-me alerts |
    | `enforcesTurnOrder` | **no** for parallel games | shell rejects `mark !== current_player` |
    | `preMove`, `bot` | rarely | legacy setup / shell-driven bot |
 

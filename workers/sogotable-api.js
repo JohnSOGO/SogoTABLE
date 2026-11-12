@@ -15,7 +15,7 @@ import {
   gameIdMatches, playerCountForGame, isSoloGameId,
 } from "./game-catalog.js";
 import { loadState, saveState, withStateRetry } from "./persistence/state.js";
-import { activeRoomForPlayer, playerHasUnfinishedRoom } from "./player-rooms.js";
+import { activeRoomForPlayer, playerHasUnfinishedRoom, unfinishedRoomsForPlayer } from "./player-rooms.js";
 // Room outcome stats (completed-room recording, Elo, high scores, personal
 // stats) — extracted owner module; the Worker only decides WHEN to call it.
 import {
@@ -542,6 +542,10 @@ async function routeRequest(method, url, payload, data, options = {}) {
         .filter((room) => !isHiddenTestRoom(room))
         .map((room) => roomSummary(room));
       return { ok: true, rooms };
+    }
+    if (method === "GET" && url.pathname === "/api/my-rooms") {
+      const rooms = unfinishedRoomsForPlayer(data, String(url.searchParams.get("player_id") || "").trim());
+      return { ok: true, rooms: rooms.map((room) => roomSummary(room, { withAwaiting: true })) };
     }
     if (method === "GET" && url.pathname === "/api/room") {
       const code = cleanRoomCode(url.searchParams.get("code") || "");
