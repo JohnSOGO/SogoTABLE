@@ -32,6 +32,7 @@ export const GAME_IDS = {
   tracklayers: "7c31e9a05b42",
   reefkeepers: "661942bc1422",
   tradewinds: "08a6c9699a46",
+  bloomwork: "9e962268ca5f",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -321,5 +322,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["tradewinds", "tradewind_isles", "tradewind-isles", "island_trading", "island-trading"],
+  },
+  {
+    id: GAME_IDS.bloomwork,
+    lobbyMode: "hostStart",
+    name: "🌷 Bloomwork",
+    summary: "Draft flowers from the market stalls, fill your planter rows and grow a 5×5 garden bed — every flower scores for the ones it lines up with, and spills cost you. Everyone picks at the same time. 2–6 gardeners; bots fill the table.",
+    players: "2–6 players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["bloomwork", "bloom_work", "flower_draft", "tile_mosaic", "tile-mosaic"],
   },
 ];

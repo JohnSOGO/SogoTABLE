@@ -99,6 +99,9 @@ import {
 import {
   TRADEWINDS_GAME_ID, isTradewindsGame, newTradewindsGame, initTradewindsSeats, setTradewindsOptions, makeTradewindsMove, tradewindsGameToDict, tradewindsGameToDictForViewer,
 } from "./tradewinds/rules.js";
+import {
+  BLOOMWORK_GAME_ID, isBloomworkGame, newBloomworkGame, initBloomworkSeats, setBloomworkOptions, makeBloomworkMove, bloomworkGameToDict, bloomworkGameToDictForViewer,
+} from "./bloomwork/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -213,6 +216,13 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isReefkeepersGame(prevGame) && prevGame.options) setReefkeepersOptions(nextGame, { reef_options: prevGame.options });
     } },
+  { id: BLOOMWORK_GAME_ID, is: isBloomworkGame, create: newBloomworkGame, toDict: bloomworkGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeBloomworkMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initBloomworkSeats,
+    // Host options (game length, helps) from the lobby, applied at start and carried across a reset.
+    applyStartOptions: (game, payload) => setBloomworkOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isBloomworkGame(prevGame) && prevGame.options) setBloomworkOptions(nextGame, { bloom_options: prevGame.options });
+    } },
   { id: TRADEWINDS_GAME_ID, is: isTradewindsGame, create: newTradewindsGame, toDict: tradewindsGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeTradewindsMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initTradewindsSeats,
     // Host options (renown target, hand limit, board size, quick setup, friendly
@@ -282,6 +292,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isReefkeepersGame(game)) return reefkeepersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isTradewindsGame(game)) return tradewindsGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isBloomworkGame(game)) return bloomworkGameToDictForViewer(game, viewerMark);
   return game;
 }
 

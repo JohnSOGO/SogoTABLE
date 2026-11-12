@@ -18,6 +18,7 @@ import { renderLastOrdersGame } from "./last-orders/render.js";
 import { renderTracklayersGame } from "./tracklayers/render.js";
 import { renderReefkeepersGame } from "./reefkeepers/render.js";
 import { renderTradewindsGame } from "./tradewinds/render.js";
+import { renderBloomworkGame } from "./bloomwork/render.js";
 import { renderChineseCheckersGame } from "./chinese-checkers/render.js";
 import { renderMysticWoodGame } from "./mystic-wood/render.js";
 import { renderWnykGame } from "./wnyk/render.js";
@@ -40,6 +41,7 @@ export const HOST_START_RENDERERS = [
   { is: "isTracklayersGameState", render: renderTracklayersGame },
   { is: "isReefkeepersGameState", render: renderReefkeepersGame },
   { is: "isTradewindsGameState", render: renderTradewindsGame },
+  { is: "isBloomworkGameState", render: renderBloomworkGame },
   { is: "isYahtzeeGameState", render: renderYahtzeeGame },
 ];
 
