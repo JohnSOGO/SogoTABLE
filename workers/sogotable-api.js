@@ -15,6 +15,7 @@ import {
   gameIdMatches, playerCountForGame, isSoloGameId,
 } from "./game-catalog.js";
 import { loadState, saveState, withStateRetry } from "./persistence/state.js";
+import { activeRoomForPlayer, playerHasUnfinishedRoom } from "./player-rooms.js";
 // Room outcome stats (completed-room recording, Elo, high scores, personal
 // stats) — extracted owner module; the Worker only decides WHEN to call it.
 import {
@@ -1051,21 +1052,6 @@ function roomFromPayload(data, payload) {
   const room = data.rooms[code];
   if (!room) throw new Error("Table not found.");
   return room;
-}
-
-function activeRoomForPlayer(data, playerId, gameId) {
-  return Object.values(data.rooms).find((room) => (
-    gameIdMatches(room.game_id, gameId) &&
-    ["waiting_for_player", "active"].includes(roomStatus(room)) &&
-    room.players.some((player) => player.id === playerId)
-  )) || null;
-}
-
-function playerHasUnfinishedRoom(data, playerId) {
-  return Object.values(data.rooms).some((room) => (
-    ["waiting_for_player", "active"].includes(roomStatus(room)) &&
-    room.players.some((player) => player.id === playerId)
-  ));
 }
 
 function botSeatForCurrentTurn(room) {

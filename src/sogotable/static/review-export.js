@@ -18,6 +18,7 @@ const REVIEW_EXPORT_FILES = [
   "workers/sogotable-api.js",
   "workers/room-view.js",
   "workers/room-seats.js",
+  "workers/player-rooms.js",
   "workers/bug-reports.js",
   "workers/custom-cards.js",
   "workers/card-ratings.js",

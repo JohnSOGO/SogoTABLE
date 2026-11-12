@@ -62,6 +62,7 @@ concern), then implement.
 | `workers/sogotable-api.js` | Worker entry: routing, side-effect dispatch, Durable Objects, remaining domain handlers | — |
 | `workers/room-view.js` | Room wire projection: public room/summary/invite dicts + viewer projection + revision/freshness bookkeeping | `workers/sogotable-api.js` |
 | `workers/room-seats.js` | Room seat roster lifecycle: seat/mark assignment + colours, activation/start, leave (pre-start removal with mark re-pack + host handoff; post-start away), rejoin, reset-vote tally | `workers/sogotable-api.js` |
+| `workers/player-rooms.js` | Player↔room membership queries over data.rooms: a player's unfinished room for a game, any unfinished room, all unfinished rooms (read-only selection; no projection, no mutation) | `workers/sogotable-api.js` |
 | `workers/game-catalog.js` | Game id resolution + public game definitions | `workers/sogotable-api.js` |
 | `workers/stats.js` | Room outcome stats: completed-room recording, Elo, high scores, personal stats | `workers/sogotable-api.js` |
 | `workers/projections.js` | Public projections (player + bot views) | `workers/sogotable-api.js` |

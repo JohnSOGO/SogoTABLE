@@ -1559,3 +1559,34 @@ PLACEMENT RECEIPT
 - New owner row: none
 ```
 
+
+## 2026-11-12 — Play several games at once (keep seat, switcher, needs-me alerts)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Multi-game play: keep the seat on return to the dashboard, an active-games switcher,
+                needs-me alerts that work for every game including simultaneous-move games
+- Verdict:      workers/games/handlers.js awaitingMarks field + workers/games/<dir>/awaiting.js [EXISTING +
+                dir pattern]; workers/room-view.js awaiting_marks [EXISTING]; workers/player-rooms.js [NEW,
+                via REORG R1]; workers/sogotable-api.js route only; client/active-games.js,
+                client/game-alerts.js, controllers/game-switcher.js [NEW]; realtime.js createRoomWatcher,
+                controllers/toast.js action, service-worker.js notificationclick [EXISTING];
+                controllers/room-list.js [NEW, via REORG R2]; app.js wiring [EXISTING, after R2]
+- Flow stage:   rules (awaitingMarks) → projection (awaiting_marks) → read query (my-rooms) → transport
+                (watchers) → orchestrate (active-games) → render (switcher, toast) → attention (alerts)
+- Considerations:
+    - app.js at 2165/2180 and its let cap: extract the room-summary list view first (R2)
+    - the new "all my rooms" query is a sibling of activeRoomForPlayer → move both to player-rooms.js (R1)
+    - per-game awaitingMarks in awaiting.js: three rules.js files are near the 800 backstop
+    - no createRealtimeController per room (global listeners + 7s poll each); a socket-only watcher
+    - Notification via the service-worker registration first (new Notification() throws on Android)
+    - hot-seat and solo rooms are excluded from watching and alerts; Web Push is out of scope
+- New owner rows: workers/player-rooms.js, controllers/room-list.js, client/active-games.js,
+                client/game-alerts.js, controllers/game-switcher.js
+```
+
+```
+REORG RECEIPT (R1)
+- Moved activeRoomForPlayer + playerHasUnfinishedRoom from workers/sogotable-api.js to workers/player-rooms.js,
+  behaviour unchanged; entry ceiling re-pinned 1125 → 1117 (+ buffer).
+```
