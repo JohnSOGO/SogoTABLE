@@ -1638,3 +1638,10 @@ PLACEMENT RECEIPT
       so sound.js and the game sfx.js files are unchanged
 - New owner row: 8 (seven admin/asset-review modules + workers/asset-reviews.js)
 ```
+
+```
+REORG RECEIPT (R3)
+- Replaced app.js's hand-written openAssetReviewScreen + its listener with one table-driven admin opener
+  (ADMIN_SCREENS + openAdminScreen, cards opt in with data-admin-screen). Behaviour unchanged; each later
+  admin screen costs app.js one table entry. app.js 2103 -> 2107, ceiling unchanged (2092 + buffer).
+```

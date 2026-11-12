@@ -268,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("playerModal").addEventListener("click", closePlayerModalOnBackdrop);
   document.getElementById("exportReviewZip").addEventListener("click", exportReviewZip);
   document.getElementById("forgetSogoAdmin").addEventListener("click", forgetSogoAdmin);
-  document.getElementById("openAssetReview").addEventListener("click", openAssetReviewScreen);
+  document.querySelectorAll("[data-admin-screen]").forEach((card) => card.addEventListener("click", () => openAdminScreen(card.dataset.adminScreen)));
   wireAppearancePicker();
   document.getElementById("closeInvitePlayerModal").addEventListener("click", closeInvitePlayerModal);
   document.getElementById("invitePlayerModal").addEventListener("click", closeInvitePlayerModalOnBackdrop);
@@ -983,13 +983,17 @@ function renderIntroAdminActions() {
   document.getElementById("adminGames")?.classList.toggle("hidden", !active);
 }
 
-// Admin-only Asset Review, loaded on demand so it stays off every family's boot path.
-async function openAssetReviewScreen() {
-  if (!isSogoSuperuserSelected()) return;
-  const review = await import("./admin/asset-review/index.js");
-  review.wireAssetReview({ api, passcode: () => ensureSogoSuperuserPasscode(deviceSelectedPlayer()), reviewer: () => deviceSelectedPlayer()?.name || "" });
-  showScreen("assetReview");
-  void review.openAssetReview();
+// Admin-only screens, loaded on demand so they stay off every family's boot path.
+// Each entry resolves to { wire(ctx), open() }; a card opts in with data-admin-screen.
+const ADMIN_SCREENS = {
+  assetReview: () => import("./admin/asset-review/index.js").then((m) => ({ wire: m.wireAssetReview, open: m.openAssetReview })),
+};
+async function openAdminScreen(screenId) {
+  if (!isSogoSuperuserSelected() || !ADMIN_SCREENS[screenId]) return;
+  const screen = await ADMIN_SCREENS[screenId]();
+  screen.wire({ api, passcode: () => ensureSogoSuperuserPasscode(deviceSelectedPlayer()), reviewer: () => deviceSelectedPlayer()?.name || "" });
+  showScreen(screenId);
+  void screen.open();
 }
 
 async function exportReviewZip() {
