@@ -85,6 +85,9 @@ import {
   REALMWRIGHT_GAME_ID, isRealmwrightGame, newRealmwrightGame, initRealmwrightSeats, setRealmwrightOptions, makeRealmwrightMove, realmwrightGameToDict, realmwrightGameToDictForViewer,
 } from "./realmwright/rules.js";
 import {
+  BLOOMWORK_GAME_ID, isBloomworkGame, newBloomworkGame, initBloomworkSeats, setBloomworkOptions, makeBloomworkMove, bloomworkGameToDict, bloomworkGameToDictForViewer,
+} from "./bloomwork/rules.js";
+import {
   CHINESE_CHECKERS_GAME_ID, isChineseCheckersGame, newChineseCheckersGame, initChineseCheckersSeats, setChineseCheckersOptions, makeChineseCheckersMove, chineseCheckersGameToDict, chineseCheckersGameToDictForViewer,
 } from "./chinese-checkers/rules.js";
 import {
@@ -188,6 +191,13 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isLastOrdersGame(prevGame) && prevGame.options) setLastOrdersOptions(nextGame, { lo_options: prevGame.options });
     } },
+  { id: BLOOMWORK_GAME_ID, is: isBloomworkGame, create: newBloomworkGame, toDict: bloomworkGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeBloomworkMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initBloomworkSeats,
+    // Host options (game length, helps) from the lobby, applied at start and carried across a reset.
+    applyStartOptions: (game, payload) => setBloomworkOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isBloomworkGame(prevGame) && prevGame.options) setBloomworkOptions(nextGame, { bloom_options: prevGame.options });
+    } },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -246,6 +256,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isRealmwrightGame(game)) return realmwrightGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isChineseCheckersGame(game)) return chineseCheckersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isBloomworkGame(game)) return bloomworkGameToDictForViewer(game, viewerMark);
   return game;
 }
 

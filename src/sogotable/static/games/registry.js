@@ -29,6 +29,7 @@ export const GAME_IDS = {
   realmwright: "4d8e2b6a9c13",
   chineseCheckers: "6bc129b1bbed",
   lastOrders: "618a2d361857",
+  bloomwork: "9e962268ca5f",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -279,5 +280,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["last_orders", "last-orders", "lastorders", "tavern_brawl", "tavern-brawl"],
+  },
+  {
+    id: GAME_IDS.bloomwork,
+    lobbyMode: "hostStart",
+    name: "🌷 Bloomwork",
+    summary: "Draft flowers from the market stalls, fill your planter rows and grow a 5×5 garden bed — every flower scores for the ones it lines up with, and spills cost you. Everyone picks at the same time. 2–6 gardeners; bots fill the table.",
+    players: "2–6 players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["bloomwork", "bloom_work", "flower_draft", "tile_mosaic", "tile-mosaic"],
   },
 ];
