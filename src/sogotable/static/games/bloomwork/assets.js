@@ -54,8 +54,9 @@ export const ASSETS = {
       tileEdge: "rgba(0,0,0,.35)",
     },
   },
-  flowerArt: { rose: null, iris: null, sun: null, lilac: null, fern: null },
-  birdArt: null,
+  // Illustrated tiles (docs/PICTURES.md); set a key to null to go back to the drawn SVG.
+  flowerArt: Object.fromEntries("rose iris sun lilac fern".split(" ").map((f) => [f, new URL(`./img/flower-${f}.webp`, import.meta.url).href])),
+  birdArt: new URL("./img/bird.webp", import.meta.url).href,
   tableBg: null,
   sounds: { pick: null, take: null, clash: null, plant: null, compost: null, round: null, turn: null, win: null, tick: null, reject: null },
 };

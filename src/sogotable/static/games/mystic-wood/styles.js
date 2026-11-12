@@ -120,6 +120,12 @@ export const MYSTIC_WOOD_CSS = `
 .mystic-wood-root .pl.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
 .mystic-wood-root .plhead{display:flex;align-items:center;gap:8px}
 .mystic-wood-root .crest{width:30px;height:30px;border-radius:50%;border:2px solid var(--gold);display:grid;place-items:center;font-family:var(--serif);font-weight:700;color:#fff;font-size:15px;flex:none}
+.mystic-wood-root .crest.has-img{overflow:hidden;width:40px;height:40px}
+.mystic-wood-root .crest .mw-crest-img{width:100%;height:100%;object-fit:cover;display:block}
+.mw-intro-head .crest.has-img{width:64px;height:64px}
+.mystic-wood-root .mw-pic{display:block;width:min(220px,100%);aspect-ratio:1;object-fit:cover;margin:6px auto 4px;border-radius:10px;border:1px solid var(--gold);box-shadow:0 4px 14px #0007}
+.mystic-wood-root .mw-pic-thing{width:min(140px,100%)}
+.mystic-wood-root.mw-pop .mw-pic{width:120px;margin:2px auto 6px}
 .mystic-wood-root .plname{font-family:var(--serif);font-size:17px;font-weight:600}
 .mystic-wood-root .stats{display:inline-flex;gap:10px;font-family:var(--mono);font-size:13px}
 .mystic-wood-root .pP{color:var(--azure)} .mystic-wood-root .pS{color:var(--crimson)}

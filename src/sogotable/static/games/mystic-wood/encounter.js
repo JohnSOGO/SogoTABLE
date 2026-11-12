@@ -7,6 +7,7 @@
 // still-pending encounter without this module importing back into the renderer.
 import { DEN, DEN_CLASS, AREA_NAMES, AREA_FX, KNIGHTS, KNIGHT_INTRO } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
+import { denPic, knightCrest } from "./art.js";
 
 // render.js hands us its entry point once at module load; showDice calls it after closePortals so any
 // still-pending encounter re-surfaces on the next render. An injected hook (not an import) keeps the
@@ -74,7 +75,7 @@ export function showIntro(ctx, game, me) {
   const host = portal();
   host.innerHTML = `<div class="overlay"><div class="modal mw-intro">
     <div class="tag">A quest entrusted</div>
-    <div class="mw-intro-head"><span class="crest" style="background:${E(k.color)}">${E((seat.name || "?")[0])}</span><h2>Sir ${E(k.name)}</h2></div>
+    <div class="mw-intro-head">${knightCrest(seat.knight, k.color, (seat.name || "?")[0])}<h2>Sir ${E(k.name)}</h2></div>
     <p class="mw-intro-frame">${E(k.name)} cannot ride today, and entrusts the quest to you:</p>
     <p class="mw-intro-tale">${tale}</p>
     <div class="row"><button class="primary" data-intro="go">Begin the quest</button></div>
@@ -90,7 +91,7 @@ export function showEncounter(ctx, game) {
   host.innerHTML = `<div class="overlay"><div class="modal">
     <div class="tag">An encounter</div>
     ${tileHeaderHtml(tile)}
-    <h2>${denEmoji(p.card)} ${E(p.denName || (den && den.name) || "")}</h2>
+    ${denPic(p.card)}<h2>${denEmoji(p.card)} ${E(p.denName || (den && den.name) || "")}</h2>
     ${introHtml(p)}
     ${secondHtml(p)}
     ${denboxHtml(p, den, tile)}
