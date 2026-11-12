@@ -8,6 +8,11 @@
 // It decides nothing: legality arrives in the model, already from the server.
 import { featureAnchor, featureHighlight, meepleShape, safeId, tileArt } from "./art.js";
 import { FEATURE_ICONS } from "./branding.js";
+import { meepleFxKey } from "./fx.js";
+
+// An empty animation frame (no fx running): everything drawn at rest.
+const NO_FX = { hideTiles: new Set(), drops: new Map(), hideMeeples: new Set(), meepleDrops: new Map(), extras: [], jumps: new Map(), glow: [] };
+const delay = (ms) => `animation-delay:-${Math.round(ms)}ms`;
 
 const symbolId = (t, r) => `rwS-${safeId(t)}-${r}`;
 
@@ -27,7 +32,9 @@ function missingTile(x, y) {
 }
 
 export function buildBoardMarkup(model) {
-  const { defs, board, palette, colorOf, myTile, candidates, preview, glow, round } = model;
+  const { defs, board, palette, colorOf, myTile, candidates, preview, round } = model;
+  const fx = model.fx || NO_FX;
+  const glow = fx.glow;
   const keys = new Set();
   board.forEach((b) => keys.add(`${b.t}|${b.r}`));
   if (myTile && candidates.some((c) => c.strong)) keys.add(`${myTile}|${model.rot}`);
@@ -37,6 +44,7 @@ export function buildBoardMarkup(model) {
   board.forEach((b) => { minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x); maxY = Math.max(maxY, b.y); });
 
   let out = `<defs>
+    <filter id="rwSoft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>
     <pattern id="rwGrid" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M100 0 H0 V100" fill="none" stroke="${palette.boardGrid}" stroke-width="1.5"/></pattern>
     ${symbols(keys, defs, palette)}
   </defs>`;
@@ -44,26 +52,30 @@ export function buildBoardMarkup(model) {
 
   // Tiles.
   out += `<g class="rw-tiles">`;
-  board.forEach((b) => {
-    out += defs[b.t]
+  const shown = board.filter((b) => !fx.hideTiles.has(`${b.x},${b.y}`));
+  shown.forEach((b) => {
+    const tile = defs[b.t]
       ? `<use href="#${symbolId(b.t, b.r)}" x="${b.x * 100}" y="${b.y * 100}" width="100" height="100"/>`
       : missingTile(b.x, b.y);
+    const el = fx.drops.get(`${b.x},${b.y}`);
+    out += el === undefined ? tile
+      : `<rect class="rw-drop-shadow rw-fxa" style="${delay(el)}" x="${b.x * 100 + 4}" y="${b.y * 100 + 10}" width="100" height="100" rx="6" filter="url(#rwSoft)"/><g class="rw-drop rw-fxa" style="${delay(el)}">${tile}</g>`;
   });
   out += `</g>`;
   // Seams + this round's placements in the owner's colour.
-  out += `<path class="rw-seams" d="${board.map((b) => `M${b.x * 100} ${b.y * 100}h100v100h-100Z`).join("")}" fill="none" stroke="${palette.tileEdge}" stroke-width="1"/>`;
-  board.forEach((b) => {
+  out += `<path class="rw-seams" d="${shown.map((b) => `M${b.x * 100} ${b.y * 100}h100v100h-100Z`).join("")}" fill="none" stroke="${palette.tileEdge}" stroke-width="1"/>`;
+  shown.forEach((b) => {
     if (b.by && b.round === round) {
       out += `<rect class="rw-fresh" x="${b.x * 100 + 2.5}" y="${b.y * 100 + 2.5}" width="95" height="95" rx="4" fill="none" stroke="${colorOf(b.by)}" stroke-width="4"/>`;
     }
   });
 
   // Recently scored tiles glow (animation continues across re-renders).
-  if (glow && glow.cells.length) {
-    glow.cells.forEach(([x, y]) => {
-      out += `<rect class="rw-glow" style="animation-delay:-${Math.round(glow.elapsed)}ms" x="${x * 100 + 1}" y="${y * 100 + 1}" width="98" height="98" rx="6"/>`;
+  glow.forEach((g) => {
+    g.cells.forEach(([x, y]) => {
+      out += `<rect class="rw-glow" style="${delay(g.elapsed)}" x="${x * 100 + 1}" y="${y * 100 + 1}" width="98" height="98" rx="6"/>`;
     });
-  }
+  });
 
   // Legal cells for the local seat.
   candidates.forEach((c) => {
@@ -79,17 +91,28 @@ export function buildBoardMarkup(model) {
     }
   });
 
-  // Meeples on placed tiles.
-  board.forEach((b) => {
+  // Meeples on placed tiles, plus any that already went home but are still
+  // celebrating (fx extras). Waiting ones are hidden; landing / jumping ones
+  // carry their animation with the elapsed time as a negative delay.
+  const drawn = new Set();
+  const drawMeeple = (b, m) => {
     const def = defs[b.t];
-    if (!def || !Array.isArray(b.meeples)) return;
-    b.meeples.forEach((m) => {
-      const f = def.features[m.f];
-      if (!f) return;
-      const [u, v] = featureAnchor(def, m.f, b.r);
-      out += `<g class="rw-meeple" transform="translate(${(b.x + u) * 100} ${(b.y + v) * 100 - 2})">${meepleShape(colorOf(m.mark), { farmer: f.kind === "field", scale: 1.3 })}</g>`;
-    });
-  });
+    const f = def && def.features[m.f];
+    const k = meepleFxKey(b.x, b.y, m.f, m.mark);
+    if (!f || drawn.has(k) || fx.hideMeeples.has(k) || fx.hideTiles.has(`${b.x},${b.y}`)) return;
+    drawn.add(k);
+    const [u, v] = featureAnchor(def, m.f, b.r);
+    let shape = meepleShape(colorOf(m.mark), { farmer: f.kind === "field", scale: 1.3 });
+    const jump = fx.jumps.get(k);
+    if (jump !== undefined) shape = `<g class="rw-jump rw-fxa" style="${delay(jump)}">${shape}</g>`;
+    const drop = fx.meepleDrops.get(k);
+    if (drop !== undefined) shape = `<g class="rw-mdrop rw-fxa" style="${delay(drop)}">${shape}</g>`;
+    out += `<g class="rw-meeple" transform="translate(${(b.x + u) * 100} ${(b.y + v) * 100 - 2})">${shape}</g>`;
+  };
+  const byCell = new Map(board.map((b) => [`${b.x},${b.y}`, b]));
+  board.forEach((b) => { if (Array.isArray(b.meeples)) b.meeples.forEach((m) => drawMeeple(b, m)); });
+  fx.extras.forEach((m) => { const b = byCell.get(`${m.x},${m.y}`); if (b) drawMeeple(b, m); });
+  if (model.fxOverlay) out += model.fxOverlay;
 
   // The preview of my tile with meeple spots.
   if (preview && myTile && defs[myTile]) {
