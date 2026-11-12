@@ -1540,3 +1540,22 @@ PLACEMENT RECEIPT
 - Reorganizer:  NONE
 - New owner row: none
 ```
+
+## 2026-11-12 — Hidden Isles (team word-clue game)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Placement for new host-start game Hidden Isles (team word-clue), per its PLAN.md
+- Verdict:      workers/games/hidden-isles/*, src/sogotable/static/games/hidden-isles/*, standard
+                game-integration-spec §4.4/§4.6 touchpoints  [EXISTING]
+- Flow stage:   validate/apply (rules.js + clues.js), bot (ai.js), render (client)
+- Considerations:
+    - Both dirs fall under the existing directory rows, so no new row is needed
+    - app.js: no new lines (predicate added to existing lists); renderer is one row in
+      games/room-render-dispatch.js
+    - clues.js is a shared pure helper: rules.js alone decides clue legality, ai.js only scores,
+      the client never checks legality
+    - words.js split into words.js + aliases.js to stay under the 800-line backstop
+- New owner row: none
+```
+

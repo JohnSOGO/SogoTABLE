@@ -20,6 +20,7 @@ import { isLastOrdersGame, lastOrdersScoreByMark } from "./games/last-orders/rul
 import { isReefkeepersGame, reefkeepersScoreByMark } from "./games/reefkeepers/rules.js";
 import { isTradewindsGame, tradewindsScoreByMark } from "./games/tradewinds/rules.js";
 import { isBloomworkGame, bloomworkScoreByMark } from "./games/bloomwork/rules.js";
+import { isHiddenIslesGame, hiddenIslesScoreByMark } from "./games/hidden-isles/rules.js";
 import { isZombieDiceGame, zombieDiceScoreByMark } from "./games/zombie-dice/rules.js";
 import { isLiarsDiceGame, liarsDiceScoreByMark } from "./games/liars-dice/rules.js";
 import { isNoThanksGame, noThanksScoreByMark } from "./games/no-thanks/rules.js";
@@ -76,6 +77,7 @@ function scoreByMarkForRoom(room) {
   if (isRealmwrightGame(room.game)) return realmwrightScoreByMark(room.game);
   if (isTracklayersGame(room.game)) return tracklayersScoreByMark(room.game);
   if (isBloomworkGame(room.game)) return bloomworkScoreByMark(room.game);
+  if (isHiddenIslesGame(room.game)) return hiddenIslesScoreByMark(room.game); // team game: win-only (null)
   if (isReefkeepersGame(room.game)) return reefkeepersScoreByMark(room.game); // reef total (regions × pearls + bonuses)
   if (isTradewindsGame(room.game)) return tradewindsScoreByMark(room.game); // renown
   if (isLastOrdersGame(room.game)) return lastOrdersScoreByMark(room.game); // placement points: winner = seat count

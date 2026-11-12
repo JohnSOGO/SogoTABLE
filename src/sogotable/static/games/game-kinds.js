@@ -51,6 +51,8 @@ export function createGameKinds(canonicalGameId) {
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.tradewinds);
   const isBloomworkGameState = (game) =>
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.bloomwork);
+  const isHiddenIslesGameState = (game) =>
+    Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.hiddenIsles);
   return {
     isTacticalGameState,
     isBoxesGameState,
@@ -74,5 +76,6 @@ export function createGameKinds(canonicalGameId) {
     isReefkeepersGameState,
     isTradewindsGameState,
     isBloomworkGameState,
+    isHiddenIslesGameState,
   };
 }
