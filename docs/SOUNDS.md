@@ -50,3 +50,4 @@ All Kenney packs (Casino Audio, Interface Sounds, Impact Sounds, Sci-fi Sounds, 
 - Kept synth on purpose: `scorePick` (also Mazewright loot), UI ticks, Chinese Checkers and Realmwright cues (already tuned for their art).
 
 Service worker: MP3s use the network-first runtime cache in `static/service-worker.js`, so each file is cached after its first play and works offline from then on. They are not precached.
+| `static/sounds/card-deal.mp3`, `trick-take.mp3`, `win.mp3` (shared, no new files) | Tracklayers `draw`, `tickets`, `win` via `games/tracklayers/assets.js` | as above | CC0 |

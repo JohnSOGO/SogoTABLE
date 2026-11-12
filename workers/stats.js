@@ -14,6 +14,7 @@ import { isYahtzeeGame, yahtzeeScoreByMark } from "./games/yahtzee/rules.js";
 import { isMazewrightGame, mazewrightScoreByMark } from "./games/mazewright/rules.js";
 import { isRttaGame, rttaScoreByMark } from "./games/rtta/rules.js";
 import { isRealmwrightGame, realmwrightScoreByMark } from "./games/realmwright/rules.js";
+import { isTracklayersGame, tracklayersScoreByMark } from "./games/tracklayers/rules.js";
 import { isChineseCheckersGame, chineseCheckersScoreByMark } from "./games/chinese-checkers/rules.js";
 import { isLastOrdersGame, lastOrdersScoreByMark } from "./games/last-orders/rules.js";
 import { isZombieDiceGame, zombieDiceScoreByMark } from "./games/zombie-dice/rules.js";
@@ -70,6 +71,7 @@ function scoreByMarkForRoom(room) {
   }
   if (isRttaGame(room.game)) return rttaScoreByMark(room.game);
   if (isRealmwrightGame(room.game)) return realmwrightScoreByMark(room.game);
+  if (isTracklayersGame(room.game)) return tracklayersScoreByMark(room.game);
   if (isLastOrdersGame(room.game)) return lastOrdersScoreByMark(room.game); // placement points: winner = seat count
   if (isChineseCheckersGame(room.game)) return chineseCheckersScoreByMark(room.game); // 100 - distance, +50 for a win
   if (isZombieDiceGame(room.game)) return zombieDiceScoreByMark(room.game);
