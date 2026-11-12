@@ -12,14 +12,15 @@
 // (incl. the gesture-wired viewport) is kept across snapshots; only the panel
 // contents are repainted. All wiring is addEventListener; no app.js imports.
 import { paletteFor } from "./assets.js";
-import { featureAnchor } from "./art.js";
+import { featureAnchor, tileSvg } from "./art.js";
+import { cancelDealIntro, dealIntroActive, playDealIntro } from "./deal-fx.js";
 import { applyCamera, attachGestures, cancelTween, fitCamera, newCamera, tweenCamera, ZOOM_MAX, zoomAt } from "./board-view.js";
 import { boardBounds, buildBoardMarkup } from "./board-svg.js";
 import { TICKER, UI } from "./branding.js";
 import { renderRealmwrightLobby } from "./lobby.js";
 import { botTickInFlight, syncBotTick } from "./bot-tick.js";
 import { clockState, clockText, clockWarn, syncRoundClock } from "./round-timer.js";
-import { countShown, fxEnqueue, fxFrame, fxMineUntil, fxOverlayMarkup, fxReset, reducedMotion, runCounters } from "./fx.js";
+import { countShown, fxEnqueue, fxFrame, fxMineUntil, fxScoreFrame, SCORE_FRAME_MS, fxOverlayMarkup, fxReset, reducedMotion, runCounters } from "./fx.js";
 import { bagPanelHtml, meepleChoices, resultsHtml, stripHtml, tableHtml, tilesLeft, trayHtml } from "./panels.js";
 import { consumeEvents, playCue } from "./sfx.js";
 import { REALMWRIGHT_CSS } from "./styles.js";
@@ -38,7 +39,7 @@ function freshState(key) {
   return {
     key, cam: newCamera(), selKey: "", rot: 0, sel: null, meeple: null, sending: false,
     flash: null, flashTimer: null, sawPlaying: false, winPlayed: false, lastCtx: null,
-    zoomReturn: null, zoomTimer: null, placedAt: null, bagOpen: false, fxTimer: null, dealtKey: null, fxBusy: false,
+    zoomReturn: null, zoomTimer: null, frameTimer: null, framedScore: null, dealPending: null, placedAt: null, bagOpen: false, fxTimer: null, dealtKey: null, fxBusy: false,
   };
 }
 
@@ -81,6 +82,7 @@ export function renderRealmwrightGame(ctx) {
     clearTimeout(S.flashTimer); clearTimeout(S.fxTimer);
     S = freshState(key);
     fxReset(key);
+    cancelDealIntro();
   }
   S.lastCtx = ctx;
   const me = seatInfo(ctx);
@@ -152,7 +154,11 @@ function buzzOnDeal(selKey, seat) {
   const first = S.dealtKey === null;
   if (selKey === S.dealtKey) return;
   S.dealtKey = selKey;
-  if (first || !seat || !seat.tile) return;
+  if (!seat || !seat.tile) return;
+  // A new tile flies in (the first deal of a game too, but not a reload mid-game).
+  const game = S.lastCtx && S.lastCtx.game;
+  if (!seat.placed && !seat.skipped && (!first || (game && game.round === 1))) S.dealPending = selKey;
+  if (first) return;
   try { if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(30); } catch { /* unsupported */ }
 }
 
@@ -541,6 +547,21 @@ function centreOnBoard(cam, w, h) {
   cam.y = h / 2 - ((b.minY + b.maxY + 1) / 2) * 100 * cam.z;
 }
 
+// My placement scored: pull back just enough to show every scored tile and
+// the meeples on it while they celebrate (then zoomBack shows the whole board).
+function frameMyScoring(viewport) {
+  const f = fxScoreFrame();
+  if (!f || !f.cells.length || S.framedScore === f) return;
+  const wait = f.at - Date.now();
+  if (wait > 0) { clearTimeout(S.frameTimer); S.frameTimer = setTimeout(repaint, wait + 8); return; }
+  if (Date.now() > f.at + SCORE_FRAME_MS * 2) return; // too late to be useful
+  S.framedScore = f;
+  const cells = f.cells.map(([x, y]) => ({ x, y }));
+  const target = { x: S.cam.x, y: S.cam.y, z: S.cam.z };
+  if (!fitCamera(target, boardBounds([], cells), viewport.clientWidth, viewport.clientHeight, { pad: 36, maxZoom: Math.max(1.05, S.cam.z) })) return;
+  tweenCamera(viewport, S.cam, target, { ms: SCORE_FRAME_MS, reduced: reducedMotion() });
+}
+
 function glideToFit(viewport) {
   const ctx = S.lastCtx;
   if (!ctx) return;
@@ -623,6 +644,7 @@ function paint(ctx) {
   // After Confirm it waits for my tile, meeple and any scoring to finish
   // playing (zoomed in), then zooms out.
   if (S.zoomReturn && !S.sel && !S.sending) {
+    frameMyScoring(viewport);
     const hold = zoomHoldUntil(ctx, me);
     if (Date.now() >= hold) zoomBack(viewport);
     else { clearTimeout(S.zoomTimer); S.zoomTimer = setTimeout(repaint, hold - Date.now() + 16); }
@@ -649,6 +671,12 @@ function paint(ctx) {
   const chipsScroll = tray.querySelector(".rw-chips") ? tray.querySelector(".rw-chips").scrollLeft : 0;
   tray.hidden = showResults;
   tray.innerHTML = showResults ? "" : trayHtml(vm, esc);
+  if (S.dealPending && vm.myTileDef && !showResults) {
+    playDealIntro(root, tileSvg(vm.myTileDef, { r: vm.handRot, palette: vm.palette, idPrefix: "rwDeal" }), S.dealPending, repaint);
+    S.dealPending = null;
+  }
+  const handTile = tray.querySelector(".rw-hand-tile");
+  if (handTile && dealIntroActive()) handTile.style.visibility = "hidden";
   const chips = tray.querySelector(".rw-chips");
   if (chips && chipsScroll) chips.scrollLeft = chipsScroll;
   tray.querySelectorAll("[data-rw-act]").forEach((button) => {

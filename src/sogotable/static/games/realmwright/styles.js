@@ -22,6 +22,11 @@ const LIGHT = `
 
 /* status strip: two fixed one-liners */
 .realmwright-root .rw-strip{background:var(--rw-panel);border-radius:12px;box-shadow:var(--rw-shadow);padding:6px 10px}
+.rw-deal{position:fixed;z-index:60;border-radius:10px;overflow:hidden;pointer-events:none;
+  box-shadow:0 18px 44px rgba(0,0,0,.45);animation:rw-deal-in .35s cubic-bezier(.2,.8,.3,1.2)}
+.rw-deal svg{display:block;width:100%;height:100%}
+.rw-deal-fly{box-shadow:0 2px 6px rgba(0,0,0,.3)}
+@keyframes rw-deal-in{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
 .realmwright-root .rw-clock{display:inline-flex;align-items:center;gap:4px;padding:1px 4px 1px 8px;border-radius:999px;
   background:var(--rw-line);font-variant-numeric:tabular-nums;font-weight:700}
 .realmwright-root .rw-clock-warn{background:#e0473a;color:#fff;animation:rw-clock-pulse 1s ease-in-out infinite}
