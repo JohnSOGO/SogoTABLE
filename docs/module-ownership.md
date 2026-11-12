@@ -41,6 +41,10 @@ concern), then implement.
 | `src/sogotable/static/controllers/game-options.js` | Game-options menu | — |
 | `src/sogotable/static/controllers/game-stats.js` | Game stats panel + modal | — |
 | `src/sogotable/static/controllers/win-overlay.js` | Win overlay + confetti | — |
+| `src/sogotable/static/controllers/turn-status.js` | Room turn banner + player-switch strip (turn text, seat labels, turn tint) | `src/sogotable/static/app.js` |
+| `src/sogotable/static/controllers/toast.js` | Non-blocking transient toast notices (replaces window.alert) | `src/sogotable/static/app.js` |
+| `src/sogotable/static/controllers/room-share.js` | Room join-link sharing: `?join=` deep-link read/consume, navigator.share / copy, QR render | `src/sogotable/static/app.js` |
+| `src/sogotable/static/client/turn-attention.js` | Out-of-page "your turn" attention: document.title prefix, app badge, vibrate, Screen Wake Lock while a room is open — consumes a prepared is-my-turn flag, owns no turn logic | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/player-appearance.js` | Player-edit appearance picker (icon + colour) | — |
 | `src/sogotable/static/controllers/superuser.js` | Sogo superuser identity + passcode gate | — |
 | `src/sogotable/static/controllers/local-seat.js` | Local hot-seat seat persistence (device-local) | — |
@@ -55,6 +59,7 @@ concern), then implement.
 | `src/sogotable/static/games/playing-cards.js` | Shared standard-deck (52-card) card-face + hand HTML primitives — pure builders, no rules, no per-game logic | `src/sogotable/static/app.js` |
 | `workers/sogotable-api.js` | Worker entry: routing, side-effect dispatch, Durable Objects, remaining domain handlers | — |
 | `workers/room-view.js` | Room wire projection: public room/summary/invite dicts + viewer projection + revision/freshness bookkeeping | `workers/sogotable-api.js` |
+| `workers/room-seats.js` | Room seat roster lifecycle: seat/mark assignment + colours, activation/start, leave (pre-start removal with mark re-pack + host handoff; post-start away), rejoin, reset-vote tally | `workers/sogotable-api.js` |
 | `workers/game-catalog.js` | Game id resolution + public game definitions | `workers/sogotable-api.js` |
 | `workers/stats.js` | Room outcome stats: completed-room recording, Elo, high scores, personal stats | `workers/sogotable-api.js` |
 | `workers/projections.js` | Public projections (player + bot views) | `workers/sogotable-api.js` |
@@ -88,3 +93,7 @@ Each game owns its own subtree; per-game files do not need individual rows.
 |---|---|
 | `workers/tests/` | Test harness, not part of the runtime module graph |
 | `scripts/` | Maintenance/build scripts, run by hand |
+| `src/sogotable/static/vendor/` | Vendored third-party libraries (unmodified, licence header kept); not authored code |
+| `tests/` | Browser e2e (Playwright) harness, not part of the runtime module graph |
+| `eslint.config.js` | Lint tooling config, not runtime |
+| `playwright.config.js` | E2E tooling config, not runtime |

@@ -14,10 +14,18 @@
     "bugreports": "node scripts/export-bug-reports.mjs",
     "bugreports:ui": "node scripts/serve-bug-manager.mjs",
     "bugreports:manage": "node scripts/manage-bug-reports.mjs",
-    "bugreports:clear": "node scripts/clear-bug-reports.mjs"
+    "bugreports:clear": "node scripts/clear-bug-reports.mjs",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "playwright": "^1.61.0",
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.61.0",
+    "eslint": "^9.39.5",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.0",
     "wrangler": "^4.0.0"
   }
 }

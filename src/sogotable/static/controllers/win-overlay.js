@@ -55,6 +55,10 @@ export function wireWinOverlay(controllerCtx) {
   ctx = controllerCtx;
   const closeWinOverlay = document.getElementById("closeWinOverlay");
   if (closeWinOverlay) closeWinOverlay.addEventListener("click", hideWinOverlay);
+  // One tap from the results card to a fresh game with the same seats — the
+  // existing reset-vote path (bots and players who left auto-agree).
+  const rematch = document.getElementById("rematchWinOverlay");
+  if (rematch && ctx.requestRematch) rematch.addEventListener("click", () => { hideWinOverlay(); ctx.requestRematch(); });
 }
 
 // Clear the per-win dedup so the next game can celebrate again (shell calls this

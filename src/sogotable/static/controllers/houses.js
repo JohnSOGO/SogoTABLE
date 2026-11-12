@@ -8,6 +8,7 @@
 import { api } from "../api-client.js";
 import { avatarHtml, escapeHtml } from "../html-utils.js";
 import { getDeviceSelectedPlayerId } from "../client/session-store.js";
+import { showToast } from "./toast.js";
 
 // ctx (from wireHouses): { getPlayers(), ensureOwnerToken(id), setPlayers(list),
 // selectPlayer(id), editPlayer(id), deletePlayer(id), unclaimPlayer(id),
@@ -152,7 +153,7 @@ async function saveHouse(houseId, houseName) {
     ctx.setPlayers(response.players);
     renderHouseControls(response.players.find((item) => item.id === player.id) || player);
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 

@@ -5,6 +5,11 @@
 import { playConfirm, playCancel } from "../sound.js";
 
 let pendingConfirmAction = null;
+
+// True while a Yes/No prompt is open (so a second prompt does not stack on it).
+export function isConfirmPending() {
+  return Boolean(pendingConfirmAction);
+}
 let pendingPasscodePrompt = null;
 
 function confirmAction(title, message) {

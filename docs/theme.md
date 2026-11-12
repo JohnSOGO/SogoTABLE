@@ -47,7 +47,8 @@ board — you will get dark-on-dark text.
 
 ## Token architecture
 
-All tokens live in `:root` in `styles.css` (`styles-games.css` defines none — it
+All tokens live in `:root` in `styles-tokens.css` (linked first, ahead of
+`styles.css`; `styles-games.css` defines none — it
 only consumes them). Light values are the source of truth; the dark block
 overrides them. Three layers:
 
@@ -156,7 +157,7 @@ recipe:
 - `storage.js` — `THEME_STORAGE_KEY`, `themePreference`, `effectiveTheme`,
   `setDarkMode`, `applyTheme`.
 - `controllers/game-options.js` — toggle wiring.
-- `styles.css` — `:root` tokens (light) + `:root[data-theme="dark"]` override.
+- `styles-tokens.css` — `:root` tokens (light) + `:root[data-theme="dark"]` override.
 - `styles-games.css` — consumes tokens; small dark block for in-game shell
   surfaces (lobby, win card/overlay, menu inputs).
 - `games/mazewright/render.js` — `MW_CSS` with dark + light `--mw-*` variants.
@@ -167,3 +168,11 @@ recipe:
 - `games/yahtzee/render.js` — dark `:root[data-theme="dark"] .yz-root { … }` override appended to the injected `.yz-root` styles.
 - `styles.css` — `#intro` opening-screen dark override (in the dark-fixups block).
 - `styles-games.css` — 10,000 dice-game dark fixes live in its in-game-shell dark block.
+
+## 2026-11 refresh
+
+Warmer, less pink neutrals (`--bg*`, `--line`, `--muted`), neutral secondary buttons, and a shape/depth
+scale in `styles-tokens.css`: `--radius-sm` (10px, buttons/inputs), `--radius` (14px, panels/cards),
+`--radius-lg` (22px, modals), `--shadow-sm` / `--shadow-md`, and `--font-ui` (rounded system face where
+available). Chrome sheets consume these; per-game board CSS is untouched. Buttons get a pressed state
+and a visible keyboard focus ring.

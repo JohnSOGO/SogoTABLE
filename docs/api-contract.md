@@ -601,26 +601,41 @@ The room seat for a bot includes `kind: "bot"` and `bot_id`. Bot moves are gener
 
 ### `POST /api/room/leave`
 
-Current implementation closes the room.
+One player exits; the table survives for everyone else (`workers/room-seats.js` `leaveRoomSeat`).
+Always requires `requester_id` + `owner_token`, and the requester must be seated.
+
+- Before the game starts: the seat is removed, host-start marks are re-packed, and the host
+  passes to the next present human. Response `left: "removed"` plus the room.
+- After it starts: seats and marks are fixed, so the seat gets `away: true` and play goes on.
+  Response `left: "away"` plus the room. Rejoining via `POST /api/room/join` clears `away`.
+  Away seats (like bots) count as yes on reset/rematch votes.
+- Hot-seat (`local_mode`) tables, or when no present human is left: the room is deleted.
+  Response `closed: true`.
 
 Request:
 
 ```json
 {
   "code": "ABCD",
-  "player_id": "player-id",
-  "requester_id": "player-id"
+  "requester_id": "player-id",
+  "owner_token": "token"
 }
 ```
 
-Response:
+Response (table kept):
 
 ```json
-{
-  "ok": true,
-  "closed": true
-}
+{ "ok": true, "left": "away", "room": { "code": "ABCD", "players": [{ "id": "player-id", "away": true }] } }
 ```
+
+Response (table closed):
+
+```json
+{ "ok": true, "closed": true, "room_code": "ABCD" }
+```
+
+Known gap: if an away seat holds the current turn, the game waits for them to come back
+(no bot takeover yet).
 
 ### `POST /api/room/close`
 

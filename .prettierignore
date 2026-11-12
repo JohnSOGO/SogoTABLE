@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+AI/
+bugreport/
+test-results/
+playwright-report/
+package-lock.json
+src/sogotable/static/vendor/
+workers/games/wnyk/decks.js

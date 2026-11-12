@@ -37,6 +37,7 @@ export function publicGameDefinition(game) {
     status: game.status,
     availability: game.availability,
     aliases: [...(game.aliases || [])],
+    score_order: game.score_order === "low" ? "low" : "high",
   };
 }
 
@@ -66,4 +67,11 @@ export function isSoloGameId(gameId) {
 export function gameUsesHostStart(gameId) {
   const game = GAME_DEFINITIONS.find((item) => item.id === cleanGameId(gameId));
   return Boolean(game && game.host_start);
+}
+
+// Score direction for stats: penalty-point games (registry `score_order: "low"`)
+// rank the LOWEST total best; every other game ranks the highest.
+export function lowerScoreIsBetter(gameId) {
+  const game = GAME_DEFINITIONS.find((item) => item.id === cleanGameId(gameId));
+  return Boolean(game && game.score_order === "low");
 }

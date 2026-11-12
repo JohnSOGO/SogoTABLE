@@ -13,6 +13,7 @@ import { escapeHtml, avatarHtml } from "../html-utils.js";
 import { playConfirm, playCancel, playInviteReceived } from "../sound.js";
 import { rememberLocalGameHomePlayer } from "./local-seat.js";
 import { homePlayerId } from "../client/session-store.js";
+import { showToast } from "./toast.js";
 
 let ctx = {
   getCurrentRoom: () => null,
@@ -154,7 +155,7 @@ async function joinLocalOpponent(player) {
     ctx.setRoom(response.room);
     closeInvitePlayerModal();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -173,7 +174,7 @@ async function joinBotOpponent(bot) {
     closeInvitePlayerModal();
     playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -187,7 +188,7 @@ async function invitePlayer(player) {
     closeInvitePlayerModal();
     playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -233,6 +234,6 @@ export async function respondToInvite(accept) {
       ctx.showScreen("game");
     }
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }

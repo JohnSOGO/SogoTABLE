@@ -195,6 +195,7 @@ export const GAME_REGISTRY = [
     players: "3+ players",
     player_count: null,
     host_start: true,
+    score_order: "low", // penalty points: lowest total wins
     category: "card",
     status: "Ready",
     availability: "ready",
@@ -208,6 +209,7 @@ export const GAME_REGISTRY = [
     players: "4 players",
     player_count: null,
     host_start: true,
+    score_order: "low", // penalty points: lowest total wins
     category: "card",
     status: "Ready",
     availability: "ready",

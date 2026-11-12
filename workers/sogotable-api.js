@@ -12,7 +12,7 @@ import {
 } from "./projections.js";
 import {
   GAME_DEFINITIONS, DEFAULT_GAME_ID, cleanGameId, publicGameDefinition, gameIdsForLookup,
-  gameIdMatches, playerCountForGame, isSoloGameId, gameUsesHostStart,
+  gameIdMatches, playerCountForGame, isSoloGameId,
 } from "./game-catalog.js";
 import { loadState, saveState, withStateRetry } from "./persistence/state.js";
 // Room outcome stats (completed-room recording, Elo, high scores, personal
@@ -28,7 +28,7 @@ import { appendBugReport, listBugReports, clearBugReports, resolveBugReports, up
 // one table that binds them. The Worker entry only routes.
 import {
   moveHandlerFor, newGame, gameToDict, gameToDictForViewer, legalMoves, chooseBotMove, makeMove,
-  initGameSeats, applyGameStartOptions, resetRoomGame, ensureBattleshipBotFleets,
+  initGameSeats, applyGameStartOptions, ensureBattleshipBotFleets,
 } from "./games/handlers.js";
 // Game↔card-library composition (write-in library + rating tallies into game
 // creation and out of game resolution) — extracted owner; the entry only routes.
@@ -39,6 +39,12 @@ import {
   publicInvite, bumpRoomRevision, roomToDict, roomToDictForViewer, responseForViewer,
   viewerPlayerIdForRequest, viewerPlayerIdForPayload, roomSummary,
 } from "./room-view.js";
+// Room seat roster lifecycle (seat/mark + colours, activation/start, host-start
+// mark re-pack, reset-vote tally) — extracted owner; the entry only routes.
+import {
+  addPlayerToRoom, activateRoomIfReady, startRoom, playerMark, handleResetVote,
+  ensureRoomSeatColors, safeHexColor, repackHostStartMarks, leaveRoomSeat, returnToRoomSeat,
+} from "./room-seats.js";
 // 10,000 bot internals re-exported on __test only (workers/tests/helpers.js
 // exercises them through the Worker's test surface).
 import {
@@ -55,25 +61,6 @@ import {
 } from "./games/ten-thousand/rules.js";
 
 const LOBBY_VIEWER_TTL_SECONDS = 45;
-const ROOM_SEAT_COLORS = [
-  "#1f7a5f",
-  "#1e63d6",
-  "#c43d5d",
-  "#8a4bd1",
-  "#b7791f",
-  "#0f766e",
-  "#dc2626",
-  "#2563eb",
-  "#7c3aed",
-  "#db2777",
-  "#ca8a04",
-  "#16a34a",
-  "#0891b2",
-  "#4f46e5",
-  "#be123c",
-  "#334155",
-];
-const COLOR_SIMILARITY_THRESHOLD = 110;
 const BOT_MOVE_DELAY_MS = 700;
 
 // Per-route side effects, declared not inferred. GET is read-only; any other
@@ -597,6 +584,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
         throw new Error("This game already started — ask the host for a rematch to join.");
       }
       if (payload.local) room.local_mode = true;
+      returnToRoomSeat(room, player.id);
       addPlayerToRoom(room, player);
       activateRoomIfReady(room);
       bumpRoomRevision(room);
@@ -629,9 +617,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
       const seatIndex = room.players.findIndex((seat) => seat.id === String(payload.bot_id || "") && isBotSeat(seat));
       if (seatIndex < 0) throw new Error("That bot is not at this table.");
       room.players.splice(seatIndex, 1);
-      // Host-start marks are assigned as P<count+1>; re-pack so the next
-      // joiner can't collide with a surviving higher mark.
-      if (gameUsesHostStart(room.game_id)) room.players.forEach((seat, index) => { seat.mark = `P${index + 1}`; });
+      repackHostStartMarks(room);
       bumpRoomRevision(room);
       return { ok: true, room: roomToDict(data, room) };
     }
@@ -653,10 +639,16 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/room/leave") {
       const code = cleanRoomCode(payload.code || "");
       const requesterId = String(payload.requester_id || payload.player_id || "").trim();
-      if (requesterId) await assertPlayerOwner(data, requesterId, payload.owner_token, options);
+      await assertPlayerOwner(data, requesterId, payload.owner_token, options);
       const room = data.rooms[code];
-      if (room) delete data.rooms[code];
-      return { ok: true, closed: true, room_code: code };
+      if (!room) return { ok: true, closed: true, room_code: code };
+      const { outcome } = leaveRoomSeat(room, requesterId);
+      if (outcome === "delete") {
+        delete data.rooms[code];
+        return { ok: true, closed: true, room_code: code };
+      }
+      bumpRoomRevision(room);
+      return { ok: true, left: outcome, room: roomToDict(data, room) };
     }
     if (method === "POST" && url.pathname === "/api/room/close") {
       const code = cleanRoomCode(payload.code || "");
@@ -1076,49 +1068,6 @@ function playerHasUnfinishedRoom(data, playerId) {
   ));
 }
 
-function addPlayerToRoom(room, player) {
-  if (room.players.some((seat) => seat.id === player.id)) return;
-  const playerCount = playerCountForGame(room.game_id);
-  if (Number.isFinite(playerCount) && room.players.length >= playerCount) throw new Error(playerCount === 2 ? "Table already has two players." : "Table is full.");
-  const mark = gameUsesHostStart(room.game_id)
-    ? `P${room.players.length + 1}`
-    : (playerCount === 1 ? "X" : room.players.length ? "X" : "");
-  const seatedPlayer = { ...player, mark };
-  if (room.players.length) seatedPlayer.color = nonConflictingRoomColor(seatedPlayer.color, room.players.map((seat) => seat.color));
-  room.players.push(seatedPlayer);
-  ensureRoomSeatColors(room);
-}
-
-function activateRoomIfReady(room) {
-  if (gameUsesHostStart(room.game_id)) return; // host starts explicitly via /api/room/start
-  const playerCount = playerCountForGame(room.game_id);
-  if (room.started || room.players.length < playerCount) return;
-  if (playerCount === 1) {
-    room.players[0].mark = "X";
-    room.started = true;
-    return;
-  }
-  const marks = Math.random() < 0.5 ? ["X", "O"] : ["O", "X"];
-  room.players.forEach((seat, index) => {
-    seat.mark = marks[index];
-  });
-  room.started = true;
-}
-
-// Explicit start for host-start games. Seats already carry P1..PN marks from
-// addPlayerToRoom; this flips the room live and initialises per-seat game state
-// via the dispatch table's initSeats field.
-function startRoom(room) {
-  if (room.started) return;
-  room.started = true;
-  initGameSeats(room.game, room.players);
-}
-
-function playerMark(room, playerId) {
-  const player = room.players.find((seat) => seat.id === playerId);
-  return player ? player.mark : null;
-}
-
 function botSeatForCurrentTurn(room) {
   if (!room || !room.started || !room.game || room.game.status !== "playing") return null;
   return room.players.find((seat) => isBotSeat(seat) && seat.mark === room.game.current_player) || null;
@@ -1144,25 +1093,6 @@ function runBotTurns(data, room) {
   return moves ? { ok: true, room: roomToDict(data, room), bot_moves: moves } : null;
 }
 
-function handleResetVote(room, requesterId, approve) {
-  if (!approve) {
-    room.reset_votes = [];
-    return "declined";
-  }
-  if (!room.reset_votes.includes(requesterId)) room.reset_votes.push(requesterId);
-  room.players.filter(isBotSeat).forEach((bot) => {
-    if (!room.reset_votes.includes(bot.id)) room.reset_votes.push(bot.id);
-  });
-  if (room.players.length > 1 && room.reset_votes.length < room.players.length) return "pending";
-  room.reset_votes = [];
-  // Fresh game, carrying per-game host options and re-seeding per-seat state for
-  // started host-start games — dispatch-table owned (carryOptionsOnReset/initSeats).
-  resetRoomGame(room);
-  bumpRoomRevision(room, { newGame: true });
-  room.stats_recorded = false;
-  return null;
-}
-
 function lobbyViewers(data, gameId) {
   pruneLobbyViewers(data);
   return Object.values(data.lobbyViewers)
@@ -1176,47 +1106,6 @@ function pruneLobbyViewers(data) {
   Object.entries(data.lobbyViewers).forEach(([playerId, viewer]) => {
     if (viewer.updated_at < cutoff) delete data.lobbyViewers[playerId];
   });
-}
-
-function ensureRoomSeatColors(room) {
-  const existingColors = [];
-  room.players.forEach((seat) => {
-    seat.color = nonConflictingRoomColor(seat.color, existingColors);
-    existingColors.push(seat.color);
-  });
-}
-
-function nonConflictingRoomColor(color, existingColors) {
-  const safeColor = safeHexColor(color);
-  if (!existingColors.length) return safeColor;
-  if (existingColors.every((existing) => !colorsAreTooSimilar(safeColor, existing))) return safeColor;
-  const taken = new Set(existingColors.map((existing) => existing.toLowerCase()));
-  const candidates = ROOM_SEAT_COLORS.filter((candidate) => !taken.has(candidate.toLowerCase()));
-  if (!candidates.length) return safeColor;
-  return candidates.sort((left, right) => (
-    Math.min(...existingColors.map((existing) => colorDistance(right, existing))) -
-    Math.min(...existingColors.map((existing) => colorDistance(left, existing)))
-  ))[0];
-}
-
-function colorsAreTooSimilar(left, right) {
-  return colorDistance(left, right) < COLOR_SIMILARITY_THRESHOLD;
-}
-
-function colorDistance(left, right) {
-  const leftRgb = hexToRgb(safeHexColor(left));
-  const rightRgb = hexToRgb(safeHexColor(right));
-  return Math.sqrt(leftRgb.reduce((total, channel, index) => total + (channel - rightRgb[index]) ** 2, 0));
-}
-
-function safeHexColor(color) {
-  const value = String(color || "").trim();
-  return /^#[0-9a-fA-F]{6}$/.test(value) ? value.toLowerCase() : ROOM_SEAT_COLORS[0];
-}
-
-function hexToRgb(color) {
-  const clean = color.replace("#", "");
-  return [0, 2, 4].map((start) => parseInt(clean.slice(start, start + 2), 16));
 }
 
 export const __test = {

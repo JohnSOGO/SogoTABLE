@@ -1247,6 +1247,177 @@ PLACEMENT RECEIPT
 - New owner row: none.
 ```
 
+## 2026-11-12 — REORG: extract room seat roster lifecycle to workers/room-seats.js
+Commit: refactor(worker): extract seat-roster lifecycle to workers/room-seats.js (this entry's commit)
+
+```
+REORG RECEIPT
+- Trigger:      workers/sogotable-api.js was at 1242 lines against a 1254 ceiling (12 lines of
+                headroom) and is the named owner pressure for upcoming seat-lifecycle work
+                (leave / host handoff / rejoin); the seat-roster cluster is the named seam.
+- Seam moved:   Seat roster lifecycle — addPlayerToRoom, activateRoomIfReady, startRoom, playerMark,
+                handleResetVote, ensureRoomSeatColors, nonConflictingRoomColor, colorsAreTooSimilar,
+                colorDistance, safeHexColor, hexToRgb + ROOM_SEAT_COLORS, COLOR_SIMILARITY_THRESHOLD —
+                from `workers/sogotable-api.js` to `workers/room-seats.js`; plus the inline
+                host-start mark re-pack in /api/room/remove-bot extracted as
+                repackHostStartMarks(room) (guard included; only one call site existed)  [NEW owner row]
+- Room opened:  sogotable-api.js: 1242 → 1125 lines (as the test counts them); ceiling 1229+25 → 1125+25.
+                room-seats.js 138 lines.
+- Behavior:     PRESERVED — verified via `npm test` (all green); functions moved verbatim (only
+                `export` added); same error strings, same mark/colour assignment, same reset-vote
+                tally, same revision bump. Dead imports (gameUsesHostStart, resetRoomGame) dropped
+                from the entry. room-seats.js imports only game-catalog / games/bots /
+                games/handlers / room-view — never the entry.
+- Sources read: CLAUDE.md, docs/module-ownership.md, docs/modularity.md, docs/placement-receipts.md,
+                workers/tests/architecture.test.js, workers/sogotable-api.js,
+                src/sogotable/static/review-export.js
+- Restraint:    No leave/rejoin/host-handoff behavior added (owner row anticipates it; the feature
+                lands there next). lobbyViewers, bot-turn loop, routing untouched.
+- New owner row: | `workers/room-seats.js` | Room seat roster lifecycle: seat/mark assignment + colours, activation/start, leave (pre-start removal with mark re-pack + host handoff; post-start away), rejoin, reset-vote tally | `workers/sogotable-api.js` |
+```
+
+## 2026-11-12 — REORG: extract turn banner + player-switch strip to controllers/turn-status.js
+Commit: refactor(app): extract turn banner + player-switch strip to controllers/turn-status.js (this entry's commit)
+
+```
+REORG RECEIPT
+- Trigger:      src/sogotable/static/app.js was at 2251 lines against a 2256 ceiling (5 lines of
+                headroom); upcoming seat-lifecycle UI work touches the turn banner / seat strip,
+                which is the named seam.
+- Seam moved:   Room turn banner + player-switch strip — renderGamePlayerSwitch,
+                applyPlayerLabelTurnColor, showTurnStatus, setTurnStatusText, tacticalScoreText,
+                tacticalEventText — from `src/sogotable/static/app.js` to
+                `src/sogotable/static/controllers/turn-status.js`, wired via wireTurnStatus(ctx)
+                [NEW owner row]
+- Room opened:  app.js: 2251 → 2155 lines (as the test counts them); ceiling 2231+25 → 2155+25.
+                APP_TOP_LEVEL_LET_CAP unchanged (25; no shell state moved — currentRoom /
+                pendingMove are read through ctx getters).
+- Behavior:     PRESERVED — verified via `npm test` (all green, incl. the static-module load sweep
+                and review-export import closure); bodies verbatim except shell globals now read
+                through ctx (getRoom / getPendingMove / rerender / predicates / Battleship
+                review-mark hooks); same DOM ids, classes, text, inline styles, click handler.
+                wireTurnStatus runs first in DOMContentLoaded, before any caller can fire.
+                Exports: wireTurnStatus, renderGamePlayerSwitch, showTurnStatus, setTurnStatusText.
+- Sources read: CLAUDE.md, docs/module-ownership.md, docs/modularity.md,
+                workers/tests/architecture.test.js, src/sogotable/static/app.js,
+                src/sogotable/static/controllers/win-overlay.js, src/sogotable/static/review-export.js
+- Restraint:    No new turn/seat behaviour; setTurnColorVariables, safePlayerColor, playerForMark and
+                the per-game render fan stay in app.js (shared with other callers). No isMyTurn hook.
+- New owner row: | `src/sogotable/static/controllers/turn-status.js` | Room turn banner + player-switch strip (turn text, seat labels, turn tint) | `src/sogotable/static/app.js` |
+```
+
+## 2026-11-12 — REORG: extract design tokens to styles-tokens.css
+Commit: refactor(css): extract :root design tokens to styles-tokens.css (this entry's commit)
+
+```
+REORG RECEIPT
+- Trigger:      src/sogotable/static/styles.css (281 lines, ceiling 299) mixed the theme token
+                palette with platform chrome; the token blocks are the named seam so upcoming
+                theming/seat-colour work lands in a tokens-only sheet.
+- Seam moved:   `:root` light tokens + `:root[data-theme="dark"]` token override (custom properties
+                + color-scheme only) from `src/sogotable/static/styles.css` to
+                `src/sogotable/static/styles-tokens.css`, linked FIRST in index.html
+                [NEW file; CSS is outside the JS ownership map — no owner row; docs/theme.md
+                updated to point at the new home]
+- Room opened:  styles.css: 281 → 206 lines (as the test counts them); ceiling 274+25 → 206+25.
+                styles-tokens.css 78 lines (under GLOBAL_FILE_CAP).
+- Behavior:     PRESERVED for rendering — moved bytes are identical (diff of tokens+styles vs the
+                old styles.css is empty) and load order keeps the same cascade order. Caller-directed
+                service-worker changes in the same commit: styles-tokens.css added to the
+                always-fresh (no-store) list, and the previously-missing styles-header.css /
+                styles-roster.css / styles-room.css added too (a cache-freshness fix — these were
+                being served through the SW cache); CACHE_NAME v100 → v101.
+                review-export allowlist gains styles-tokens.css. `npm test` all green.
+- Sources read: CLAUDE.md, docs/module-ownership.md, docs/theme.md,
+                workers/tests/architecture.test.js, src/sogotable/static/styles.css,
+                src/sogotable/static/index.html, src/sogotable/static/service-worker.js,
+                src/sogotable/static/review-export.js
+- Restraint:    Theme-gated selector overrides (`:root[data-theme="dark"] .x {…}`) stay in their
+                chrome sheets; no token values renamed or added.
+- New owner row: none
+```
+
+## 2026-11-12 — Stats: score direction, leaderboard cap, missing scored games
+Commit: fix(stats): rank penalty-point games lowest-first, cap leaderboards, score Potion Lab + WNYK (this entry's commit)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Stats: per-game lower-is-better sorting (No Thanks, Hearts), cap high-score lists at 50,
+                personal best respects direction, add scores for Potion Lab, WNYK and Mystic Wood.
+- Verdict:      workers/stats.js (logic), src/sogotable/static/games/registry.js (`score_order` flag),
+                workers/game-catalog.js (`lowerScoreIsBetter` query)  [EXISTING]
+- Flow stage:   record outcome. The direction flag is shared game metadata.
+- Considerations:
+    - stats.js has room; the work is cohesive with it.
+    - Rejected handlers.js for the flag (server-only dispatch; the client needs it too) and hard-coding
+      game ids in stats.js.
+    - The `score <= 0` filter is now direction-aware (a 0 is a perfect penalty-game score).
+    - Mystic Wood has no numeric score: it, Super Tic Tac Toe, Battleship and Quoridor are now
+      "win-only" (wins + Elo, no leaderboard row) instead of writing meaningless 1/0 high scores.
+    - Follow-up for code-steward: the per-game if-chain in scoreByMarkForRoom wants to become a
+      `scoreByMark` field on the handlers.js dispatch table.
+- New owner row: none
+```
+
+## 2026-11-12 — Exit leaves your seat instead of closing the table
+Commit: fix(rooms): exit leaves your seat instead of deleting the table for everyone (this entry's commit)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Room leave keeps the room: auth always required; before start remove the seat, re-pack
+                marks, hand off host, delete when no humans left; after start mark the seat away and keep
+                the room; rejoin clears away; away seats auto-vote on reset.
+- Verdict:      workers/room-seats.js  [owner row landed with the REORG above]. Route stays thin in
+                workers/sogotable-api.js.
+- Flow stage:   orchestrate (room seat coordination).
+- Considerations:
+    - Hot-seat (local_mode) tables close on exit: one phone owns every seat.
+    - Client: autoOpenActiveRoomForSelectedPlayer skips away seats (otherwise the leaver is pulled
+      straight back in); Re-enter on an away seat goes through /api/room/join, which clears away.
+    - Out of scope, recorded: an away seat holding the current turn stalls the game (no bot takeover).
+- New owner row: none
+```
+
+## 2026-11-12 — Join link + QR, rematch button, turn signals, toasts
+Commit: feat(client): join link + QR, one-tap rematch, your-turn signals, toasts instead of alert() (this entry's commit)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Shareable join link + QR on the room screen (`?join=CODE` deep link, navigator.share/copy);
+                "Same players again" on the win card; your-turn title/badge/vibrate + Screen Wake Lock;
+                in-app toasts replacing all 26 window.alert() calls.
+- Verdict:      controllers/room-share.js, client/turn-attention.js, controllers/toast.js  [NEW owner rows];
+                src/sogotable/static/vendor/  [NEW exempt row, qrcode-generator 1.4.4 MIT, minified ESM];
+                controllers/win-overlay.js  [EXISTING, ctx.requestRematch -> resetGame({ skipConfirm })].
+- Flow stage:   render UI / capture intent. Joins reuse enterRoomSummary; rematch reuses the reset vote.
+- Considerations:
+    - Sharing hidden for hot-seat, solo and started rooms (seats are fixed once a game starts).
+    - Turn signal uses the platform `game.current_player` convention (same as the realtime poll and the
+      turn sound); games without it never light the signal — a per-game awaiting-seats projection is a
+      server follow-up. Suppressed in hot-seat and solo rooms; wake lock re-acquired on return.
+    - Found by ESLint while here: handleIncomingResetRequest read an undefined `pendingConfirmAction`
+      (ReferenceError), so the other phone never saw reset/rematch requests. prompts.js now exports
+      isConfirmPending(); covered by the two-phone e2e test.
+- New owner row: see docs/module-ownership.md (toast, room-share, turn-attention, vendor/)
+```
+
+## 2026-11-12 — Tooling: ESLint, Prettier, Playwright two-phone e2e
+Commit: chore(tooling): ESLint + Prettier configs, Playwright two-phone e2e against a local stack (this entry's commit)
+
+```
+PLACEMENT RECEIPT
+- Ask:          eslint.config.js (flat), Prettier config, Playwright e2e under tests/e2e/, local-stack start.
+- Verdict:      Exempt rows `tests/`, `eslint.config.js`, `playwright.config.js`; static server in `scripts/`.
+- Flow stage:   none (tooling)
+- Considerations:
+    - `npm test` stays worker-only; e2e is `npm run test:e2e` and its own CI job; lint is its own CI job.
+    - The app reads `window.SOGOTABLE_API_ORIGIN` (set only by tests) so the browser talks to `wrangler dev`.
+    - `wrangler pages dev` cannot serve the static app (it adopts the Worker's wrangler.toml and refuses
+      the Durable Object bindings), hence scripts/e2e-static-server.mjs.
+    - Prettier is configured but not enforced, to avoid one repo-wide reformat colliding with other threads.
+    - Swapped the unused `playwright` devDependency for `@playwright/test` (same 1.61 line).
+- New owner row: none (exempt rows above)
+
 ## 2026-11-12 — Chess Tutor (client-only opening trainer)
 
 ```

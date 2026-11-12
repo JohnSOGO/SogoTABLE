@@ -31,10 +31,14 @@ import {
   getBattleshipReviewMark,
   setBattleshipReviewMark,
 } from "./games/battleship/client.js";
-import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
+import { confirmAction, isConfirmPending, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
 import { wireGameOptions } from "./controllers/game-options.js";
 import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKey, wireGameStats } from "./controllers/game-stats.js";
 import { scheduleWinOverlay, hideWinOverlay, wireWinOverlay, resetWinCelebration } from "./controllers/win-overlay.js";
+import { showToast, showInfoToast } from "./controllers/toast.js";
+import { wireRoomShare, captureJoinLink, resumePendingJoin, renderRoomShare } from "./controllers/room-share.js";
+import { syncTurnAttention } from "./client/turn-attention.js";
+import { wireTurnStatus, renderGamePlayerSwitch, showTurnStatus, setTurnStatusText } from "./controllers/turn-status.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
   wireSuperuser,
@@ -173,6 +177,14 @@ const realtime = createRealtimeController({
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+  wireTurnStatus({
+    getRoom: () => currentRoom, getPendingMove: () => pendingMove, rerender: renderGame,
+    isBotPlayer, setTurnColorVariables, safePlayerColor,
+    visibleBattleshipPlayerMark, getBattleshipReviewMark, setBattleshipReviewMark,
+    isTacticalGameState, isBattleshipGameState, isTenThousandGameState, isYahtzeeGameState,
+    isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
+    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState,
+  });
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat();
   wireLobby({
@@ -238,7 +250,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshGameDefinitions();
   renderGames();
   renderAppearanceChoices();
-  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate);   // after an auto-update, put the player back
+  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate).then(() => resumePendingJoin());   // after an auto-update, put the player back
   renderSelectedGame();
   renderSelectedPlayer();
   renderCurrentPlayer();
@@ -277,7 +289,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("resetGame").addEventListener("click", resetGame);
   wirePromptControls();
   wireChessTutor({ deviceSelectedPlayer });
-  wireWinOverlay({ getRoom: () => currentRoom });
+  wireWinOverlay({ getRoom: () => currentRoom, requestRematch: () => resetGame({ skipConfirm: true }) });
+  wireRoomShare({ joinRoomByCode: (code) => enterRoomSummary({ code }), hasSelectedPlayer: () => Boolean(deviceSelectedPlayer()), isSoloRoom });
+  captureJoinLink();
   bindRefreshTitleControls();
   realtime.connectAppEvents();
 });
@@ -558,7 +572,7 @@ async function autoOpenActiveRoomForSelectedPlayer({ allowHidden = false } = {})
   if (!player || !gameSelectedScreen || (!allowHidden && !gameSelectedScreen.classList.contains("active"))) return false;
   const room = currentGameRooms.find((item) => (
     item.status === "active" &&
-    item.players.some((seat) => seat.id === player.id)
+    item.players.some((seat) => seat.id === player.id && !seat.away)
   ));
   if (!room || (currentRoom && currentRoom.code === room.code)) return false;
   try {
@@ -644,24 +658,24 @@ function renderCreateGameButton() {
 
 async function enterRoomSummary(summary) {
   const player = deviceSelectedPlayer();
-  if (!player) return alert("Select a player first.");
+  if (!player) return showToast("Select a player first.");
   let freshSummary = summary;
   try {
     const data = await fetchJson(roomReadUrl(summary.code));
-    if (!data.ok) return alert(data.error || "Game not found.");
+    if (!data.ok) return showToast(data.error || "Game not found.");
     freshSummary = data.room;
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
     return;
   }
   const selectedSeat = freshSummary.players.find((seat) => seat.id === player.id);
-  if (selectedSeat) {
+  if (selectedSeat && !selectedSeat.away) {
     setRoom(freshSummary);
     showScreen("game");
     return;
   }
   if (freshSummary.status !== "waiting_for_player" || (freshSummary.open_seats !== null && freshSummary.open_seats !== undefined && freshSummary.open_seats <= 0)) {
-    alert("That game is no longer open.");
+    showToast("That game is no longer open.");
     refreshGameRooms();
     return;
   }
@@ -671,7 +685,7 @@ async function enterRoomSummary(summary) {
     refreshGameRooms();
     showScreen("game");
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -813,7 +827,7 @@ async function createPlayer(event) {
     players = response.players;
     if (await finishPlayerSave(response.player.id, input, wasEditing)) playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -891,7 +905,7 @@ async function unclaimPlayerAsSuperuser(playerId) {
     playConfirm();
   } catch (error) {
     if (String(error.message || "").toLowerCase().includes("passcode")) forgetSogoSuperuserPasscode();
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -932,9 +946,9 @@ async function clearEditingPlayerStats() {
     await refreshSelectedPlayerStats();
     await refreshGameStats(selectedGame());
     playConfirm();
-    alert(`Stats cleared for ${player.name}.`);
+    showInfoToast(`Stats cleared for ${player.name}.`);
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1052,7 +1066,7 @@ async function exportReviewZip() {
     await downloadReviewZip(revisionText);
     playConfirm();
   } catch (error) {
-    alert(error.message || "Export failed.");
+    showToast(error.message || "Export failed.");
   } finally {
     if (button) {
       button.disabled = false;
@@ -1105,7 +1119,7 @@ async function deletePlayer(playerId) {
     players = response.players;
     finishPlayerDelete(playerId);
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1168,7 +1182,7 @@ async function createRoom() {
 }
 async function attemptCreateRoom(retried) {
   const player = deviceSelectedPlayer();
-  if (!player) return alert("Select a player first.");
+  if (!player) return showToast("Select a player first.");
   try {
     const response = await api("/api/room/create", { game_id: selectedGameId, player, owner_token: await ensureOwnerToken(player.id) });
     hostInviteStatus = null;
@@ -1188,12 +1202,19 @@ async function attemptCreateRoom(retried) {
     }
     playerApiAvailable = false;
     renderCreateGameButton();
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
+function exitGameConfirmText(room) {
+  const others = room ? room.players.filter((seat) => seat.kind !== "bot" && !seat.away && seat.id !== getDeviceSelectedPlayerId()) : [];
+  if (!room || room.local_mode || !others.length) return "Exit and close this table?";
+  if (!room.started) return "Leave this table? The others stay in the lobby.";
+  return "Leave this game? Everyone else keeps playing, and you can rejoin from Current Games.";
+}
+
 async function closeGame() {
-  const confirmed = await confirmAction("Exit game?", "Exit this game and return to the game lobby?");
+  const confirmed = await confirmAction("Exit game?", exitGameConfirmText(currentRoom));
   if (!confirmed) return;
   const roomToClose = currentRoom;
   restoreLocalGameHomePlayer(roomToClose);
@@ -1202,7 +1223,7 @@ async function closeGame() {
       const exitingPlayerId = getSelectedPlayerId() || getDeviceSelectedPlayerId();
       await api("/api/room/leave", { code: roomToClose.code, player_id: exitingPlayerId, requester_id: exitingPlayerId, owner_token: await ensureOwnerToken(exitingPlayerId) });
     } catch (error) {
-      alert(error.message);
+      showToast(error.message);
       return;
     }
   }
@@ -1244,11 +1265,11 @@ async function closeRoomAsSuperuser(code) {
     refreshGameRooms();
   } catch (error) {
     if (String(error.message || "").toLowerCase().includes("passcode")) forgetSogoSuperuserPasscode();
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
-async function resetGame() {
+async function resetGame(options = {}) {
   if (!currentRoom) return;
   const completed = isCompletedRoom(currentRoom);
   // Agreement is only sought when more than one human is seated; bots auto-agree
@@ -1262,7 +1283,7 @@ async function resetGame() {
     : (needsAgreement
       ? "Request a board reset? The other players must agree."
       : "Reset the board and start over?");
-  const confirmed = await confirmAction("Are you sure?", message);
+  const confirmed = options.skipConfirm === true || await confirmAction("Are you sure?", message);
   if (!confirmed) return;
   const player =
     currentRoom.players.find((seat) => seat.id === getSelectedPlayerId() || seat.id === getDeviceSelectedPlayerId())
@@ -1270,7 +1291,7 @@ async function resetGame() {
     || currentRoom.players[0]
     || selectedPlayer();
   if (!player) {
-    alert("Select your player first.");
+    showToast("Select your player first.");
     return;
   }
   hideWinOverlay();
@@ -1408,7 +1429,7 @@ async function startTenThousandGame(openingMinimum) {
     setRoom(response.room);
     playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1453,7 +1474,7 @@ async function removeBotFromRoom(botId) {
     setRoom(response.room);
     playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1472,7 +1493,7 @@ async function startYahtzeeGame(options) {
     setRoom(response.room);
     playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1493,6 +1514,8 @@ function setRoom(room) {
   maybeAutoAckTenThousandFarkle(room);
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
+  renderRoomShare(room, getDeviceSelectedPlayerId());
+  syncTurnAttention(room, localRoomSeat(room), isSoloRoom(room));
   renderGame();
   handleIncomingResetRequest();
 }
@@ -1542,7 +1565,7 @@ async function handleIncomingResetRequest() {
     handledResetRequestKey = "";
     return;
   }
-  if (pendingConfirmAction) return;
+  if (isConfirmPending()) return;
   const request = currentRoom.reset_request;
   const localPlayer = selectedPlayer();
   if (!localPlayer || localPlayer.id === request.requester_id) return;
@@ -1559,7 +1582,7 @@ async function handleIncomingResetRequest() {
     });
     setRoom(response.room);
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1763,112 +1786,6 @@ function safePlayerColor(player) {
   return isHexColor(player && player.color ? player.color : "") ? player.color : "#1f7a5f";
 }
 
-function renderGamePlayerSwitch() {
-  const host = document.getElementById("gamePlayerSwitch");
-  host.innerHTML = "";
-  if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game) || isPotionLabGameState(currentRoom.game) || isMysticWoodGameState(currentRoom.game) || isRealmwrightGameState(currentRoom.game) || isChineseCheckersGameState(currentRoom.game) || isLastOrdersGameState(currentRoom.game)) {
-    host.classList.add("hidden");
-    return;
-  }
-  host.classList.remove("hidden");
-  const isBattleship = isBattleshipGameState(currentRoom.game);
-  const isBattleshipReview = isBattleship && currentRoom.game && currentRoom.game.phase === "complete";
-  const battleshipActiveMark = isBattleship && !isBattleshipReview ? visibleBattleshipPlayerMark(currentRoom) : "";
-
-  currentRoom.players.forEach((roomPlayer) => {
-    const isCurrentTurn = roomPlayer.mark === currentRoom.game.current_player && currentRoom.game.status === "playing";
-    const isVisibleBattleshipPlayer = Boolean(battleshipActiveMark && roomPlayer.mark === battleshipActiveMark);
-    const highlighted = isBattleship && !isBattleshipReview ? isVisibleBattleshipPlayer : isCurrentTurn;
-    const scoreText = tacticalScoreText(roomPlayer);
-    const label = document.createElement(isBattleshipReview ? "button" : "div");
-    if (isBattleshipReview) label.type = "button";
-    const selectedReview = isBattleshipReview && roomPlayer.mark === (getBattleshipReviewMark() || currentRoom.players[0].mark);
-    label.className = `player-switch-button ${highlighted ? "current-turn" : ""} ${selectedReview ? "current-turn" : ""}`;
-    label.setAttribute("aria-current", highlighted ? "true" : "false");
-    if (highlighted || selectedReview) applyPlayerLabelTurnColor(label, roomPlayer);
-    label.innerHTML = `${avatarHtml(roomPlayer)}<span>${escapeHtml(roomPlayer.name)}${scoreText}</span>`;
-    if (isBattleshipReview) {
-      label.setAttribute("aria-pressed", selectedReview ? "true" : "false");
-      label.addEventListener("click", () => {
-        setBattleshipReviewMark(roomPlayer.mark);
-        renderGame();
-      });
-    }
-    host.appendChild(label);
-  });
-}
-
-function applyPlayerLabelTurnColor(element, player) {
-  if (!element || !player) return;
-  const playerColor = safePlayerColor(player);
-  const background = mixColorWithWhite(playerColor, 0.16);
-  element.style.background = background;
-  element.style.borderColor = mixColorWithWhite(playerColor, 0.64);
-  element.style.color = getContrastAwareTextColor(background);
-  element.style.boxShadow = `0 0 0 2px ${colorWithAlpha(playerColor, 0.18)}`;
-}
-
-function showTurnStatus(currentPlayer, overrideText = "") {
-  const host = document.getElementById("turnStatus");
-  if (!host) return;
-  host.classList.remove("your-turn", "waiting");
-  setTurnColorVariables(host, currentPlayer ? currentPlayer.color : "#1f7a5f");
-  if (overrideText) {
-    host.textContent = overrideText;
-    return;
-  }
-  const selectedSeat = currentRoom.players.find((player) => player.id === getSelectedPlayerId());
-  if (!selectedSeat) {
-    host.textContent = "Select your player.";
-    host.classList.add("waiting");
-    return;
-  }
-  if (selectedSeat.mark === currentRoom.game.current_player) {
-    setTurnColorVariables(host, selectedSeat.color);
-    const moveText = isBattleshipGameState(currentRoom.game)
-      ? `It's your turn, ${selectedSeat.name}.`
-      : `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`;
-    setTurnStatusText(host, pendingMove ? "Placing move..." : moveText);
-    host.classList.add("your-turn");
-    return;
-  }
-  const waitingText = isBotPlayer(currentPlayer)
-    ? `${currentPlayer.name} is thinking...`
-    : `Waiting for ${currentPlayer ? currentPlayer.name : isBattleshipGameState(currentRoom.game) ? "the other player" : currentRoom.game.current_player}.`;
-  setTurnStatusText(host, waitingText);
-  host.classList.add("waiting");
-}
-
-function setTurnStatusText(host, text) {
-  const eventText = tacticalEventText();
-  if (!eventText) {
-    host.textContent = text;
-    return;
-  }
-  host.innerHTML = `<span>${escapeHtml(text)}</span><small>${escapeHtml(eventText)}</small>`;
-}
-
-function tacticalScoreText(roomPlayer) {
-  if (!isTacticalGameState(currentRoom && currentRoom.game) || !roomPlayer.mark) return "";
-  const score = Number(currentRoom.game.scores && currentRoom.game.scores[roomPlayer.mark] || 0);
-  return ` <em>${score}</em>`;
-}
-
-function tacticalEventText() {
-  if (!isTacticalGameState(currentRoom && currentRoom.game) || !currentRoom.game.last_event) return "";
-  const event = currentRoom.game.last_event;
-  if (event.type === "pickupCaptured") {
-    const player = currentRoom.players.find((seat) => seat.mark === event.player);
-    return `${player ? player.name : event.player} captured ${event.emoji || ""} ${event.pickup_label || "Pickup"}! +${event.points}`;
-  }
-  if (event.type === "sectorCaptured") {
-    const player = currentRoom.players.find((seat) => seat.mark === event.player);
-    return `${player ? player.name : event.player} captured Sector ${Number(event.sector) + 1}.`;
-  }
-  return "";
-}
-
 function pickupAtCell(game, boardIndex, cellIndex) {
   if (!isTacticalGameState(game) || !Array.isArray(game.pickups)) return null;
   return game.pickups.find((pickup) => pickup.board === boardIndex && pickup.cell === cellIndex) || null;
@@ -1881,6 +1798,7 @@ function startRoomLiveUpdates() {
 
 function stopRoomLiveUpdates() {
   realtime.stopRoomLiveUpdates();
+  syncTurnAttention(null);
 }
 
 function handleRoomSocketMessage(event) {
@@ -2040,6 +1958,7 @@ function setDeviceSelectedPlayer(playerId) {
   saveSelectedPlayer();
   realtime.sendAppEventSubscription();
   if (currentRoom && previousPlayerId !== getDeviceSelectedPlayerId()) realtime.refreshRoomLiveUpdates();
+  void resumePendingJoin();
 }
 
 function syncSelectedPlayerForLocalRoom() {
@@ -2114,7 +2033,7 @@ function gameIsReady(game) {
 function playerCountForGame(game) {
   const count = Number(game && game.player_count);
   if (Number.isFinite(count) && count > 0) return count;
-  return Boolean(game && game.host_start) ? Number.POSITIVE_INFINITY : 2;
+  return game && game.host_start ? Number.POSITIVE_INFINITY : 2;
 }
 
 function selectedGameIsSolo() {

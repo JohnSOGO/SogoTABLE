@@ -87,6 +87,15 @@ npm test
 
 `npm test` is an alias for `npm run test:worker`, which runs the Node test files under `workers/tests/`. Game rules are tested without a browser.
 
+Browser end-to-end tests drive two phones at one table against a fully local stack (`wrangler dev` for the Worker with local D1 + Durable Objects, plus a tiny static server for the app):
+
+```powershell
+npx playwright install chromium   # once per machine
+npm run test:e2e
+```
+
+Lint and formatting use the standard tools: `npm run lint` (ESLint, also in CI) and `npm run format:check` / `npm run format` (Prettier; config in `.prettierrc.json`, not yet enforced in CI so existing files are reformatted gradually rather than in one huge diff).
+
 Run `npm run hooks` once per clone to install the git pre-push hook that runs `npm test` and blocks a red push (the mechanical test gate).
 
 ## Principles
