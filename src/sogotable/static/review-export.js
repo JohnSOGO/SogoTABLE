@@ -164,6 +164,8 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/lobby.js",
   "src/sogotable/static/games/README.md",
   "src/sogotable/static/games/battleship/client.js",
+  "src/sogotable/static/games/battleship/fleet-geometry.js",
+  "src/sogotable/static/games/battleship/styles.js",
   "src/sogotable/static/games/battleship/phrases.js",
   "src/sogotable/static/games/battleship/index.js",
   "src/sogotable/static/games/battleship/manifest.js",

@@ -1115,3 +1115,34 @@ app.js import + dispatch, the render-keys slice, the games/wnyk/ client module
 gameToDictForViewer chain line (hidden-info game — the sanitizer line may never trail
 the row). Review-export allowlist extended with the six worker-side and four
 client-side wnyk modules for the import-closure guard.
+
+## 2026-11-12 — REORG: extract Battleship fleet geometry + theme CSS from client.js
+
+```
+REORG RECEIPT
+- Trigger:      placement-advisor flagged src/sogotable/static/games/battleship/client.js (746 lines,
+                near the 800-line GLOBAL_FILE_CAP) as too full / carrying too many concerns to absorb
+                the upcoming Battleship feature; named two seams: pure fleet geometry and theme CSS.
+- Seam moved:   (1) pure fleet geometry — randomBattleshipDraft, battleshipShipAt, battleshipShipSunk,
+                coerceBattleshipPlacement, clampNumber, battleshipPlacementValid, battleshipFleetComplete,
+                battleshipShipSize, battleshipShipCells, battleshipDraftKey — from client.js to
+                src/sogotable/static/games/battleship/fleet-geometry.js (named exports);
+                (2) dark-theme CSS string BATTLESHIP_DARK_CSS from client.js to
+                src/sogotable/static/games/battleship/styles.js, exported as BATTLESHIP_CSS
+                [EXISTING owner via the src/sogotable/static/games/ owned-directory pattern —
+                no new module-ownership row].
+- Room opened:  client.js 746 → 613 lines (187 under GLOBAL_FILE_CAP 800); fleet-geometry.js 97,
+                styles.js 48. No per-file ceiling (client.js is not in CEILINGS/FILE_CAP_EXCEPTIONS);
+                GLOBAL_FILE_CAP unchanged (shared backstop).
+- Behavior:     PRESERVED — verbatim move, no logic/name/signature changes. The draft store
+                (battleshipDrafts, battleshipDraftFor, placeBattleshipDraftShip, clearBattleshipDraft)
+                and the injector ensureBattleshipTheme stay in client.js; same <style id="battleship-theme">
+                text injected. fleet-geometry.js and styles.js are pure leaves (no DOM, no ctx, no
+                module state, no imports). client.js public exports unchanged.
+- Files rewired: client.js (imports), src/sogotable/static/review-export.js (both new files added to
+                REVIEW_EXPORT_FILES), new workers/tests/battleship-fleet-geometry.test.js.
+- Verification:  node --test workers/tests/*.test.js → 517 pass, 0 fail (incl. architecture.test.js).
+- Restraint:    renderers, reveal subsystem, move action, and draft store untouched; no worker-side
+                (workers/games/battleship/) changes; no feature code added.
+                Reorganizer: reorganizer agent (2026-11-12).
+```
