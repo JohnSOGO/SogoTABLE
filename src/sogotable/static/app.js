@@ -35,6 +35,7 @@ import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } 
 import { wireGameOptions } from "./controllers/game-options.js";
 import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKey, wireGameStats } from "./controllers/game-stats.js";
 import { scheduleWinOverlay, hideWinOverlay, wireWinOverlay, resetWinCelebration } from "./controllers/win-overlay.js";
+import { wireTurnStatus, renderGamePlayerSwitch, showTurnStatus, setTurnStatusText } from "./controllers/turn-status.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
   wireSuperuser,
@@ -171,6 +172,14 @@ const realtime = createRealtimeController({
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+  wireTurnStatus({
+    getRoom: () => currentRoom, getPendingMove: () => pendingMove, rerender: renderGame,
+    isBotPlayer, setTurnColorVariables, safePlayerColor,
+    visibleBattleshipPlayerMark, getBattleshipReviewMark, setBattleshipReviewMark,
+    isTacticalGameState, isBattleshipGameState, isTenThousandGameState, isYahtzeeGameState,
+    isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
+    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState,
+  });
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat();
   wireLobby({
@@ -1758,112 +1767,6 @@ function playerForMark(mark) {
 
 function safePlayerColor(player) {
   return isHexColor(player && player.color ? player.color : "") ? player.color : "#1f7a5f";
-}
-
-function renderGamePlayerSwitch() {
-  const host = document.getElementById("gamePlayerSwitch");
-  host.innerHTML = "";
-  if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game) || isPotionLabGameState(currentRoom.game) || isMysticWoodGameState(currentRoom.game) || isRealmwrightGameState(currentRoom.game) || isChineseCheckersGameState(currentRoom.game)) {
-    host.classList.add("hidden");
-    return;
-  }
-  host.classList.remove("hidden");
-  const isBattleship = isBattleshipGameState(currentRoom.game);
-  const isBattleshipReview = isBattleship && currentRoom.game && currentRoom.game.phase === "complete";
-  const battleshipActiveMark = isBattleship && !isBattleshipReview ? visibleBattleshipPlayerMark(currentRoom) : "";
-
-  currentRoom.players.forEach((roomPlayer) => {
-    const isCurrentTurn = roomPlayer.mark === currentRoom.game.current_player && currentRoom.game.status === "playing";
-    const isVisibleBattleshipPlayer = Boolean(battleshipActiveMark && roomPlayer.mark === battleshipActiveMark);
-    const highlighted = isBattleship && !isBattleshipReview ? isVisibleBattleshipPlayer : isCurrentTurn;
-    const scoreText = tacticalScoreText(roomPlayer);
-    const label = document.createElement(isBattleshipReview ? "button" : "div");
-    if (isBattleshipReview) label.type = "button";
-    const selectedReview = isBattleshipReview && roomPlayer.mark === (getBattleshipReviewMark() || currentRoom.players[0].mark);
-    label.className = `player-switch-button ${highlighted ? "current-turn" : ""} ${selectedReview ? "current-turn" : ""}`;
-    label.setAttribute("aria-current", highlighted ? "true" : "false");
-    if (highlighted || selectedReview) applyPlayerLabelTurnColor(label, roomPlayer);
-    label.innerHTML = `${avatarHtml(roomPlayer)}<span>${escapeHtml(roomPlayer.name)}${scoreText}</span>`;
-    if (isBattleshipReview) {
-      label.setAttribute("aria-pressed", selectedReview ? "true" : "false");
-      label.addEventListener("click", () => {
-        setBattleshipReviewMark(roomPlayer.mark);
-        renderGame();
-      });
-    }
-    host.appendChild(label);
-  });
-}
-
-function applyPlayerLabelTurnColor(element, player) {
-  if (!element || !player) return;
-  const playerColor = safePlayerColor(player);
-  const background = mixColorWithWhite(playerColor, 0.16);
-  element.style.background = background;
-  element.style.borderColor = mixColorWithWhite(playerColor, 0.64);
-  element.style.color = getContrastAwareTextColor(background);
-  element.style.boxShadow = `0 0 0 2px ${colorWithAlpha(playerColor, 0.18)}`;
-}
-
-function showTurnStatus(currentPlayer, overrideText = "") {
-  const host = document.getElementById("turnStatus");
-  if (!host) return;
-  host.classList.remove("your-turn", "waiting");
-  setTurnColorVariables(host, currentPlayer ? currentPlayer.color : "#1f7a5f");
-  if (overrideText) {
-    host.textContent = overrideText;
-    return;
-  }
-  const selectedSeat = currentRoom.players.find((player) => player.id === getSelectedPlayerId());
-  if (!selectedSeat) {
-    host.textContent = "Select your player.";
-    host.classList.add("waiting");
-    return;
-  }
-  if (selectedSeat.mark === currentRoom.game.current_player) {
-    setTurnColorVariables(host, selectedSeat.color);
-    const moveText = isBattleshipGameState(currentRoom.game)
-      ? `It's your turn, ${selectedSeat.name}.`
-      : `It's Your Turn ${selectedSeat.name}; Place an ${selectedSeat.mark}`;
-    setTurnStatusText(host, pendingMove ? "Placing move..." : moveText);
-    host.classList.add("your-turn");
-    return;
-  }
-  const waitingText = isBotPlayer(currentPlayer)
-    ? `${currentPlayer.name} is thinking...`
-    : `Waiting for ${currentPlayer ? currentPlayer.name : isBattleshipGameState(currentRoom.game) ? "the other player" : currentRoom.game.current_player}.`;
-  setTurnStatusText(host, waitingText);
-  host.classList.add("waiting");
-}
-
-function setTurnStatusText(host, text) {
-  const eventText = tacticalEventText();
-  if (!eventText) {
-    host.textContent = text;
-    return;
-  }
-  host.innerHTML = `<span>${escapeHtml(text)}</span><small>${escapeHtml(eventText)}</small>`;
-}
-
-function tacticalScoreText(roomPlayer) {
-  if (!isTacticalGameState(currentRoom && currentRoom.game) || !roomPlayer.mark) return "";
-  const score = Number(currentRoom.game.scores && currentRoom.game.scores[roomPlayer.mark] || 0);
-  return ` <em>${score}</em>`;
-}
-
-function tacticalEventText() {
-  if (!isTacticalGameState(currentRoom && currentRoom.game) || !currentRoom.game.last_event) return "";
-  const event = currentRoom.game.last_event;
-  if (event.type === "pickupCaptured") {
-    const player = currentRoom.players.find((seat) => seat.mark === event.player);
-    return `${player ? player.name : event.player} captured ${event.emoji || ""} ${event.pickup_label || "Pickup"}! +${event.points}`;
-  }
-  if (event.type === "sectorCaptured") {
-    const player = currentRoom.players.find((seat) => seat.mark === event.player);
-    return `${player ? player.name : event.player} captured Sector ${Number(event.sector) + 1}.`;
-  }
-  return "";
 }
 
 function pickupAtCell(game, boardIndex, cellIndex) {

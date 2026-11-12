@@ -41,6 +41,7 @@ concern), then implement.
 | `src/sogotable/static/controllers/game-options.js` | Game-options menu | — |
 | `src/sogotable/static/controllers/game-stats.js` | Game stats panel + modal | — |
 | `src/sogotable/static/controllers/win-overlay.js` | Win overlay + confetti | — |
+| `src/sogotable/static/controllers/turn-status.js` | Room turn banner + player-switch strip (turn text, seat labels, turn tint) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/player-appearance.js` | Player-edit appearance picker (icon + colour) | — |
 | `src/sogotable/static/controllers/superuser.js` | Sogo superuser identity + passcode gate | — |
 | `src/sogotable/static/controllers/local-seat.js` | Local hot-seat seat persistence (device-local) | — |

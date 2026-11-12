@@ -1275,3 +1275,33 @@ REORG RECEIPT
                 lands there next). lobbyViewers, bot-turn loop, routing untouched.
 - New owner row: | `workers/room-seats.js` | Room seat roster lifecycle: seat/mark assignment + colours, activation/start, leave (pre-start removal with mark re-pack + host handoff; post-start away), rejoin, reset-vote tally | `workers/sogotable-api.js` |
 ```
+
+## 2026-11-12 — REORG: extract turn banner + player-switch strip to controllers/turn-status.js
+Commit: refactor(app): extract turn banner + player-switch strip to controllers/turn-status.js (this entry's commit)
+
+```
+REORG RECEIPT
+- Trigger:      src/sogotable/static/app.js was at 2251 lines against a 2256 ceiling (5 lines of
+                headroom); upcoming seat-lifecycle UI work touches the turn banner / seat strip,
+                which is the named seam.
+- Seam moved:   Room turn banner + player-switch strip — renderGamePlayerSwitch,
+                applyPlayerLabelTurnColor, showTurnStatus, setTurnStatusText, tacticalScoreText,
+                tacticalEventText — from `src/sogotable/static/app.js` to
+                `src/sogotable/static/controllers/turn-status.js`, wired via wireTurnStatus(ctx)
+                [NEW owner row]
+- Room opened:  app.js: 2251 → 2155 lines (as the test counts them); ceiling 2231+25 → 2155+25.
+                APP_TOP_LEVEL_LET_CAP unchanged (25; no shell state moved — currentRoom /
+                pendingMove are read through ctx getters).
+- Behavior:     PRESERVED — verified via `npm test` (all green, incl. the static-module load sweep
+                and review-export import closure); bodies verbatim except shell globals now read
+                through ctx (getRoom / getPendingMove / rerender / predicates / Battleship
+                review-mark hooks); same DOM ids, classes, text, inline styles, click handler.
+                wireTurnStatus runs first in DOMContentLoaded, before any caller can fire.
+                Exports: wireTurnStatus, renderGamePlayerSwitch, showTurnStatus, setTurnStatusText.
+- Sources read: CLAUDE.md, docs/module-ownership.md, docs/modularity.md,
+                workers/tests/architecture.test.js, src/sogotable/static/app.js,
+                src/sogotable/static/controllers/win-overlay.js, src/sogotable/static/review-export.js
+- Restraint:    No new turn/seat behaviour; setTurnColorVariables, safePlayerColor, playerForMark and
+                the per-game render fan stay in app.js (shared with other callers). No isMyTurn hook.
+- New owner row: | `src/sogotable/static/controllers/turn-status.js` | Room turn banner + player-switch strip (turn text, seat labels, turn tint) | `src/sogotable/static/app.js` |
+```
