@@ -94,6 +94,9 @@ import {
   LAST_ORDERS_GAME_ID, isLastOrdersGame, newLastOrdersGame, initLastOrdersSeats, setLastOrdersOptions, makeLastOrdersMove, lastOrdersGameToDict, lastOrdersGameToDictForViewer,
 } from "./last-orders/rules.js";
 import {
+  REEFKEEPERS_GAME_ID, isReefkeepersGame, newReefkeepersGame, initReefkeepersSeats, setReefkeepersOptions, makeReefkeepersMove, reefkeepersGameToDict, reefkeepersGameToDictForViewer,
+} from "./reefkeepers/rules.js";
+import {
   TRADEWINDS_GAME_ID, isTradewindsGame, newTradewindsGame, initTradewindsSeats, setTradewindsOptions, makeTradewindsMove, tradewindsGameToDict, tradewindsGameToDictForViewer,
 } from "./tradewinds/rules.js";
 
@@ -202,6 +205,14 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isLastOrdersGame(prevGame) && prevGame.options) setLastOrdersOptions(nextGame, { lo_options: prevGame.options });
     } },
+  { id: REEFKEEPERS_GAME_ID, is: isReefkeepersGame, create: newReefkeepersGame, toDict: reefkeepersGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeReefkeepersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initReefkeepersSeats,
+    // Host options (reef size, heart/full bonuses, spots, live score, hints)
+    // from the lobby, applied at /api/room/start and carried across a reset.
+    applyStartOptions: (game, payload) => setReefkeepersOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isReefkeepersGame(prevGame) && prevGame.options) setReefkeepersOptions(nextGame, { reef_options: prevGame.options });
+    } },
   { id: TRADEWINDS_GAME_ID, is: isTradewindsGame, create: newTradewindsGame, toDict: tradewindsGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeTradewindsMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initTradewindsSeats,
     // Host options (renown target, hand limit, board size, quick setup, friendly
@@ -269,6 +280,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isTracklayersGame(game)) return tracklayersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isChineseCheckersGame(game)) return chineseCheckersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isReefkeepersGame(game)) return reefkeepersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isTradewindsGame(game)) return tradewindsGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }

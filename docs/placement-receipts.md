@@ -1461,36 +1461,55 @@ PLACEMENT RECEIPT
     - sound-files.js must not import sound.js (cycle).
 - New owner row: | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map … | `src/sogotable/static/sound.js` |
 ```
+## 2026-11-12 — Reefkeepers (new game module, domino drafting, simultaneous submit)
 
-## 2026-11-12 — REORG: extract host-start game render dispatch to games/room-render-dispatch.js
-Commit: refactor(shell): extract host-start game render dispatch into room-render-dispatch.js (this entry's commit)
+- Ask:          Place a new host-start, parallel-play domino-drafting reef builder (5x5 grid,
+                region x pearls), following game-integration-spec.md with Realmwright as precedent.
+- Verdict:      workers/games/reefkeepers/ (tiles, board, rules, ai) + src/sogotable/static/games/
+                reefkeepers/ (manifest, branding, assets, art, render [+views], lobby, sfx, styles)
+                + one-row wiring (registry.js, game-kinds.js, app.js, handlers.js row +
+                gameToDictForViewer line, stats.js, review-export.js, tests/helpers.js,
+                sogotable-api.test.js list) [EXISTING owner: directory patterns]
+- Flow stage:   validate + apply (board/rules, server-authoritative at the round barrier);
+                render (client dir); record (stats.js score branch).
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js,
+                scripts/audit-ceilings.mjs, docs/placement-receipts.md, app.js, service-worker.js.
+- Considerations:
+    - app.js ~2174/2180: +1 import line only; ids appended to existing predicate lines.
+      Parallel game merges share 6 lines of headroom; crossing = re-consult, never bump.
+    - Scoring/legality in pure board.js, deck in tiles.js, so rules.js stays well under 800.
+    - Skip vote reuses workers/games/skip-vote.js; lobby reuses shared games/lobby.js.
+    - Rejected: draft/barrier logic in skip-vote.js, the shared lobby, or the shell.
+    - Hidden picks: the handlers.js row and the gameToDictForViewer line land in one commit.
+    - No reefkeepers file may import another game's module.
+- Reorganizer:  NONE
+- New owner row: none
+
+## 2026-11-12 — REORG: extract host-start render dispatch to games/room-render-dispatch.js
 
 ```
 REORG RECEIPT
-- Trigger:      src/sogotable/static/app.js was at 2175 lines (as the test counts them) against a
-                2180 ceiling, and every upcoming game (Catan, Ticket to Ride, Codenames, …) would add
-                an import, a predicate name and two chain terms to renderGame's host-start dispatch.
-                Placement-advisor named that dispatch as the seam.
-- Seam moved:   Host-start render dispatch — the 14-term isXGameState OR-chain + nested render
-                ternary (Yahtzee as default) and the 14 per-game renderXGame imports — from
-                `src/sogotable/static/app.js` to `src/sogotable/static/games/room-render-dispatch.js`
-                as a GAME_IDS-keyed table behind hostStartRendererFor(game, canonicalGameId)
-                [NEW owner row]
-- Room opened:  app.js: 2175 → 2163 lines; ceiling held at 2155+25 = 2180 (re-pinning at
-                2163+25 would RAISE the cap, which a reorg never does). Adding a host-start game
-                now costs app.js zero lines. APP_TOP_LEVEL_LET_CAP unchanged (no state moved).
-- Behavior:     PRESERVED — verified via `npm test` (all green, incl. load sweep + review-export
-                import closure). Same 14 games route through the branch (all id-only predicates, so
-                the chain's members are mutually exclusive and a table lookup is equivalent; the
-                structural-fallback games — tactical/boxes/battleship/quoridor — are not in it);
-                same branch position in renderGame, same hidden panels, same ctx object, same
-                canonicalGameId (shell-injected, alias-aware). isWnykGameState dropped from the
-                app.js destructure (its only use was the chain); the others stay (wireTurnStatus).
-- Sources read: CLAUDE.md, docs/module-ownership.md, docs/placement-receipts.md,
-                workers/tests/architecture.test.js, src/sogotable/static/app.js,
-                src/sogotable/static/games/game-kinds.js, src/sogotable/static/games/registry.js,
-                src/sogotable/static/review-export.js
-- Restraint:    Battleship / Quoridor / Ten Thousand / Boxes / classic branches untouched (bespoke
-                ctx shapes). game-kinds.js and wireTurnStatus's predicate list untouched. No new game.
-- New owner row: | `src/sogotable/static/games/room-render-dispatch.js` | Host-start room render dispatch — game-id-keyed table of per-game render functions | `src/sogotable/static/app.js` |
+- Trigger:      src/sogotable/static/app.js at 2175/2180 with several host-start games landing;
+                each new game added a render import + two predicate-list edits to app.js.
+- Seam moved:   host-start render dispatch (15 render imports, the host-start branch predicate
+                list and the render-function chooser ternary) from `src/sogotable/static/app.js`
+                to `src/sogotable/static/games/room-render-dispatch.js` as an ordered
+                HOST_START_RENDERERS table + pickHostStartRenderer(game, kinds) [NEW owner row]
+- Room opened:  app.js: 2175 → 2163 lines; ceiling stays 2155+25 (= 2180). Re-pinning at
+                2163+25 would RAISE the cap, which a reorg never does; per-game cost in app.js
+                is now zero lines, so the 17 lines of headroom are not consumed by new games.
+- Behavior:     PRESERVED — verified via `npm test` (all green); same predicate set (the old
+                condition == chooser set + Yahtzee fallback), same chooser order with Yahtzee
+                last, same render args; predicates are id-exclusive so order cannot change
+                which renderer wins. Kinds object is the same createGameKinds instance.
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js,
+                src/sogotable/static/app.js, src/sogotable/static/games/game-kinds.js,
+                src/sogotable/static/controllers/turn-status.js,
+                src/sogotable/static/review-export.js, docs/game-integration-spec.md,
+                docs/placement-receipts.md
+- Restraint:    Ten Thousand (own branch + extra args) and legacy games untouched. The
+                renderGamePlayerSwitch hide list in controllers/turn-status.js was NOT driven
+                from the table: it includes Ten Thousand and omits WNYK, so unifying would
+                change behavior. The wireTurnStatus predicate pass-through stays as-is.
+- New owner row: | `src/sogotable/static/games/room-render-dispatch.js` | Host-start game render dispatch — predicate → `render*Game` table + `pickHostStartRenderer` (kinds injected) | `src/sogotable/static/app.js` |
 ```

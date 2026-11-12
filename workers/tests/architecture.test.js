@@ -65,7 +65,6 @@ function gameDirOf(rel) {
 // rules.
 const WORKING_BUFFER = 25;
 const CEILINGS = {
-  // Host-start render dispatch extracted to games/room-render-dispatch.js (2175 -> 2163); cap held, not raised.
   "src/sogotable/static/app.js": 2155 + WORKING_BUFFER,
   "workers/sogotable-api.js": 1125 + WORKING_BUFFER,
   "src/sogotable/static/styles.css": 206 + WORKING_BUFFER,
