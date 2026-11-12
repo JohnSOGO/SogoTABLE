@@ -15,6 +15,7 @@ import { svgDataUrl, tableBgSvg } from "./art.js";
 import { GAME_EMOJI, GAME_NAME, UI } from "./branding.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
+import { snapHand, slideHand } from "./hand-fx.js";
 import { renderLastOrdersLobby } from "./lobby.js";
 import { artBegin, barHtml, mineHtml, oppsHtml, pickHtml, primerHtml, resultsHtml, tickerHtml } from "./panels.js";
 import { consumeEvents, playCue } from "./sfx.js";
@@ -447,7 +448,9 @@ function paint(ctx, fresh) {
   setSection(root, "bar", picking || complete ? "" : barHtml(vm), !picking && !complete);
   setSection(root, "mine", picking ? "" : mineHtml(vm), !picking);
   setSection(root, "controls", picking || complete ? "" : controlsHtml(vm), !picking && !complete);
+  const handBefore = snapHand(root);
   setSection(root, "hand", picking || complete ? "" : handHtml(vm), !picking && !complete && !(vm.mySeat && vm.mySeat.out));
+  slideHand(root, handBefore);
   setSection(root, "ticker", tickerHtml(vm));
   setSection(root, "toast", S.toast ? `<div class="lo-toast-msg lo-toast-${S.toast.kind}">${vm.esc(S.toast.text)}</div>` : "");
   armRings(root, g);
