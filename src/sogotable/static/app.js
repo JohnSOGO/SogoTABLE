@@ -62,6 +62,7 @@ import {
   getDeviceSelectionHash,
   saveDeviceIdentity,
 } from "./client/session-store.js";
+import { refreshRevisionSummary, registerServiceWorker } from "./client/app-update.js";
 import {
   wireInvites,
   openInvitePlayerModal,
@@ -283,40 +284,6 @@ function bindTouchZoomGuard() {
       event.preventDefault();
     }
   }, { passive: false });
-}
-
-async function refreshRevisionSummary() {
-  const host = document.getElementById("revisionSummary");
-  if (!host) return;
-  try {
-    const data = await fetchRevisionStatus();
-    host.textContent = data.status.summary;
-  } catch {
-    host.textContent = "revision unavailable";
-  }
-}
-
-async function fetchRevisionStatus() {
-  try {
-    const response = await fetch("/revision.json", { cache: "no-store" });
-    const contentType = response.headers.get("content-type") || "";
-    if (response.ok && contentType.includes("application/json")) {
-      const data = await response.json();
-      if (data.ok && data.status && data.status.summary) return data;
-    }
-  } catch {
-    // Static Pages can briefly lag the asset refresh.
-  }
-  throw new Error("revision unavailable");
-}
-
-function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").catch((error) => {
-      console.warn("SogoTable service worker unavailable.", error);
-    });
-  });
 }
 
 function bindNavigation() {
