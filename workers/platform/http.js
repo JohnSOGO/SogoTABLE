@@ -11,7 +11,17 @@ const allowedOrigins = new Set([
 const baseCorsHeaders = {
   "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
+  // Lets the cross-origin client read the deploy id (versionHeadersFor below).
+  "Access-Control-Expose-Headers": "X-SogoTable-Worker-Version",
 };
+
+// The Worker's deploy id (Cloudflare version_metadata binding). Clients use a
+// change in it as a hint to check for a new front end (client/app-update.js).
+// Absent locally/in tests → no header, so nothing downstream reacts.
+function versionHeadersFor(env) {
+  const id = env && env.CF_VERSION_METADATA && env.CF_VERSION_METADATA.id;
+  return id ? { "X-SogoTable-Worker-Version": String(id) } : {};
+}
 
 async function readJson(request) {
   const text = await request.text();
@@ -39,4 +49,4 @@ function corsHeadersFor(request) {
 }
 
 
-export { json, readJson, corsHeadersFor };
+export { json, readJson, corsHeadersFor, versionHeadersFor };

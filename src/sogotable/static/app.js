@@ -1,4 +1,4 @@
-import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError, setOwnerTokenHealer } from "./api-client.js";
+import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError, setOwnerTokenHealer, setWorkerVersionObserver } from "./api-client.js";
 import { wireHouses, renderHouseControls, renderPlayerPicker, buildPlayerCard, resetPlayerPicker } from "./controllers/houses.js";
 import {
   colorWithAlpha,
@@ -62,7 +62,7 @@ import {
   getDeviceSelectionHash,
   saveDeviceIdentity,
 } from "./client/session-store.js";
-import { refreshRevisionSummary, registerServiceWorker } from "./client/app-update.js";
+import { refreshRevisionSummary, registerServiceWorker, wireAppUpdate, checkForUpdate, noteWorkerVersion, resumeAfterUpdate } from "./client/app-update.js";
 import {
   wireInvites,
   openInvitePlayerModal,
@@ -163,6 +163,7 @@ const realtime = createRealtimeController({
   onAppMessage: handleAppEventMessage,
   onRoomMessage: handleRoomSocketMessage,
   onRoomReconnect: () => showTurnStatus(null, "Reconnecting to table..."),
+  onSocketReopen: () => { void checkForUpdate("socket-reopen"); },
   refreshRoom,
   shouldReconnectRoom: () => Boolean(currentRoom),
   shouldPollRoom: () => { const seat = currentRoom && localRoomSeat(currentRoom); return Boolean(seat && currentRoom.started && !isSoloRoom(currentRoom) && currentRoom.game && currentRoom.game.status === "playing" && seat.mark !== currentRoom.game.current_player); },
@@ -220,6 +221,12 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   purgeDeprecatedLocalRoster();
   registerServiceWorker();
+  setWorkerVersionObserver(noteWorkerVersion);
+  wireAppUpdate({
+    isBusy: () => Boolean(pendingMove),
+    getResumeState: () => ({ screen: (document.querySelector(".screen.active") || {}).id || "", selectedGameId, roomCode: currentRoom ? currentRoom.code : "" }),
+    resume: resumeFromUpdate,
+  });
   refreshRevisionSummary();
   document.documentElement.classList.toggle("is-mac", /Mac|iP(hone|ad|od)/i.test(navigator.platform || navigator.userAgent || ""));
   bindNavigation();
@@ -228,7 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshGameDefinitions();
   renderGames();
   renderAppearanceChoices();
-  refreshPlayers();
+  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate);   // after an auto-update, put the player back
   renderSelectedGame();
   renderSelectedPlayer();
   renderCurrentPlayer();
@@ -1988,6 +1995,19 @@ function leaveClosedRoom() {
   renderGames();
   refreshGameRooms();
   showScreen("gameSelected");
+}
+
+// Auto-update resume: READ-ONLY re-entry (never /api/room/join — a reload must not join a room).
+async function resumeFromUpdate(marker) {
+  if (marker.selectedGameId) { selectedGameId = canonicalGameId(marker.selectedGameId); saveSelectedGame(); renderGames(); renderSelectedGame(); }
+  if (marker.roomCode) {
+    const data = await fetchJson(roomReadUrl(marker.roomCode)).catch(() => null);
+    const mine = [getDeviceSelectedPlayerId(), getSelectedPlayerId()].filter(Boolean);
+    if (data && data.ok && data.room && data.room.players.some((seat) => mine.includes(seat.id))) {
+      activeGameRoom = data.room; setRoom(data.room); showScreen("game"); return;
+    }
+  }
+  if (marker.screen && marker.screen !== "intro") showScreen(marker.screen === "game" ? "gameSelected" : marker.screen);
 }
 
 function roomReadUrl(code) {

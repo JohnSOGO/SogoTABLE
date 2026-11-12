@@ -75,6 +75,7 @@ export function createRealtimeController(callbacks) {
       roomSocketReconnectAttempts = 0;
       syncLog(`room socket open${wasReconnecting ? " (reconnected — re-pulling)" : ""}`);
       if (wasReconnecting) callbacks.refreshRoom();
+      if (wasReconnecting && callbacks.onSocketReopen) callbacks.onSocketReopen();   // a Worker deploy drops sockets
     });
     roomSocket.addEventListener("message", callbacks.onRoomMessage);
     roomSocket.addEventListener("close", () => {
@@ -128,6 +129,7 @@ export function createRealtimeController(callbacks) {
       return;
     }
     appEventsSocket.addEventListener("open", () => {
+      if (appEventsReconnectAttempts > 0 && callbacks.onSocketReopen) callbacks.onSocketReopen();
       appEventsReconnectAttempts = 0;
       sendAppEventSubscription();
     });
