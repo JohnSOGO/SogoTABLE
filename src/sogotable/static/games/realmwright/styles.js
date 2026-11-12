@@ -88,7 +88,6 @@ const LIGHT = `
 .realmwright-root .rw-bag-cell{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
 .realmwright-root .rw-bag-cell svg{display:block;border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .realmwright-root .rw-bag-cell.rw-gone{opacity:.32}
-@media (prefers-reduced-motion:reduce){.realmwright-root .rw-fxa,.realmwright-root .rw-banner-in{animation:none !important}}
 
 /* action tray: fixed height, controls never move */
 .realmwright-root .rw-tray{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:64px 34px;align-items:center;gap:6px 8px;
