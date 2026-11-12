@@ -1336,3 +1336,25 @@ REORG RECEIPT
                 chrome sheets; no token values renamed or added.
 - New owner row: none
 ```
+
+## 2026-11-12 — Stats: score direction, leaderboard cap, missing scored games
+Commit: fix(stats): rank penalty-point games lowest-first, cap leaderboards, score Potion Lab + WNYK (this entry's commit)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Stats: per-game lower-is-better sorting (No Thanks, Hearts), cap high-score lists at 50,
+                personal best respects direction, add scores for Potion Lab, WNYK and Mystic Wood.
+- Verdict:      workers/stats.js (logic), src/sogotable/static/games/registry.js (`score_order` flag),
+                workers/game-catalog.js (`lowerScoreIsBetter` query)  [EXISTING]
+- Flow stage:   record outcome. The direction flag is shared game metadata.
+- Considerations:
+    - stats.js has room; the work is cohesive with it.
+    - Rejected handlers.js for the flag (server-only dispatch; the client needs it too) and hard-coding
+      game ids in stats.js.
+    - The `score <= 0` filter is now direction-aware (a 0 is a perfect penalty-game score).
+    - Mystic Wood has no numeric score: it, Super Tic Tac Toe, Battleship and Quoridor are now
+      "win-only" (wins + Elo, no leaderboard row) instead of writing meaningless 1/0 high scores.
+    - Follow-up for code-steward: the per-game if-chain in scoreByMarkForRoom wants to become a
+      `scoreByMark` field on the handlers.js dispatch table.
+- New owner row: none
+```

@@ -4,11 +4,7 @@
 // selectedGame/isCurrentSelectedGame/canonicalGameId via wireGameStats(ctx).
 import { fetchJson } from "../api-client.js";
 import { escapeHtml } from "../html-utils.js";
-import { GAME_IDS } from "../games/registry.js";
 
-const TACTICAL_GAME_ID = GAME_IDS.tactical;
-const BOXES_GAME_ID = GAME_IDS.boxes;
-const TEN_THOUSAND_GAME_ID = GAME_IDS.tenThousand;
 
 let currentGameStats = { high_scores: [], ratings: [] };
 let lastGameStatsKey = "";
@@ -38,18 +34,23 @@ function renderGameStats() {
   if (nextKey === lastGameStatsKey) return;
   lastGameStatsKey = nextKey;
   host.innerHTML = "";
-  if (gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID || gameId === TEN_THOUSAND_GAME_ID) {
-    host.appendChild(lobbyStatsTable("High Scores", currentGameStats.high_scores || [], "Score", "score", "No scores yet."));
-  } else {
-    host.appendChild(lobbyStatsTable("ELO Ratings", currentGameStats.ratings || [], "ELO", "rating", "No ratings yet."));
+  // Show whichever records the game actually produces: scored games fill the
+  // leaderboard (penalty games best-lowest), two-player games also fill Elo.
+  const highScores = currentGameStats.high_scores || [];
+  const ratings = currentGameStats.ratings || [];
+  const lowWins = currentGameStats.score_order === "low";
+  if (highScores.length || !ratings.length) {
+    host.appendChild(lobbyStatsTable(lowWins ? "Best Scores (lowest wins)" : "High Scores", highScores, "Score", "score", "No scores yet."));
+  }
+  if (ratings.length) {
+    host.appendChild(lobbyStatsTable("ELO Ratings", ratings, "ELO", "rating", "No ratings yet."));
   }
 }
 
 function renderGameStatsLink() {
   const button = document.getElementById("openGameStats");
   const title = document.getElementById("gameStatsTitle");
-  const gameId = ctx.canonicalGameId(ctx.selectedGame().id);
-  const label = gameId === TACTICAL_GAME_ID || gameId === BOXES_GAME_ID || gameId === TEN_THOUSAND_GAME_ID ? "High Scores" : "ELO";
+  const label = "Scores";
   if (button) button.textContent = label;
   if (title) title.textContent = label;
 }
