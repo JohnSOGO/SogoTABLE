@@ -334,9 +334,13 @@ function maybeResolveBloomwork(game) {
     guard += 1;
     const humans = humanMarks(game);
     if (game.phase === "drafting") {
-      if (humans.length && !humans.every((m) => doneDrafting(game.players[m]))) return;
-      commitBots(game);
-      resolveStep(game); // may move to review or complete
+      if (marketEmpty(game)) {
+        endRound(game); // bag and discards ran dry: nothing to draft this round
+      } else {
+        if (humans.length && !humans.every((m) => doneDrafting(game.players[m]))) return;
+        commitBots(game);
+        resolveStep(game); // may move to review or complete
+      }
       if (game.status === "complete") return;
       if (game.phase === "drafting") continue;
       if (humans.length) return; // wait for READY_NEXT

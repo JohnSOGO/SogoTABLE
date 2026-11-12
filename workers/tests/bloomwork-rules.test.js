@@ -201,3 +201,17 @@ test("a finished game stays finished: no new round is dealt after game over", ()
   assert.equal(last.type, "game_over");
   assert.equal(game.round, game.last_round.round);
 });
+
+test("an empty market (bag and discards dry) never deadlocks the table", () => {
+  const game = start([human("P1"), human("P2")]);
+  game.bag = []; game.lid = [];
+  game.stalls = game.stalls.map(() => []);
+  game.center = ["rose"];
+  makeBloomworkMove(game, "P1", { type: "PICK", round: 1, pick: 0, source: "center", flower: "rose", row: 0 });
+  makeBloomworkMove(game, "P2", { type: "PICK", round: 1, pick: 0, source: "center", flower: "rose", row: 0 });
+  makeBloomworkMove(game, "P1", { type: "READY_NEXT", round: 1 });
+  makeBloomworkMove(game, "P2", { type: "READY_NEXT", round: 1 });
+  // Round 2 deals nothing, so it ends at once and goes to review again.
+  assert.equal(game.round, 2);
+  assert.equal(game.phase, "review");
+});
