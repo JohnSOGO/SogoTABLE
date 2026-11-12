@@ -40,14 +40,26 @@ Playback level: global file cues play at 0.35 (`cue()` in `sound.js`), and per-g
 | `static/sounds/player-joined.mp3` | global `playerJoined` | Kenney Impact Sounds, `impactWood_light_000` + `_002` 170 ms apart (two knocks) | CC0 |
 | `static/games/battleship/sounds/fire.mp3` | Battleship `fire` | Kenney Sci-fi Sounds, `lowFrequency_explosion_001.ogg` | CC0 |
 | `static/games/battleship/sounds/hit.mp3` | Battleship `hit` | Kenney Sci-fi Sounds, `explosionCrunch_002.ogg` | CC0 |
+| `static/sounds/farkle.mp3` | global `farkle` (10,000) | Stable Audio Open 1.0 via SogoAI `/v1/audio/sfx`, 1.0 s, seed 102: "short comic deflating trombone wah, cartoon fail sound, clean, close, dry" | Stability AI Community License |
+| `static/sounds/hearts-broken.mp3` | global `heartsBroken` (Hearts) | Stable Audio Open 1.0 via SogoAI `/v1/audio/sfx`, 1.2 s, seed 100: "glass heart cracking, light shatter, magical sparkle tail, clean, close" | Stability AI Community License |
+| `static/sounds/queen-spades.mp3` | global `queenSpades` (Hearts) | Stable Audio Open 1.0 via SogoAI `/v1/audio/sfx`, 1.5 s, seed 103: "ominous low gong hit with dark reverb tail" | Stability AI Community License |
+| `static/sounds/moon-shot.mp3` | global `moonShot` (Hearts) | Stable Audio Open 1.0 via SogoAI `/v1/audio/sfx`, 2.5 s, seed 103: "triumphant short brass fanfare, orchestral, bright" | Stability AI Community License |
+| `static/sounds/mystic-horn.mp3` | global `mysticHorn` (Mystic Wood) | Stable Audio Open 1.0 via SogoAI `/v1/audio/sfx`, 2.0 s, seed 102: "ancient hunting horn call in a misty forest, long and hollow" | Stability AI Community License |
+| `static/games/battleship/sounds/miss.mp3` | Battleship `miss` | Stable Audio Open 1.0 via SogoAI `/v1/audio/sfx`, 1.2 s, seed 101: "cannonball splashing into the sea, water splash, clean, close, dry" | Stability AI Community License |
+| `static/games/battleship/sounds/sunk.mp3` | Battleship `sunk` | Stable Audio Open 1.0 via SogoAI `/v1/audio/sfx`, 3.0 s, seed 100: "steel ship hull groaning and sinking, bubbles rising underwater" | Stability AI Community License |
+| `static/games/battleship/sounds/incoming.mp3` | Battleship `incoming` | Stable Audio Open 1.0 via SogoAI `/v1/audio/sfx`, 1.2 s, seed 101: "artillery shell whistle falling, descending pitch, clean, dry" | Stability AI Community License |
 
 All Kenney packs (Casino Audio, Interface Sounds, Impact Sounds, Sci-fi Sounds, Music Jingles) are CC0 (credit welcome but not required): Kenney Vleugels, https://kenney.nl.
 
 ## Still synth (no file yet)
 
-- No good Kenney match (no water or sinking sounds): Battleship `miss`, `sunk`, `incoming`.
-- Need generation (Stable Audio Open on SogoAI): `farkle`, `heartsBroken`, `queenSpades`, `moonShot`, `mysticHorn`, plus the Battleship three above.
 - Kept synth on purpose: `scorePick` (also Mazewright loot), UI ticks, Chinese Checkers and Realmwright cues (already tuned for their art).
+
+## Generated sounds (Stable Audio Open)
+
+Made once, offline, on SogoAI through its model manager (`POST http://127.0.0.1:8793/v1/audio/sfx`, run on that PC, never from the game). Each cue had 4 takes (seeds 100-103), and the take numbers and all WAVs are in `C:\Users\Public\kenney-audio\sao\<cue>\` on SogoAI. To re-make one, post the same prompt, length and seed.
+
+Picking (2026-11-12) was done by measurement, not by ear: takes with clipped (full-scale) samples or a hard start were rejected, then the most tonal take was preferred for musical cues. Swap in another take if one sounds wrong on a phone. Licence: Stability AI Community License (free below $1M annual revenue). Credit: sounds generated with Stable Audio Open 1.0 by Stability AI.
 
 Service worker: MP3s use the network-first runtime cache in `static/service-worker.js`, so each file is cached after its first play and works offline from then on. They are not precached.
 | `static/sounds/card-deal.mp3`, `trick-take.mp3`, `win.mp3` (shared, no new files) | Tracklayers `draw`, `tickets`, `win` via `games/tracklayers/assets.js` | as above | CC0 |
