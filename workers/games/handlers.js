@@ -93,6 +93,9 @@ import {
 import {
   LAST_ORDERS_GAME_ID, isLastOrdersGame, newLastOrdersGame, initLastOrdersSeats, setLastOrdersOptions, makeLastOrdersMove, lastOrdersGameToDict, lastOrdersGameToDictForViewer,
 } from "./last-orders/rules.js";
+import {
+  REEFKEEPERS_GAME_ID, isReefkeepersGame, newReefkeepersGame, initReefkeepersSeats, setReefkeepersOptions, makeReefkeepersMove, reefkeepersGameToDict, reefkeepersGameToDictForViewer,
+} from "./reefkeepers/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -199,6 +202,14 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isLastOrdersGame(prevGame) && prevGame.options) setLastOrdersOptions(nextGame, { lo_options: prevGame.options });
     } },
+  { id: REEFKEEPERS_GAME_ID, is: isReefkeepersGame, create: newReefkeepersGame, toDict: reefkeepersGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeReefkeepersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initReefkeepersSeats,
+    // Host options (reef size, heart/full bonuses, spots, live score, hints)
+    // from the lobby, applied at /api/room/start and carried across a reset.
+    applyStartOptions: (game, payload) => setReefkeepersOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isReefkeepersGame(prevGame) && prevGame.options) setReefkeepersOptions(nextGame, { reef_options: prevGame.options });
+    } },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -258,6 +269,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isTracklayersGame(game)) return tracklayersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isChineseCheckersGame(game)) return chineseCheckersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isReefkeepersGame(game)) return reefkeepersGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }
 

@@ -124,6 +124,22 @@ or Grand reef) ids are `"t17"`, `"t17b"`, … and `n` stays the tile's strength.
   loudly. Commit from a skipped seat: rejected loudly.
 - A skipped seat is played by the level-2 autopilot for that round.
 
+### Server details (as built)
+
+- `score` also carries `largest` (biggest region size) and `pearls` (total pearls), the
+  ranking tie-breakers. `regions` lists every region, points desc.
+- `results[].rank` is shared on a full tie (total, largest, pearls). `winner` is
+  `results[0].mark`; a full tie at the top goes to the earlier seat in `seat_order`.
+- `hint` is computed only for a human seat that has not committed this round.
+- Event fields (every event has `seq`, `round`, `type`): `placed {mark, tile, x, y, rot}`,
+  `discarded {mark, tile}`, `picked {mark, tile, choice}` (1-based rank that won),
+  `bumped {mark, tile, wanted, taken_by}`, `skipped {mark}`, `round {claim_order}`,
+  `final {winner, results}`.
+- `COMMIT` must carry `round`; `SKIP_PLAYER` may (checked when present). Only humans
+  who already committed this round may vote; the skip is unanimous (skip-vote.js).
+- Start options arrive as `reef_options: {…}` in the start payload (flat keys are a
+  fallback); they are clamped server-side and carried across a rematch.
+
 ## Architecture
 
 - **Server rules:** `workers/games/reefkeepers/` — `tiles.js` (habitats, the deck),
