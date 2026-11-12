@@ -22,6 +22,11 @@
         } catch (e) {
           document.documentElement.setAttribute("data-theme", "light");
         }
+        // Coming back from an auto-update reload: keep the logo overlay up from the
+        // first paint until client/app-update.js has put the player back.
+        try {
+          if (sessionStorage.getItem("sogotable.appUpdateResume")) document.documentElement.setAttribute("data-updating", "true");
+        } catch (e) {}
       })();
     </script>
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -33,6 +38,9 @@
     <link rel="stylesheet" href="/styles-games.css" />
   </head>
   <body>
+    <div class="update-overlay" role="status" aria-live="polite" aria-label="Updating SogoTable">
+      <img class="update-logo" src="/assets/icon-512.png" alt="" />
+    </div>
     <main class="app">
       <section id="intro" class="screen active">
         <div class="brand">

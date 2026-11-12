@@ -49,6 +49,9 @@ export function forgetSogoSuperuserPasscode() {
 export const ACTION_LABELS_STORAGE_KEY = "sogotable.actionLabels";
 export const LOCAL_GAME_HOME_PLAYERS_KEY = "sogotable.localGameHomePlayers";
 export const THEME_STORAGE_KEY = "sogotable.theme";
+// Per-tab marker of where the player was when an auto-update reloaded the page
+// (shape + TTL owned by client/app-update.js). Also read by index.html pre-paint.
+export const APP_UPDATE_RESUME_KEY = "sogotable.appUpdateResume";
 
 export function loadLocalGameHomePlayers() {
   try {

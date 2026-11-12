@@ -272,3 +272,10 @@ p,
 .player-stats-body {
   margin-top: 2px;
 }
+
+/* Auto-update overlay (client/app-update.js toggles html[data-updating]). */
+.update-overlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; background: var(--bg); opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s; }
+html[data-updating="true"] .update-overlay { opacity: 1; visibility: visible; transition: none; }
+.update-logo { width: min(38vw, 180px); aspect-ratio: 1; border-radius: 24%; box-shadow: 0 10px 40px var(--shadow); animation: update-breathe 2.4s ease-in-out infinite; }
+@keyframes update-breathe { 0%, 100% { transform: scale(0.94) rotate(-3deg); opacity: 0.85; } 50% { transform: scale(1.04) rotate(3deg); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .update-logo { animation-duration: 6s; } }

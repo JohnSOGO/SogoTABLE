@@ -1116,6 +1116,36 @@ gameToDictForViewer chain line (hidden-info game — the sanitizer line may neve
 the row). Review-export allowlist extended with the six worker-side and four
 client-side wnyk modules for the import-closure guard.
 
+## 2026-11-12 — Auto-update: extract deploy-version code to client/app-update.js
+
+Preparatory refactor (own commit, before the auto-update feature lands). Placement already
+decided: deploy-version awareness gets a new client/ owner; app.js only imports and calls.
+
+```
+REORG RECEIPT
+- Trigger:      Auto-update (revision.json poll + SW update + Worker-version skew, safe-reload
+                gate, resume marker, update overlay) was placed in a NEW owner
+                `src/sogotable/static/client/app-update.js`; the existing deploy-version code
+                lives in `app.js` and moves first, so the feature lands in a module with room.
+- Seam moved:   Deploy-version awareness (refreshRevisionSummary, fetchRevisionStatus,
+                registerServiceWorker) from `src/sogotable/static/app.js` to
+                `src/sogotable/static/client/app-update.js`  [NEW owner row]
+- Room opened:  app.js: 2264 → 2231 lines (as the test counts them); ceiling 2260+25 → 2231+25.
+- Behavior:     PRESERVED — verified via `npm test` (513/513 green); all three functions moved
+                verbatim (only `export` added); app.js still calls registerServiceWorker() and
+                refreshRevisionSummary() at the same DOMContentLoaded spot; same DOM target,
+                same fetch, same SW registration. The module is load-safe (nothing runs at
+                import) and does not import app.js. Added to the review-export allowlist.
+- Sources read: src/sogotable/static/app.js, workers/tests/architecture.test.js,
+                docs/module-ownership.md, src/sogotable/static/review-export.js,
+                docs/placement-receipts.md
+- Restraint:    Moved only the three existing deploy-version functions. No auto-update
+                behavior added, no shell state moved (APP_TOP_LEVEL_LET_CAP unchanged), no
+                other app.js edits.
+- New owner row: | `src/sogotable/static/client/app-update.js` | Deploy-version watch
+                (revision.json poll + SW update + Worker-version skew), safe-reload gate,
+                resume marker read/write, update overlay show/hide | `src/sogotable/static/app.js` |
+
 ## 2026-11-12 — Chinese Checkers (new game module, simultaneous submit + priority barrier)
 
 - Ask:          Place a new parallel-play Chinese Checkers game (simultaneous submit, round barrier,
