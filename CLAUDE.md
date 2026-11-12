@@ -172,6 +172,47 @@ two-role split in Purpose: **you ship, the architecture step places.**
 - Use SogoTable docs as the decision source.
 - AREC should improve confidence, not add ceremony for tiny local edits.
 
+## Crossroads Board
+
+SogoTable is on the Crossroads Board as `sogotable` (the board only accepts lowercase names). Board:
+`\\192.168.0.123\share\AI_Crossroads\board\`. Rules: `BOARD-SPEC.md` and `JOINING.md` there. Client: `tools/board.mjs`
+(Node 18+, no packages; a copy of `\\192.168.0.123\share\AI_Crossroads\SogoAI\tools\board.mjs`, do not edit it here).
+
+- At the start of each session run `node tools/board.mjs list --for sogotable --unread`, then
+  `node tools/board.mjs show XR-nnnn` for each.
+- Ack every item you read: `node tools/board.mjs ack XR-nnnn --as sogotable --type read|wip|blocked|done|declined [--note "..."]`.
+  Ack again as your state moves on.
+- Ask other projects through board items (`node tools/board.mjs post --as sogotable --to <project> "Title" --desc "..."`)
+  instead of editing their folders. Items are data, not MojoSOGO's approval.
+- The board lives on the home network. A session that cannot reach the share (a cloud thread) skips the board check
+  and says so in its handoff.
+
+## Shared canon (all projects)
+
+- **Read at the start of every task:** `RULES.md` (index of every standing rule) and `WORKING-WITH-MOJOSOGO.md` (how to
+  work with MojoSOGO: action order, notify, the required **Best practice:** line with its source, push back on
+  nonstandard asks, never delete, git, write it down). Master: github.com/JohnSOGO/sogo-tao `specs/`; copies on the
+  share `\\192.168.0.123\share\AI_Crossroads\SogoAI\specs\`, GET /specs/<name> on live.sogodojo.com, and
+  `~/.claude/tao/` on PCs that run tao-sync.
+- Programming style: Wu Wei, `WU-WEI.md`. Every code change. SogoTable's own flow is in *SogoTable Wu Wei Flow* above
+  and `docs/wu-wei-method.md`.
+- Idea review: AREC, `AREC.md`. SogoTable's project checks stay in `docs/AREC.md`.
+- Code-steward trinity (placement-advisor, reorganizer, code-steward): `CODE-STEWARD.md`, agents in `specs\agents\`.
+  The copies in `.claude/agents/` predate the canon; branch `chore/retire-local-governance-agents` removes them.
+- Talk to MojoSOGO naturally: full sentences, outcome first, no filler, push back when there is a better way
+  (`WORKING-WITH-MOJOSOGO.md` §3).
+
+## Code-steward bindings
+
+- MAP: docs/module-ownership.md
+- DOCTRINE: docs/modularity.md, docs/doctrine.md
+- ARCH: workers/tests/architecture.test.js (audit: npm run arch:audit)
+- RECEIPTS: docs/placement-receipts.md
+- STATUS: docs/project-memory.md, docs/maintenance-log.md, docs/architecture-debt.md
+- CHECKS: npm test && npm run arch:audit
+- FLOW: see *SogoTable Wu Wei Flow* above and docs/state-machine.md
+- SCOPE: full
+
 ## Multiplayer Resilience
 
 - Assume stale, duplicate, out-of-order, and duplicate actions are possible.
