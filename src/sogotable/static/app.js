@@ -90,22 +90,9 @@ import {
 import { wireLobby, renderRoomSlots, renderRoomInviteStatus } from "./games/lobby.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
+import { hostStartRendererFor } from "./games/room-render-dispatch.js";
 import { wireTenThousandFarkleAck, maybeAutoAckTenThousandFarkle } from "./games/ten-thousand/farkle-ack.js";
-import { renderZombieDiceGame } from "./games/zombie-dice/render.js";
-import { renderLiarsDiceGame } from "./games/liars-dice/render.js";
-import { renderNoThanksGame } from "./games/no-thanks/render.js";
-import { renderHeartsGame } from "./games/hearts/render.js";
-import { renderYahtzeeGame } from "./games/yahtzee/render.js";
-import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { wireChessTutor } from "./games/chess-tutor/index.js";
-import { renderRttaGame } from "./games/rtta/render.js";
-import { renderPotionLabGame } from "./games/potion-lab/render.js";
-import { renderRealmwrightGame } from "./games/realmwright/render.js";
-import { renderLastOrdersGame } from "./games/last-orders/render.js";
-import { renderTracklayersGame } from "./games/tracklayers/render.js";
-import { renderChineseCheckersGame } from "./games/chinese-checkers/render.js";
-import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
-import { renderWnykGame } from "./games/wnyk/render.js";
 import {
   setSoundEnabled,
   setSoundVolumeLevel,
@@ -131,7 +118,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -1658,10 +1645,11 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game) || isRealmwrightGameState(game) || isChineseCheckersGameState(game) || isLastOrdersGameState(game) || isTracklayersGameState(game)) {
+  const hostStartRender = hostStartRendererFor(game, canonicalGameId);
+  if (hostStartRender) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : isRealmwrightGameState(game) ? renderRealmwrightGame : isChineseCheckersGameState(game) ? renderChineseCheckersGame : isLastOrdersGameState(game) ? renderLastOrdersGame : isTracklayersGameState(game) ? renderTracklayersGame : renderYahtzeeGame)({
+    hostStartRender({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,

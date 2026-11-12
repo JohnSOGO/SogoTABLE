@@ -1461,3 +1461,36 @@ PLACEMENT RECEIPT
     - sound-files.js must not import sound.js (cycle).
 - New owner row: | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map … | `src/sogotable/static/sound.js` |
 ```
+
+## 2026-11-12 — REORG: extract host-start game render dispatch to games/room-render-dispatch.js
+Commit: refactor(shell): extract host-start game render dispatch into room-render-dispatch.js (this entry's commit)
+
+```
+REORG RECEIPT
+- Trigger:      src/sogotable/static/app.js was at 2175 lines (as the test counts them) against a
+                2180 ceiling, and every upcoming game (Catan, Ticket to Ride, Codenames, …) would add
+                an import, a predicate name and two chain terms to renderGame's host-start dispatch.
+                Placement-advisor named that dispatch as the seam.
+- Seam moved:   Host-start render dispatch — the 14-term isXGameState OR-chain + nested render
+                ternary (Yahtzee as default) and the 14 per-game renderXGame imports — from
+                `src/sogotable/static/app.js` to `src/sogotable/static/games/room-render-dispatch.js`
+                as a GAME_IDS-keyed table behind hostStartRendererFor(game, canonicalGameId)
+                [NEW owner row]
+- Room opened:  app.js: 2175 → 2163 lines; ceiling held at 2155+25 = 2180 (re-pinning at
+                2163+25 would RAISE the cap, which a reorg never does). Adding a host-start game
+                now costs app.js zero lines. APP_TOP_LEVEL_LET_CAP unchanged (no state moved).
+- Behavior:     PRESERVED — verified via `npm test` (all green, incl. load sweep + review-export
+                import closure). Same 14 games route through the branch (all id-only predicates, so
+                the chain's members are mutually exclusive and a table lookup is equivalent; the
+                structural-fallback games — tactical/boxes/battleship/quoridor — are not in it);
+                same branch position in renderGame, same hidden panels, same ctx object, same
+                canonicalGameId (shell-injected, alias-aware). isWnykGameState dropped from the
+                app.js destructure (its only use was the chain); the others stay (wireTurnStatus).
+- Sources read: CLAUDE.md, docs/module-ownership.md, docs/placement-receipts.md,
+                workers/tests/architecture.test.js, src/sogotable/static/app.js,
+                src/sogotable/static/games/game-kinds.js, src/sogotable/static/games/registry.js,
+                src/sogotable/static/review-export.js
+- Restraint:    Battleship / Quoridor / Ten Thousand / Boxes / classic branches untouched (bespoke
+                ctx shapes). game-kinds.js and wireTurnStatus's predicate list untouched. No new game.
+- New owner row: | `src/sogotable/static/games/room-render-dispatch.js` | Host-start room render dispatch — game-id-keyed table of per-game render functions | `src/sogotable/static/app.js` |
+```
