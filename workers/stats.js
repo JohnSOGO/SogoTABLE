@@ -18,6 +18,7 @@ import { isTracklayersGame, tracklayersScoreByMark } from "./games/tracklayers/r
 import { isChineseCheckersGame, chineseCheckersScoreByMark } from "./games/chinese-checkers/rules.js";
 import { isLastOrdersGame, lastOrdersScoreByMark } from "./games/last-orders/rules.js";
 import { isReefkeepersGame, reefkeepersScoreByMark } from "./games/reefkeepers/rules.js";
+import { isTradewindsGame, tradewindsScoreByMark } from "./games/tradewinds/rules.js";
 import { isBloomworkGame, bloomworkScoreByMark } from "./games/bloomwork/rules.js";
 import { isZombieDiceGame, zombieDiceScoreByMark } from "./games/zombie-dice/rules.js";
 import { isLiarsDiceGame, liarsDiceScoreByMark } from "./games/liars-dice/rules.js";
@@ -76,6 +77,7 @@ function scoreByMarkForRoom(room) {
   if (isTracklayersGame(room.game)) return tracklayersScoreByMark(room.game);
   if (isBloomworkGame(room.game)) return bloomworkScoreByMark(room.game);
   if (isReefkeepersGame(room.game)) return reefkeepersScoreByMark(room.game); // reef total (regions × pearls + bonuses)
+  if (isTradewindsGame(room.game)) return tradewindsScoreByMark(room.game); // renown
   if (isLastOrdersGame(room.game)) return lastOrdersScoreByMark(room.game); // placement points: winner = seat count
   if (isChineseCheckersGame(room.game)) return chineseCheckersScoreByMark(room.game); // 100 - distance, +50 for a win
   if (isZombieDiceGame(room.game)) return zombieDiceScoreByMark(room.game);
