@@ -106,6 +106,8 @@ npm run assetreviews -- <sogo-passcode>   # writes asset-review/review.md and re
 
 The screen also has Markdown, JSON and Copy buttons. See `docs/SOUNDS.md`.
 
+The Admin section also has **🏷️ Game Names**: give any game an alternate name (for example Tracklayers → Ticket to Ride). Every player sees it in brackets under the game's name. It is stored by the Worker (`workers/game-alt-names.js`) and served with `GET /api/games`.
+
 Run `npm run hooks` once per clone to install the git pre-push hook that runs `npm test` and blocks a red push (the mechanical test gate).
 
 ## Principles

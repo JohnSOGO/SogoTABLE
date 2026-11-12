@@ -450,6 +450,44 @@ button.compact {
   .game-card:not(:disabled):hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 }
 
+.game-card .game-card-alt,
+.game-alt-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.game-alt-name {
+  margin: -4px 0 6px;
+  text-align: center;
+}
+
+.game-names-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-names-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.game-names-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 220px;
+}
+
+.game-names-state {
+  color: var(--muted);
+  font-size: 14px;
+  min-width: 56px;
+}
+
 .game-card:disabled {
   background: var(--surface-sunken);
   border-color: #d3dae8;

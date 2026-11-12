@@ -1645,3 +1645,21 @@ REORG RECEIPT (R3)
   (ADMIN_SCREENS + openAdminScreen, cards opt in with data-admin-screen). Behaviour unchanged; each later
   admin screen costs app.js one table entry. app.js 2103 -> 2107, ceiling unchanged (2092 + buffer).
 ```
+
+```
+PLACEMENT RECEIPT
+- Ask:          Let the Sogo admin set an optional per-game alternate name (Tracklayers -> "Ticket to Ride"), stored
+                server-side, shown to all players in brackets under the published name on lobby cards and the
+                gameSelected title
+- Verdict:      workers/game-alt-names.js [NEW]; src/sogotable/static/admin/game-names.js [NEW]; sogotable-api.js
+                (route + merge at GET /api/games), games/game-list-view.js (formatAltName + card subline),
+                styles-roster.css, app.js (normalize, subtitle, one ADMIN_SCREENS entry) [EXISTING]; after R3
+- Flow stage:   persist (passcode-gated leaf) -> public read (/api/games composed in the entry) -> render
+- Considerations:
+    - game-catalog.js stays pure (no data param); the entry composes the stored alt name onto its output
+    - SAVE_QUIETLY: clients only read /api/games at load, so a broadcast would change nothing; players see a
+      new name on their next load, and the admin's own lobby refreshes after a save
+    - Admin text reaches every player: server cleans and caps at 60 chars, client renders with textContent
+    - Intentional exclusions: offline fallbackGames list and room/switcher headers show the published name only
+- New owner row: workers/game-alt-names.js, src/sogotable/static/admin/game-names.js
+```

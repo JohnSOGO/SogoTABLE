@@ -17,7 +17,7 @@ import {
 import { createRealtimeController } from "./realtime.js";
 import { GAME_REGISTRY, GAME_IDS } from "./games/registry.js";
 import { createGameKinds } from "./games/game-kinds.js";
-import { renderGameList } from "./games/game-list-view.js";
+import { renderGameList, formatAltName } from "./games/game-list-view.js";
 import { buildRoomRenderKey } from "./games/render-keys.js";
 import { renderBoxesGame } from "./games/boxes/client.js";
 import { renderQuoridorGame, resetQuoridorDraft } from "./games/quoridor/client.js";
@@ -467,6 +467,7 @@ function renderSelectedGame() {
 function renderGameSelected() {
   const game = selectedGame();
   document.getElementById("selectedGameTitle").textContent = game ? game.name : "Game";
+  const alt = document.getElementById("selectedGameAltName"); alt.textContent = formatAltName(game); alt.classList.toggle("hidden", !alt.textContent);
   document.getElementById("selectedGameDescription").textContent = game ? game.summary : "";
   renderGameStatsLink();
   lastLobbyPlayersKey = "";
@@ -520,6 +521,7 @@ function normalizeGameDefinitions(definitions) {
     id: String(game.id || "").trim(),
     aliases: Array.isArray(game.aliases) ? game.aliases.map((alias) => String(alias)) : [],
     name: String(game.name || "Game").trim() || "Game",
+    alt_name: game.alt_name ? String(game.alt_name).trim() : "",
     summary: String(game.summary || "").trim(),
     players: String(game.players || "2 players").trim(),
     category: game.category ? String(game.category).trim() : "",
@@ -987,11 +989,12 @@ function renderIntroAdminActions() {
 // Each entry resolves to { wire(ctx), open() }; a card opts in with data-admin-screen.
 const ADMIN_SCREENS = {
   assetReview: () => import("./admin/asset-review/index.js").then((m) => ({ wire: m.wireAssetReview, open: m.openAssetReview })),
+  gameNames: () => import("./admin/game-names.js").then((m) => ({ wire: m.wireGameNames, open: m.openGameNames })),
 };
 async function openAdminScreen(screenId) {
   if (!isSogoSuperuserSelected() || !ADMIN_SCREENS[screenId]) return;
   const screen = await ADMIN_SCREENS[screenId]();
-  screen.wire({ api, passcode: () => ensureSogoSuperuserPasscode(deviceSelectedPlayer()), reviewer: () => deviceSelectedPlayer()?.name || "" });
+  screen.wire({ api, passcode: () => ensureSogoSuperuserPasscode(deviceSelectedPlayer()), reviewer: () => deviceSelectedPlayer()?.name || "", onGamesChanged: () => refreshGameDefinitions() });
   showScreen(screenId);
   void screen.open();
 }
