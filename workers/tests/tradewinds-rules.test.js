@@ -33,7 +33,7 @@ function setupHuman(g, mark) {
 }
 
 // Play through setup for every human seat (bots place themselves).
-function finishSetup(g) {
+export function finishSetup(g) {
   for (let i = 0; i < 40 && g.phase === "setup"; i += 1) setupHuman(g, g.setup.order[g.setup.index]);
 }
 
