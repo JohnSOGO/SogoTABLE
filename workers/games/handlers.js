@@ -100,6 +100,9 @@ import {
   TRADEWINDS_GAME_ID, isTradewindsGame, newTradewindsGame, initTradewindsSeats, setTradewindsOptions, makeTradewindsMove, tradewindsGameToDict, tradewindsGameToDictForViewer,
 } from "./tradewinds/rules.js";
 import {
+  BLOOMWORK_GAME_ID, isBloomworkGame, newBloomworkGame, initBloomworkSeats, setBloomworkOptions, makeBloomworkMove, bloomworkGameToDict, bloomworkGameToDictForViewer,
+} from "./bloomwork/rules.js";
+import {
   HIDDEN_ISLES_GAME_ID, isHiddenIslesGame, newHiddenIslesGame, initHiddenIslesSeats, setHiddenIslesOptions, carryHiddenIslesOnReset, makeHiddenIslesMove, hiddenIslesGameToDict, hiddenIslesGameToDictForViewer,
 } from "./hidden-isles/rules.js";
 
@@ -216,6 +219,19 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isReefkeepersGame(prevGame) && prevGame.options) setReefkeepersOptions(nextGame, { reef_options: prevGame.options });
     } },
+  { id: BLOOMWORK_GAME_ID, is: isBloomworkGame, create: newBloomworkGame, toDict: bloomworkGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeBloomworkMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initBloomworkSeats,
+    // Host options (game length, helps) from the lobby, applied at start and carried across a reset.
+    applyStartOptions: (game, payload) => setBloomworkOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isBloomworkGame(prevGame) && prevGame.options) setBloomworkOptions(nextGame, { bloom_options: prevGame.options });
+    } },
+  { id: HIDDEN_ISLES_GAME_ID, is: isHiddenIslesGame, create: newHiddenIslesGame, toDict: hiddenIslesGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeHiddenIslesMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initHiddenIslesSeats,
+    // Host options (word pack, clue ideas, crew pointers) from the lobby; a
+    // rematch keeps the options and crews and rotates each crew's Navigator.
+    applyStartOptions: (game, payload) => setHiddenIslesOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => carryHiddenIslesOnReset(prevGame, nextGame) },
   { id: TRADEWINDS_GAME_ID, is: isTradewindsGame, create: newTradewindsGame, toDict: tradewindsGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeTradewindsMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initTradewindsSeats,
     // Host options (renown target, hand limit, board size, quick setup, friendly
@@ -224,12 +240,6 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isTradewindsGame(prevGame) && prevGame.options) setTradewindsOptions(nextGame, { ti_options: prevGame.options });
     } },
-  { id: HIDDEN_ISLES_GAME_ID, is: isHiddenIslesGame, create: newHiddenIslesGame, toDict: hiddenIslesGameToDict, legalMoves: () => [],
-    applyAction: (game, mark, payload) => makeHiddenIslesMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initHiddenIslesSeats,
-    // Host options (word pack, clue ideas, crew pointers) from the lobby; a
-    // rematch keeps the options and crews and rotates each crew's Navigator.
-    applyStartOptions: (game, payload) => setHiddenIslesOptions(game, payload),
-    carryOptionsOnReset: (prevGame, nextGame) => carryHiddenIslesOnReset(prevGame, nextGame) },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -291,6 +301,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isReefkeepersGame(game)) return reefkeepersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isTradewindsGame(game)) return tradewindsGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isBloomworkGame(game)) return bloomworkGameToDictForViewer(game, viewerMark);
   if (isHiddenIslesGame(game)) return hiddenIslesGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }

@@ -1514,6 +1514,33 @@ REORG RECEIPT
 - New owner row: | `src/sogotable/static/games/room-render-dispatch.js` | Host-start game render dispatch — predicate → `render*Game` table + `pickHostStartRenderer` (kinds injected) | `src/sogotable/static/app.js` |
 ```
 
+## 2026-11-12 — Bloomwork (new game module, simultaneous-submit draft + priority barrier)
+
+```
+PLACEMENT RECEIPT
+- Ask:          New host-start parallel-play tile-drafting game "Bloomwork" (original garden theme on an
+                open-market draft: stalls + Square, planter rows, 5x5 garden bed, compost penalties;
+                simultaneous submit per pick step, rotating priority for contested stalls, bots commit at
+                barrier close, skip vote).
+- Verdict:      workers/games/bloomwork/ (rules.js, board.js, resolve.js, ai.js) +
+                src/sogotable/static/games/bloomwork/ (client modules) + one-row wiring entries
+                (registry.js, game-kinds.js, room-render-dispatch.js row, app.js predicate appends (0 net lines), controllers/turn-status.js,
+                handlers.js row + gameToDictForViewer line, stats.js scoreByMarkForRoom, review-export.js)
+                + bloomwork-{board,resolve,rules,api}.test.js + docs/game-bloomwork.md
+                [EXISTING owner: directory patterns]
+- Flow stage:   validate + apply (board/resolve/rules, server-authoritative at the barrier); render
+                (client dir); record (stats.js score branch).
+- Considerations:
+    - app.js ~2174/2180: inline appends only (+1 import line). host_start comes from the registry; the
+      player-switch hide list lives in controllers/turn-status.js.
+    - Contested-stall priority split into pure resolve.js (Chinese Checkers precedent).
+    - sogotable-api.test.js near its cap: Bloomwork behaviour tests live in their own files.
+    - Hidden commits: handlers.js row and gameToDictForViewer mask land together.
+    - Hot-seat out of scope (hidden simultaneous picks need a hand-off screen).
+- Reorganizer:  NONE
+- New owner row: none
+```
+
 ## 2026-11-12 — Hidden Isles (team word-clue game)
 
 ```

@@ -19,6 +19,7 @@ import { isChineseCheckersGame, chineseCheckersScoreByMark } from "./games/chine
 import { isLastOrdersGame, lastOrdersScoreByMark } from "./games/last-orders/rules.js";
 import { isReefkeepersGame, reefkeepersScoreByMark } from "./games/reefkeepers/rules.js";
 import { isTradewindsGame, tradewindsScoreByMark } from "./games/tradewinds/rules.js";
+import { isBloomworkGame, bloomworkScoreByMark } from "./games/bloomwork/rules.js";
 import { isHiddenIslesGame, hiddenIslesScoreByMark } from "./games/hidden-isles/rules.js";
 import { isZombieDiceGame, zombieDiceScoreByMark } from "./games/zombie-dice/rules.js";
 import { isLiarsDiceGame, liarsDiceScoreByMark } from "./games/liars-dice/rules.js";
@@ -75,8 +76,9 @@ function scoreByMarkForRoom(room) {
   if (isRttaGame(room.game)) return rttaScoreByMark(room.game);
   if (isRealmwrightGame(room.game)) return realmwrightScoreByMark(room.game);
   if (isTracklayersGame(room.game)) return tracklayersScoreByMark(room.game);
-  if (isReefkeepersGame(room.game)) return reefkeepersScoreByMark(room.game); // reef total (regions × pearls + bonuses)
+  if (isBloomworkGame(room.game)) return bloomworkScoreByMark(room.game);
   if (isHiddenIslesGame(room.game)) return hiddenIslesScoreByMark(room.game); // team game: win-only (null)
+  if (isReefkeepersGame(room.game)) return reefkeepersScoreByMark(room.game); // reef total (regions × pearls + bonuses)
   if (isTradewindsGame(room.game)) return tradewindsScoreByMark(room.game); // renown
   if (isLastOrdersGame(room.game)) return lastOrdersScoreByMark(room.game); // placement points: winner = seat count
   if (isChineseCheckersGame(room.game)) return chineseCheckersScoreByMark(room.game); // 100 - distance, +50 for a win

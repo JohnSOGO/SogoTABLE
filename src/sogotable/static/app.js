@@ -119,7 +119,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isReefkeepersGameState, isTradewindsGameState, isHiddenIslesGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isReefkeepersGameState, isTradewindsGameState, isBloomworkGameState, isHiddenIslesGameState,
 } = gameKinds;
 
 migrateStorageNamespace();
@@ -172,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
     visibleBattleshipPlayerMark, getBattleshipReviewMark, setBattleshipReviewMark,
     isTacticalGameState, isBattleshipGameState, isTenThousandGameState, isYahtzeeGameState,
     isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
-    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isReefkeepersGameState, isTradewindsGameState, isHiddenIslesGameState,
+    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isReefkeepersGameState, isTradewindsGameState, isBloomworkGameState, isHiddenIslesGameState,
   });
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat();
