@@ -14,17 +14,20 @@
 import { playClick } from "../../sound.js";
 import { paletteFor } from "./assets.js";
 import { featureAnchor } from "./art.js";
-import { applyCamera, attachGestures, fitCamera, newCamera, zoomAt } from "./board-view.js";
+import { applyCamera, attachGestures, cancelTween, fitCamera, newCamera, tweenCamera, ZOOM_MAX, zoomAt } from "./board-view.js";
 import { boardBounds, buildBoardMarkup } from "./board-svg.js";
 import { TICKER, UI } from "./branding.js";
 import { renderRealmwrightLobby } from "./lobby.js";
-import { meepleChoices, resultsHtml, stripHtml, tableHtml, trayHtml } from "./panels.js";
+import { botTickInFlight, syncBotTick } from "./bot-tick.js";
+import { countShown, fxEnqueue, fxFrame, fxOverlayMarkup, fxReset, reducedMotion, runCounters } from "./fx.js";
+import { bagPanelHtml, meepleChoices, resultsHtml, stripHtml, tableHtml, tilesLeft, trayHtml } from "./panels.js";
 import { consumeEvents, playCue } from "./sfx.js";
 import { REALMWRIGHT_CSS } from "./styles.js";
 
 const FALLBACK_COLORS = ["#d94141", "#2f6fd6", "#e0b100", "#2e9e5b", "#8a4fc9", "#e07a1f", "#1fa3a3", "#d0499a", "#6b7a8f", "#7a5230", "#94b814", "#3b3b3b"];
 const FLASH_MS = 4500;
-const GLOW_MS = 2600;
+const ZOOM_MS = 300;
+const ZOOM_TILE_SHARE = 0.6; // the previewed tile fills ~60% of the shorter side
 
 let stylesInjected = false;
 let themeObserved = false;
@@ -33,7 +36,8 @@ let S = freshState("");
 function freshState(key) {
   return {
     key, cam: newCamera(), selKey: "", rot: 0, sel: null, meeple: null, sending: false,
-    flash: null, flashTimer: null, glow: { cells: [], start: 0 }, glowTimer: null, sawPlaying: false, winPlayed: false, lastCtx: null,
+    flash: null, flashTimer: null, sawPlaying: false, winPlayed: false, lastCtx: null,
+    zoomReturn: null, bagOpen: false, fxTimer: null, dealtKey: null, fxBusy: false,
   };
 }
 
@@ -56,10 +60,7 @@ function observeTheme() {
 // Repaint from a timer / theme change — only while our board is still mounted
 // (never hijack #macroBoard after the shell has moved on to another screen).
 function repaint() {
-  const ctx = S.lastCtx;
-  if (!ctx || !ctx.started || !ctx.host || !ctx.host.isConnected) return;
-  const root = ctx.host.querySelector(":scope > .rw-play");
-  if (root && root.getAttribute("data-rw-key") === S.key) paint(ctx);
+  if (mountedRoot()) paint(S.lastCtx);
 }
 
 const currentTheme = () => (document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light");
@@ -76,14 +77,27 @@ export function renderRealmwrightGame(ctx) {
   }
   const key = `${ctx.room ? ctx.room.code : ""}#${ctx.room ? ctx.room.game_epoch : ""}`;
   if (S.key !== key) {
-    clearTimeout(S.flashTimer); clearTimeout(S.glowTimer);
+    clearTimeout(S.flashTimer); clearTimeout(S.fxTimer);
     S = freshState(key);
+    fxReset(key);
   }
   S.lastCtx = ctx;
   const me = seatInfo(ctx);
   handleEvents(ctx, me);
   reconcileSelection(game, me);
   paint(ctx);
+  syncBotTick(key, game, me.myMark, {
+    mounted: () => Boolean(mountedRoot()),
+    busy: () => S.sending || (typeof ctx.isMovePending === "function" && ctx.isMovePending()),
+    send: (action) => (S.lastCtx || ctx).makeMove(action),
+  });
+}
+
+function mountedRoot() {
+  const ctx = S.lastCtx;
+  if (!ctx || !ctx.started || !ctx.host || !ctx.host.isConnected) return null;
+  const root = ctx.host.querySelector(":scope > .rw-play");
+  return root && root.getAttribute("data-rw-key") === S.key ? root : null;
 }
 
 // ---------- derived seat info ----------
@@ -118,22 +132,25 @@ function setFlash(text, kind = "info") {
 }
 
 // ---------- events → sounds, glow, ticker ----------
+// New events go onto the fx queue (which also times their sounds); with
+// reduced motion they just play their cues, as before, with no animation.
 function handleEvents(ctx, me) {
-  const fresh = consumeEvents(S.key, ctx.game.events, me.myMark);
-  const scored = fresh.filter((e) => e.type === "score" && Array.isArray(e.cells) && e.cells.length);
-  if (scored.length) {
-    S.glow = { cells: scored.flatMap((e) => e.cells), start: Date.now() };
-    clearTimeout(S.glowTimer);
-    S.glowTimer = setTimeout(() => { S.glow = { cells: [], start: 0 }; repaint(); }, GLOW_MS + 50);
+  const reduced = reducedMotion();
+  const fresh = consumeEvents(S.key, ctx.game.events, me.myMark, { silent: !reduced });
+  if (!reduced && fresh.length) {
+    fxEnqueue(fresh, { board: Array.isArray(ctx.game.board) ? ctx.game.board : [], myMark: me.myMark, round: ctx.game.round });
   }
   if (fresh.some((e) => e.type === "redraw" && e.mark === me.myMark)) setFlash(UI.redrawn, "info");
   if (ctx.game.status === "playing") S.sawPlaying = true;
-  // Fanfare once, and only for a game this client watched finish (not on a
-  // later visit to an already-finished room).
-  if (ctx.game.status === "complete" && S.sawPlaying && !S.winPlayed) {
-    S.winPlayed = true;
-    playCue("win");
-  }
+}
+
+// A tile newly dealt to me (not the first snapshot): a short buzz on phones.
+function buzzOnDeal(selKey, seat) {
+  const first = S.dealtKey === null;
+  if (selKey === S.dealtKey) return;
+  S.dealtKey = selKey;
+  if (first || !seat || !seat.tile) return;
+  try { if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(30); } catch { /* unsupported */ }
 }
 
 function tickerText(ctx) {
@@ -165,6 +182,7 @@ function selectedEntry(legal) {
 function reconcileSelection(game, me) {
   const seat = me.mySeat;
   const selKey = seat ? `${game.round}|${seat.tile_serial}|${seat.tile}` : "";
+  buzzOnDeal(selKey, seat);
   if (selKey !== S.selKey) {
     S.selKey = selKey;
     S.sel = null; S.meeple = null;
@@ -192,8 +210,34 @@ function canAct(ctx, me) {
   const seat = me.mySeat;
   return Boolean(ctx.game.status === "playing" && seat && !seat.placed && !seat.skipped && seat.tile && me.legal.length);
 }
+// A background BOT_TICK in flight does not count: my controls stay live and
+// a Confirm tapped meanwhile waits for it (see confirm).
 function movePending(ctx) {
-  return S.sending || (typeof ctx.isMovePending === "function" && ctx.isMovePending());
+  return S.sending || (!botTickInFlight() && typeof ctx.isMovePending === "function" && ctx.isMovePending());
+}
+
+// ---------- auto-zoom for the meeple step ----------
+function viewportEl() {
+  const root = mountedRoot();
+  return root ? root.querySelector(".rw-viewport") : null;
+}
+function zoomToCell(x, y) {
+  const vp = viewportEl();
+  if (!vp || !vp.clientWidth || !vp.clientHeight) return;
+  const w = vp.clientWidth; const h = vp.clientHeight;
+  if (!S.zoomReturn) S.zoomReturn = { x: S.cam.x, y: S.cam.y, z: S.cam.z };
+  const z = Math.min(ZOOM_MAX, (ZOOM_TILE_SHARE * Math.min(w, h)) / 100);
+  tweenCamera(vp, S.cam, { x: w / 2 - (x * 100 + 50) * z, y: h / 2 - (y * 100 + 50) * z, z }, { ms: ZOOM_MS, reduced: reducedMotion() });
+}
+// Back to the view from before the auto-zoom (after confirm, clear or reject).
+function zoomBack(viewport) {
+  const back = S.zoomReturn;
+  S.zoomReturn = null;
+  if (back && viewport) tweenCamera(viewport, S.cam, back, { ms: ZOOM_MS, reduced: reducedMotion() });
+}
+// A manual pan / pinch / wheel / zoom button keeps the view the player chose.
+function onManualCamera() {
+  S.zoomReturn = null;
 }
 
 // ---------- intents ----------
@@ -230,6 +274,7 @@ function onBoardTap(wx, wy) {
   S.rot = r;
   S.meeple = null;
   playClick();
+  zoomToCell(x, y);
   paint(ctx);
 }
 
@@ -252,6 +297,14 @@ function rotate(ctx, me) {
 
 async function confirm(ctx, me) {
   if (!S.sel || !canAct(ctx, me) || movePending(ctx)) return;
+  const tick = botTickInFlight();
+  if (tick) {
+    S.sending = true; paint(ctx);
+    await tick;
+    S.sending = false;
+    ctx = S.lastCtx || ctx; me = seatInfo(ctx);
+    if (!S.sel || !canAct(ctx, me) || movePending(ctx)) { repaint(); return; }
+  }
   const action = { type: "PLACE_TILE", round: ctx.game.round, serial: me.mySeat.tile_serial, x: S.sel.x, y: S.sel.y, r: S.sel.r, meeple: S.meeple };
   const withMeeple = S.meeple !== null;
   S.sending = true;
@@ -269,8 +322,11 @@ async function confirm(ctx, me) {
     playCue("reject");
   } else {
     S.sel = null; S.meeple = null;
-    playCue("place");
-    if (withMeeple) setTimeout(() => playCue("meeple"), 140);
+    // With animation on, the fx queue plays these as my tile drops in.
+    if (reducedMotion()) {
+      playCue("place");
+      if (withMeeple) setTimeout(() => playCue("meeple"), 140);
+    }
   }
   repaint();
 }
@@ -284,7 +340,7 @@ function voteSkip(ctx, target) {
 }
 
 // ---------- view model ----------
-function buildViewModel(ctx, me) {
+function buildViewModel(ctx, me, frame) {
   const { game } = ctx;
   const palette = paletteFor(currentTheme());
   const seat = me.mySeat;
@@ -327,14 +383,17 @@ function buildViewModel(ctx, me) {
     if (p.skipped) { statusKey = "skipped"; statusText = UI.statusSkipped; }
     else if (p.placed) { statusKey = "placed"; statusText = UI.statusPlaced; }
     else if (!p.tile) { statusKey = "out"; statusText = UI.statusOut; }
-    else if (p.is_bot) { statusKey = "bot"; statusText = UI.statusBot; }
+    else if (p.is_bot) { statusKey = "thinking"; statusText = UI.statusThinking; }
+    // A bot whose placement is still waiting in the animation queue keeps
+    // "thinking" until its tile drops in.
+    if (p.is_bot && p.placed && frame.pendingMarks.has(p.mark)) { statusKey = "thinking"; statusText = UI.statusThinking; }
     const voters = Array.isArray(votes[p.mark]) ? votes[p.mark] : [];
     const skip = iCanVote && !p.is_bot && !p.placed && !p.skipped && p.tile && p.mark !== me.myMark
       ? { votes: voters.length, needed: eligibleVoters.length, mine: voters.includes(me.myMark) }
       : null;
     return {
       mark: p.mark, name: nameOf(ctx, p.mark), icon: rp.icon || "", color: colorOf(ctx, p.mark), isMe: p.mark === me.myMark,
-      score: p.score || 0, projected: p.projected !== undefined ? p.projected : (p.score || 0),
+      score: p.score || 0, shownScore: countShown(p.mark, (p.score || 0) - (frame.pendingPoints[p.mark] || 0)), projected: p.projected !== undefined ? p.projected : (p.score || 0),
       breakdown: p.breakdown, projectedBreakdown: p.projected_breakdown,
       meeplesLeft: p.meeples_left, meeplesTotal: p.meeples_total, statusKey, statusText, skip,
     };
@@ -357,7 +416,7 @@ function buildViewModel(ctx, me) {
     colorOf: (m) => colorOf(ctx, m), myColor: colorOf(ctx, me.myMark), myTile, myTileDef: myTile ? defs[myTile] : null,
     rot: S.rot, handRot: preview ? preview.r : S.rot, candidates, preview,
     choices: preview ? meepleChoices(defs[myTile], preview.spots, preview.r) : [],
-    glow: S.glow.cells.length ? { cells: S.glow.cells, elapsed: Date.now() - S.glow.start } : null,
+    fx: frame, bagOpen: S.bagOpen, tilesLeft: S.bagOpen ? tilesLeft(game) : null,
     canAct: acting && !pending, sending: S.sending,
     canRotate: acting && !pending && (!S.sel || rotsAt(me.legal, S.sel.x, S.sel.y).length > 1),
     canConfirm: acting && !pending && Boolean(preview),
@@ -379,6 +438,8 @@ function ensureSkeleton(host) {
       <div class="rw-results" hidden></div>
       <div class="rw-viewport">
         <svg class="rw-board" xmlns="http://www.w3.org/2000/svg"><g class="rw-cam"></g></svg>
+        <div class="rw-banner" aria-live="polite"></div>
+        <div class="rw-bagpanel rw-overlay" hidden></div>
         <div class="rw-zoom">
           <button type="button" class="rw-zbtn" data-rw-zoom="in" aria-label="${UI.zoomIn}">+</button>
           <button type="button" class="rw-zbtn" data-rw-zoom="out" aria-label="${UI.zoomOut}">−</button>
@@ -391,9 +452,18 @@ function ensureSkeleton(host) {
   root = host.querySelector(".rw-play");
   root.setAttribute("data-rw-key", S.key);
   const viewport = root.querySelector(".rw-viewport");
-  attachGestures(viewport, { getCam: () => S.cam, onTap: onBoardTap });
+  attachGestures(viewport, { getCam: () => S.cam, onTap: onBoardTap, onManual: onManualCamera });
+  // Bag chip (strip, repainted) and the panel's ✕ both toggle the panel.
+  root.addEventListener("click", (e) => {
+    if (!e.target.closest || !e.target.closest("[data-rw-bag]")) return;
+    S.bagOpen = !S.bagOpen;
+    playClick();
+    repaint();
+  });
   root.querySelectorAll("[data-rw-zoom]").forEach((button) => {
     button.addEventListener("click", () => {
+      cancelTween(S.cam);
+      onManualCamera();
       const kind = button.getAttribute("data-rw-zoom");
       const w = viewport.clientWidth; const h = viewport.clientHeight;
       if (kind === "fit") fitToBoard(viewport);
@@ -430,33 +500,65 @@ function paint(ctx) {
   if (!host || !ctx.game) return;
   const esc = ctx.escapeHtml || ((s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`));
   const me = seatInfo(ctx);
-  const vm = buildViewModel(ctx, me);
+  const now = Date.now();
+  const frame = fxFrame(now);
+  const vm = buildViewModel(ctx, me, frame);
   const { root } = ensureSkeleton(host);
-  root.classList.toggle("rw-complete", vm.complete);
+  // Game over: the final scores celebrate first, then the results appear
+  // (a whole-screen transition, so swapping the panels here is fine).
+  const showResults = vm.complete && !frame.busy;
+  if (showResults && S.sawPlaying && !S.winPlayed) { S.winPlayed = true; playCue("win"); }
+  root.classList.toggle("rw-complete", showResults);
   root.querySelector(".rw-strip").innerHTML = stripHtml(vm, esc);
 
   const results = root.querySelector(".rw-results");
-  results.hidden = !vm.complete;
-  results.innerHTML = vm.complete ? resultsHtml(vm, esc) : "";
+  results.hidden = !showResults;
+  results.innerHTML = showResults ? resultsHtml(vm, esc) : "";
 
   const viewport = root.querySelector(".rw-viewport");
   viewport.style.background = vm.palette.boardBg;
   viewport.classList.toggle("rw-can-act", vm.canAct);
+  const board = vm.board;
+  vm.fxOverlay = fxOverlayMarkup(frame, {
+    defAt: (x, y) => { const b = board.find((t) => t.x === x && t.y === y); return b && vm.defs[b.t] ? { def: vm.defs[b.t], r: b.r } : null; },
+    colorOf: vm.colorOf, zoom: S.cam.z,
+  });
   root.querySelector(".rw-cam").innerHTML = buildBoardMarkup(vm);
+  const banner = root.querySelector(".rw-banner");
+  const bannerKey = frame.banner ? String(frame.banner.round) : "";
+  if (banner.getAttribute("data-k") !== bannerKey) {
+    banner.setAttribute("data-k", bannerKey);
+    banner.innerHTML = frame.banner ? `<span class="rw-banner-in" style="animation-delay:-${Math.round(frame.banner.elapsed)}ms">${esc(UI.roundBanner(frame.banner.round))}</span>` : "";
+  }
+  const bag = root.querySelector(".rw-bagpanel");
+  bag.hidden = !S.bagOpen;
+  bag.innerHTML = S.bagOpen ? bagPanelHtml(vm, esc) : "";
+  // One repaint at the next animation boundary (a tile due to drop, a
+  // celebration starting, the queue draining).
+  clearTimeout(S.fxTimer);
+  if (Number.isFinite(frame.next)) S.fxTimer = setTimeout(repaint, Math.max(16, frame.next - Date.now() + 8));
+  // Auto-zoom returns once the selection is gone (confirmed, cleared, rejected).
+  if (S.zoomReturn && !S.sel && !S.sending) zoomBack(viewport);
   // A fresh tile in hand (new round or redraw) re-fits the camera when any of
   // its glowing spots sit off screen, so the realm growing past the edge never
   // hides where you can build. Panning within a round is never overridden.
   const tileKey = me.mySeat ? `${ctx.game.round}:${me.mySeat.tile_serial}` : "";
-  if (S.cam.fitted && tileKey && S.cam.tileKey !== tileKey && canAct(ctx, me) && !legalOnScreen(me.legal, viewport)) S.cam.fitted = false;
-  S.cam.tileKey = tileKey;
-  if (!S.cam.fitted) {
+  const camBusy = Boolean(S.cam.tween || S.zoomReturn);
+  if (!camBusy) {
+    if (S.cam.fitted && tileKey && S.cam.tileKey !== tileKey && canAct(ctx, me) && !legalOnScreen(me.legal, viewport)) S.cam.fitted = false;
+    S.cam.tileKey = tileKey;
+  }
+  if (!S.cam.fitted && !camBusy) {
     if (!fitToBoard(viewport)) requestAnimationFrame(() => { if (!S.cam.fitted && fitToBoard(viewport)) applyCamera(viewport, S.cam); });
   }
   applyCamera(viewport, S.cam);
 
   const tray = root.querySelector(".rw-tray");
-  tray.hidden = vm.complete;
-  tray.innerHTML = vm.complete ? "" : trayHtml(vm, esc);
+  const chipsScroll = tray.querySelector(".rw-chips") ? tray.querySelector(".rw-chips").scrollLeft : 0;
+  tray.hidden = showResults;
+  tray.innerHTML = showResults ? "" : trayHtml(vm, esc);
+  const chips = tray.querySelector(".rw-chips");
+  if (chips && chipsScroll) chips.scrollLeft = chipsScroll;
   tray.querySelectorAll("[data-rw-act]").forEach((button) => {
     button.addEventListener("click", () => {
       if (button.disabled) return;
@@ -477,8 +579,9 @@ function paint(ctx) {
   });
 
   const table = root.querySelector(".rw-table");
-  table.hidden = vm.complete;
-  table.innerHTML = vm.complete ? "" : tableHtml(vm, esc);
+  table.hidden = showResults;
+  table.innerHTML = showResults ? "" : tableHtml(vm, esc);
+  runCounters(root);
   table.querySelectorAll("[data-rw-skip]").forEach((button) => {
     button.addEventListener("click", () => voteSkip(S.lastCtx || ctx, button.getAttribute("data-rw-skip")));
   });

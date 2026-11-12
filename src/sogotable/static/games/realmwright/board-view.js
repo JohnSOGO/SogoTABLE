@@ -40,9 +40,41 @@ export function fitCamera(cam, bounds, width, height, { pad = 24, maxZoom = 1.05
   return true;
 }
 
+// Smoothly move the camera to `to` ({x,y,z}) over `ms` (ease-out cubic) with
+// requestAnimationFrame. Any running tween on the same camera is replaced;
+// reduced motion jumps straight there. Returns a cancel function.
+export function tweenCamera(viewport, cam, to, { ms = 300, reduced = false, onDone } = {}) {
+  cancelTween(cam);
+  const from = { x: cam.x, y: cam.y, z: cam.z };
+  const finish = () => { cam.x = to.x; cam.y = to.y; cam.z = to.z; cam.tween = null; applyCamera(viewport, cam); if (onDone) onDone(); };
+  if (reduced || typeof requestAnimationFrame === "undefined") { finish(); return () => {}; }
+  const t0 = performance.now();
+  const tween = { raf: 0 };
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / ms);
+    const e = 1 - (1 - k) ** 3;
+    if (k >= 1) { finish(); return; }
+    cam.x = from.x + (to.x - from.x) * e;
+    cam.y = from.y + (to.y - from.y) * e;
+    cam.z = from.z + (to.z - from.z) * e;
+    applyCamera(viewport, cam);
+    tween.raf = requestAnimationFrame(step);
+  };
+  tween.raf = requestAnimationFrame(step);
+  cam.tween = tween;
+  return () => cancelTween(cam);
+}
+
+export function cancelTween(cam) {
+  if (cam.tween) { cancelAnimationFrame(cam.tween.raf); cam.tween = null; }
+}
+
 // Wire gestures once per viewport element. getCam() returns the live camera
-// (the per-room state object); onTap(wx, wy) receives world coordinates.
-export function attachGestures(viewport, { getCam, onTap }) {
+// (the per-room state object); onTap(wx, wy) receives world coordinates;
+// onManual() fires when the player pans or zooms by hand (a drag, a pinch or
+// the wheel — not a tap). Pointers on .rw-overlay panels are left alone.
+export function attachGestures(viewport, { getCam, onTap, onManual = () => {} }) {
+  const onOverlay = (e) => Boolean(e.target && e.target.closest && e.target.closest(".rw-zoom, .rw-overlay"));
   const pointers = new Map();
   let drag = null;
   let pinch = null;
@@ -53,7 +85,7 @@ export function attachGestures(viewport, { getCam, onTap }) {
   };
 
   viewport.addEventListener("pointerdown", (e) => {
-    if (e.target.closest && e.target.closest(".rw-zoom")) return;
+    if (onOverlay(e)) return;
     pointers.set(e.pointerId, local(e));
     try { viewport.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     if (pointers.size === 1) {
@@ -64,6 +96,8 @@ export function attachGestures(viewport, { getCam, onTap }) {
       const [a, b] = [...pointers.values()];
       pinch = { dist: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] };
       if (drag) drag.moved = true;
+      cancelTween(getCam());
+      onManual();
     }
   });
 
@@ -85,6 +119,7 @@ export function attachGestures(viewport, { getCam, onTap }) {
     if (!drag) return;
     const [sx, sy] = local(e);
     if (!drag.moved && Math.hypot(sx - drag.sx, sy - drag.sy) < TAP_SLOP) return;
+    if (!drag.moved) { cancelTween(cam); onManual(); drag.cx = cam.x; drag.cy = cam.y; }
     drag.moved = true;
     viewport.classList.add("rw-dragging");
     cam.x = drag.cx + (sx - drag.sx);
@@ -116,9 +151,12 @@ export function attachGestures(viewport, { getCam, onTap }) {
   viewport.addEventListener("pointercancel", end);
 
   viewport.addEventListener("wheel", (e) => {
+    if (onOverlay(e)) return;
     e.preventDefault();
     const [sx, sy] = local(e);
     const cam = getCam();
+    cancelTween(cam);
+    onManual();
     zoomAt(cam, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), sx, sy);
     applyCamera(viewport, cam);
   }, { passive: false });

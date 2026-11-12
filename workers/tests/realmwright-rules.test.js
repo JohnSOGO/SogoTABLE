@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   REALMWRIGHT_GAME_ID, isRealmwrightGame, newRealmwrightGame, initRealmwrightSeats, setRealmwrightOptions,
   makeRealmwrightMove, realmwrightGameToDict, realmwrightGameToDictForViewer, realmwrightScoreByMark,
-  setRealmwrightRandom, normalizeRealmwrightOptions,
+  setRealmwrightRandom, setRealmwrightClock, normalizeRealmwrightOptions, BOT_DELAY_BASE_S,
 } from "../games/realmwright/rules.js";
 import { legalPlacements } from "../games/realmwright/board.js";
 import { tileDefsFor } from "../games/realmwright/tiles.js";
@@ -29,6 +29,19 @@ function makeGame(seats, options = {}, seed = 1) {
 
 function place(g, mark, x, y, r, meeple = null) {
   makeRealmwrightMove(g, mark, { type: "PLACE_TILE", round: g.round, serial: g.players[mark].tile_serial, x, y, r, meeple });
+}
+
+// Deterministic clock: bots act on act_at (epoch ms), so tests move time by hand.
+let NOW = 1_000_000;
+setRealmwrightClock(() => NOW);
+// Jump past every waiting bot and nudge the table the way a client would.
+function tickBots(g) {
+  const waiting = g.seat_order.map((m) => g.players[m]).filter((s) => s.is_bot && !s.placed && s.tile);
+  if (!waiting.length) return false;
+  NOW = Math.max(NOW, ...waiting.map((s) => s.act_at)) + 1;
+  const humanMark = g.seat_order.find((m) => !g.players[m].is_bot);
+  makeRealmwrightMove(g, humanMark, { type: "BOT_TICK", round: g.round });
+  return true;
 }
 
 const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
@@ -146,7 +159,7 @@ test("loud errors: bad feature, no meeples, farmers off, bad rotation, bot seat,
   assert.throws(() => place(g, "P1", 1, 0, 0, 2), /no meeples left/);
   assert.throws(() => makeRealmwrightMove(g, "B1", { type: "PLACE_TILE" }), /Bot seats/);
   assert.throws(() => makeRealmwrightMove(g, "ZZ", { type: "PLACE_TILE" }), /not seated/);
-  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "NOPE" }), /PLACE_TILE or SKIP_PLAYER/);
+  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "NOPE" }), /PLACE_TILE, SKIP_PLAYER or BOT_TICK/);
   place(g, "P1", 1, 0, 0, null);
   assert.throws(() => place(g, "P1", 2, 0, 0, null), /already placed/);
 });
@@ -217,15 +230,51 @@ test("knock-on redraw: a tile that no longer fits anywhere is replaced", () => {
   place(g, "P2", 1, 0, 1, null);
 });
 
-test("bots place at the barrier, after every human, in seat order", () => {
-  const g = makeGame([bot("B1"), human("P1"), bot("B2")]);
-  assert.equal(g.board.length, 1, "bots wait for the human");
+test("bots think on a per-level timer; BOT_TICK releases them in act_at order", () => {
+  NOW = 5_000_000;
+  const g = makeGame([bot("B1", 2), human("P1"), bot("B2", 3), bot("B3", 1)]);
+  const opened = g.round_opened_at;
+  assert.equal(opened, NOW);
+  for (const [m, lvl] of [["B1", 2], ["B2", 3], ["B3", 1]]) {
+    const wait = g.players[m].act_at - opened;
+    const base = BOT_DELAY_BASE_S[lvl] * 1000;
+    assert.ok(wait >= base + 1000 && wait < base + 6000, `${m} L${lvl} waits base+1d5 s (got ${wait})`);
+  }
+  // Nothing due yet: a tick is rejected without changing anything.
+  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "BOT_TICK", round: 1 }), /No bot is ready/);
+  assert.equal(g.board.length, 1);
+  // The human places; the round stays open while bots think.
   const spot = realmwrightGameToDict(g).legal.P1[0];
   place(g, "P1", spot.x, spot.y, spot.r, null);
+  assert.equal(g.round, 1);
+  // Release exactly the earliest bot.
+  const order = ["B1", "B2", "B3"].sort((a, b) => g.players[a].act_at - g.players[b].act_at);
+  NOW = g.players[order[0]].act_at;
+  makeRealmwrightMove(g, "P1", { type: "BOT_TICK", round: 1 });
+  assert.ok(g.players[order[0]].placed && !g.players[order[1]].placed);
+  // A human commit after a bot's time lets that bot go first (server order stays fair).
+  NOW = g.players[order[2]].act_at + 1;
+  makeRealmwrightMove(g, "P1", { type: "BOT_TICK", round: 1 });
   const places = g.events.filter((e) => e.type === "place" && e.round === 1).map((e) => e.mark);
-  assert.deepEqual(places, ["P1", "B1", "B2"]);
-  assert.equal(g.round, 2);
-  assert.ok(g.players.B1.tile && g.players.P1.tile);
+  assert.deepEqual(places, ["P1", ...order]);
+  assert.equal(g.round, 2, "round deals once every bot has placed");
+  assert.ok(g.players.B1.act_at > NOW - 1, "fresh think-time for the new round");
+  // Projection exposes timing for the client scheduler.
+  const d = realmwrightGameToDict(g);
+  assert.equal(d.server_now, NOW);
+  assert.ok(d.players.find((p) => p.mark === "B1").act_at > 0);
+  assert.equal(d.players.find((p) => p.mark === "P1").act_at, 0);
+});
+
+test("score events carry the meeples that scored (for the jump-for-joy)", () => {
+  const g = makeGame([human("P1"), human("P2")]);
+  g.players.P1.tile = J3;
+  place(g, "P1", 1, 0, 0, 2); // road W claimed, open east+south
+  const ev = g.events.filter((e) => e.type === "score");
+  for (const e of ev) {
+    assert.ok(Array.isArray(e.meeples));
+    e.meeples.forEach((m) => assert.deepEqual(Object.keys(m).sort(), ["f", "mark", "x", "y"]));
+  }
 });
 
 test("all-bot table runs to completion", () => {
@@ -282,10 +331,10 @@ test("projection shape is exactly the wire contract", () => {
   const d = realmwrightGameToDict(g);
   assert.deepEqual(Object.keys(d).sort(), [
     "bag_count", "board", "events", "game_id", "legal", "move_count", "options", "players", "results",
-    "round", "seat_order", "skip_votes", "status", "tile_defs", "winner",
+    "round", "round_opened_at", "seat_order", "server_now", "skip_votes", "status", "tile_defs", "winner",
   ]);
   assert.deepEqual(Object.keys(d.players[0]).sort(), [
-    "breakdown", "is_bot", "mark", "meeples_left", "meeples_total", "placed", "projected", "projected_breakdown",
+    "act_at", "breakdown", "is_bot", "mark", "meeples_left", "meeples_total", "placed", "projected", "projected_breakdown",
     "score", "skipped", "tile", "tile_serial",
   ]);
   assert.deepEqual(Object.keys(d.options).sort(), ["deck", "expansions", "farmers", "live_tally", "meeples", "small_city"]);
@@ -299,6 +348,7 @@ test("projection shape is exactly the wire contract", () => {
   assert.deepEqual(Object.keys(d.events[0]).sort(), ["round", "seq", "type"]);
   // Placing removes the seat from legal.
   place(g, "P1", d.legal.P1[0].x, d.legal.P1[0].y, d.legal.P1[0].r, null);
+  tickBots(g);
   const d2 = realmwrightGameToDict(g);
   assert.ok(d2.round === 2 && d2.legal.P1);
 });
@@ -375,7 +425,7 @@ function playOut(g, rng) {
   let guard = 0;
   while (g.status !== "complete" && guard++ < 2000) {
     const mark = g.seat_order.find((m) => !g.players[m].is_bot && !g.players[m].placed && !g.players[m].skipped && g.players[m].tile);
-    assert.ok(mark, "a human can act while the game is playing");
+    if (!mark) { assert.ok(tickBots(g), "a human or a waiting bot can act while the game is playing"); continue; }
     const seat = g.players[mark];
     const legal = legalPlacements(g.board, seat.tile, defs, g.options, seat.meeples_left);
     const spot = legal[Math.floor(rng() * legal.length)];

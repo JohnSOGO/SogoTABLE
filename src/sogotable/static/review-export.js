@@ -98,6 +98,8 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/realmwright/assets.js",
   "src/sogotable/static/games/realmwright/board-svg.js",
   "src/sogotable/static/games/realmwright/board-view.js",
+  "src/sogotable/static/games/realmwright/bot-tick.js",
+  "src/sogotable/static/games/realmwright/fx.js",
   "src/sogotable/static/games/realmwright/branding.js",
   "src/sogotable/static/games/realmwright/lobby.js",
   "src/sogotable/static/games/realmwright/manifest.js",

@@ -18,9 +18,11 @@ decided, and one `PLACE_TILE` (tile + optional meeple) is sent per round.
 | `art.js` | Pure SVG builders: `tileSvg` / `tileArt` (drawn from any TileDef's features + ports), `featureAnchor`, `featureHighlight`, `meepleSvg` / `meepleShape`. Deterministic (seeded by type id). |
 | `render.js` | `renderRealmwrightGame(ctx)` — module state keyed by room+epoch, selection, intents, paint. |
 | `board-svg.js` | Board markup: tile symbols, meeples, legal cells, preview + meeple spots, score glow. |
-| `board-view.js` | Camera + gestures: drag-pan, pinch / wheel zoom, tap → world coords, fit. |
+| `board-view.js` | Camera + gestures: drag-pan, pinch / wheel zoom, tap → world coords, fit, `tweenCamera` (rAF ease-out, used by the auto-zoom on the meeple step). |
 | `panels.js` | Status strip, action tray, score table, final results (HTML strings). |
 | `lobby.js` | Host options over the shared `renderHostStartLobby`; store keyed by room+epoch; `getStartArg → { realm_options }`. |
+| `fx.js` | Animation timeline (view only): one queue of timed beats from new events — tile drop, meeple drop ~1 s later, scoring jump + "+N", round banner, last-tile pulse, score count-up, game-over sequence. Absolute start times + negative `animation-delay`, so re-renders never restart it; `prefers-reduced-motion` skips it. |
+| `bot-tick.js` | Bot think-time nudger: maps the earliest unplaced bot's `act_at` onto the local clock (`server_now` offset) + a per-seat stagger and sends `BOT_TICK`; errors are silent, retries back off. |
 | `sfx.js` | Sound cues as tone data via `sound.js` `playTones`, event-log diffing so everyone hears completions. |
 | `styles.js` | Scoped `.realmwright-root` CSS (`rw-*` classes), `#macroBoard` / `#turnStatus` neutralisers, dark block. |
 
