@@ -30,6 +30,7 @@ export const GAME_IDS = {
   chineseCheckers: "6bc129b1bbed",
   lastOrders: "618a2d361857",
   tracklayers: "7c31e9a05b42",
+  hiddenIsles: "aa6b6dee04ef",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -293,5 +294,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["tracklayers", "track_layers", "train_routes", "rail_routes"],
+  },
+  {
+    id: GAME_IDS.hiddenIsles,
+    lobbyMode: "hostStart",
+    name: "🗺️ Hidden Isles",
+    summary: "Two crews race across a sea chart of 25 words. Each crew's Navigator secretly knows which words are your islands and gives one-word clues with a number; the crew taps the words. Uncover all your islands first, and steer clear of the Kraken! 4+ players, bots can crew or navigate.",
+    players: "4+ players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["hidden_isles", "hidden-isles", "hiddenisles", "word_clues", "word-clues"],
   },
 ];

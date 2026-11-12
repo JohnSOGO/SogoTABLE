@@ -45,6 +45,8 @@ export function createGameKinds(canonicalGameId) {
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.lastOrders);
   const isTracklayersGameState = (game) =>
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.tracklayers);
+  const isHiddenIslesGameState = (game) =>
+    Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.hiddenIsles);
   return {
     isTacticalGameState,
     isBoxesGameState,
@@ -65,5 +67,6 @@ export function createGameKinds(canonicalGameId) {
     isChineseCheckersGameState,
     isLastOrdersGameState,
     isTracklayersGameState,
+    isHiddenIslesGameState,
   };
 }
