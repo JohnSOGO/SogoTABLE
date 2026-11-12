@@ -1478,3 +1478,18 @@ PLACEMENT RECEIPT
     - words.js split into words.js + aliases.js to stay under the 800-line backstop
 - New owner row: none
 ```
+
+## 2026-11-12 — Extract the room render dispatch from app.js
+
+```
+REORG RECEIPT
+- Trigger:      app.js at 2174/2180 with five games landing the same night; each new
+                ctx-bag game added an import plus terms to two predicate chains in renderGame.
+- Change:       behavior-preserving. The 14 ctx-bag renderers and the id → renderer choice
+                moved to src/sogotable/static/games/room-render-dispatch.js [NEW owner row];
+                renderGame asks ctxRendererFor(game, canonicalGameId) and keeps building the ctx.
+- Result:       app.js 2174 → 2162. A new ctx-bag game is now one import + one Map row in the
+                dispatch file and no app.js lines. Ceiling left at 2180 (already tighter than
+                2162 + buffer).
+- Tests:        npm test green before and after; real shell played locally.
+```
