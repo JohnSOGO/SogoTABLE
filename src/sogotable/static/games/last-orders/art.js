@@ -707,6 +707,12 @@ export function tableBgSvg(opts = {}) {
   return svgWrap(planks.join(""), { label: opts.label, viewBox: vb, extra: ` preserveAspectRatio="xMidYMid slice"` });
 }
 
+/** CSS `url(...)` for the table background. A picture file is used directly: an SVG shown as a CSS
+ *  image (data URL) can't load an external <image>, so the file must never be wrapped in tableBgSvg. */
+export function tableBgCssUrl(opts = {}) {
+  return `url("${ASSETS.tableBg || svgDataUrl(tableBgSvg(opts))}")`;
+}
+
 // Stat icons: 24×24, simple shapes. `mono: true` draws in currentColor only.
 function statIcon(opts, drawColour, drawMono) {
   const P = paletteOf(opts);
