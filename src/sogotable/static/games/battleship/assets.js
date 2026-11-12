@@ -48,10 +48,10 @@ export const ASSETS = {
   ships: { carrier: null, battleship: null, cruiser: null, submarine: null, destroyer: null },
   sounds: {
     fire: new URL("./sounds/fire.mp3", import.meta.url).href,
-    incoming: null,
+    incoming: new URL("./sounds/incoming.mp3", import.meta.url).href,
     hit: new URL("./sounds/hit.mp3", import.meta.url).href,
-    miss: null,
-    sunk: null,
+    miss: new URL("./sounds/miss.mp3", import.meta.url).href,
+    sunk: new URL("./sounds/sunk.mp3", import.meta.url).href,
   },
 };
 
