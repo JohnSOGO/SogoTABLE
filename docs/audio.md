@@ -20,6 +20,15 @@ This fits SogoTable if it stays quiet and centralized. It would become bad archi
 
 Adopt with constraints: procedural Web Audio only, global mute toggle, no background music, no external assets, and state-diff dedupe for multiplayer/game-event sounds.
 
+### Revision 2026-11-12 — recorded files allowed (supersedes "no external assets")
+
+Input: `docs/sfx-spec.md` (from SogoAI). Synth cues sound thin for physical events (dice, cards, explosions, fanfares).
+
+- **Abstract:** ship small recorded sound files for the cues where synthesis is weak.
+- **ReExplain:** files are still browser-presentation only. They are made once, offline, and committed; nothing is generated or fetched from an AI service at play time. Same mute, same five volume levels, same state-diff dedupe, same "own seat only" rules.
+- **Evaluate:** industry-standard (pre-made compressed SFX played after a user gesture). Risk is download weight and loudness mismatch, so files are trimmed, mono MP3 96 kbps, loudness-normalised to about -18 LUFS, and each well under 40 KB. They are runtime-cached by the service worker (network-first) and not precached, so a cue that never plays costs nothing.
+- **Conclude:** adopt. Sources in order: CC0 packs (Kenney) first, Stable Audio Open on SogoAI only for gaps once its route is live. The synth cue stays as the fallback for every file cue, and UI ticks (click, confirm, cancel, turn, invalid move) stay synth-only. Global cues map files in `src/sogotable/static/sound-files.js`; per-game cues use each game's `assets.js` `ASSETS.sounds`. Every file is listed in `docs/SOUNDS.md` with source and licence. Sound remains an optional help: mute turns everything off.
+
 ## Checklist
 
 - [x] Read `AI/Audio in SogoTable.md` as input context.

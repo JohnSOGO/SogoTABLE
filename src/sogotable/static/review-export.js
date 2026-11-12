@@ -188,6 +188,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/storage.js",
   "src/sogotable/static/service-worker.js",
   "src/sogotable/static/sound.js",
+  "src/sogotable/static/sound-files.js",
   "src/sogotable/static/controllers/houses.js",
   "src/sogotable/static/controllers/invites.js",
   "src/sogotable/static/controllers/local-seat.js",

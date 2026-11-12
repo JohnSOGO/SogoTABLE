@@ -1441,3 +1441,23 @@ PLACEMENT RECEIPT
     - Product flag: a non-room "trainer" entry on the Games screen is a new category.
 - New owner row: | `src/sogotable/static/vendor/` | Vendored third-party browser libraries … |
 ```
+
+## 2026-11-12 — Recorded sound files for global cues
+
+```
+PLACEMENT RECEIPT
+- Ask:          Add recorded CC0 (Kenney) MP3 overrides for the global synth cues in
+                src/sogotable/static/sound.js; each cue tries a file first and falls back to synth.
+                UI ticks stay synth-only.
+- Verdict:      src/sogotable/static/sound-files.js [NEW owner row] holds the URL map (data only);
+                src/sogotable/static/sound.js [EXISTING] holds the private cue() fallback helper.
+                Files in src/sogotable/static/sounds/. Per-game files use the existing assets.js keys.
+- Flow stage:   render UI (presentation feedback). No rules, transport or persistence.
+- Considerations:
+    - Map inside sound.js rejected: mixes swappable licensed content into the synthesis engine;
+      the split mirrors games/*/assets.js (data) vs sfx.js (playback).
+    - playSoundFile can't detect an async 404/decode failure, so only committed files are mapped.
+    - service-worker.js unchanged: MP3s take the network-first runtime cache; not precached.
+    - sound-files.js must not import sound.js (cycle).
+- New owner row: | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map … | `src/sogotable/static/sound.js` |
+```
