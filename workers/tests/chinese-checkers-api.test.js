@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { makeEnv, player, post, get, CHINESE_CHECKERS_GAME_ID } from "./helpers.js";
+import { setChineseCheckersNow } from "../games/chinese-checkers/rules.js";
 
 const dist = (a, b) => {
   const [aq, ar] = a.split(",").map(Number);
@@ -114,4 +115,43 @@ test("Chinese Checkers plays end-to-end over the room API", async () => {
   assert.ok(game.winners.length >= 1);
   assert.equal(game.results.length, 3);
   assert.ok(game.events.some((e) => e.type === "end"));
+});
+
+test("Chinese Checkers blitz over the room API: deadline + server_now, immediate move, TICK closes the round", async () => {
+  let clock = 5_000_000;
+  setChineseCheckersNow(() => clock);
+  try {
+    const env = makeEnv();
+    const host = player("ccb-host", "Host");
+    const guest = player("ccb-guest", "Guest");
+    await post(env, "/api/room/create", { game_id: "chinese_checkers", player: host, code: "BLTZ" });
+    await post(env, "/api/room/join", { code: "BLTZ", player: guest });
+    const started = await post(env, "/api/room/start", { code: "BLTZ", host_id: host.id, cc_options: { mode: "blitz", timer: 8 } });
+    assert.equal(started.ok, true, started.error);
+    const markOf = (p) => started.room.players.find((s) => s.id === p.id).mark;
+    const view = async (p) => (await get(env, `/api/room?code=BLTZ&player_id=${p.id}`)).room.game;
+    const act = (p, action) => post(env, "/api/room/move", { code: "BLTZ", player_id: p.id, action });
+    let g = await view(host);
+    assert.equal(g.options.mode, "blitz");
+    assert.equal(g.deadline, 5_008_000);
+    assert.equal(g.server_now, 5_000_000);
+    const pick = bestMove(g, markOf(host));
+    clock += 1000;
+    const moved = await act(host, { type: "MOVE", round: g.round, from: pick.from, path: pick.path });
+    assert.equal(moved.ok, true, moved.error);
+    g = await view(guest);
+    assert.equal(g.marbles[pick.path[pick.path.length - 1]], markOf(host), "applied immediately");
+    assert.equal(g.players.find((p) => p.mark === markOf(host)).moved, true);
+    assert.equal((await act(guest, { type: "TICK" })).ok, true, "early TICK is a no-op");
+    assert.equal((await view(guest)).round, 1);
+    clock = 5_008_000;
+    const ticked = await act(guest, { type: "TICK" });
+    assert.equal(ticked.ok, true, ticked.error);
+    g = await view(guest);
+    assert.equal(g.round, 2);
+    assert.equal(g.deadline, 5_016_000);
+    assert.ok(g.events.some((e) => e.type === "timeout" && e.mark === markOf(guest) && e.round === 1));
+  } finally {
+    setChineseCheckersNow(null);
+  }
 });

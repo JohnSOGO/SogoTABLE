@@ -1141,3 +1141,19 @@ client-side wnyk modules for the import-closure guard.
     - Hot-seat explicitly out of scope (hidden simultaneous commits need a hand-off screen).
 - Reorganizer:  NONE
 - New owner row: none
+
+## 2026-11-12 — Chinese Checkers play modes (blitz / live / turns / timers) + new options
+
+- Ask:          Add timing modes (rounds+timer, blitz, live, turns), a now seam with lazy deadlines and
+                TICK, and options marbles 15 / chains / allow_pass / assists.
+- Verdict:      NEW pure file workers/games/chinese-checkers/modes.js (now seam, deadline math,
+                advanceClock, blitz/live immediate moves, round/turn advancing) called by rules.js
+                through an ops bag (no import cycle); options/projection/allow_pass stay in rules.js;
+                15-marble geometry + chains=false in board.js. review-export.js allowlist row added.
+                [EXISTING owner: workers/games/ directory pattern]
+- Flow stage:   validate + apply (server-authoritative), persist (deadline in game state).
+- Considerations:
+    - rules.js held under ~600 lines (528 -> 596); modes.js 233.
+    - No Date.now()/timers outside the seam default; deadlines enforced lazily per action.
+- Reorganizer:  NONE
+- New owner row: none (directory pattern)

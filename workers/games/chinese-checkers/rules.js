@@ -11,7 +11,8 @@
 // (or passed / been skipped). Bots commit last through the same validation,
 // then ./resolve.js applies every commit in rotating priority order
 // (seat_order rotated left by (round - 1) % n). An all-bot table runs straight
-// through, bounded by a guard and the 300-round cap.
+// through, bounded by a guard and the 300-round cap. Other play modes (blitz /
+// live / turns) and every clock deadline: ./modes.js, driven through OPS below.
 import { GAME_IDS } from "../../../src/sogotable/static/games/registry.js";
 import { cleanGameId } from "../../game-catalog.js";
 import { castSkipVote, normalizeSkipVotes, pruneSkipVotes } from "../skip-vote.js";
@@ -21,14 +22,19 @@ import {
 } from "./board.js";
 import { resolveRound } from "./resolve.js";
 import { chooseChineseCheckersMove } from "./ai.js";
+import {
+  ROUND_CAP, MODES, normalizeTimer, chineseCheckersNow, isLiveMode, isTurnsMode, skipVoteMode, roundCap,
+  deadlineAfter, turnOrder, beginGame, advanceClock, liveAction, turnAction, skipTurn,
+} from "./modes.js";
 
+export { ROUND_CAP, setChineseCheckersNow } from "./modes.js";
 export const CHINESE_CHECKERS_GAME_ID = GAME_IDS.chineseCheckers;
-export const ROUND_CAP = 300;
 const EVENT_CAP = 60;
 const MAX_PATH = 60;
 export const CHINESE_CHECKERS_DEFAULT_OPTIONS = Object.freeze({
   jumps: "standard", marbles: 10, capture: "off", teams: false,
   stay_in_goal: true, no_parking: false, anti_block: true, end: "first",
+  mode: "rounds", timer: 0, chains: true, allow_pass: true, assists: "full",
 });
 
 export function isChineseCheckersGame(game) {
@@ -63,15 +69,21 @@ export function normalizeChineseCheckersOptions(raw) {
   const o = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const d = CHINESE_CHECKERS_DEFAULT_OPTIONS;
   const capture = o.capture === "send_home" || o.capture === true ? "send_home" : "off";
+  const mode = MODES.includes(o.mode) ? o.mode : d.mode;
   return {
     jumps: o.jumps === "long" ? "long" : d.jumps,
-    marbles: Number(o.marbles) === 6 ? 6 : d.marbles,
+    marbles: [6, 15].includes(Number(o.marbles)) ? Number(o.marbles) : d.marbles, // 15: 2 seats only (clamped at init)
     capture: o.capture === undefined ? d.capture : capture,
     teams: toBool(o.teams, d.teams),
     stay_in_goal: toBool(o.stay_in_goal, d.stay_in_goal),
     no_parking: toBool(o.no_parking, d.no_parking),
     anti_block: toBool(o.anti_block, d.anti_block),
     end: o.end === "all" ? "all" : d.end,
+    mode,
+    timer: normalizeTimer(mode, o.timer),
+    chains: toBool(o.chains, d.chains),
+    allow_pass: toBool(o.allow_pass, d.allow_pass),
+    assists: ["full", "moves", "off"].includes(o.assists) ? o.assists : d.assists,
   };
 }
 
@@ -99,6 +111,8 @@ export function newChineseCheckersGame() {
     winner: null,
     winners: [],
     results: null,
+    deadline: null,
+    current: null,
   };
 }
 
@@ -117,6 +131,7 @@ export function initChineseCheckersSeats(game, seats) {
   if (marks.length < 2) throw new Error("Chinese Checkers needs at least 2 players — invite a friend or add a bot.");
   if (marks.length > 6) throw new Error("Chinese Checkers seats at most 6 players — remove a seat to start.");
   game.options = normalizeChineseCheckersOptions(game.options);
+  if (game.options.marbles === 15 && marks.length !== 2) game.options.marbles = 10; // 15 is the 2-player set
   game.seat_order = marks;
   game.players = {};
   game.marbles = {};
@@ -136,14 +151,14 @@ export function initChineseCheckersSeats(game, seats) {
   game.winner = null;
   game.winners = [];
   game.results = null;
-  startRound(game);
-  advance(game); // an all-bot table runs straight through
+  game.deadline = game.current = null;
+  beginGame(game, chineseCheckersNow(), OPS); // an all-bot table runs straight through
 }
 
 function blankSeat(isBot, level, arm) {
   return {
     is_bot: isBot, level, arm, goal_arm: (arm + 3) % 6, team: null,
-    committed: null, skipped: false, finished: false, finish_round: null, rank: null, last_move: null,
+    committed: null, skipped: false, moved: false, finished: false, finish_round: null, rank: null, last_move: null,
   };
 }
 
@@ -171,20 +186,23 @@ export function priorityOrder(game) {
 
 const isDone = (seat) => seat.finished || seat.skipped || seat.committed !== null;
 
-function startRound(game) {
+// `base` = the epoch ms the new round's clock counts from (see ./modes.js).
+function startRound(game, base) {
   game.round += 1;
   game.skip_votes = {};
   game.seat_order.forEach((m) => {
     const seat = game.players[m];
     seat.committed = null;
     seat.skipped = false;
+    seat.moved = false;
   });
+  game.deadline = deadlineAfter(game, base);
   pushEvent(game, { type: "round", priority: priorityOrder(game) });
 }
 
 // The barrier: hold while any human is undecided; then bots commit (human
 // validation path) and the round resolves. Loops so an all-bot table finishes.
-function advance(game) {
+function advance(game, base) {
   let guard = 0;
   while (game.status === "playing" && guard < ROUND_CAP + 50) {
     guard += 1;
@@ -198,9 +216,9 @@ function advance(game) {
     if (game.seat_order.some((m) => !game.players[m].is_bot && !isDone(game.players[m]))) return;
     for (const mark of game.seat_order) {
       const seat = game.players[mark];
-      if (seat.is_bot && !isDone(seat)) commitBot(game, mark, grid);
+      if (seat.is_bot && !isDone(seat)) seat.committed = botCommit(game, mark, grid);
     }
-    resolveCurrentRound(game);
+    resolveCurrentRound(game, base);
   }
 }
 
@@ -219,22 +237,22 @@ function botLegalInfo(game, mark, grid) {
   };
 }
 
-function commitBot(game, mark, grid) {
+// A bot's commit, validated on the board as it stands now (never throws).
+function botCommit(game, mark, grid = toGrid(game.marbles)) {
   const info = botLegalInfo(game, mark, grid);
   let choice = null;
   try { choice = chooseChineseCheckersMove(game, mark, info, ccRandom); } catch { choice = null; }
   if (!choice && info.moves.length) choice = info.moves[0]; // never pass while a move exists
-  const seat = game.players[mark];
-  if (!choice) { seat.committed = { pass: true }; return; }
+  if (!choice) return { pass: true };
   try {
-    seat.committed = validateCommit(game, mark, { from: keyAt(choice.from), path: choice.path.map(keyAt) });
+    return validateCommit(game, mark, { from: keyAt(choice.from), path: choice.path.map(keyAt) });
   } catch {
-    seat.committed = { pass: true };
+    return { pass: true };
   }
 }
 
 // Shared by humans and bots: validated against the board as it stands now
-// (the start-of-round board — nothing resolves mid-round).
+// (rounds: the start-of-round board; blitz/live/turns: the live board).
 function validateCommit(game, mark, action) {
   const from = typeof action.from === "string" ? action.from.trim() : "";
   if (!isCellKey(from)) throw new Error("Pick one of your marbles.");
@@ -251,7 +269,7 @@ function validateCommit(game, mark, action) {
   return { from, path };
 }
 
-function resolveCurrentRound(game) {
+function resolveCurrentRound(game, base) {
   const commits = priorityOrder(game)
     .filter((m) => !game.players[m].finished && !game.players[m].skipped)
     .map((m) => ({ mark: m, commit: game.players[m].committed || { pass: true } }));
@@ -270,10 +288,20 @@ function resolveCurrentRound(game) {
     if (o.outcome === "ok" || o.outcome === "cut") seat.last_move = { from: o.from, to: o.to };
   });
   game.seat_order.forEach((m) => { game.players[m].committed = null; });
-  markFinishes(game);
-  if (game.status === "playing" && game.round >= ROUND_CAP) completeGame(game);
-  if (game.status === "playing") startRound(game);
+  finishCheck(game);
+  if (game.status === "playing") startRound(game, base);
 }
+
+function finishCheck(game) {
+  markFinishes(game);
+  if (game.status === "playing" && game.round >= roundCap(game)) completeGame(game);
+}
+const seatHasMove = (game, mark) => hasAnyMove(toGrid(game.marbles), mark, geoFor(game, mark), game.options);
+
+// Lifecycle primitives handed to ./modes.js (see its header).
+const OPS = Object.freeze({
+  pushEvent, startRound, advance, finishCheck, validate: validateCommit, botCommit, hasMove: seatHasMove, geoFor,
+});
 
 // Units: teams when active, else each seat alone.
 function units(game) {
@@ -331,6 +359,7 @@ function completeGame(game, winnersOverride) {
   game.winner = game.winners[0] || null;
   game.seat_order.forEach((m) => { game.players[m].committed = null; });
   game.status = "complete";
+  game.deadline = game.current = null;
   game.skip_votes = {};
   game.results = game.seat_order.map((m) => ({
     mark: m, rank: game.players[m].rank, finished: game.players[m].finished,
@@ -345,26 +374,31 @@ function seatScore(game, mark, distance) {
 
 // ---------- skip vote ----------
 
+// Rounds: an undecided human holding the barrier. Turns: the current human.
 function skippable(game, target) {
   const seat = Object.hasOwn(game.players, target) ? game.players[target] : null;
-  return Boolean(seat && !seat.is_bot && !isDone(seat));
+  if (!seat || seat.is_bot || !skipVoteMode(game)) return false;
+  return isTurnsMode(game) ? game.current === target : !isDone(seat);
 }
 function skipVoters(game, target) {
   return game.seat_order.filter((m) => {
     const seat = game.players[m];
-    return m !== target && !seat.is_bot && !seat.skipped && (seat.committed !== null || seat.finished);
+    if (m === target || seat.is_bot) return false;
+    return isTurnsMode(game) || (!seat.skipped && (seat.committed !== null || seat.finished));
   });
 }
 function pruneVotes(game) {
   game.skip_votes = pruneSkipVotes(game.skip_votes, (t) => (game.status === "playing" && skippable(game, t) ? skipVoters(game, t) : null));
 }
 
-function applySkip(game, mark, action) {
+function applySkip(game, mark, action, now) {
+  if (!skipVoteMode(game)) throw new Error("No skip vote needed — the clock moves the table along.");
   const target = String(action.target || "");
   if (target === mark) throw new Error("You can't vote to skip yourself.");
   if (!skippable(game, target)) throw new Error("That player can't be skipped right now.");
   const eligible = skipVoters(game, target);
   if (!eligible.includes(mark)) throw new Error("Only players who already committed this round can vote to skip.");
+  if (isTurnsMode(game)) return skipCurrent(game, mark, target, eligible, now);
   const result = castSkipVote(game.skip_votes, mark, target, eligible);
   game.skip_votes = result.votes;
   if (result.passed) {
@@ -375,36 +409,54 @@ function applySkip(game, mark, action) {
     game.skip_votes = next;
   }
 }
+function skipCurrent(game, mark, target, eligible, now) {
+  const result = castSkipVote(game.skip_votes, mark, target, eligible);
+  game.skip_votes = result.votes;
+  if (!result.passed) return;
+  pushEvent(game, { type: "skip", mark: target });
+  skipTurn(game, now, OPS);
+}
 
 // ---------- transitions (top-level) ----------
 
 export function makeChineseCheckersMove(game, mark, action) {
   normalizeChineseCheckersGame(game);
+  const act = action && typeof action === "object" ? action : {};
+  const type = String(act.type || "").trim().toUpperCase();
+  if (game.status === "complete" && type === "TICK") return; // a late countdown is never an error
   if (game.status === "complete") throw new Error("The game is already over.");
   const seat = Object.hasOwn(game.players, mark) ? game.players[mark] : null;
   if (!seat) throw new Error("You are not seated in this game.");
   if (seat.is_bot) throw new Error("Bot seats play automatically.");
-  const act = action && typeof action === "object" ? action : {};
+  const now = chineseCheckersNow();
+  advanceClock(game, now, OPS); // lazily close every expired round/turn first
+  pruneVotes(game);
+  if (type === "TICK") return; // any seated seat (finished too); silent when nothing is due
+  if (game.status === "complete") throw new Error("The game is already over.");
   const stamped = act.round === undefined || act.round === null ? NaN : Math.trunc(Number(act.round));
   if (act.round !== undefined && act.round !== null && stamped !== game.round) {
     throw new Error(`That move was for round ${act.round} — the table is on round ${game.round}. Refresh to catch up.`);
   }
-  const type = String(act.type || "").trim().toUpperCase();
+  const mode = game.options.mode;
   if (type === "MOVE" || type === "PASS") {
     if (seat.finished) throw new Error("You've finished — your marbles are home.");
     if (seat.skipped) throw new Error("You were skipped this round — you're back in next round.");
-    if (seat.committed) return; // duplicate (retry / double tap): first commit wins, silently
-    seat.committed = type === "PASS" ? { pass: true } : validateCommit(game, mark, act);
+    if (mode === "rounds" && seat.committed) return; // duplicate (retry / double tap): first commit wins, silently
+    if (type === "PASS" && !game.options.allow_pass && seatHasMove(game, mark)) throw new Error("You still have a legal move — standard rules don't allow passing.");
+    if (isLiveMode(game)) liveAction(game, mark, type, act, now, OPS);
+    else if (isTurnsMode(game)) turnAction(game, mark, type, act, now, OPS);
+    else seat.committed = type === "PASS" ? { pass: true } : validateCommit(game, mark, act);
   } else if (type === "RETRACT") {
+    if (mode !== "rounds") throw new Error("Moves land instantly in this mode — there's nothing to take back.");
     if (seat.skipped) throw new Error("You were skipped this round — you're back in next round.");
     seat.committed = null;
   } else if (type === "SKIP_PLAYER") {
-    applySkip(game, mark, act);
+    applySkip(game, mark, act, now);
   } else {
-    throw new Error("Chinese Checkers action must be MOVE, PASS, RETRACT or SKIP_PLAYER.");
+    throw new Error("Chinese Checkers action must be MOVE, PASS, RETRACT, SKIP_PLAYER or TICK.");
   }
   pruneVotes(game);
-  advance(game);
+  if (mode === "rounds") advance(game, now);
   pruneVotes(game);
 }
 
@@ -416,6 +468,7 @@ export function chineseCheckersGameToDict(game) {
   const playing = game.status === "playing";
   const legal = {};
   const stops = {};
+  const legalLite = {};
   const players = game.seat_order.map((mark) => {
     const seat = game.players[mark];
     const geo = geoFor(game, mark);
@@ -424,11 +477,12 @@ export function chineseCheckersGameToDict(game) {
       const keys = seatLegalKeys(grid, mark, geo, game.options);
       legal[mark] = keys.legal;
       stops[mark] = keys.stops;
+      legalLite[mark] = Object.fromEntries(Object.keys(keys.legal).map((k) => [k, true]));
     }
     return {
       mark, arm: seat.arm, goal_arm: seat.goal_arm, team: seat.team,
       is_bot: seat.is_bot, level: seat.level,
-      committed: seat.committed !== null, skipped: seat.skipped,
+      committed: seat.committed !== null, skipped: seat.skipped, moved: Boolean(seat.moved),
       finished: seat.finished, finish_round: seat.finish_round, rank: seat.rank,
       in_goal: geo ? inGoalCount(grid, mark, geo) : 0,
       marbles_total: game.options.marbles,
@@ -449,6 +503,11 @@ export function chineseCheckersGameToDict(game) {
     players,
     legal,
     stops,
+    legal_lite: legalLite,
+    deadline: playing ? game.deadline : null,
+    server_now: chineseCheckersNow(),
+    current: playing && isTurnsMode(game) ? game.current : null,
+    turn_order: isTurnsMode(game) ? turnOrder(game) : [],
     events: game.events.map((e) => structuredClone(e)),
     skip_votes: normalizeSkipVotes(game.skip_votes),
     winner: game.winner,
@@ -458,12 +517,16 @@ export function chineseCheckersGameToDict(game) {
 }
 
 // Per-viewer projection: receives the DICT. Hides every other seat's commit
-// (simultaneous submit is only fair blind) and trims legal/stops to the viewer.
+// (simultaneous submit is only fair blind) and trims legal/stops/legal_lite to
+// the viewer. assists "off": no legal/stops at all — only legal_lite (which
+// marbles can move), so the client can select without highlighting.
 export function chineseCheckersGameToDictForViewer(dict, viewerMark /* , roomStatus */) {
   const projected = structuredClone(dict);
   const own = (obj) => (viewerMark && obj && obj[viewerMark] ? { [viewerMark]: obj[viewerMark] } : {});
-  projected.legal = own(projected.legal);
-  projected.stops = own(projected.stops);
+  const off = projected.options && projected.options.assists === "off";
+  projected.legal = off ? {} : own(projected.legal);
+  projected.stops = off ? {} : own(projected.stops);
+  projected.legal_lite = own(projected.legal_lite);
   (projected.players || []).forEach((p) => { if (!viewerMark || p.mark !== viewerMark) p.commit = null; });
   return projected;
 }
@@ -505,6 +568,7 @@ export function normalizeChineseCheckersGame(game) {
     const clean = blankSeat(Boolean(seat.is_bot), clampInt(seat.level, 0, 4, seat.is_bot ? 2 : 0), arms[index]);
     clean.committed = cleanCommit(seat.committed);
     clean.skipped = Boolean(seat.skipped);
+    clean.moved = Boolean(seat.moved);
     clean.finished = Boolean(seat.finished);
     clean.finish_round = clean.finished ? clampInt(seat.finish_round, 0, 99999, game.round) : null;
     clean.rank = seat.rank === null || seat.rank === undefined ? null : clampInt(seat.rank, 1, 6, null);
@@ -523,6 +587,10 @@ export function normalizeChineseCheckersGame(game) {
   game.winners = Array.isArray(game.winners) ? game.winners.filter((m) => game.seat_order.includes(m)) : [];
   game.winner = game.seat_order.includes(game.winner) ? game.winner : (game.winners[0] || null);
   game.results = Array.isArray(game.results) ? game.results : null;
+  if (game.options.marbles === 15 && game.seat_order.length && game.seat_order.length !== 2) game.options.marbles = 10;
+  game.deadline = Number.isFinite(game.deadline) ? game.deadline : null;
+  game.current = game.seat_order.includes(game.current) ? game.current : null;
+  if (game.status === "playing" && isTurnsMode(game) && !game.current) game.current = turnOrder(game).find((m) => !game.players[m].finished) || null;
   if (game.status === "playing" && game.seat_order.length && game.round < 1) game.round = 1;
   return game;
 }

@@ -30,7 +30,20 @@ const LIGHT = `
 .chinese-checkers-root .cc-badge{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;font-size:11.5px;font-weight:800;background:var(--cc-chip);color:var(--cc-muted);font-variant-numeric:tabular-nums}
 .chinese-checkers-root .cc-badge-prio{background:#fde7c8;color:#8a4a10}
 .chinese-checkers-root .cc-badge-prio.cc-first{background:var(--cc-accent);color:var(--cc-accent-ink)}
-.chinese-checkers-root .cc-badge-locked{margin-left:auto}
+.chinese-checkers-root .cc-badge-last{margin-left:auto}
+.chinese-checkers-root .cc-badge-turn{background:#fde7c8;color:#8a4a10}
+.chinese-checkers-root .cc-badge-turn.cc-first{background:var(--cc-accent);color:var(--cc-accent-ink)}
+.chinese-checkers-root .cc-mystate-turn{color:var(--cc-accent);font-weight:800}
+
+/* countdown: seconds + draining bar (clock.js repaints only this) */
+.chinese-checkers-root .cc-clock{display:flex;align-items:center;gap:8px;height:26px;padding:0 10px;background:var(--cc-panel);border-radius:12px;box-shadow:var(--cc-shadow)}
+.chinese-checkers-root .cc-clock-secs{flex:none;min-width:34px;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
+.chinese-checkers-root .cc-clock-bar{flex:1;height:8px;border-radius:4px;background:var(--cc-line);overflow:hidden}
+.chinese-checkers-root .cc-clock-fill{display:block;height:100%;width:var(--cc-clock,100%);background:var(--cc-btn);border-radius:4px;transition:width .2s linear}
+.chinese-checkers-root .cc-clock-warn .cc-clock-secs{color:var(--cc-bad);animation:cc-throb 1s ease-in-out infinite}
+.chinese-checkers-root .cc-clock-warn .cc-clock-fill{background:var(--cc-bad)}
+.chinese-checkers-root .cc-clock-zero .cc-clock-secs{animation:none}
+@keyframes cc-throb{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
 .chinese-checkers-root .cc-mystate{display:block;line-height:22px;text-overflow:ellipsis;font-weight:600}
 .chinese-checkers-root .cc-mystate-locked{color:var(--cc-good);font-weight:800}
 .chinese-checkers-root .cc-ticker{color:var(--cc-muted);font-size:12.5px}
@@ -50,6 +63,7 @@ const LIGHT = `
 .chinese-checkers-root .cc-ring-hop{fill:rgba(255,210,63,.2);stroke:var(--cc-hop);stroke-width:3.4px;transform-box:fill-box;transform-origin:center;animation:cc-pulse 1.05s ease-in-out infinite}
 .chinese-checkers-root .cc-ring-reach{fill:rgba(255,255,255,.08);stroke:var(--cc-reach);stroke-width:2px;stroke-dasharray:4 4}
 .chinese-checkers-root .cc-movable{fill:none;stroke:var(--cc-movable);stroke-width:2.6px;transform-box:fill-box;transform-origin:center;animation:cc-breathe 1.8s ease-in-out infinite}
+.chinese-checkers-root .cc-ring-plain{fill:none;stroke:var(--cc-ink);stroke-width:2.6px;stroke-opacity:.8}
 .chinese-checkers-root .cc-ring-selected{fill:none;stroke:var(--cc-select);stroke-width:4px;filter:drop-shadow(0 0 3px rgba(255,200,40,.9))}
 .chinese-checkers-root .cc-ring-end{fill:none;stroke:var(--cc-path);stroke-width:3.5px;filter:drop-shadow(0 0 2px var(--cc-path-edge))}
 .chinese-checkers-root .cc-ring-through{fill:none;stroke:var(--cc-reach);stroke-width:2.5px;stroke-dasharray:3 4}
@@ -64,13 +78,14 @@ const LIGHT = `
 @keyframes cc-pulse{0%,100%{transform:scale(.88);stroke-opacity:1}50%{transform:scale(1.08);stroke-opacity:.45}}
 @keyframes cc-breathe{0%,100%{stroke-opacity:.95}50%{stroke-opacity:.3}}
 @keyframes cc-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
-@media (prefers-reduced-motion:reduce){.chinese-checkers-root .cc-ring-hop,.chinese-checkers-root .cc-movable{animation:none}}
+@media (prefers-reduced-motion:reduce){.chinese-checkers-root .cc-ring-hop,.chinese-checkers-root .cc-movable,.chinese-checkers-root .cc-clock-secs{animation:none}}
 
 /* action bar: four fixed slots, controls never move */
 .chinese-checkers-root .cc-controls{display:grid;grid-template-columns:1fr 1fr 1fr 1.5fr;gap:6px;padding:8px;background:var(--cc-panel);border-radius:14px;box-shadow:var(--cc-shadow)}
 .chinese-checkers-root .cc-btn{height:46px;padding:0 6px;border-radius:12px;border:1px solid var(--cc-line);background:var(--cc-chip);color:var(--cc-ink);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chinese-checkers-root .cc-btn-pass{background:transparent}
 .chinese-checkers-root .cc-btn-lock{background:var(--cc-btn);border-color:var(--cc-btn);color:var(--cc-btn-ink);font-size:15px}
+.chinese-checkers-root .cc-btn-move{font-size:16px;letter-spacing:.3px}
 .chinese-checkers-root .cc-btn-change{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-accent-ink);font-size:14px}
 
 /* seat + results tables */
@@ -97,6 +112,8 @@ const LIGHT = `
 .chinese-checkers-root .cc-pill-thinking{background:#fff0c2;color:#7a5600}
 .chinese-checkers-root .cc-pill-skipped{background:#f6dada;color:#8f2a22}
 .chinese-checkers-root .cc-pill-finished{background:#e3dcfa;color:#4a2f99}
+.chinese-checkers-root .cc-pill-turn{background:var(--cc-accent);color:var(--cc-accent-ink)}
+.chinese-checkers-root table.cc-scores tr.cc-current td{background:color-mix(in srgb,var(--cc-accent) 14%,transparent)}
 .chinese-checkers-root .cc-status{display:flex;flex-direction:column;align-items:center;gap:3px}
 .chinese-checkers-root .cc-skip{height:24px;padding:0 8px;border-radius:13px;border:1px dashed var(--cc-line);background:transparent;color:var(--cc-muted);font-size:11.5px}
 .chinese-checkers-root .cc-skip.cc-on{border-style:solid;border-color:var(--cc-accent);color:var(--cc-accent)}
@@ -104,8 +121,19 @@ const LIGHT = `
 .chinese-checkers-root .cc-rank{font-size:16px}
 .chinese-checkers-root .cc-total{font-size:16px}
 
-/* lobby options */
+/* lobby options: Mode / Rules / Helps sections */
 .chinese-checkers-root .cc-options{display:flex;flex-direction:column;gap:10px;margin:4px 0 12px}
+.chinese-checkers-root .cc-osec{display:flex;flex-direction:column;gap:10px;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:14px;background:var(--surface,#fff)}
+.chinese-checkers-root .cc-osec-title{margin:0;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--cc-muted)}
+.chinese-checkers-root summary.cc-osec-title{cursor:pointer;list-style-position:inside}
+.chinese-checkers-root .cc-osec-note{text-transform:none;letter-spacing:0;font-weight:600}
+.chinese-checkers-root details.cc-osec:not([open]){gap:0}
+.chinese-checkers-root details.cc-osec>.cc-opt,.chinese-checkers-root details.cc-osec>.cc-opt-hint{margin-top:10px}
+.chinese-checkers-root .cc-modes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.chinese-checkers-root .cc-mode{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 10px;text-align:left;border:1px solid var(--line,#ddd);border-radius:12px;background:var(--surface,#fff);color:var(--ink,#222)}
+.chinese-checkers-root .cc-mode b{font-size:14px}
+.chinese-checkers-root .cc-mode span{font-size:11.5px;font-weight:500;line-height:1.3;color:var(--muted,#6b6b6b)}
+.chinese-checkers-root .cc-mode.cc-on{border-color:var(--cc-btn);box-shadow:inset 0 0 0 1.5px var(--cc-btn);background:color-mix(in srgb,var(--cc-btn) 9%,var(--surface,#fff))}
 .chinese-checkers-root .cc-opt{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .chinese-checkers-root .cc-opt-label{display:flex;flex-direction:column;min-width:0}
 .chinese-checkers-root .cc-opt-label b{font-size:14px}
@@ -114,6 +142,7 @@ const LIGHT = `
 .chinese-checkers-root .cc-seg button{height:34px;padding:0 10px;border:0;border-radius:0;background:var(--surface,#fff);color:var(--ink,#222);font-size:13px}
 .chinese-checkers-root .cc-seg button+button{border-left:1px solid var(--line,#ddd)}
 .chinese-checkers-root .cc-seg button.cc-on{background:var(--cc-btn);color:var(--cc-btn-ink)}
+.chinese-checkers-root .cc-seg button:disabled{opacity:.35}
 .chinese-checkers-root .cc-opt-hint{margin:0;font-size:12.5px;color:var(--cc-muted);font-weight:600}
 .chinese-checkers-root .cc-opt-hint.cc-warn{color:var(--cc-accent);font-weight:700}
 @media (max-width:420px){
@@ -133,7 +162,7 @@ const DARK = `
   --cc-step:#f4f1e8;--cc-reach:rgba(244,241,232,.7);--cc-movable:rgba(255,240,190,.9);
   --cc-path:#fff2c4;--cc-path-edge:rgba(0,0,0,.7);
 }
-:root[data-theme="dark"] .chinese-checkers-root .cc-badge-prio{background:#45301a;color:#f3c089}
+:root[data-theme="dark"] .chinese-checkers-root .cc-badge-prio,:root[data-theme="dark"] .chinese-checkers-root .cc-badge-turn{background:#45301a;color:#f3c089}
 :root[data-theme="dark"] .chinese-checkers-root .cc-pill-locked{background:#22402a;color:#9fe0a8}
 :root[data-theme="dark"] .chinese-checkers-root .cc-pill-thinking{background:#40361a;color:#f4d27a}
 :root[data-theme="dark"] .chinese-checkers-root .cc-pill-skipped{background:#46201e;color:#ffaaa2}

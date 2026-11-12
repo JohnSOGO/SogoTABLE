@@ -114,16 +114,23 @@ export function hexDistance(a, b) {
   return hexDistanceIdx(ia, ib);
 }
 
-// Arm cells for a marble count (10 -> depths 1-4, 6 -> depths 2-4), as keys.
+// Marble count -> 6 | 10 | 15 (anything else is 10).
+const marbleCount = (marbles) => ([6, 15].includes(Number(marbles)) ? Number(marbles) : 10);
+
+// Arm cells for a marble count, as keys: 10 -> depths 1-4, 6 -> depths 2-4,
+// 15 (the classic 2-player set) -> depths 1-4 plus the 5 hexagon-edge holes
+// directly in front of the arm (hexagon cells whose defining coord is exactly 4).
 export function armCells(arm, marbles = 10) {
-  const minDepth = Number(marbles) === 6 ? 2 : 1;
-  return STAR.filter((i) => ARM[i] === arm && DEPTH[i] >= minDepth).map((i) => KEY_AT[i]);
+  const count = marbleCount(marbles);
+  const minDepth = count === 6 ? 2 : 1;
+  const edge = (i) => count === 15 && ARM[i] === -1 && depthOf(Q[i], R[i], arm) === 0;
+  return STAR.filter((i) => (ARM[i] === arm && DEPTH[i] >= minDepth) || edge(i)).map((i) => KEY_AT[i]);
 }
 
 // Per-seat geometry (indices). Cached; treat as read-only.
 const geoCache = new Map();
 export function seatGeometry(arm, marbles = 10) {
-  const count = Number(marbles) === 6 ? 6 : 10;
+  const count = marbleCount(marbles);
   const cacheKey = `${arm}|${count}`;
   if (geoCache.has(cacheKey)) return geoCache.get(cacheKey);
   const goalArm = oppositeArm(arm);
@@ -209,13 +216,14 @@ function hopsFrom(grid, i, long) {
 // origin and every hole reachable by a chain (the origin is never a landing:
 // a chain never revisits a hole or ends where it started). Also returns the
 // reachable nodes (origin excluded) and a BFS parent map for shortest paths.
-export function hopGraph(grid, from, long = false) {
+// chains = false (kids' rule): single hops from the origin only.
+export function hopGraph(grid, from, long = false, chains = true) {
   const saved = grid[from];
   grid[from] = null;
   const graph = new Map();
   const parent = new Map([[from, -1]]);
   const queue = [from];
-  for (let h = 0; h < queue.length; h += 1) {
+  for (let h = 0; h < (chains ? queue.length : 1); h += 1) {
     const node = queue[h];
     const lands = [];
     for (const [land] of hopsFrom(grid, node, long)) {
@@ -250,7 +258,7 @@ function pathFromParents(parent, to) {
 export function marbleMoves(grid, from, geo, options) {
   const long = options.jumps === "long";
   const steps = NEIGHBORS[from].filter((n) => !grid[n] && canStop(n, from, geo, options));
-  const { graph, reach, parent } = hopGraph(grid, from, long);
+  const { graph, reach, parent } = hopGraph(grid, from, long, options.chains !== false);
   const hopStops = reach.filter((n) => canStop(n, from, geo, options));
   const moves = steps.map((to) => ({ from, to, path: [to] }))
     .concat(hopStops.map((to) => ({ from, to, path: pathFromParents(parent, to) })));
@@ -371,6 +379,7 @@ export function stopPrefix(replay, from, path, geo, options) {
 export function pathProblem(grid, from, path, geo, options) {
   const replay = replayPath(grid, from, path, options);
   if (replay.malformed) return "A step moves one hole and ends the move.";
+  if (options.chains === false && replay.kind === "hop" && path.length > 1) return "Chains are off at this table — one hop per move.";
   if (replay.reached !== path.length) {
     return replay.kind === "step" ? "That hole is taken." : "That jump isn't open — pick another route.";
   }

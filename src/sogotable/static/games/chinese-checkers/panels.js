@@ -1,36 +1,28 @@
-// Chinese Checkers — HTML for the non-board panels: status strip, action bar,
-// seat table, final results. Pure string builders over the view model that
+// Chinese Checkers — HTML for the non-board panels: status strip, seat table,
+// final results (the mode-specific action bar is controls.js). Pure string builders over the view model that
 // render.js prepares; every word comes from branding.js. No rule logic: legal
 // moves, distances, ranks and statuses all arrive decided by the server.
 import { UI, teamName } from "./branding.js";
 
+// vm.strip comes from controls.js stripModel (mode-aware label, badges, state).
 export function stripHtml(vm, esc) {
-  const prio = vm.priorityRank
-    ? `<span class="cc-badge cc-badge-prio${vm.priorityRank === 1 ? " cc-first" : ""}" title="${esc(UI.priorityTitle(vm.priorityRank, vm.priorityN))}">${esc(UI.priority(vm.priorityRank, vm.priorityN))}</span>`
-    : "";
-  const locked = vm.complete ? "" : `<span class="cc-badge cc-badge-locked">${esc(UI.lockedCount(vm.lockedDone, vm.lockedTotal))}</span>`;
+  const st = vm.strip;
+  const badges = vm.complete ? "" : st.badges.map((b, i) => `<span class="cc-badge ${b.cls}${i === st.badges.length - 1 ? " cc-badge-last" : ""}"${b.title ? ` title="${esc(b.title)}"` : ""}>${esc(b.text)}</span>`).join("");
   const tickerClass = vm.flash ? ` cc-ticker-${vm.flash.kind}` : "";
   const tickerText = vm.flash ? vm.flash.text : (vm.ticker ? vm.ticker.text : "");
   const page = !vm.flash && vm.ticker && vm.ticker.pages > 1
     ? `<span class="cc-page">${esc(UI.tickerPage(vm.ticker.page + 1, vm.ticker.pages))}</span>` : "";
+  const s = st.state;
+  // secsParts: [before, after] around a live seconds span the clock repaints.
+  const stateText = s.secsParts
+    ? `${esc(s.secsParts[0])}<b data-cc-secs>${vm.secsLeft === null ? "" : vm.secsLeft}</b>${esc(s.secsParts[1])}`
+    : esc(s.text);
+  const stateCls = `${s.done ? " cc-mystate-locked" : ""}${s.turn ? " cc-mystate-turn" : ""}`;
   return `<div class="cc-strip-line">
-      <span class="cc-round">${esc(UI.round(vm.round))}</span>${prio}${locked}
+      <span class="cc-round">${esc(st.roundLabel)}</span>${badges}
     </div>
-    <div class="cc-strip-line cc-mystate${vm.mineLocked ? " cc-mystate-locked" : ""}">${esc(vm.myStateText)}</div>
+    <div class="cc-strip-line cc-mystate${stateCls}">${stateText}</div>
     <div class="cc-strip-line cc-ticker${tickerClass}" data-cc-ticker${page ? ' role="button" tabindex="0"' : ""}>${page}<span class="cc-ticker-text">${tickerText ? esc(tickerText) : "&nbsp;"}</span></div>`;
-}
-
-// Fixed four-slot bar: the primary slot swaps Lock in ⇄ Change move so no
-// control ever moves; unavailable controls are disabled, never hidden.
-export function controlsHtml(vm, esc) {
-  const c = vm.controls;
-  const primary = c.primary === "change"
-    ? `<button type="button" class="cc-btn cc-btn-change" data-cc-act="retract" ${c.canChange ? "" : "disabled"}>${esc(UI.change)}</button>`
-    : `<button type="button" class="cc-btn cc-btn-lock" data-cc-act="lock" ${c.canLock ? "" : "disabled"}>${esc(c.sending ? UI.sending : UI.lock)}</button>`;
-  return `<button type="button" class="cc-btn cc-btn-ghost" data-cc-act="undo" ${c.canUndo ? "" : "disabled"}>↶ ${esc(UI.undo)}</button>
-    <button type="button" class="cc-btn cc-btn-ghost" data-cc-act="clear" ${c.canClear ? "" : "disabled"}>✕ ${esc(UI.clear)}</button>
-    <button type="button" class="cc-btn cc-btn-pass" data-cc-act="pass" ${c.canPass ? "" : "disabled"}>${esc(UI.pass)}</button>
-    ${primary}`;
 }
 
 function seatCell(row, esc) {
@@ -51,8 +43,9 @@ export function tableHtml(vm, esc) {
       ? `<button type="button" class="cc-skip${row.skip.mine ? " cc-on" : ""}" data-cc-skip="${esc(row.mark)}" aria-pressed="${row.skip.mine}" title="${esc(UI.skipTitle(row.name))}">${esc(UI.skipVote(row.skip.votes, row.skip.needed))}</button>`
       : "";
     const team = row.team !== null && row.team !== undefined ? `<div class="cc-sub">${esc(teamName(row.team))}</div>` : "";
-    return `<tr class="${row.isMe ? "cc-me" : ""}">
-        <td class="cc-l"><div class="cc-seat">${row.prio ? `<span class="cc-prio" title="${esc(UI.priorityTitle(row.prio, vm.priorityN))}">${row.prio}</span>` : ""}${seatCell(row, esc)}</div>${team}</td>
+    const orderTitle = vm.orderIsPriority ? ` title="${esc(UI.priorityTitle(row.order, vm.orderN))}"` : "";
+    return `<tr class="${row.isMe ? "cc-me" : ""}${row.statusKey === "turn" ? " cc-current" : ""}">
+        <td class="cc-l"><div class="cc-seat">${row.order ? `<span class="cc-prio"${orderTitle}>${row.order}</span>` : ""}${seatCell(row, esc)}</div>${team}</td>
         <td class="cc-num">${row.inGoal}<span class="cc-of">/${row.total}</span>${goalBar(row)}</td>
         <td class="cc-num">${row.distance}</td>
         <td><div class="cc-status"><span class="cc-pill cc-pill-${row.statusKey}">${esc(row.statusText)}</span>${skip}</div></td>

@@ -63,6 +63,16 @@ const CUES = {
     { frequency: 1046.5, duration: 0.55, type: "sine", volume: 0.06, delay: 0.42 },
     { frequency: 1567.98, duration: 0.4, type: "sine", volume: 0.025, delay: 0.5 },
   ],
+  // Last-seconds clock tick: a soft wood-block tap, a little higher on 1.
+  tick: (secs = 3) => [
+    { frequency: secs <= 1 ? 1500 : 1200, duration: 0.035, type: "triangle", volume: 0.03 },
+  ],
+  // "Your turn!" (turns mode).
+  turn: () => [
+    { frequency: 987.77, duration: 0.1, type: "sine", volume: 0.045 },
+    { frequency: 1318.51, duration: 0.18, type: "sine", volume: 0.045, delay: 0.1 },
+    { frequency: 1975.53, duration: 0.26, type: "sine", volume: 0.025, delay: 0.2 },
+  ],
   reject: () => [
     { frequency: 190, slideTo: 140, duration: 0.14, type: "sawtooth", volume: 0.018 },
     { frequency: 170, slideTo: 120, duration: 0.16, type: "sawtooth", volume: 0.016, delay: 0.16 },

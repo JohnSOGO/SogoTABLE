@@ -135,6 +135,35 @@ commit while the round is still open. Duplicate commit while committed → ignor
 
 `carryOptionsOnReset` keeps them for a rematch.
 
+### Added 2026-11-12 (MojoSOGO: "all helps optional", chaos modes, around-the-table, more standard options)
+
+| key | values | default | meaning |
+|---|---|---|---|
+| `mode` | `"rounds"` · `"blitz"` · `"live"` · `"turns"` | `"rounds"` | see **Play modes** |
+| `timer` | seconds: `0` (off) or 5–120 | per mode: rounds 0, blitz 10, live 30, turns 0 | round/turn clock; clamped; blitz min 5, live min 10 |
+| `marbles` | `10` · `6` · `15` | `10` | 15 = the classic 2-player set (adds the 5 hexagon holes in front of the arm); **only with 2 seats**, otherwise clamped to 10 at init |
+| `chains` | bool | `true` | false = single hop per move (kids' rule) |
+| `allow_pass` | bool | `true` | false = standard rule: you may pass only when you have no legal move |
+| `assists` | `"full"` · `"moves"` · `"off"` | `"full"` | full = steps, hops, all multi-hop reach + tap-far auto-route; moves = steps + next hops only; off = no highlights, hop by hop, a tap on an illegal hole buzzes |
+
+`assists` is enforced in the projection: with `"off"` the viewer gets `legal` = `{}` and `stops` = `{}` replaced by `legal_lite`: `{ [mark]: { [from]: true } }` (which marbles can move, used only to let a tap select a marble without highlighting it), and the client sends each hop as typed; the server validates on commit and rejects with a reason. With `"moves"` the server omits `reach` data (`stops` is still sent so Lock in can be enabled, but the client must not draw dim reach rings nor auto-route).
+
+### Play modes
+
+- **rounds** (the original): hidden simultaneous commits, barrier, rotating priority (unchanged). If `timer > 0`, when the deadline passes any un-committed human loses the round (auto-pass, `timeout` event) and the round resolves.
+- **blitz** ("chaos", first come first served on a fixed beat): each round lasts exactly `timer` seconds (default 10) and does **not** close early. During the round each seat may make **one** move, applied **immediately** in server-received order against the live board (no hidden commits, no RETRACT). A move that is no longer legal when it arrives is rejected with a reason and the player may try again while the clock runs. At the deadline: bots move (seat order), every human who hasn't moved **loses the turn** (`timeout` event), next round opens with a fresh deadline.
+- **live** (async rounds, not blitz): same as blitz (immediate, first come first served, one move per seat per round) but the round **closes as soon as every human has moved or passed**, or at the `timer` deadline (default 30s), whichever is first.
+- **turns** ("order, around the table"): classic one-at-a-time play. Turn order = seats in clockwise arm order. `current` = whose turn. Only that seat may MOVE/PASS; bots move instantly when their turn comes. With `timer > 0` the current human loses the turn at the deadline.
+
+Barrier/skip vote still exists in rounds/turns without a timer. Finished seats are skipped in every mode.
+
+Clock: the rules module reads time only through an injectable seam `setChineseCheckersNow(fn)` (WNYK precedent). Deadlines are enforced **lazily**: every incoming action first runs `advanceClock(game, now)`, which closes any expired round/turn (repeatedly, if several elapsed, bounded). Because a room with no actions would never advance, clients send `{ type: "TICK" }` when their local countdown hits zero; TICK is accepted from any seated player (and is a silent no-op when nothing is due, never an error). Projection carries `deadline` (server epoch ms or null) and `server_now` (epoch ms at projection time) so clients can correct for clock skew.
+
+New projection fields: `options.mode`, `options.timer`, `deadline`, `server_now`, `current` (turns mode: mark or null), `turn_order` (turns mode), per-player `moved` (bool: moved this round in blitz/live), `legal_lite` (assists off).
+New events: `{ type: "timeout", mark }` (lost turn), `{ type: "move", ..., outcome: "ok", live: true }` (blitz/live moves are emitted the moment they apply), `{ type: "turn", mark }` (turns mode), `{ type: "rejected" }` is NOT an event (the action throws).
+New/changed actions: `{ type: "MOVE", round, from, path }` works in every mode (in turns mode `round` = the turn counter `game.round`, which increments every turn); `{ type: "TICK" }`; RETRACT only in rounds mode.
+
+
 ## Actions (client → `ctx.makeMove`)
 
 ```js

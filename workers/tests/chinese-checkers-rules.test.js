@@ -78,7 +78,8 @@ test("init: arms per PLAN table, 10 marbles each at home, round 1 priority", () 
 test("options: clamped, carried when cc_options is missing; teams only for 4 or 6", () => {
   const g = newChineseCheckersGame();
   setChineseCheckersOptions(g, { cc_options: { jumps: "warp", marbles: 99, capture: "send_home", teams: "on", end: "all", stay_in_goal: "nope", no_parking: 1 } });
-  assert.deepEqual(g.options, { jumps: "standard", marbles: 10, capture: "send_home", teams: true, stay_in_goal: true, no_parking: true, anti_block: true, end: "all" });
+  assert.deepEqual(g.options, { jumps: "standard", marbles: 10, capture: "send_home", teams: true, stay_in_goal: true, no_parking: true, anti_block: true, end: "all",
+    mode: "rounds", timer: 0, chains: true, allow_pass: true, assists: "full" });
   setChineseCheckersOptions(g, {});
   assert.equal(g.options.capture, "send_home", "missing cc_options leaves options");
   assert.deepEqual(normalizeChineseCheckersOptions("garbage"), normalizeChineseCheckersOptions({}));

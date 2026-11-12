@@ -150,7 +150,7 @@ function arrowPath(points, cls) {
 // model: {
 //   cells:[{k,q,r,arm}], marbles:{k:mark}, rot, palette, colorOf(mark)->hex,
 //   armColor:{arm:hex}, goalArm:int|null, goalColor,
-//   selected:k|null, movable:[k], steps:[k], hops:[k], reach:[k], path:[k] (from first),
+//   selected:k|null, selectedPlain:bool (assists off: outline, no glow), movable:[k], steps:[k], hops:[k], reach:[k], path:[k] (from first),
 //   pathEnd:"stop"|"through"|null, ghostMark, committedPath:[k]|null, committedMark,
 //   shake:Set<k> (bounced / cut marbles wobble)
 // }
@@ -275,7 +275,7 @@ export function buildBoardSvg(m) {
     marbles += marbleSvg(p.x, p.y, ciOf(mark), m.colorOf(mark), { cls, attrs: ` data-k="${k}"` });
   });
   out += `<g class="cc-marbles">${marbles}</g>`;
-  if (m.selected) out += ring(m.selected, "cc-ring-selected", 0.5);
+  if (m.selected) out += ring(m.selected, m.selectedPlain ? "cc-ring-plain" : "cc-ring-selected", 0.5);
 
   // Planned path + ghost marble at its end.
   if (Array.isArray(m.path) && m.path.length > 1) {

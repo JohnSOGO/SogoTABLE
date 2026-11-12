@@ -5,6 +5,11 @@
 // client only walks that graph to build a path (tap ring by ring, or tap any
 // reachable stop and a BFS over the server's hop graph picks a route) and sends
 // one MOVE / PASS / RETRACT; the server re-validates and resolves the round.
+// Assists (options.assists): "moves" drops reach rings + auto-route; "off" has
+// no graph at all — legal_lite only says which marbles may move, each tapped
+// hole is appended unchecked and the server's rejection is flashed. Mode
+// differences (who may act, strip, action bar) live in controls.js; the
+// countdown + TICK in clock.js.
 //
 // The shell calls renderChineseCheckersGame(ctx) on EVERY snapshot. View state
 // (selection, flash, event cursor, round replay) lives in module state keyed by
@@ -16,7 +21,9 @@ import { ASSETS, paletteFor } from "./assets.js";
 import { SP, VIEWBOX, buildBoardSvg, holeXY, marbleDefsFor, marbleSvg } from "./board-svg.js";
 import { TICKER, UI } from "./branding.js";
 import { renderChineseCheckersLobby } from "./lobby.js";
-import { controlsHtml, resultsHtml, stripHtml, tableHtml } from "./panels.js";
+import { clockHtml, clockSecondsLeft, syncClock } from "./clock.js";
+import { assistsOf, canActNow, controlsHtml, controlsModel, isLiveMode, modeOf, seatOrder, seatStatus, skipFor, stripModel } from "./controls.js";
+import { resultsHtml, stripHtml, tableHtml } from "./panels.js";
 import { consumeEvents, playCue } from "./sfx.js";
 import { CHINESE_CHECKERS_CSS } from "./styles.js";
 
@@ -31,7 +38,7 @@ function freshState(key) {
   return {
     key, selKey: "", from: null, path: [], sending: false, flash: null, flashTimer: null,
     anim: null, lastMarbles: null, sawPlaying: false, winPlayed: false, lastCtx: null,
-    tickerSeq: -1, tickerPage: 0,
+    tickerSeq: -1, tickerPage: 0, lastCurrent: undefined,
   };
 }
 
@@ -82,6 +89,10 @@ export function renderChineseCheckersGame(ctx) {
   reconcileSelection(ctx, me);
   paint(ctx);
   S.lastMarbles = { ...(game.marbles || {}) };
+  syncClock({
+    key, root: host.querySelector(":scope > .cc-play"), game, seated: Boolean(me.mySeat),
+    sendTick: () => ctx.makeMove({ type: "TICK" }),
+  });
 }
 
 // ---------- derived seat info ----------
@@ -94,7 +105,10 @@ function seatInfo(ctx) {
   const mySeat = players.find((p) => p.mark === myMark) || null;
   const legal = (mySeat && game.legal && game.legal[myMark]) || {};
   const stops = (mySeat && game.stops && game.stops[myMark]) || {};
-  return { myMark, mySeat, legal, stops, roomPlayers, players };
+  const assists = assistsOf(game);
+  const lite = (mySeat && game.legal_lite && game.legal_lite[myMark]) || {};
+  const movable = assists === "off" ? Object.keys(lite).filter((k) => lite[k]) : Object.keys(legal);
+  return { myMark, mySeat, legal, stops, assists, movable, roomPlayers, players };
 }
 
 function nameOf(ctx, mark) {
@@ -121,6 +135,13 @@ function handleEvents(ctx) {
   const fresh = consumeEvents(S.key, game.events);
   const moves = fresh.filter((e) => e.type === "move");
   const watching = typeof document === "undefined" || !document.hidden;
+  const myMark = seatInfo(ctx).myMark;
+  if (fresh.some((e) => e.type === "timeout" && e.mark === myMark)) setFlash(UI.timedOut, "error");
+  const turnNow = modeOf(game) === "turns" && game.status === "playing" ? game.current : null;
+  if (turnNow !== S.lastCurrent) {
+    if (S.lastCurrent !== undefined && turnNow && turnNow === myMark && watching) playCue("turn");
+    S.lastCurrent = turnNow;
+  }
   if (moves.length && S.lastMarbles && watching) startReplay(ctx, moves, fresh);
   else if (fresh.length && watching) {
     if (fresh.some((e) => e.type === "finish")) playCue("finish");
@@ -140,14 +161,23 @@ const hexDist = (a, b) => {
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2);
 
-// Replays last round's resolved moves in event (= priority) order on a copy of
-// the board this client last saw. Skipped when the base doesn't match.
+// Replays the new moves in event order (rounds: priority order; blitz / live /
+// turns: as they applied, one or a few per snapshot) on a copy of the board
+// this client last saw. Skipped unless the moves replay cleanly from that base.
+function replaysFrom(base, moves) {
+  const b = { ...base };
+  return moves.every((e) => {
+    if (e.outcome === "bounced") return true;
+    if (b[e.from] !== e.mark || !e.to) return false;
+    delete b[e.from]; b[e.to] = e.mark;
+    (Array.isArray(e.captured) ? e.captured : []).forEach((c) => { delete b[c.from]; b[c.to] = c.mark; });
+    return true;
+  });
+}
+
 function startReplay(ctx, moves, fresh) {
   const base = { ...S.lastMarbles };
-  // Only one resolved round, and the base must be its starting board (every
-  // mover on its `from`); otherwise just show the new board.
-  if (new Set(moves.map((e) => e.round)).size !== 1) return;
-  if (!moves.every((e) => e.outcome === "bounced" || base[e.from] === e.mark)) return;
+  if (!replaysFrom(base, moves)) return;
   if (S.anim) S.anim.cancelled = true;
   const token = { board: base, shake: new Set(), cancelled: false };
   S.anim = token;
@@ -201,7 +231,7 @@ async function runReplay(ctx, A, moves, fresh, speed) {
   }
   if (!alive()) return;
   if (fresh.some((x) => x.type === "finish")) playCue("finish");
-  else playCue("round");
+  else if (fresh.some((x) => x.type === "round")) playCue("round");
 }
 
 async function shake(A, k, alive) {
@@ -253,11 +283,11 @@ function tickerModel(ctx) {
   if (!events.length) return null;
   const maxSeq = events.reduce((m, e) => Math.max(m, e.seq || 0), 0);
   if (maxSeq !== S.tickerSeq) { S.tickerSeq = maxSeq; S.tickerPage = 0; }
-  const resolved = events.filter((e) => e.type !== "round");
+  const resolved = events.filter((e) => e.type !== "round" && e.type !== "turn");
   const lastRound = resolved.reduce((m, e) => Math.max(m, e.round || 0), 0);
   const name = (m) => nameOf(ctx, m);
   const top = []; const mid = []; const low = [];
-  events.filter((e) => e.type !== "round" && e.round === lastRound).forEach((e) => {
+  events.filter((e) => e.type !== "round" && e.type !== "turn" && e.round === lastRound).forEach((e) => {
     if (e.type === "end") top.unshift(TICKER.end((e.winners || []).map(name)));
     else if (e.type === "finish") top.push(TICKER.finish(name(e.mark), e.rank));
     else if (e.type === "move") {
@@ -271,10 +301,14 @@ function tickerModel(ctx) {
       }
     } else if (e.type === "pass") low.push(TICKER.pass(name(e.mark)));
     else if (e.type === "skip") mid.push(TICKER.skip(name(e.mark)));
+    else if (e.type === "timeout") mid.push(TICKER.timeout(name(e.mark)));
   });
   const roundEv = events.filter((e) => e.type === "round").sort((a, b) => b.seq - a.seq)[0];
   const pages = [...top, ...mid, ...low];
-  if (roundEv && ctx.game.status === "playing") pages.push(TICKER.round(roundEv.round, name((roundEv.priority || [])[0])));
+  const mode = modeOf(ctx.game);
+  if (roundEv && ctx.game.status === "playing" && mode !== "turns") {
+    pages.push(mode === "rounds" ? TICKER.round(roundEv.round, name((roundEv.priority || [])[0])) : TICKER.liveRound(roundEv.round));
+  }
   if (!pages.length) return null;
   const page = S.tickerPage % pages.length;
   return { text: pages[page], page, pages: pages.length };
@@ -333,32 +367,41 @@ function reconcileSelection(ctx, me) {
   const selKey = `${ctx.room ? ctx.room.code : ""}#${ctx.room ? ctx.room.game_epoch : ""}#${game.round}`;
   if (selKey !== S.selKey) { S.selKey = selKey; S.from = null; S.path = []; return; }
   if (!S.from) return;
-  const entry = me.legal[S.from];
   if (!canAct(ctx, me) && !S.sending) { S.from = null; S.path = []; return; }
-  if (!entry) { S.from = null; S.path = []; if (!S.sending) setFlash(UI.takenNow, "error"); return; }
-  if (!walkable(entry, S.from, S.path)) S.path = [];
+  if (!me.movable.includes(S.from)) { S.from = null; S.path = []; if (!S.sending) setFlash(UI.takenNow, "error"); return; }
+  if (me.assists !== "off" && !walkable(me.legal[S.from], S.from, S.path)) S.path = [];
 }
 
-const canAct = (ctx, { mySeat: s }) => Boolean(ctx.game.status === "playing" && s && !s.committed && !s.skipped && !s.finished);
+const canAct = (ctx, me) => canActNow(ctx.game, me.mySeat);
+// Another seat's move animating blocks input only where moves resolve together
+// (rounds / turns); in blitz / live the board keeps taking taps meanwhile.
+const animBlocks = (ctx) => Boolean(S.anim) && !isLiveMode(modeOf(ctx.game));
+// Assists "off": any path is sendable (the server judges it); else it must end on a stop.
+const canSubmit = (me) => Boolean(S.from && pathEnd() && (me.assists === "off" || stopsFor(me).includes(pathEnd())));
 const movePending = (ctx) => S.sending || (typeof ctx.isMovePending === "function" && ctx.isMovePending());
 
 // ---------- intents ----------
 function onTap(k) {
   const ctx = S.lastCtx;
   if (!ctx) return;
-  if (S.anim) { S.anim.cancelled = true; S.anim = null; clearAnimLayer(); repaint(); return; }
+  if (animBlocks(ctx)) { S.anim.cancelled = true; S.anim = null; clearAnimLayer(); repaint(); return; }
   const me = seatInfo(ctx);
   if (!k || !canAct(ctx, me) || movePending(ctx)) return;
-  const mine = Boolean(me.legal[k]);
+  const mine = me.movable.includes(k);
   const select = (key) => { S.from = key; S.path = []; playClick(); paint(ctx); };
   if (!S.from) { if (mine) select(k); return; }
   if (k === S.from) { if (S.path.length) S.path = []; else S.from = null; playClick(); paint(ctx); return; }
   const entry = me.legal[S.from];
   const at = S.path.indexOf(k);
   if (at >= 0) { if (at < S.path.length - 1) { S.path = S.path.slice(0, at + 1); playClick(); paint(ctx); } return; }
+  if (me.assists === "off") { // unchecked: the server validates on Move
+    if (mine && !S.path.length) select(k); else { S.path.push(k); playCue("hop", S.path.length - 1); paint(ctx); }
+    return;
+  }
   if (isStep(entry, k)) { S.path = [k]; playCue("step"); paint(ctx); return; }
   if (nextHops(me).includes(k)) { S.path.push(k); playCue("hop", S.path.length - 1); paint(ctx); return; }
   if (mine) { select(k); return; }
+  if (me.assists !== "full") return; // no tap-far auto-route below full assists
   // A distant reachable hole: extend the current chain if it can get there,
   // otherwise route afresh from the marble (BFS over the server's hop graph).
   const chainOk = S.path.length && !isStep(entry, S.path[0]);
@@ -379,8 +422,7 @@ async function send(ctx, action, onOk) {
 }
 
 function lockIn(ctx, me) {
-  const end = pathEnd();
-  if (!S.from || !end || !stopsFor(me).includes(end) || !canAct(ctx, me)) return;
+  if (!canSubmit(me) || !canAct(ctx, me)) return;
   send(ctx, { type: "MOVE", round: ctx.game.round, from: S.from, path: [...S.path] }, () => { S.from = null; S.path = []; playCue("lock"); });
 }
 function pass(ctx, me) {
@@ -427,12 +469,17 @@ function boardModel(ctx, me) {
     model.committedPath = [seat.commit.from, ...(seat.commit.path || [])];
     model.committedMark = me.myMark;
   }
-  if (S.anim || !canAct(ctx, me)) return model;
-  if (!S.from) { model.movable = Object.keys(me.legal); return model; }
+  if (animBlocks(ctx) || !canAct(ctx, me)) return model;
+  if (!S.from) { if (me.assists !== "off") model.movable = me.movable; return model; }
+  model.selected = S.from;
+  if (me.assists === "off") { // plain outline + the typed path, no rings or glows
+    model.selectedPlain = true;
+    if (S.path.length) { model.path = [S.from, ...S.path]; model.pathEnd = "stop"; model.ghostMark = me.myMark; }
+    return model;
+  }
   const entry = me.legal[S.from];
   const stops = stopsFor(me);
-  model.selected = S.from;
-  model.reach = stops;
+  if (me.assists === "full") model.reach = stops;
   if (!S.path.length) model.steps = (entry && entry.steps) || [];
   model.hops = nextHops(me);
   if (S.path.length) {
@@ -449,44 +496,20 @@ function buildViewModel(ctx, me) {
   const acting = canAct(ctx, me);
   const pending = movePending(ctx);
   const players = me.players;
-  const prioOrder = Array.isArray(game.priority_order) ? game.priority_order : [];
-  const active = players.filter((p) => !p.finished);
-  const humansWaiting = players.filter((p) => !p.is_bot && !p.committed && !p.skipped && !p.finished && p.mark !== me.myMark);
-  const votes = game.skip_votes || {};
-  const iCanVote = Boolean(game.status === "playing" && seat && !seat.is_bot && !seat.skipped && (seat.committed || seat.finished));
-  const eligibleVoters = players.filter((p) => !p.is_bot && !p.skipped && (p.committed || p.finished));
-  const end = pathEnd();
-  const endIsStop = Boolean(end && stopsFor(me).includes(end));
-
-  let myStateText;
-  if (game.status === "complete") myStateText = UI.gameOver;
-  else if (S.anim) myStateText = UI.replaying;
-  else if (!seat) myStateText = UI.spectating;
-  else if (S.sending) myStateText = UI.sending;
-  else if (seat.finished) myStateText = UI.finished(seat.rank || seat.finish_round || 1);
-  else if (seat.skipped) myStateText = UI.skipped;
-  else if (seat.committed) myStateText = (seat.commit && seat.commit.pass ? UI.lockedPass : UI.locked)(humansWaiting.map((p) => nameOf(ctx, p.mark)));
-  else if (!Object.keys(me.legal).length) myStateText = UI.noMoves;
-  else if (S.path.length) myStateText = endIsStop ? UI.chain : UI.passThrough;
-  else if (S.from) myStateText = UI.picked;
-  else myStateText = UI.pick;
+  const mode = modeOf(game);
+  const name = (m) => nameOf(ctx, m);
+  const strip = stripModel({
+    game, seat, myMark: me.myMark, anim: Boolean(S.anim), sending: S.sending, from: S.from, pathLen: S.path.length,
+    endOk: Boolean(pathEnd() && stopsFor(me).includes(pathEnd())), movable: me.movable.length, assists: me.assists, nameOf: name,
+  });
 
   const rows = players.map((p) => {
     const rp = me.roomPlayers.find((x) => x.mark === p.mark) || {};
-    let statusKey = "thinking"; let statusText = UI.statusThinking;
-    if (p.finished) { statusKey = "finished"; statusText = UI.statusFinished(p.rank || 1); }
-    else if (p.skipped) { statusKey = "skipped"; statusText = UI.statusSkipped; }
-    else if (p.committed) { statusKey = "locked"; statusText = UI.statusLocked; }
-    else if (p.is_bot) { statusKey = "bot"; statusText = UI.statusBot; }
-    const voters = Array.isArray(votes[p.mark]) ? votes[p.mark] : [];
-    const skip = iCanVote && !p.is_bot && !p.committed && !p.skipped && !p.finished && p.mark !== me.myMark
-      ? { votes: voters.length, needed: eligibleVoters.length, mine: voters.includes(me.myMark) } : null;
-    const pi = prioOrder.indexOf(p.mark);
     return {
-      mark: p.mark, name: nameOf(ctx, p.mark), icon: rp.icon || "", color: colorOf(ctx, p.mark), isMe: p.mark === me.myMark,
+      mark: p.mark, name: name(p.mark), icon: rp.icon || "", color: colorOf(ctx, p.mark), isMe: p.mark === me.myMark,
       team: game.options && game.options.teams_active ? p.team : null,
       inGoal: p.in_goal || 0, total: p.marbles_total || 0, distance: p.distance || 0,
-      statusKey, statusText, skip, prio: game.status === "playing" && pi >= 0 ? pi + 1 : 0,
+      ...seatStatus(p, game), skip: skipFor(p, game, me), order: seatOrder(p, game),
     };
   });
 
@@ -506,20 +529,14 @@ function buildViewModel(ctx, me) {
       ? UI.teamWinner(first.team, names) : UI.winner(names);
   }
 
-  const myPrio = seat ? prioOrder.indexOf(me.myMark) + 1 : 0;
   return {
-    round: game.round, priorityRank: game.status === "playing" && myPrio > 0 ? myPrio : 0, priorityN: prioOrder.length,
-    lockedDone: active.filter((p) => p.committed).length, lockedTotal: active.length,
-    myStateText, mineLocked: Boolean(seat && seat.committed), ticker: tickerModel(ctx),
+    strip, secsLeft: clockSecondsLeft(), ticker: tickerModel(ctx),
+    orderIsPriority: mode === "rounds", orderN: (Array.isArray(game.priority_order) ? game.priority_order : players).length,
     flash: S.flash && S.flash.until > Date.now() ? S.flash : null,
-    controls: {
-      primary: seat && seat.committed ? "change" : "lock", sending: S.sending,
-      canLock: acting && !pending && !S.anim && endIsStop,
-      canUndo: acting && !pending && S.path.length > 0,
-      canClear: acting && !pending && Boolean(S.from),
-      canPass: acting && !pending && !S.anim,
-      canChange: Boolean(seat && seat.committed && game.status === "playing" && !pending),
-    },
+    controls: controlsModel({
+      game, seat, acting, pending, busy: pending || animBlocks(ctx), sending: S.sending,
+      hasPath: S.path.length > 0, hasSel: Boolean(S.from), canSubmit: canSubmit(me), movable: me.movable.length,
+    }),
     rows, results, winnerText, complete: game.status === "complete",
   };
 }
@@ -532,6 +549,7 @@ function ensureSkeleton(host) {
   const vb = `${VIEWBOX.x.toFixed(1)} ${VIEWBOX.y.toFixed(1)} ${VIEWBOX.w.toFixed(1)} ${VIEWBOX.h.toFixed(1)}`;
   host.innerHTML = `<div class="chinese-checkers-root cc-play" data-cc-key="">
       <div class="cc-strip" aria-live="polite"></div>
+      ${clockHtml()}
       <div class="cc-results" hidden></div>
       <div class="cc-boardwrap"><svg class="cc-board" xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" preserveAspectRatio="xMidYMid meet"></svg></div>
       <div class="cc-controls"></div>
@@ -591,7 +609,7 @@ function paint(ctx) {
   const vm = buildViewModel(ctx, me);
   const root = ensureSkeleton(host);
   root.classList.toggle("cc-complete", vm.complete);
-  root.classList.toggle("cc-can-act", canAct(ctx, me) && !S.anim);
+  root.classList.toggle("cc-can-act", canAct(ctx, me) && !animBlocks(ctx));
   root.classList.toggle("cc-animating", Boolean(S.anim));
   root.querySelector(".cc-strip").innerHTML = stripHtml(vm, esc);
   const results = root.querySelector(".cc-results");
@@ -604,7 +622,7 @@ function paint(ctx) {
   if (flying) svg.querySelector(".cc-anim").innerHTML = flying;
   const controls = root.querySelector(".cc-controls");
   controls.hidden = vm.complete;
-  controls.innerHTML = vm.complete ? "" : controlsHtml(vm, esc);
+  controls.innerHTML = vm.complete ? "" : controlsHtml(vm.controls, esc);
   const table = root.querySelector(".cc-table");
   table.hidden = vm.complete;
   table.innerHTML = vm.complete ? "" : tableHtml(vm, esc);

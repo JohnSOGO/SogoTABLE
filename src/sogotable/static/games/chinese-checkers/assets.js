@@ -16,7 +16,7 @@
 //   board:  url — an image laid under the holes, fitted to the star's bounding
 //           square (viewer's home arm at the bottom; the image is rotated with the
 //           board). Holes, tints and highlights are still drawn on top.
-//   sounds: { step, hop, land, capture, bounce, lock, round, finish, win, reject }.
+//   sounds: { step, hop, land, capture, bounce, lock, round, finish, win, reject, tick, turn }.
 //
 // The palette drives every procedural colour; `light` and `dark` follow the
 // platform theme (<html data-theme>). Change a hex here to re-skin the board.
@@ -51,7 +51,7 @@ export const ASSETS = {
   marbleLook: { highlight: 0.62, core: 0.08, edge: 0.42, specular: 0.85, radius: 0.40 },
   marble: null,
   board: null,
-  sounds: { step: null, hop: null, land: null, capture: null, bounce: null, lock: null, round: null, finish: null, win: null, reject: null },
+  sounds: { step: null, hop: null, land: null, capture: null, bounce: null, lock: null, round: null, finish: null, win: null, reject: null, tick: null, turn: null },
 };
 
 export function paletteFor(theme) {
