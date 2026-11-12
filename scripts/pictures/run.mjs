@@ -23,7 +23,7 @@ for (const j of jobs) {
   if (!fs.existsSync(png)) {
     const tall = j.h > j.w;
     const body = { owner: "sogotable", priority: "maintenance", model: "qwen-image21", prompt: j.prompt,
-      width: tall ? 896 : 1024, height: tall ? 1248 : 1024, seed: j.seed };
+      width: tall ? 896 : 1024, height: tall ? 1248 : 1024, seed: j.seed, ...(j.negative ? { negative: j.negative } : {}) };
     for (let attempt = 1; ; attempt++) {
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 20 * 60 * 1000);
       try {
