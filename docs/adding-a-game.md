@@ -126,7 +126,7 @@ game sends to the server. Everything else is local.
 - If yes: the **server owns the secret** and emits a **per-viewer sanitized**
   state — never broadcast the full state. Follow the Battleship precedent
   (`battleshipGameToDictForViewer` behind `gameToDictForViewer` /
-  `responseForViewer` in `workers/sogotable-api.js`). A client must never receive
+  `responseForViewer` in `workers/games/handlers.js` / `workers/room-view.js`). A client must never receive
   data it is not allowed to see.
 
 ### D. Authoritative state shape
@@ -253,6 +253,10 @@ raise confidence, not add ceremony; scale it to the risk.
 
 ### The one-line contract
 
+> The full lobby ↔ game contract (ctx bag, handler fields, parallel-play barrier,
+> conflict handling, asset swapping/renaming, and the complete touchpoint list) is
+> [Game Integration Spec](game-integration-spec.md).
+
 > A game = one **rules module** + one **client module** + one **`is<Game>`
 > predicate** + one **`GAME_HANDLERS` row** + one **`registry.js` entry**.
 
@@ -281,7 +285,7 @@ src/sogotable/static/games/<id>/
 
 ### The `GAME_HANDLERS` row
 
-One row in the table in `workers/sogotable-api.js` wires the game into every
+One row in the table in `workers/games/handlers.js` wires the game into every
 generic path (create / serialize / legal-moves / move / bot):
 
 ```js
@@ -575,6 +579,8 @@ Rule), which is exactly why it's safe to ship the moment it's done.
 
 ## Where to go deeper
 
+- [Game Integration Spec](game-integration-spec.md) — the lobby ↔ game contract,
+  parallel play, conflict handling, and asset/rename rules.
 - [Wu Wei Method](wu-wei-method.md) — the canonical flow a game must follow.
 - [Modularity](modularity.md) — the ownership Golden Rule and the reference
   "adding a game" act.

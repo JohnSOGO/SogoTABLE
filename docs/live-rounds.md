@@ -5,6 +5,9 @@ This document captures the SogoTable timing-mode ideology from the incoming `AI/
 > **Status:** first realized live-round game shipped — **Roll Through the Ages**
 > (`timingMode: "liveRound"`). Each player commits one turn per round in any order;
 > the round resolves once every human has submitted. See [game-rtta.md](game-rtta.md).
+> Potion Lab (`simultaneousSubmit`-style per-pick barrier) followed. The concrete,
+> shipped barrier and conflict-handling pattern for new games lives in
+> [Game Integration Spec](game-integration-spec.md) §5–6; this doc keeps the ideology.
 
 ## Core Idea
 
