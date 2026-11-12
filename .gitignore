@@ -20,3 +20,5 @@ src/sogotable/static/revision.json
 .tmp-chrome/
 .tmp-chrome-*/
 .worktrees/
+test-results/
+playwright-report/

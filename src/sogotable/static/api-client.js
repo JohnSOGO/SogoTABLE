@@ -1,4 +1,6 @@
-const HOSTED_API_ORIGIN = "https://sogotable.sogodojo.com";
+// Tests (Playwright) point the app at a local `wrangler dev` Worker by setting
+// window.SOGOTABLE_API_ORIGIN before the app loads; real visitors never set it.
+const HOSTED_API_ORIGIN = (typeof globalThis !== "undefined" && globalThis.SOGOTABLE_API_ORIGIN) || "https://sogotable.sogodojo.com";
 
 // A repair hook the app registers (setOwnerTokenHealer): given a player id, it
 // drops this device's dead token and re-acquires a fresh one (claim succeeds for an

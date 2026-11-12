@@ -1400,3 +1400,21 @@ PLACEMENT RECEIPT
       isConfirmPending(); covered by the two-phone e2e test.
 - New owner row: see docs/module-ownership.md (toast, room-share, turn-attention, vendor/)
 ```
+
+## 2026-11-12 — Tooling: ESLint, Prettier, Playwright two-phone e2e
+Commit: chore(tooling): ESLint + Prettier configs, Playwright two-phone e2e against a local stack (this entry's commit)
+
+```
+PLACEMENT RECEIPT
+- Ask:          eslint.config.js (flat), Prettier config, Playwright e2e under tests/e2e/, local-stack start.
+- Verdict:      Exempt rows `tests/`, `eslint.config.js`, `playwright.config.js`; static server in `scripts/`.
+- Flow stage:   none (tooling)
+- Considerations:
+    - `npm test` stays worker-only; e2e is `npm run test:e2e` and its own CI job; lint is its own CI job.
+    - The app reads `window.SOGOTABLE_API_ORIGIN` (set only by tests) so the browser talks to `wrangler dev`.
+    - `wrangler pages dev` cannot serve the static app (it adopts the Worker's wrangler.toml and refuses
+      the Durable Object bindings), hence scripts/e2e-static-server.mjs.
+    - Prettier is configured but not enforced, to avoid one repo-wide reformat colliding with other threads.
+    - Swapped the unused `playwright` devDependency for `@playwright/test` (same 1.61 line).
+- New owner row: none (exempt rows above)
+```
