@@ -1590,3 +1590,11 @@ REORG RECEIPT (R1)
 - Moved activeRoomForPlayer + playerHasUnfinishedRoom from workers/sogotable-api.js to workers/player-rooms.js,
   behaviour unchanged; entry ceiling re-pinned 1125 → 1117 (+ buffer).
 ```
+
+```
+REORG RECEIPT (R2)
+- Extracted the room-summary list view (renderCurrentGames, renderRoomSummaryList, renderActiveGameNotice,
+  the two signature helpers, playerSignature and their two render-key lets) from app.js to
+  controllers/room-list.js, wired with wireRoomList(ctx). Behaviour unchanged. app.js ceiling re-pinned
+  2155 → 2058 (+ buffer); APP_TOP_LEVEL_LET_CAP ratcheted 25 → 23.
+```

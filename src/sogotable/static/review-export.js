@@ -289,6 +289,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/controllers/game-stats.js",
   "src/sogotable/static/controllers/win-overlay.js",
   "src/sogotable/static/controllers/turn-status.js",
+  "src/sogotable/static/controllers/room-list.js",
   "src/sogotable/static/controllers/toast.js",
   "src/sogotable/static/controllers/room-share.js",
   "src/sogotable/static/client/turn-attention.js",

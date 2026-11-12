@@ -42,6 +42,7 @@ concern), then implement.
 | `src/sogotable/static/controllers/game-options.js` | Game-options menu | — |
 | `src/sogotable/static/controllers/game-stats.js` | Game stats panel + modal | — |
 | `src/sogotable/static/controllers/win-overlay.js` | Win overlay + confetti | — |
+| `src/sogotable/static/controllers/room-list.js` | Selected game's room-summary lists (open / in progress) + active-game re-enter notice — render-only, actions injected via wireRoomList(ctx) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/turn-status.js` | Room turn banner + player-switch strip (turn text, seat labels, turn tint) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/toast.js` | Non-blocking transient toast notices (replaces window.alert) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/room-share.js` | Room join-link sharing: `?join=` deep-link read/consume, navigator.share / copy, QR render | `src/sogotable/static/app.js` |
