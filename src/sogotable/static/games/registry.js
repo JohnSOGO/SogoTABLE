@@ -26,6 +26,8 @@ export const GAME_IDS = {
   potionLab: "e7c1a4b9d206",
   mysticWood: "a9f2c7e14b83",
   wnyk: "c9d4e72a81f5",
+  realmwright: "4d8e2b6a9c13",
+  chineseCheckers: "6bc129b1bbed",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -235,5 +237,31 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["potion_lab", "potion-lab", "potionlab", "sushi_go", "sushi-go"],
+  },
+  {
+    id: GAME_IDS.realmwright,
+    lobbyMode: "hostStart",
+    name: "🏰 Realmwright",
+    summary: "Lay land tiles to grow one shared realm of cities, roads, cloisters and fields — and everyone places at the same time each round. Claim features with your meeples and score them as they close. One or more builders; bots fill the table.",
+    players: "1+ players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["realmwright", "realm_wright", "tile_realm", "tile_laying"],
+  },
+  {
+    id: GAME_IDS.chineseCheckers,
+    lobbyMode: "hostStart",
+    name: "⭐ Chinese Checkers",
+    summary: "Race your marbles across the star by stepping and chaining jumps, and everyone moves at the same time each round. 2, 3, 4 or 6 players with team play, long jumps and capture variants; bots fill the table.",
+    players: "2–6 players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["chinese_checkers", "chinese-checkers", "chinesecheckers", "star_checkers", "sternhalma"],
   },
 ];

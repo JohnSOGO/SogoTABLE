@@ -1,4 +1,4 @@
-import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError, setOwnerTokenHealer } from "./api-client.js";
+import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError, setOwnerTokenHealer, setWorkerVersionObserver } from "./api-client.js";
 import { wireHouses, renderHouseControls, renderPlayerPicker, buildPlayerCard, resetPlayerPicker } from "./controllers/houses.js";
 import {
   colorWithAlpha,
@@ -62,6 +62,7 @@ import {
   getDeviceSelectionHash,
   saveDeviceIdentity,
 } from "./client/session-store.js";
+import { refreshRevisionSummary, registerServiceWorker, wireAppUpdate, checkForUpdate, noteWorkerVersion, resumeAfterUpdate } from "./client/app-update.js";
 import {
   wireInvites,
   openInvitePlayerModal,
@@ -94,6 +95,8 @@ import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { renderRttaGame } from "./games/rtta/render.js";
 import { renderPotionLabGame } from "./games/potion-lab/render.js";
+import { renderRealmwrightGame } from "./games/realmwright/render.js";
+import { renderChineseCheckersGame } from "./games/chinese-checkers/render.js";
 import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
 import { renderWnykGame } from "./games/wnyk/render.js";
 import {
@@ -121,7 +124,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState, isRealmwrightGameState, isChineseCheckersGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -161,6 +164,7 @@ const realtime = createRealtimeController({
   onAppMessage: handleAppEventMessage,
   onRoomMessage: handleRoomSocketMessage,
   onRoomReconnect: () => showTurnStatus(null, "Reconnecting to table..."),
+  onSocketReopen: () => { void checkForUpdate("socket-reopen"); },
   refreshRoom,
   shouldReconnectRoom: () => Boolean(currentRoom),
   shouldPollRoom: () => { const seat = currentRoom && localRoomSeat(currentRoom); return Boolean(seat && currentRoom.started && !isSoloRoom(currentRoom) && currentRoom.game && currentRoom.game.status === "playing" && seat.mark !== currentRoom.game.current_player); },
@@ -218,6 +222,12 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   purgeDeprecatedLocalRoster();
   registerServiceWorker();
+  setWorkerVersionObserver(noteWorkerVersion);
+  wireAppUpdate({
+    isBusy: () => Boolean(pendingMove),
+    getResumeState: () => ({ screen: (document.querySelector(".screen.active") || {}).id || "", selectedGameId, roomCode: currentRoom ? currentRoom.code : "" }),
+    resume: resumeFromUpdate,
+  });
   refreshRevisionSummary();
   document.documentElement.classList.toggle("is-mac", /Mac|iP(hone|ad|od)/i.test(navigator.platform || navigator.userAgent || ""));
   bindNavigation();
@@ -226,7 +236,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshGameDefinitions();
   renderGames();
   renderAppearanceChoices();
-  refreshPlayers();
+  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate);   // after an auto-update, put the player back
   renderSelectedGame();
   renderSelectedPlayer();
   renderCurrentPlayer();
@@ -282,40 +292,6 @@ function bindTouchZoomGuard() {
       event.preventDefault();
     }
   }, { passive: false });
-}
-
-async function refreshRevisionSummary() {
-  const host = document.getElementById("revisionSummary");
-  if (!host) return;
-  try {
-    const data = await fetchRevisionStatus();
-    host.textContent = data.status.summary;
-  } catch {
-    host.textContent = "revision unavailable";
-  }
-}
-
-async function fetchRevisionStatus() {
-  try {
-    const response = await fetch("/revision.json", { cache: "no-store" });
-    const contentType = response.headers.get("content-type") || "";
-    if (response.ok && contentType.includes("application/json")) {
-      const data = await response.json();
-      if (data.ok && data.status && data.status.summary) return data;
-    }
-  } catch {
-    // Static Pages can briefly lag the asset refresh.
-  }
-  throw new Error("revision unavailable");
-}
-
-function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").catch((error) => {
-      console.warn("SogoTable service worker unavailable.", error);
-    });
-  });
 }
 
 function bindNavigation() {
@@ -1655,10 +1631,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game) || isRealmwrightGameState(game) || isChineseCheckersGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : isRealmwrightGameState(game) ? renderRealmwrightGame : isChineseCheckersGameState(game) ? renderChineseCheckersGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,
@@ -1788,7 +1764,7 @@ function renderGamePlayerSwitch() {
   const host = document.getElementById("gamePlayerSwitch");
   host.innerHTML = "";
   if (!currentRoom || !currentRoom.started) return;
-  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game) || isPotionLabGameState(currentRoom.game) || isMysticWoodGameState(currentRoom.game)) {
+  if (isTenThousandGameState(currentRoom.game) || isYahtzeeGameState(currentRoom.game) || isMazewrightGameState(currentRoom.game) || isRttaGameState(currentRoom.game) || isZombieDiceGameState(currentRoom.game) || isLiarsDiceGameState(currentRoom.game) || isNoThanksGameState(currentRoom.game) || isHeartsGameState(currentRoom.game) || isPotionLabGameState(currentRoom.game) || isMysticWoodGameState(currentRoom.game) || isRealmwrightGameState(currentRoom.game) || isChineseCheckersGameState(currentRoom.game)) {
     host.classList.add("hidden");
     return;
   }
@@ -2020,6 +1996,19 @@ function leaveClosedRoom() {
   renderGames();
   refreshGameRooms();
   showScreen("gameSelected");
+}
+
+// Auto-update resume: READ-ONLY re-entry (never /api/room/join — a reload must not join a room).
+async function resumeFromUpdate(marker) {
+  if (marker.selectedGameId) { selectedGameId = canonicalGameId(marker.selectedGameId); saveSelectedGame(); renderGames(); renderSelectedGame(); }
+  if (marker.roomCode) {
+    const data = await fetchJson(roomReadUrl(marker.roomCode)).catch(() => null);
+    const mine = [getDeviceSelectedPlayerId(), getSelectedPlayerId()].filter(Boolean);
+    if (data && data.ok && data.room && data.room.players.some((seat) => mine.includes(seat.id))) {
+      activeGameRoom = data.room; setRoom(data.room); showScreen("game"); return;
+    }
+  }
+  if (marker.screen && marker.screen !== "intro") showScreen(marker.screen === "game" ? "gameSelected" : marker.screen);
 }
 
 function roomReadUrl(code) {
@@ -2259,4 +2248,4 @@ function showRosterError(message) {
 function saveSelectedGame() {
   localStorage.setItem("sogotable.selectedGameId", selectedGameId);
 }
-
+

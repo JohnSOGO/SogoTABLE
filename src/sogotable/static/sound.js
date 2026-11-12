@@ -108,8 +108,80 @@ function scaledVolume(volume) {
   return volume * multipliers[level - 1];
 }
 
+// Filtered white noise: the base of explosions, splashes and surf. One looping
+// noise buffer is cached per AudioContext; each voice is buffer → biquad → gain.
+let noiseBuffer = null;
+function getNoiseBuffer(context) {
+  if (noiseBuffer && noiseBuffer.sampleRate === context.sampleRate) return noiseBuffer;
+  const length = Math.floor(context.sampleRate * 1.5);
+  noiseBuffer = context.createBuffer(1, length, context.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < length; i += 1) data[i] = Math.random() * 2 - 1;
+  return noiseBuffer;
+}
+
+function playNoise({
+  frequency = 1200,
+  slideTo = null,
+  filter = "lowpass",
+  q = 0.8,
+  duration = 0.3,
+  attack = 0.008,
+  volume = DEFAULT_VOLUME,
+  delay = 0,
+} = {}) {
+  if (!isSoundEnabled()) return;
+  const context = getAudioContext();
+  if (!context) return;
+  if (context.state === "suspended") {
+    context.resume().catch(() => {});
+    if (!unlocked) return;
+  }
+  const start = context.currentTime + delay;
+  const stop = start + duration;
+  const source = context.createBufferSource();
+  source.buffer = getNoiseBuffer(context);
+  source.loop = true;
+  const biquad = context.createBiquadFilter();
+  biquad.type = filter;
+  biquad.Q.value = q;
+  biquad.frequency.setValueAtTime(Math.max(20, frequency), start);
+  if (slideTo) biquad.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), stop);
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(scaledVolume(volume), start + Math.max(0.002, attack));
+  gain.gain.exponentialRampToValueAtTime(0.0001, stop);
+  source.connect(biquad);
+  biquad.connect(gain);
+  gain.connect(context.destination);
+  source.start(start, Math.random() * 1.2);
+  source.stop(stop + 0.02);
+}
+
 function playSequence(tones) {
-  tones.forEach((tone) => playTone(tone));
+  tones.forEach((tone) => (tone && tone.type === "noise" ? playNoise(tone) : playTone(tone)));
+}
+
+// Generic cue seam for game modules that define their own SFX as tone data
+// (e.g. games/realmwright/sfx.js) — synthesis + mute/volume stay owned here.
+// An entry with `type: "noise"` is a filtered-noise voice (see playNoise).
+export function playTones(tones) {
+  if (Array.isArray(tones)) playSequence(tones);
+}
+
+// Play a sound file (an asset override), honouring mute + volume. Returns
+// false when it could not start so callers can fall back to a synth cue.
+export function playSoundFile(url, volume = 0.6) {
+  if (!isSoundEnabled() || !url || typeof Audio === "undefined") return false;
+  try {
+    const audio = new Audio(url);
+    audio.volume = Math.max(0, Math.min(1, volume * scaledVolume(1) / 1.55));
+    const played = audio.play();
+    if (played && played.catch) played.catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function playClick() {
@@ -172,21 +244,6 @@ export function playLose() {
   playSequence([
     { frequency: 392, duration: 0.09, type: "triangle", volume: 0.028 },
     { frequency: 294, duration: 0.12, type: "triangle", volume: 0.026, delay: 0.1 },
-  ]);
-}
-
-export function playBattleshipHit() {
-  playSequence([
-    { frequency: 130, duration: 0.08, type: "sawtooth", volume: 0.038, slideTo: 82 },
-    { frequency: 76, duration: 0.14, type: "square", volume: 0.034, delay: 0.07 },
-    { frequency: 420, duration: 0.05, type: "triangle", volume: 0.024, delay: 0.18, slideTo: 240 },
-  ]);
-}
-
-export function playBattleshipMiss() {
-  playSequence([
-    { frequency: 260, duration: 0.06, type: "sine", volume: 0.026, slideTo: 380 },
-    { frequency: 190, duration: 0.08, type: "triangle", volume: 0.023, delay: 0.08, slideTo: 150 },
   ]);
 }
 

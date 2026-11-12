@@ -41,8 +41,14 @@ export async function api(url, payload, options = {}) {
   }
 }
 
+// Passive hook: told the Worker deploy id seen on each API response. Transport
+// only reports it; client/app-update.js decides what a change means.
+let workerVersionObserver = null;
+export function setWorkerVersionObserver(fn) { workerVersionObserver = fn; }
+
 export async function fetchJson(url, options = {}) {
   const response = await fetch(apiUrl(url), options);
+  if (workerVersionObserver) workerVersionObserver(response.headers.get("X-SogoTable-Worker-Version") || "");
   const contentType = response.headers.get("content-type") || "";
   const text = await response.text();
   if (!text) throw new Error("Game server returned an empty response.");

@@ -65,7 +65,7 @@ function gameDirOf(rel) {
 // rules.
 const WORKING_BUFFER = 25;
 const CEILINGS = {
-  "src/sogotable/static/app.js": 2260 + WORKING_BUFFER,
+  "src/sogotable/static/app.js": 2231 + WORKING_BUFFER,
   "workers/sogotable-api.js": 1229 + WORKING_BUFFER,
   "src/sogotable/static/styles.css": 274 + WORKING_BUFFER,
   // Looser legacy cap already carrying more than a buffer of headroom (file ~1663);

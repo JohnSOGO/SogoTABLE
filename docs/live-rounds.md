@@ -8,6 +8,9 @@ This document captures the SogoTable timing-mode ideology from the incoming `AI/
 > Potion Lab (`simultaneousSubmit`-style per-pick barrier) followed. The concrete,
 > shipped barrier and conflict-handling pattern for new games lives in
 > [Game Integration Spec](game-integration-spec.md) §5–6; this doc keeps the ideology.
+> **Realmwright** ([game-realmwright.md](game-realmwright.md)) is the first live
+> round on a **shared board**: one tile per seat per round, placements resolve
+> immediately in server order, stale intents are rejected with a reason.
 
 ## Core Idea
 

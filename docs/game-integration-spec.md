@@ -294,7 +294,7 @@ need it.
 | Style | `timingMode` | Actions resolve… | Contention rule | Reference |
 |---|---|---|---|---|
 | **Simultaneous submit** (preferred) | `"simultaneousSubmit"` | **together** when the barrier closes | a deterministic **rule** decides — arrival order never matters | Potion Lab (per-pick draft) |
-| Live round | `"liveRound"` | **immediately** as each commit arrives | **server-received order** — first commit wins, by design | RTTA (first-builder monument VP) |
+| Live round | `"liveRound"` | **immediately** as each commit arrives | **server-received order** — first commit wins, by design | RTTA (first-builder monument VP); Realmwright (shared tile board: a later placement that no longer fits is rejected with a reason) |
 
 Choose **simultaneous submit** when players compete for the *same* shared thing
 (a board cell, a tile, a card in a market): it removes phone speed and network
@@ -484,7 +484,7 @@ player sees, and pin it in a test:
 | Bounce both | every claimant fails; their commit falls back (tile returns to hand, or a default legal action) | games where collisions should be a funny moment |
 | Merit tie-break | compare a game value (bid, lower score, initiative card), then priority order | auction/bid mechanics |
 | Split / share | both get it, or it is divided | scoring rewards (Potion Lab's Moon Dust majority split) |
-| Arrival order | server-received order (live round only) | only when speed is an intended mechanic (RTTA monuments) |
+| Arrival order | server-received order (live round only) — the later claim is **rejected with a reason** and the player re-picks | when speed is an intended mechanic (RTTA monuments, Realmwright tile placement) |
 
 Resolution order inside `resolveRound`:
 

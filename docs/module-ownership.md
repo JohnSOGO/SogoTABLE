@@ -26,6 +26,7 @@ concern), then implement.
 |---|---|---|
 | `src/sogotable/static/app.js` | Browser shell: screens, state machine, API orchestration, the render fan, wiring controllers | — |
 | `src/sogotable/static/client/session-store.js` | Device identity + seat-resolution priority (upstream state owner) | `src/sogotable/static/app.js` |
+| `src/sogotable/static/client/app-update.js` | Deploy-version watch (revision.json poll + SW update + Worker-version skew), safe-reload gate, resume marker read/write, update overlay show/hide | `src/sogotable/static/app.js` |
 | `src/sogotable/static/api-client.js` | HTTP transport to the Worker | — |
 | `src/sogotable/static/realtime.js` | Room + app-event WebSocket controller | — |
 | `src/sogotable/static/storage.js` | localStorage/sessionStorage keys + load/migrate helpers | — |
