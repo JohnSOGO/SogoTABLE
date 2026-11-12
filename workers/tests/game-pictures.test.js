@@ -11,6 +11,8 @@ import { CARDS, CHARACTERS, DRINKS } from "../../src/sogotable/static/games/last
 import { ASSETS as MW } from "../../src/sogotable/static/games/mystic-wood/assets.js";
 import { DEN, KNIGHTS, THINGS } from "../../src/sogotable/static/games/mystic-wood/content.js";
 import { ASSETS as PL } from "../../src/sogotable/static/games/potion-lab/assets.js";
+import { ASSETS as BW } from "../../src/sogotable/static/games/bloomwork/assets.js";
+import { ASSETS as RK } from "../../src/sogotable/static/games/reefkeepers/assets.js";
 
 const MAX_KB = { small: 60, large: 200 };
 
@@ -21,6 +23,9 @@ function urls() {
   out.push(["last-orders tableBg", LO.tableBg, "large"], ["chinese-checkers board", CC.board, "large"]);
   for (const group of ["denizens", "things", "knights"]) Object.entries(MW[group]).forEach(([id, url]) => out.push([`mystic-wood ${group} ${id}`, url, "small"]));
   Object.entries(PL.cards).forEach(([id, url]) => out.push([`potion-lab cards ${id}`, url, "small"]));
+  Object.entries(BW.flowerArt).forEach(([id, url]) => out.push([`bloomwork flowerArt ${id}`, url, "small"]));
+  Object.entries(RK.habitats).forEach(([id, url]) => out.push([`reefkeepers habitats ${id}`, url, "small"]));
+  out.push(["bloomwork birdArt", BW.birdArt, "small"], ["reefkeepers grotto", RK.grotto, "small"]);
   return out.filter(([, url]) => url);
 }
 
