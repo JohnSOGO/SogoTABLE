@@ -31,8 +31,9 @@ import { chooseRealmwrightPlacement } from "./ai.js";
 export const REALMWRIGHT_GAME_ID = GAME_IDS.realmwright;
 const EVENT_CAP = 40;
 const DECKS = ["standard", "quick", "big"];
+export const TIME_LIMITS = [0, 30, 45, 60, 90, 120]; // seconds per round; 0 = no limit
 export const REALMWRIGHT_DEFAULT_OPTIONS = Object.freeze({
-  farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard", expansions: [],
+  farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard", time_limit: 0, expansions: [],
 });
 
 export function isRealmwrightGame(game) {
@@ -94,6 +95,7 @@ export function normalizeRealmwrightOptions(raw) {
     meeples: clampInt(o.meeples, 5, 10, d.meeples),
     small_city: toBool(o.small_city, d.small_city),
     deck: DECKS.includes(o.deck) ? o.deck : d.deck,
+    time_limit: TIME_LIMITS.includes(Number(o.time_limit)) && /^\d+$/.test(String(o.time_limit)) ? Number(o.time_limit) : d.time_limit,
     expansions: Array.isArray(o.expansions)
       ? [...new Set(o.expansions.map(String))].filter((id) => id !== "base" && TILESETS[id]).slice(0, 8)
       : [],
@@ -236,6 +238,9 @@ function dealRound(game, now) {
   game.round += 1;
   game.round_opened_at = now;
   const humansSeated = game.seat_order.some((m) => !game.players[m].is_bot);
+  // Timed play: the round closes at the deadline whoever is still thinking.
+  game.round_deadline = game.options.time_limit && humansSeated ? now + game.options.time_limit * 1000 : 0;
+  game.timer_paused_left = 0; // a pause lasts only for the round it was made in
   game.skip_votes = {};
   const derived = derive(game.board, defsFor(game.options));
   let dealt = 0;
@@ -261,6 +266,39 @@ function releaseDueBots(game, now) {
     .sort((a, b) => game.players[a].act_at - game.players[b].act_at || game.seat_order.indexOf(a) - game.seat_order.indexOf(b));
   due.forEach((mark) => { if (!isDone(game.players[mark])) placeBot(game, mark); });
   return due.length;
+}
+
+// Timed play: once the deadline passes, every bot still thinking places now
+// and every human still holding a tile is skipped (tile back in the bag, as
+// a skip vote does). Returns how many seats it closed.
+function expireRound(game, now) {
+  if (game.status !== "playing" || !game.round_deadline || now < game.round_deadline) return 0;
+  let closed = 0;
+  game.seat_order.forEach((mark) => {
+    const seat = game.players[mark];
+    if (isDone(seat)) return;
+    if (seat.is_bot) placeBot(game, mark);
+    else skipSeat(game, mark, { timeout: true });
+    closed += 1;
+  });
+  return closed;
+}
+
+// Any seated human may pause the round clock (it freezes with the time left)
+// and anyone may resume it. Bots keep their own think-time either way.
+function applyTimerToggle(game, mark, type, action, now) {
+  if (Number(action.round) !== game.round) throw new Error(`Stale timer tap: that was for round ${action.round}; the table is on round ${game.round}.`);
+  if (type === "PAUSE_TIMER") {
+    if (!game.round_deadline) throw new Error(game.timer_paused_left ? "The timer is already paused." : "This round has no timer.");
+    game.timer_paused_left = Math.max(1000, game.round_deadline - now);
+    game.round_deadline = 0;
+    pushEvent(game, { type: "pause", mark });
+  } else {
+    if (!game.timer_paused_left) throw new Error("The timer isn't paused.");
+    game.round_deadline = now + game.timer_paused_left;
+    game.timer_paused_left = 0;
+    pushEvent(game, { type: "resume", mark });
+  }
 }
 
 // The barrier: due bots place; once every seat is done the next round deals
@@ -380,12 +418,12 @@ function knockOnRedraw(game, derived) {
   }
 }
 
-function skipSeat(game, mark) {
+function skipSeat(game, mark, { timeout = false } = {}) {
   const seat = game.players[mark];
   if (seat.tile) { game.bag.push(seat.tile); seat.tile_serial += 1; }
   seat.tile = null;
   seat.skipped = true;
-  pushEvent(game, { type: "skip", mark });
+  pushEvent(game, timeout ? { type: "skip", mark, timeout: true } : { type: "skip", mark });
 }
 
 function completeGame(game) {
@@ -448,14 +486,21 @@ export function makeRealmwrightMove(game, mark, action) {
   const now = realmClock();
   if (type === "BOT_TICK") {
     // Any seated human's client nudges the table when a bot's think-time
-    // passes. Nothing due → reject quietly (no write, no broadcast).
-    if (!releaseDueBots(game, now)) throw new Error("No bot is ready yet.");
+    // passes or the round's time runs out. Nothing due → reject quietly (no
+    // write, no broadcast).
+    const released = releaseDueBots(game, now);
+    if (!released && !expireRound(game, now)) throw new Error("No bot is ready yet.");
     pruneVotes(game);
     advance(game, now);
     return;
   }
-  // Bots whose time already came go first, so server order stays fair.
+  // Bots whose time already came go first, so server order stays fair; then
+  // a round whose time ran out closes before any late move lands.
+  if (type === "PLACE_TILE" && game.round_deadline && now >= game.round_deadline && Number(action.round) === game.round && !isDone(seat)) {
+    throw new Error("Time ran out this round — your tile goes back in the bag.");
+  }
   releaseDueBots(game, now);
+  expireRound(game, now);
   if (type === "PLACE_TILE") {
     if (Number(action.round) !== game.round) throw new Error(`Stale move: that was for round ${action.round}; the table is on round ${game.round}.`);
     if (seat.placed) throw new Error("You already placed your tile this round.");
@@ -465,8 +510,10 @@ export function makeRealmwrightMove(game, mark, action) {
     applyPlacement(game, mark, action);
   } else if (type === "SKIP_PLAYER") {
     applySkip(game, mark, action);
+  } else if (type === "PAUSE_TIMER" || type === "RESUME_TIMER") {
+    applyTimerToggle(game, mark, type, action, now);
   } else {
-    throw new Error("Realmwright action must be PLACE_TILE, SKIP_PLAYER or BOT_TICK.");
+    throw new Error("Realmwright action must be PLACE_TILE, SKIP_PLAYER, PAUSE_TIMER, RESUME_TIMER or BOT_TICK.");
   }
   pruneVotes(game);
   advance(game, now);
@@ -523,6 +570,8 @@ export function realmwrightGameToDict(game) {
     status: game.status,
     round: game.round,
     round_opened_at: game.round_opened_at,
+    round_deadline: game.status === "playing" ? game.round_deadline : 0, // 0 = untimed or paused
+    timer_paused_left: game.status === "playing" ? game.timer_paused_left : 0, // ms left while paused
     server_now: realmClock(), // lets clients map bot act_at onto their own clock
     move_count: game.move_count,
     options: { ...game.options, expansions: [...game.options.expansions] },
@@ -586,6 +635,8 @@ function normalizeRealmwrightGame(game) {
     };
   });
   game.round_opened_at = Number.isFinite(Number(game.round_opened_at)) ? Number(game.round_opened_at) : 0;
+  game.round_deadline = Number.isFinite(Number(game.round_deadline)) ? Math.max(0, Number(game.round_deadline)) : 0;
+  game.timer_paused_left = Number.isFinite(Number(game.timer_paused_left)) ? Math.max(0, Number(game.timer_paused_left)) : 0;
   game.board = Array.isArray(game.board) ? game.board.filter((p) => p && defs[p.t]
     && Number.isInteger(p.x) && Number.isInteger(p.y) && Number.isInteger(p.r) && p.r >= 0 && p.r <= 3) : [];
   game.board.forEach((p) => {

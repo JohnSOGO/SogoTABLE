@@ -22,6 +22,13 @@ const LIGHT = `
 
 /* status strip: two fixed one-liners */
 .realmwright-root .rw-strip{background:var(--rw-panel);border-radius:12px;box-shadow:var(--rw-shadow);padding:6px 10px}
+.realmwright-root .rw-clock{display:inline-flex;align-items:center;gap:4px;padding:1px 4px 1px 8px;border-radius:999px;
+  background:var(--rw-line);font-variant-numeric:tabular-nums;font-weight:700}
+.realmwright-root .rw-clock-warn{background:#e0473a;color:#fff;animation:rw-clock-pulse 1s ease-in-out infinite}
+.realmwright-root .rw-clock-paused{opacity:.75}
+.realmwright-root .rw-clock-btn{border:0;background:transparent;color:inherit;font-size:13px;padding:0 4px;min-width:22px;cursor:pointer}
+.realmwright-root .rw-clock-btn:disabled{opacity:.4}
+@keyframes rw-clock-pulse{50%{transform:scale(1.06)}}
 .realmwright-root .rw-strip-line{display:flex;align-items:center;gap:8px;height:22px;white-space:nowrap;overflow:hidden;font-size:13.5px}
 .realmwright-root .rw-chip-round{font-weight:800}
 .realmwright-root .rw-chip-bag{color:var(--rw-muted);font-weight:700;font-variant-numeric:tabular-nums}

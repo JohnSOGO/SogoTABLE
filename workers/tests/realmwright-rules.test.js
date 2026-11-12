@@ -159,7 +159,7 @@ test("loud errors: bad feature, no meeples, farmers off, bad rotation, bot seat,
   assert.throws(() => place(g, "P1", 1, 0, 0, 2), /no meeples left/);
   assert.throws(() => makeRealmwrightMove(g, "B1", { type: "PLACE_TILE" }), /Bot seats/);
   assert.throws(() => makeRealmwrightMove(g, "ZZ", { type: "PLACE_TILE" }), /not seated/);
-  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "NOPE" }), /PLACE_TILE, SKIP_PLAYER or BOT_TICK/);
+  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "NOPE" }), /PLACE_TILE, SKIP_PLAYER, PAUSE_TIMER, RESUME_TIMER or BOT_TICK/);
   place(g, "P1", 1, 0, 0, null);
   assert.throws(() => place(g, "P1", 2, 0, 0, null), /already placed/);
 });
@@ -331,13 +331,13 @@ test("projection shape is exactly the wire contract", () => {
   const d = realmwrightGameToDict(g);
   assert.deepEqual(Object.keys(d).sort(), [
     "bag_count", "board", "events", "game_id", "legal", "move_count", "options", "players", "results",
-    "round", "round_opened_at", "seat_order", "server_now", "skip_votes", "status", "tile_defs", "winner",
+    "round", "round_deadline", "round_opened_at", "seat_order", "server_now", "skip_votes", "status", "tile_defs", "timer_paused_left", "winner",
   ]);
   assert.deepEqual(Object.keys(d.players[0]).sort(), [
     "act_at", "breakdown", "is_bot", "mark", "meeples_left", "meeples_total", "placed", "projected", "projected_breakdown",
     "score", "skipped", "tile", "tile_serial",
   ]);
-  assert.deepEqual(Object.keys(d.options).sort(), ["deck", "expansions", "farmers", "live_tally", "meeples", "show_spots", "small_city"]);
+  assert.deepEqual(Object.keys(d.options).sort(), ["deck", "expansions", "farmers", "live_tally", "meeples", "show_spots", "small_city", "time_limit"]);
   assert.deepEqual(Object.keys(d.board[0]).sort(), ["by", "meeples", "round", "t", "x", "y", "r"].sort());
   assert.equal(Object.keys(d.tile_defs).length, 24);
   assert.ok(d.tile_defs[START].start);
@@ -390,9 +390,11 @@ test("skip vote: only placed humans vote, unanimous, tile back to the bag bottom
 });
 
 test("options: clamping, garbage tolerance, reset carry-over", () => {
-  assert.deepEqual(normalizeRealmwrightOptions(null), { farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard", expansions: [] });
-  assert.deepEqual(normalizeRealmwrightOptions({ farmers: false, live_tally: "off", show_spots: "off", meeples: 99, small_city: "true", deck: "huge", expansions: ["base", "nope", 3] }),
-    { farmers: "off", live_tally: false, show_spots: false, meeples: 10, small_city: true, deck: "standard", expansions: [] });
+  assert.deepEqual(normalizeRealmwrightOptions(null), { farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard", time_limit: 0, expansions: [] });
+  assert.deepEqual(normalizeRealmwrightOptions({ farmers: false, live_tally: "off", show_spots: "off", meeples: 99, small_city: "true", deck: "huge", time_limit: 33, expansions: ["base", "nope", 3] }),
+    { farmers: "off", live_tally: false, show_spots: false, meeples: 10, small_city: true, deck: "standard", time_limit: 0, expansions: [] });
+  assert.equal(normalizeRealmwrightOptions({ time_limit: "60" }).time_limit, 60);
+  assert.equal(normalizeRealmwrightOptions({ time_limit: 1.5 }).time_limit, 0);
   assert.equal(normalizeRealmwrightOptions({ meeples: 1 }).meeples, 5);
   assert.equal(normalizeRealmwrightOptions({ meeples: "abc" }).meeples, 7);
   assert.equal(normalizeRealmwrightOptions([1, 2]).farmers, "on");
@@ -475,4 +477,51 @@ test("seeded playouts at 1, 2, 4, 6 seats finish for every option combo", () => 
       }
     }
   }
+});
+
+test("timed rounds: the deadline skips humans still thinking and plays bots; pause freezes it", () => {
+  NOW = 9_000_000;
+  const g = makeGame([human("P1"), human("P2"), bot("B1", 1)], { time_limit: 30 });
+  assert.equal(g.round_deadline, NOW + 30_000);
+  const d = realmwrightGameToDict(g);
+  assert.equal(d.round_deadline, NOW + 30_000);
+  assert.equal(d.timer_paused_left, 0);
+  // P1 places in time; nothing is due yet.
+  const spot = d.legal.P1[0];
+  place(g, "P1", spot.x, spot.y, spot.r, null);
+  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "BOT_TICK", round: 1 }), /No bot is ready/);
+  // Pause with 20 s left, wait a long time, resume: 20 s remain.
+  NOW += 10_000;
+  makeRealmwrightMove(g, "P2", { type: "PAUSE_TIMER", round: 1 });
+  assert.equal(g.round_deadline, 0);
+  assert.equal(realmwrightGameToDict(g).timer_paused_left, 20_000);
+  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "PAUSE_TIMER", round: 1 }), /already paused/);
+  NOW += 120_000;
+  makeRealmwrightMove(g, "P1", { type: "BOT_TICK", round: 1 }); // the bot's own think-time still runs
+  assert.ok(g.players.B1.placed);
+  assert.ok(!g.players.P2.skipped && g.round === 1, "a paused clock never expires");
+  makeRealmwrightMove(g, "P1", { type: "RESUME_TIMER", round: 1 });
+  assert.equal(g.round_deadline, NOW + 20_000);
+  // Time runs out: a late move is refused, then a tick closes the round.
+  NOW += 20_000;
+  const late = realmwrightGameToDict(g).legal.P2[0];
+  const bagBefore = g.bag.length;
+  const p2tile = g.players.P2.tile;
+  assert.throws(() => place(g, "P2", late.x, late.y, late.r, null), /Time ran out/);
+  makeRealmwrightMove(g, "P1", { type: "BOT_TICK", round: 1 });
+  const r1 = g.events.filter((e) => e.round === 1);
+  assert.ok(r1.some((e) => e.type === "skip" && e.mark === "P2" && e.timeout), "P2 timed out");
+  assert.ok(r1.some((e) => e.type === "place" && e.mark === "B1"), "the bot played");
+  assert.equal(g.round, 2, "the table moved on");
+  assert.ok(p2tile && bagBefore >= 0);
+  assert.equal(g.round_deadline, NOW + 30_000, "a fresh clock for the new round");
+  assert.equal(g.timer_paused_left, 0);
+});
+
+test("untimed games and all-bot tables have no deadline", () => {
+  NOW = 10_000_000;
+  assert.equal(makeGame([human("P1"), bot("B1")]).round_deadline, 0);
+  assert.equal(makeGame([bot("B1"), bot("B2")], { time_limit: 30 }).status, "complete");
+  const g = makeGame([human("P1")]);
+  assert.throws(() => makeRealmwrightMove(g, "P1", { type: "PAUSE_TIMER", round: 1 }), /no timer/);
 });
