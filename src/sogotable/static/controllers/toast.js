@@ -20,6 +20,9 @@ function toastHost() {
 }
 
 // kind: "error" (default for thrown errors), "info", or "success".
+// options.action = { label, onClick } adds a button (e.g. "Go" to jump to a
+// game); the toast then becomes a row with that button and a dismiss button,
+// because a button cannot sit inside the plain tap-to-dismiss toast button.
 export function showToast(message, options = {}) {
   if (typeof document === "undefined") return;
   const text = String(message || "").trim();
@@ -27,16 +30,34 @@ export function showToast(message, options = {}) {
   const kind = options.kind || "error";
   const host = toastHost();
   while (host.children.length >= MAX_VISIBLE) host.firstElementChild.remove();
-  const toast = document.createElement("button");
-  toast.type = "button";
-  toast.className = `toast toast-${kind}`;
-  toast.textContent = text;
-  toast.setAttribute("aria-label", `${text} (tap to dismiss)`);
+  const action = options.action && options.action.label ? options.action : null;
+  const toast = document.createElement(action ? "div" : "button");
+  toast.className = `toast toast-${kind}${action ? " toast-with-action" : ""}`;
   const dismiss = () => {
     toast.classList.add("toast-leaving");
     setTimeout(() => toast.remove(), 180);
   };
-  toast.addEventListener("click", dismiss);
+  if (action) {
+    const label = document.createElement("span");
+    label.textContent = text;
+    const go = document.createElement("button");
+    go.type = "button";
+    go.className = "toast-action";
+    go.textContent = action.label;
+    go.addEventListener("click", () => { dismiss(); action.onClick(); });
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "toast-dismiss";
+    close.textContent = "×";
+    close.setAttribute("aria-label", "Dismiss");
+    close.addEventListener("click", dismiss);
+    toast.append(label, go, close);
+  } else {
+    toast.type = "button";
+    toast.textContent = text;
+    toast.setAttribute("aria-label", `${text} (tap to dismiss)`);
+    toast.addEventListener("click", dismiss);
+  }
   host.appendChild(toast);
   setTimeout(dismiss, options.durationMs || DEFAULT_DURATION_MS);
 }

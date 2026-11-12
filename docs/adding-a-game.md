@@ -291,8 +291,16 @@ generic path (create / serialize / legal-moves / move / bot):
 ```js
 { id, is, create, toDict, legalMoves, bot, applyAction,
   // optional behavior flags:
-  enforcesTurnOrder, preMove, resolvesBotsInternally }
+  enforcesTurnOrder, preMove, resolvesBotsInternally,
+  awaitingMarks }
 ```
+
+`awaitingMarks(view)` (in `workers/games/<dir>/awaiting.js`) names the seats the
+table is waiting on, read from the public projection. Any game that does not
+drive play purely by `current_player` (simultaneous rounds, phases, teams) must
+provide it: it powers the 🎲 switcher and the "it's your move" alerts for
+players who stepped away to another game. `workers/tests/awaiting-marks.test.js`
+checks every ready game.
 
 `applyAction(game, mark, payload)` normalizes the game's move signature so the
 generic `/api/room/move` and bot-turn dispatch never special-case it. Keep the

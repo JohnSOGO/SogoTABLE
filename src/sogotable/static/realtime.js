@@ -188,6 +188,47 @@ export function createRealtimeController(callbacks) {
   };
 }
 
+// A socket-only watcher for a room the player is seated at but not viewing
+// (the active-games switcher). No poll timer and no global listeners — the
+// shell re-seeds from /api/my-rooms on foreground instead. onSnapshot gets each
+// viewer-projected room; onClosed fires once if the table is closed.
+export function createRoomWatcher(code, playerId, { onSnapshot, onClosed } = {}) {
+  let socket = null;
+  let timer = null;
+  let attempts = 0;
+  let stopped = false;
+  function connect() {
+    if (stopped || typeof WebSocket === "undefined") return;
+    try {
+      socket = new WebSocket(roomSocketUrl(code, playerId));
+    } catch {
+      schedule();
+      return;
+    }
+    socket.addEventListener("open", () => { attempts = 0; });
+    socket.addEventListener("message", (event) => {
+      let message;
+      try { message = JSON.parse(event.data); } catch { return; }
+      if (message.type === "room_snapshot" && message.room && onSnapshot) onSnapshot(message.room);
+      if (message.type === "room_closed" && onClosed) { stop(); onClosed(code); }
+    });
+    socket.addEventListener("close", () => { socket = null; schedule(); });
+    socket.addEventListener("error", () => { if (socket) socket.close(); });
+  }
+  function schedule() {
+    if (stopped || timer) return;
+    timer = setTimeout(() => { timer = null; connect(); }, reconnectDelay(attempts));
+    attempts += 1;
+  }
+  function stop() {
+    stopped = true;
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (socket) { const open = socket; socket = null; open.close(); }
+  }
+  connect();
+  return { code, stop };
+}
+
 function reconnectDelay(attempts) {
   return Math.min(MAX_RECONNECT_DELAY_MS, 2000 * 2 ** attempts);
 }

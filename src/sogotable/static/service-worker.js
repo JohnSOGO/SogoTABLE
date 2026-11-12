@@ -1,4 +1,4 @@
-const CACHE_NAME = "sogotable-static-v101";
+const CACHE_NAME = "sogotable-static-v102";
 const STATIC_ASSETS = [
   "/assets/intro-screen.png",
   "/assets/icon-192.png",
@@ -41,6 +41,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname === "/styles-roster.css" ||
     url.pathname === "/styles-room.css" ||
     url.pathname === "/styles-games.css" ||
+    url.pathname === "/styles-switcher.css" ||
     url.pathname === "/manifest.webmanifest" ||
     url.pathname === "/revision.json"
   ) {
@@ -58,5 +59,22 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
+  );
+});
+
+// A "game needs you" notification (client/game-alerts.js): focus an open
+// SogoTable window and ask it to jump to the room, or open the app on it.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const code = String((event.notification.data && event.notification.data.code) || "");
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((client) => new URL(client.url).origin === self.location.origin);
+      if (open) {
+        open.postMessage({ type: "open-room", code });
+        return open.focus();
+      }
+      return self.clients.openWindow(code ? `/?room=${encodeURIComponent(code)}` : "/");
+    })
   );
 });

@@ -1559,3 +1559,59 @@ PLACEMENT RECEIPT
 - New owner row: none
 ```
 
+
+## 2026-11-12 — Play several games at once (keep seat, switcher, needs-me alerts)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Multi-game play: keep the seat on return to the dashboard, an active-games switcher,
+                needs-me alerts that work for every game including simultaneous-move games
+- Verdict:      workers/games/handlers.js awaitingMarks field + workers/games/<dir>/awaiting.js [EXISTING +
+                dir pattern]; workers/room-view.js awaiting_marks [EXISTING]; workers/player-rooms.js [NEW,
+                via REORG R1]; workers/sogotable-api.js route only; client/active-games.js,
+                client/game-alerts.js, controllers/game-switcher.js [NEW]; realtime.js createRoomWatcher,
+                controllers/toast.js action, service-worker.js notificationclick [EXISTING];
+                controllers/room-list.js [NEW, via REORG R2]; app.js wiring [EXISTING, after R2]
+- Flow stage:   rules (awaitingMarks) → projection (awaiting_marks) → read query (my-rooms) → transport
+                (watchers) → orchestrate (active-games) → render (switcher, toast) → attention (alerts)
+- Considerations:
+    - app.js at 2165/2180 and its let cap: extract the room-summary list view first (R2)
+    - the new "all my rooms" query is a sibling of activeRoomForPlayer → move both to player-rooms.js (R1)
+    - per-game awaitingMarks in awaiting.js: three rules.js files are near the 800 backstop
+    - no createRealtimeController per room (global listeners + 7s poll each); a socket-only watcher
+    - Notification via the service-worker registration first (new Notification() throws on Android)
+    - hot-seat and solo rooms are excluded from watching and alerts; Web Push is out of scope
+- New owner rows: workers/player-rooms.js, controllers/room-list.js, client/active-games.js,
+                client/game-alerts.js, controllers/game-switcher.js
+```
+
+```
+REORG RECEIPT (R1)
+- Moved activeRoomForPlayer + playerHasUnfinishedRoom from workers/sogotable-api.js to workers/player-rooms.js,
+  behaviour unchanged; entry ceiling re-pinned 1125 → 1117 (+ buffer).
+```
+
+```
+REORG RECEIPT (R2)
+- Extracted the room-summary list view (renderCurrentGames, renderRoomSummaryList, renderActiveGameNotice,
+  the two signature helpers, playerSignature and their two render-key lets) from app.js to
+  controllers/room-list.js, wired with wireRoomList(ctx). Behaviour unchanged. app.js ceiling re-pinned
+  2155 → 2058 (+ buffer); APP_TOP_LEVEL_LET_CAP ratcheted 25 → 23.
+```
+
+```
+PLACEMENT RECEIPT
+- Ask:          app.js is 2097 lines against a 2083 ceiling after the multi-game shell wiring; rule between
+                re-pinning (a) and a controllers/multi-game.js (b)
+- Verdict:      app.js [EXISTING, bless-and-raise after moving 3 pieces into client/active-games.js]
+- Flow stage:   orchestrate (screen/room switching)
+- Considerations:
+    - Rejected (b): a module that only assembles a dependency bag is a pass-through; keepSeatBack /
+      jumpToRoom / detachFromRoom change shell state and stay in the shell
+    - Moved out first: the /api/my-rooms fetch, the createRoomWatcher injection, the visibilitychange
+      refresh and getPlayerId all live in active-games.js via direct downstream imports
+    - Four duplicate room-drop blocks collapsed into detachFromRoom(); no new lets (cap 23); app.js is
+      still ~70 lines below its 2165 before R2
+    - Ceiling re-pinned at 2092 + WORKING_BUFFER
+- New owner row: none (client/active-games.js row amended)
+```

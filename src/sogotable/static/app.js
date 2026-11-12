@@ -38,6 +38,10 @@ import { scheduleWinOverlay, hideWinOverlay, wireWinOverlay, resetWinCelebration
 import { showToast, showInfoToast } from "./controllers/toast.js";
 import { wireRoomShare, captureJoinLink, resumePendingJoin, renderRoomShare } from "./controllers/room-share.js";
 import { syncTurnAttention } from "./client/turn-attention.js";
+import * as activeGames from "./client/active-games.js";
+import { wireGameAlerts, alertNeedsMe, notificationPermission, requestNotificationPermission, takeRoomFromUrl } from "./client/game-alerts.js";
+import { wireGameSwitcher, renderGameSwitcher } from "./controllers/game-switcher.js";
+import { wireRoomList, renderCurrentGames, renderActiveGameNotice, resetRoomListKeys, playerSignature } from "./controllers/room-list.js";
 import { wireTurnStatus, renderGamePlayerSwitch, showTurnStatus, setTurnStatusText } from "./controllers/turn-status.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
@@ -139,8 +143,6 @@ let selectedPlayerStats = [];
 let playerStatsCollapsed = true;
 let playerStatsCollapsePlayerId = "";
 let lastLobbyPlayersKey = "";
-let lastCurrentGameRoomsKey = "";
-let lastActiveGameNoticeKey = "";
 let lastSelectedPlayerStatsKey = "";
 let selectedPlayerStatsRequestId = 0;
 let playerApiAvailable = true;
@@ -241,7 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshGameDefinitions();
   renderGames();
   renderAppearanceChoices();
-  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate).then(() => resumePendingJoin());   // after an auto-update, put the player back
+  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate).then(() => resumePendingJoin()).then(() => { const code = takeRoomFromUrl(); if (code) jumpToRoom(code); void activeGames.refreshActiveGames(); });   // after an auto-update, put the player back
   renderSelectedGame();
   renderSelectedPlayer();
   renderCurrentPlayer();
@@ -281,11 +283,57 @@ document.addEventListener("DOMContentLoaded", () => {
   wirePromptControls();
   wireChessTutor({ deviceSelectedPlayer });
   wireWinOverlay({ getRoom: () => currentRoom, requestRematch: () => resetGame({ skipConfirm: true }) });
+  wireRoomList({
+    getRooms: () => currentGameRooms, getDevicePlayer: deviceSelectedPlayer, getDevicePlayerId: getDeviceSelectedPlayerId,
+    isSuperuser: isSogoSuperuserSelected, onEnter: enterRoomSummary, onSuperClose: closeRoomAsSuperuser,
+  });
   wireRoomShare({ joinRoomByCode: (code) => enterRoomSummary({ code }), hasSelectedPlayer: () => Boolean(deviceSelectedPlayer()), isSoloRoom });
+  wireMultiGame();
   captureJoinLink();
   bindRefreshTitleControls();
   realtime.connectAppEvents();
 });
+
+// Several games at once: step out to the dashboard keeping the seat, the 🎲
+// switcher, and "a game needs you" alerts (client/active-games.js decides when).
+function wireMultiGame() {
+  activeGames.configureActiveGames({
+    onNeedsMe: (entry) => alertNeedsMe({ code: entry.code, title: gameName(entry.gameId), text: "It's your move" }),
+    onChange: renderGameSwitcher,
+  });
+  wireGameSwitcher({
+    getGames: activeGames.activeGamesList, getBadgeCount: activeGames.needsMeElsewhereCount, getViewedCode: activeGames.getViewedRoomCode,
+    gameName, onOpen: jumpToRoom, onKeepSeatBack: keepSeatBack, alertState: notificationPermission, onEnableAlerts: requestNotificationPermission,
+  });
+  wireGameAlerts(jumpToRoom);
+  document.getElementById("keepSeatBack").addEventListener("click", keepSeatBack);
+}
+
+// Back to the games list without leaving: the seat, the table and the game go on.
+function keepSeatBack() {
+  if (!currentRoom) return;
+  activeGames.parkRoom(currentRoom.code);
+  if (currentRoom.local_mode) restoreLocalGameHomePlayer(currentRoom);
+  detachFromRoom();
+  showScreen("games");
+}
+
+function detachFromRoom() {
+  hostInviteStatus = null; currentRoom = null; activeGameRoom = null; lastRenderedRoomKey = "";
+  hideWinOverlay();
+  stopRoomLiveUpdates();
+}
+
+// Jump into one of my tables (switcher, alert, notification) — the current one stays seated.
+function jumpToRoom(code) {
+  if (currentRoom && currentRoom.code === code) return showScreen("game");
+  const entry = activeGames.activeGamesList().find((item) => item.code === code);
+  if (currentRoom) { activeGames.parkRoom(currentRoom.code); detachFromRoom(); }
+  if (entry && canonicalGameId(entry.gameId) !== selectedGameId) {
+    selectedGameId = canonicalGameId(entry.gameId); saveSelectedGame(); renderGames(); renderSelectedGame(); realtime.sendAppEventSubscription();
+  }
+  void enterRoomSummary({ code });
+}
 
 function bindTouchZoomGuard() {
   let lastTapTime = 0;
@@ -421,8 +469,7 @@ function renderGameSelected() {
   document.getElementById("selectedGameDescription").textContent = game ? game.summary : "";
   renderGameStatsLink();
   lastLobbyPlayersKey = "";
-  lastCurrentGameRoomsKey = "";
-  lastActiveGameNoticeKey = "";
+  resetRoomListKeys();
   resetGameStatsKey();
   renderCurrentGames();
   renderCreateGameButton();
@@ -565,7 +612,7 @@ async function autoOpenActiveRoomForSelectedPlayer({ allowHidden = false } = {})
     item.status === "active" &&
     item.players.some((seat) => seat.id === player.id && !seat.away)
   ));
-  if (!room || (currentRoom && currentRoom.code === room.code)) return false;
+  if (!room || (currentRoom && currentRoom.code === room.code) || activeGames.isParked(room.code)) return false;
   try {
     const data = await fetchJson(roomReadUrl(room.code));
     if (!data.ok) return false;
@@ -577,59 +624,6 @@ async function autoOpenActiveRoomForSelectedPlayer({ allowHidden = false } = {})
     // A transient read failure should not strand the screen; the next explicit refresh or socket update can recover.
     return false;
   }
-}
-
-function renderCurrentGames(errorMessage = "") {
-  const openHost = document.getElementById("openGamesList");
-  const closedHost = document.getElementById("closedGamesList");
-  if (!openHost || !closedHost) return;
-  const nextKey = errorMessage ? `error:${errorMessage}` : `${gameRoomsSignature(currentGameRooms)}:superuser=${isSogoSuperuserSelected()}`;
-  if (nextKey === lastCurrentGameRoomsKey) return;
-  lastCurrentGameRoomsKey = nextKey;
-  openHost.innerHTML = "";
-  closedHost.innerHTML = "";
-  if (errorMessage) {
-    openHost.textContent = errorMessage;
-    closedHost.textContent = "Could not refresh games.";
-    return;
-  }
-  const openRooms = currentGameRooms.filter((room) => room.status === "waiting_for_player");
-  const closedRooms = currentGameRooms.filter((room) => room.status === "active");
-  renderRoomSummaryList(openHost, openRooms, "No open games.");
-  renderRoomSummaryList(closedHost, closedRooms, "No games in progress.");
-}
-
-function renderRoomSummaryList(host, rooms, emptyText) {
-  if (!rooms.length) {
-    host.textContent = emptyText;
-    return;
-  }
-  rooms.forEach((room) => {
-    const card = document.createElement("div");
-    card.className = "room-summary-card";
-    const hostPlayer = room.players.find((player) => player.id === room.host_id);
-    const selectedSeat = room.players.find((player) => player.id === getDeviceSelectedPlayerId());
-    const isOpen = room.status === "waiting_for_player";
-    const canSuperClose = isSogoSuperuserSelected();
-    const canJoin = Boolean(deviceSelectedPlayer() && isOpen && !selectedSeat && (room.open_seats == null || room.open_seats > 0));
-    const canReenter = Boolean(selectedSeat);
-    const actionText = canReenter ? "Re-enter Game" : canJoin ? "Join Game" : room.status === "active" ? "In Progress" : "Join Game";
-    card.innerHTML = `
-      <div class="room-summary-main">
-        <strong>${escapeHtml(hostPlayer ? `${hostPlayer.name}'s Game` : "Game")}</strong>
-        <span>Code ${escapeHtml(room.code)}</span>
-      </div>
-      <button type="button" class="${canReenter || canJoin ? "secondary" : "ghost"}">${escapeHtml(actionText)}</button>
-      <button type="button" class="ghost danger room-super-close ${canSuperClose ? "" : "hidden"}" aria-label="Close table ${escapeHtml(room.code)} as Sogo" title="Close table as Sogo">X</button>
-      <div class="room-summary-players">${room.players.map((player) => avatarHtml(player)).join("")}</div>
-    `;
-    const button = card.querySelector("button");
-    const superCloseButton = card.querySelector(".room-super-close");
-    button.disabled = !(canReenter || canJoin);
-    button.addEventListener("click", () => enterRoomSummary(room));
-    superCloseButton.addEventListener("click", () => closeRoomAsSuperuser(room.code));
-    host.appendChild(card);
-  });
 }
 
 function renderCreateGameButton() {
@@ -680,33 +674,6 @@ async function enterRoomSummary(summary) {
   }
 }
 
-function renderActiveGameNotice(errorMessage = "") {
-  const host = document.getElementById("activeGameNotice");
-  if (!host) return;
-  const player = deviceSelectedPlayer();
-  const existing = player ? currentGameRooms.find((room) => room.players.some((seat) => seat.id === player.id)) : null;
-  const nextKey = errorMessage
-    ? `error:${errorMessage}`
-    : existing ? JSON.stringify({ selectedPlayerId: getDeviceSelectedPlayerId(), room: roomSummarySignature(existing) }) : "hidden";
-  if (nextKey === lastActiveGameNoticeKey) return;
-  lastActiveGameNoticeKey = nextKey;
-  if (errorMessage || !existing) {
-    host.classList.add("hidden");
-    host.innerHTML = "";
-    return;
-  }
-  const statusText = existing.status === "waiting_for_player" ? "waiting for an opponent" : "in progress";
-  host.classList.remove("hidden");
-  host.innerHTML = `
-    <div>
-      <strong>You have a game ${escapeHtml(statusText)}.</strong>
-      <span>Re-enter it instead of creating another one.</span>
-    </div>
-    <button type="button" class="secondary compact">Re-enter Game</button>
-  `;
-  host.querySelector("button").addEventListener("click", () => enterRoomSummary(existing));
-}
-
 function lobbyPlayersSignature(items) {
   const orderedPlayers = [...items].sort((left, right) => {
     if (left.id === getDeviceSelectedPlayerId()) return -1;
@@ -714,15 +681,6 @@ function lobbyPlayersSignature(items) {
     return String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" });
   });
   return JSON.stringify(orderedPlayers.map((player) => playerSignature(player)));
-}
-
-function gameRoomsSignature(rooms) {
-  return JSON.stringify({
-    selectedPlayerId: getDeviceSelectedPlayerId(),
-    rooms: [...rooms]
-      .sort((left, right) => String(left.code || "").localeCompare(String(right.code || "")))
-      .map((room) => roomSummarySignature(room)),
-  });
 }
 
 // Captures who/where for a bug report: the device's player and the screen they
@@ -763,26 +721,6 @@ function captureGameState() {
     if (s.length > CAP && Array.isArray(g.log)) s = JSON.stringify({ ...g, board: "(omitted)", log: g.log.slice(-80) });
     return s.length > CAP ? "" : s;   // give up rather than store a truncated, unparseable blob
   } catch (_e) { return ""; }
-}
-
-function roomSummarySignature(room) {
-  return {
-    code: room.code,
-    status: room.status,
-    host_id: room.host_id,
-    open_seats: room.open_seats,
-    players: (room.players || []).map((player) => playerSignature(player)),
-  };
-}
-
-function playerSignature(player) {
-  return {
-    id: player.id,
-    name: player.name,
-    icon: player.icon,
-    color: player.color,
-    mark: player.mark,
-  };
 }
 
 function setTurnColorVariables(element, color) {
@@ -1219,11 +1157,7 @@ async function closeGame() {
     }
   }
   forgetLocalGameHomePlayer(roomToClose);
-  hostInviteStatus = null;
-  currentRoom = null;
-  activeGameRoom = null;
-  hideWinOverlay();
-  stopRoomLiveUpdates();
+  detachFromRoom();
   refreshGameRooms();
   showScreen("gameSelected");
 }
@@ -1245,12 +1179,7 @@ async function closeRoomAsSuperuser(code) {
     if (currentRoom && currentRoom.code === code) {
       restoreLocalGameHomePlayer(currentRoom);
       forgetLocalGameHomePlayer(currentRoom);
-      hostInviteStatus = null;
-      currentRoom = null;
-      activeGameRoom = null;
-      lastRenderedRoomKey = "";
-      hideWinOverlay();
-      stopRoomLiveUpdates();
+      detachFromRoom();
       showScreen("gameSelected");
     }
     refreshGameRooms();
@@ -1507,6 +1436,7 @@ function setRoom(room) {
   renderRoomSlots();
   renderRoomShare(room, getDeviceSelectedPlayerId());
   syncTurnAttention(room, localRoomSeat(room), isSoloRoom(room));
+  activeGames.noteRoom(room);
   renderGame();
   handleIncomingResetRequest();
 }
@@ -1785,10 +1715,12 @@ function pickupAtCell(game, boardIndex, cellIndex) {
 
 function startRoomLiveUpdates() {
   if (!currentRoom) return;
+  activeGames.setViewedRoom(currentRoom.code);
   realtime.startRoomLiveUpdates(currentRoom.code);
 }
 
 function stopRoomLiveUpdates() {
+  activeGames.setViewedRoom(null);
   realtime.stopRoomLiveUpdates();
   syncTurnAttention(null);
 }
@@ -1900,12 +1832,7 @@ async function refreshHostInviteStatus() {
 function leaveClosedRoom() {
   restoreLocalGameHomePlayer(currentRoom);
   forgetLocalGameHomePlayer(currentRoom);
-  hostInviteStatus = null;
-  currentRoom = null;
-  activeGameRoom = null;
-  lastRenderedRoomKey = "";
-  hideWinOverlay();
-  stopRoomLiveUpdates();
+  detachFromRoom();
   renderGames();
   refreshGameRooms();
   showScreen("gameSelected");

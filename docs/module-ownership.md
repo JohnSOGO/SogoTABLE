@@ -28,7 +28,7 @@ concern), then implement.
 | `src/sogotable/static/client/session-store.js` | Device identity + seat-resolution priority (upstream state owner) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/client/app-update.js` | Deploy-version watch (revision.json poll + SW update + Worker-version skew), safe-reload gate, resume marker read/write, update overlay show/hide | `src/sogotable/static/app.js` |
 | `src/sogotable/static/api-client.js` | HTTP transport to the Worker | — |
-| `src/sogotable/static/realtime.js` | Room + app-event WebSocket controller | — |
+| `src/sogotable/static/realtime.js` | Room + app-event WebSocket controller + background room watchers | — |
 | `src/sogotable/static/storage.js` | localStorage/sessionStorage keys + load/migrate helpers | — |
 | `src/sogotable/static/sound.js` | Audio synthesis + playback | — |
 | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map (cue name → recorded file URL or null); no logic | `src/sogotable/static/sound.js` |
@@ -42,10 +42,14 @@ concern), then implement.
 | `src/sogotable/static/controllers/game-options.js` | Game-options menu | — |
 | `src/sogotable/static/controllers/game-stats.js` | Game stats panel + modal | — |
 | `src/sogotable/static/controllers/win-overlay.js` | Win overlay + confetti | — |
+| `src/sogotable/static/controllers/room-list.js` | Selected game's room-summary lists (open / in progress) + active-game re-enter notice — render-only, actions injected via wireRoomList(ctx) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/turn-status.js` | Room turn banner + player-switch strip (turn text, seat labels, turn tint) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/toast.js` | Non-blocking transient toast notices (replaces window.alert) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/room-share.js` | Room join-link sharing: `?join=` deep-link read/consume, navigator.share / copy, QR render | `src/sogotable/static/app.js` |
 | `src/sogotable/static/client/turn-attention.js` | Out-of-page "your turn" attention: document.title prefix, app badge, vibrate, Screen Wake Lock while a room is open — consumes a prepared is-my-turn flag, owns no turn logic | `src/sogotable/static/app.js` |
+| `src/sogotable/static/client/active-games.js` | The player's active rooms across games: seeds itself from /api/my-rooms (and on foreground), fed by snapshots + background room watchers, kept-seat (parked) set, needs-me edge detection from prepared awaiting_marks — owns no turn logic and no DOM | `src/sogotable/static/app.js` |
+| `src/sogotable/static/client/game-alerts.js` | Needs-me alert delivery: Notification permission + show (service-worker registration first), toast-with-jump, sound cue, notification-click → open room | `src/sogotable/static/app.js` |
+| `src/sogotable/static/controllers/game-switcher.js` | Active-games switcher (🎲 triggers + badge + list sheet, keep-seat back, alerts opt-in) — render + intent only, via wireGameSwitcher(ctx) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/controllers/player-appearance.js` | Player-edit appearance picker (icon + colour) | — |
 | `src/sogotable/static/controllers/superuser.js` | Sogo superuser identity + passcode gate | — |
 | `src/sogotable/static/controllers/local-seat.js` | Local hot-seat seat persistence (device-local) | — |
@@ -62,6 +66,7 @@ concern), then implement.
 | `workers/sogotable-api.js` | Worker entry: routing, side-effect dispatch, Durable Objects, remaining domain handlers | — |
 | `workers/room-view.js` | Room wire projection: public room/summary/invite dicts + viewer projection + revision/freshness bookkeeping | `workers/sogotable-api.js` |
 | `workers/room-seats.js` | Room seat roster lifecycle: seat/mark assignment + colours, activation/start, leave (pre-start removal with mark re-pack + host handoff; post-start away), rejoin, reset-vote tally | `workers/sogotable-api.js` |
+| `workers/player-rooms.js` | Player↔room membership queries over data.rooms: a player's unfinished room for a game, any unfinished room, all unfinished rooms (read-only selection; no projection, no mutation) | `workers/sogotable-api.js` |
 | `workers/game-catalog.js` | Game id resolution + public game definitions | `workers/sogotable-api.js` |
 | `workers/stats.js` | Room outcome stats: completed-room recording, Elo, high scores, personal stats | `workers/sogotable-api.js` |
 | `workers/projections.js` | Public projections (player + bot views) | `workers/sogotable-api.js` |
@@ -77,7 +82,7 @@ concern), then implement.
 | `workers/games/bots.js` | Shared bot helpers | — |
 | `workers/games/util.js` | Shared game utilities | — |
 | `workers/games/skip-vote.js` | Unanimous barrier-skip vote protocol (toggle / prune-ineligible / unanimity / clear) — eligibility predicate injected per game | — |
-| `workers/games/handlers.js` | Per-game dispatch table + game-agnostic dispatchers (create / toDict / viewer projection / legalMoves / bot / initSeats / start-options) | `workers/sogotable-api.js` |
+| `workers/games/handlers.js` | Per-game dispatch table + game-agnostic dispatchers (create / toDict / viewer projection / legalMoves / bot / initSeats / start-options / awaiting-marks) | `workers/sogotable-api.js` |
 
 ## Owned directory patterns
 

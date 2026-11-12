@@ -7,7 +7,7 @@
 // never on the entry.
 import { cleanGameId, playerCountForGame } from "./game-catalog.js";
 import { roomStatus } from "./projections.js";
-import { gameToDict, gameToDictForViewer } from "./games/handlers.js";
+import { gameToDict, gameToDictForViewer, awaitingMarksForGame } from "./games/handlers.js";
 
 export function publicInvite(invite) {
   return { ...invite, game_id: cleanGameId(invite.game_id) };
@@ -45,8 +45,16 @@ function resetRequestForRoom(room) {
   };
 }
 
+// Seat marks the table is waiting on (empty before start and once finished).
+// Read from the public game projection, so it reveals nothing the room dict
+// does not already show.
+function awaitingMarksFor(room, gameView) {
+  return room.started && roomStatus(room) === "active" ? awaitingMarksForGame(gameView) : [];
+}
+
 export function roomToDict(data, room) {
   ensureRoomFreshness(room);
+  const game = gameToDict(room.game);
   return {
     code: room.code,
     host_id: room.host_id,
@@ -57,7 +65,8 @@ export function roomToDict(data, room) {
     local_mode: room.local_mode,
     status: roomStatus(room),
     players: room.players,
-    game: gameToDict(room.game),
+    game,
+    awaiting_marks: awaitingMarksFor(room, game),
     latest_invite: latestInviteForRoom(data, room),
     reset_request: resetRequestForRoom(room),
     stats_recorded: Boolean(room.stats_recorded),
@@ -98,7 +107,9 @@ export function viewerPlayerIdForPayload(payload = {}) {
   ).trim();
 }
 
-export function roomSummary(room) {
+// `withAwaiting` adds awaiting_marks (it projects the game, so only the
+// per-player my-rooms list asks for it, not the per-game broadcast lists).
+export function roomSummary(room, { withAwaiting = false } = {}) {
   ensureRoomFreshness(room);
   const playerCount = playerCountForGame(room.game_id);
   return {
@@ -112,5 +123,6 @@ export function roomSummary(room) {
     status: roomStatus(room),
     players: room.players,
     open_seats: Number.isFinite(playerCount) ? Math.max(0, playerCount - room.players.length) : null,
+    ...(withAwaiting ? { awaiting_marks: awaitingMarksFor(room, gameToDict(room.game)) } : {}),
   };
 }

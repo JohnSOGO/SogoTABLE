@@ -15,6 +15,7 @@ import {
   gameIdMatches, playerCountForGame, isSoloGameId,
 } from "./game-catalog.js";
 import { loadState, saveState, withStateRetry } from "./persistence/state.js";
+import { activeRoomForPlayer, playerHasUnfinishedRoom, unfinishedRoomsForPlayer } from "./player-rooms.js";
 // Room outcome stats (completed-room recording, Elo, high scores, personal
 // stats) — extracted owner module; the Worker only decides WHEN to call it.
 import {
@@ -542,6 +543,10 @@ async function routeRequest(method, url, payload, data, options = {}) {
         .map((room) => roomSummary(room));
       return { ok: true, rooms };
     }
+    if (method === "GET" && url.pathname === "/api/my-rooms") {
+      const rooms = unfinishedRoomsForPlayer(data, String(url.searchParams.get("player_id") || "").trim());
+      return { ok: true, rooms: rooms.map((room) => roomSummary(room, { withAwaiting: true })) };
+    }
     if (method === "GET" && url.pathname === "/api/room") {
       const code = cleanRoomCode(url.searchParams.get("code") || "");
       const room = data.rooms[code];
@@ -1051,21 +1056,6 @@ function roomFromPayload(data, payload) {
   const room = data.rooms[code];
   if (!room) throw new Error("Table not found.");
   return room;
-}
-
-function activeRoomForPlayer(data, playerId, gameId) {
-  return Object.values(data.rooms).find((room) => (
-    gameIdMatches(room.game_id, gameId) &&
-    ["waiting_for_player", "active"].includes(roomStatus(room)) &&
-    room.players.some((player) => player.id === playerId)
-  )) || null;
-}
-
-function playerHasUnfinishedRoom(data, playerId) {
-  return Object.values(data.rooms).some((room) => (
-    ["waiting_for_player", "active"].includes(roomStatus(room)) &&
-    room.players.some((player) => player.id === playerId)
-  ));
 }
 
 function botSeatForCurrentTurn(room) {

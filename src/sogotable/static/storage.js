@@ -51,6 +51,9 @@ export const LOCAL_GAME_HOME_PLAYERS_KEY = "sogotable.localGameHomePlayers";
 export const THEME_STORAGE_KEY = "sogotable.theme";
 // Per-tab marker of where the player was when an auto-update reloaded the page
 // (shape + TTL owned by client/app-update.js). Also read by index.html pre-paint.
+// Rooms this tab stepped out of while keeping its seat (client/active-games.js),
+// so a reload or a visit to that game's page does not bounce straight back in.
+export const PARKED_ROOMS_KEY = "sogotable.parkedRooms";
 export const APP_UPDATE_RESUME_KEY = "sogotable.appUpdateResume";
 
 export function loadLocalGameHomePlayers() {

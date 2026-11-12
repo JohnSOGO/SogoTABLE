@@ -65,8 +65,8 @@ function gameDirOf(rel) {
 // rules.
 const WORKING_BUFFER = 25;
 const CEILINGS = {
-  "src/sogotable/static/app.js": 2155 + WORKING_BUFFER,
-  "workers/sogotable-api.js": 1125 + WORKING_BUFFER,
+  "src/sogotable/static/app.js": 2092 + WORKING_BUFFER,
+  "workers/sogotable-api.js": 1117 + WORKING_BUFFER,
   "src/sogotable/static/styles.css": 206 + WORKING_BUFFER,
   // Looser legacy cap already carrying more than a buffer of headroom (file ~1663);
   // left as-is rather than tightened — the buffer is a floor, not a mandate to churn.
@@ -89,7 +89,7 @@ for (const [rel, ceiling] of Object.entries(CEILINGS)) {
 // it must go in an owner module (e.g. client/session-store.js). Lower this when
 // you move state OUT, like the line ceilings. (Also catches incidental top-level
 // timers/keys — acceptable: it forces a deliberate choice on any new global.)
-const APP_TOP_LEVEL_LET_CAP = 25;
+const APP_TOP_LEVEL_LET_CAP = 23;
 test(`architecture: app.js keeps <= ${APP_TOP_LEVEL_LET_CAP} top-level let declarations`, () => {
   const count = (readFileSync(join(root, "src/sogotable/static/app.js"), "utf8").match(/^let /gm) || []).length;
   assert.ok(

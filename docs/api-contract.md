@@ -315,7 +315,12 @@ Room summary shape:
 
 For unlimited guest-list games such as 10,000, `open_seats` may be `null`.
 
-Full room responses also include `game`, `latest_invite`, and `reset_request`. `revision` is a room-level monotonic freshness marker. `game_epoch` increments when reset/play-again starts a fresh board, so `game.move_count` can safely reset to zero without looking stale.
+Full room responses also include `game`, `awaiting_marks`, `latest_invite`, and `reset_request`.
+`awaiting_marks` lists the seat marks the table is waiting on (every uncommitted
+seat in a simultaneous round, the seat on turn otherwise); it is `[]` before the
+start and once the game is finished. It comes from each game's `awaitingMarks`
+handler field (see game-integration-spec §4.4) and drives the active-games
+switcher and needs-me alerts. `revision` is a room-level monotonic freshness marker. `game_epoch` increments when reset/play-again starts a fresh board, so `game.move_count` can safely reset to zero without looking stale.
 
 Room responses are viewer-projected when a `player_id` is supplied on the HTTP
 query string or room WebSocket URL, or when a mutating request includes a player
@@ -453,6 +458,19 @@ Returns the selected player's unfinished room for that game, if any.
 {
   "ok": true,
   "active_room": null
+}
+```
+
+### `GET /api/my-rooms?player_id=player-id`
+
+Read-only. Returns every unfinished table the player is seated at, across all
+games, as room summaries plus `awaiting_marks`, ordered by code. Feeds the
+active-games switcher; an unknown or missing `player_id` returns `[]`.
+
+```json
+{
+  "ok": true,
+  "rooms": [{ "code": "ABCD", "game_id": "a3f19c6e42b8", "status": "active", "players": [], "awaiting_marks": ["X"] }]
 }
 ```
 
