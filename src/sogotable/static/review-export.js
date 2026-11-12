@@ -244,6 +244,7 @@ const REVIEW_EXPORT_FILES = [
   "docs/doctrine.md",
   "docs/game-battleship.md",
   "docs/game-dots-and-boxes.md",
+  "docs/game-integration-spec.md",
   "docs/game-quoridor.md",
   "docs/game-rtta.md",
   "docs/game-super-tic-tac-toe.md",
