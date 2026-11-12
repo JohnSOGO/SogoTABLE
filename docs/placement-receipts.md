@@ -1116,6 +1116,48 @@ gameToDictForViewer chain line (hidden-info game — the sanitizer line may neve
 the row). Review-export allowlist extended with the six worker-side and four
 client-side wnyk modules for the import-closure guard.
 
+## 2026-11-12 — Chinese Checkers (new game module, simultaneous submit + priority barrier)
+
+- Ask:          Place a new parallel-play Chinese Checkers game (simultaneous submit, round barrier,
+                priority conflict resolution, host-start lobby), mirroring Realmwright (98b85b4).
+- Verdict:      workers/games/chinese-checkers/ (board.js, resolve.js, rules.js, ai.js) +
+                src/sogotable/static/games/chinese-checkers/ (manifest, branding, assets, board-svg,
+                render, panels, lobby, sfx, styles, PLAN.md, README.md) + one-row wiring entries
+                (registry.js, game-kinds.js, app.js, handlers.js row + gameToDictForViewer line,
+                stats.js, review-export.js allowlist, tests/helpers.js, sogotable-api.test.js list)
+                [EXISTING owner: directory patterns]
+- Flow stage:   validate + apply (board/resolve/rules, server-authoritative at the round barrier);
+                render (client dir); record (stats.js score branch).
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js, docs/placement-receipts.md,
+                docs/live-rounds.md, docs/game-integration-spec.md (PR #3). Game spec:
+                docs/game-chinese-checkers.md + games/chinese-checkers/PLAN.md.
+- Considerations:
+    - app.js 2263/2285 (+1 line); sogotable-api.test.js games-list row only; behaviour tests live
+      in chinese-checkers-*.test.js. No reorganizer.
+    - Priority conflict resolution split out of rules.js into pure resolve.js (+ its own test) so
+      rules.js does not carry five concerns toward the 800 backstop.
+    - Rejected: barrier/priority logic in skip-vote.js, the shared lobby, or room-view.js.
+    - Hidden commits: the handlers.js row and the gameToDictForViewer line land in one commit.
+    - Hot-seat explicitly out of scope (hidden simultaneous commits need a hand-off screen).
+- Reorganizer:  NONE
+- New owner row: none
+
+## 2026-11-12 — Chinese Checkers play modes (blitz / live / turns / timers) + new options
+
+- Ask:          Add timing modes (rounds+timer, blitz, live, turns), a now seam with lazy deadlines and
+                TICK, and options marbles 15 / chains / allow_pass / assists.
+- Verdict:      NEW pure file workers/games/chinese-checkers/modes.js (now seam, deadline math,
+                advanceClock, blitz/live immediate moves, round/turn advancing) called by rules.js
+                through an ops bag (no import cycle); options/projection/allow_pass stay in rules.js;
+                15-marble geometry + chains=false in board.js. review-export.js allowlist row added.
+                [EXISTING owner: workers/games/ directory pattern]
+- Flow stage:   validate + apply (server-authoritative), persist (deadline in game state).
+- Considerations:
+    - rules.js held under ~600 lines (528 -> 596); modes.js 233.
+    - No Date.now()/timers outside the seam default; deadlines enforced lazily per action.
+- Reorganizer:  NONE
+- New owner row: none (directory pattern)
+
 ## 2026-11-12 — REORG: extract Battleship fleet geometry + theme CSS from client.js
 
 ```
