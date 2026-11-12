@@ -7,6 +7,13 @@
 
 import { GAME_CATEGORIES } from "./registry.js";
 
+// The admin-set alternate name ("Ticket to Ride"), shown as "(Ticket to Ride)"
+// under the published name. Empty when the game has none.
+export function formatAltName(game) {
+  const alt = game && game.alt_name ? String(game.alt_name).trim() : "";
+  return alt ? `(${alt})` : "";
+}
+
 export function renderGameList(host, games, { selectedGameId, isReady, availabilityText, onSelect }) {
   host.innerHTML = "";
 
@@ -16,11 +23,21 @@ export function renderGameList(host, games, { selectedGameId, isReady, availabil
     button.type = "button";
     button.className = `game-card ${game.id === selectedGameId ? "selected" : ""}`;
     button.dataset.gameId = game.id;
+    // Alt names are admin-entered text shown to every player: textContent only.
+    const alt = formatAltName(game);
     button.textContent = game.name;
+    if (alt) {
+      const line = document.createElement("small");
+      line.className = "game-card-alt";
+      line.textContent = alt;
+      button.append(document.createElement("br"), line);
+    }
     button.disabled = !ready;
+    const label = alt ? `${game.name} ${alt}` : game.name;
+    if (alt) button.setAttribute("aria-label", label);
     if (!ready) {
       button.title = availabilityText(game);
-      button.setAttribute("aria-label", `${game.name}. ${availabilityText(game)}`);
+      button.setAttribute("aria-label", `${label}. ${availabilityText(game)}`);
     }
     button.addEventListener("click", () => {
       if (!ready) return;
