@@ -60,7 +60,14 @@ export const ASSETS = {
   },
   seaImage: null,
   cardArt: { red: null, orange: null, yellow: null, green: null, blue: null, purple: null, black: null, white: null, wild: null },
-  sounds: { draw: null, claim: null, claimOther: null, tickets: null, reject: null, finalRound: null, win: null },
+  // Shared Kenney CC0 files from static/sounds/ (docs/SOUNDS.md); null = synth.
+  sounds: {
+    draw: new URL("../../sounds/card-deal.mp3", import.meta.url).href,
+    claim: null, claimOther: null,
+    tickets: new URL("../../sounds/trick-take.mp3", import.meta.url).href,
+    reject: null, finalRound: null,
+    win: null, // the shell already plays the global win/lose jingle at game end
+  },
 };
 
 export function paletteFor(theme) {
