@@ -264,9 +264,11 @@ export function renderMyGame(ctx) {
 All additive, beside existing games:
 
 1. `games/game-kinds.js` — an `isMyGameGameState` predicate (+ return it).
-2. `app.js` — import `renderMyGame`; add the predicate to the host-start branch
-   condition and the render-function chooser in `renderGame`; add it to the
-   `renderGamePlayerSwitch` hide list.
+2. `games/room-render-dispatch.js` — import `renderMyGame` and add one
+   `{ is: "isMyGameGameState", render: renderMyGame }` row to
+   `HOST_START_RENDERERS` (before the Yahtzee row). `app.js` needs no edit.
+   Also add the predicate to the `renderGamePlayerSwitch` hide list in
+   `controllers/turn-status.js`.
 3. `games/render-keys.js` — any **game-level** field your UI reads that is not
    already in the key. (`revision` is in the key, so this is belt-and-braces, but
    keep it honest.)
@@ -293,7 +295,7 @@ need it.
 
 | Style | `timingMode` | Actions resolve… | Contention rule | Reference |
 |---|---|---|---|---|
-| **Simultaneous submit** (preferred) | `"simultaneousSubmit"` | **together** when the barrier closes | a deterministic **rule** decides — arrival order never matters | Potion Lab (per-pick draft) |
+| **Simultaneous submit** (preferred) | `"simultaneousSubmit"` | **together** when the barrier closes | a deterministic **rule** decides — arrival order never matters | Potion Lab (per-pick draft); [Tracklayers](game-tracklayers.md) (one hidden action per round, rotating priority) |
 | Live round | `"liveRound"` | **immediately** as each commit arrives | **server-received order** — first commit wins, by design | RTTA (first-builder monument VP); Realmwright (shared tile board: a later placement that no longer fits is rejected with a reason) |
 
 Choose **simultaneous submit** when players compete for the *same* shared thing

@@ -105,6 +105,12 @@ export function buildRoomRenderKey(room, gameId) {
       phase_started_at: room.game.phase_started_at,
       black_swaps: room.game.black_swaps,
       draw_count: room.game.draw_count,
+      // reefkeepers — seat reefs/pending/legal/commit flags ride in
+      // `players_state`; `round`/`options`/`events`/`skip_votes` are shared above.
+      offer: room.game.offer,
+      claim_order: room.game.claim_order,
+      rounds_total: room.game.rounds_total,
+      results: room.game.results,
     },
     latest_invite: room.latest_invite ? {
       id: room.latest_invite.id,

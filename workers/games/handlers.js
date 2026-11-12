@@ -85,14 +85,20 @@ import {
   REALMWRIGHT_GAME_ID, isRealmwrightGame, newRealmwrightGame, initRealmwrightSeats, setRealmwrightOptions, makeRealmwrightMove, realmwrightGameToDict, realmwrightGameToDictForViewer,
 } from "./realmwright/rules.js";
 import {
-  BLOOMWORK_GAME_ID, isBloomworkGame, newBloomworkGame, initBloomworkSeats, setBloomworkOptions, makeBloomworkMove, bloomworkGameToDict, bloomworkGameToDictForViewer,
-} from "./bloomwork/rules.js";
+  TRACKLAYERS_GAME_ID, isTracklayersGame, newTracklayersGame, initTracklayersSeats, setTracklayersOptions, makeTracklayersMove, tracklayersGameToDict, tracklayersGameToDictForViewer,
+} from "./tracklayers/rules.js";
 import {
   CHINESE_CHECKERS_GAME_ID, isChineseCheckersGame, newChineseCheckersGame, initChineseCheckersSeats, setChineseCheckersOptions, makeChineseCheckersMove, chineseCheckersGameToDict, chineseCheckersGameToDictForViewer,
 } from "./chinese-checkers/rules.js";
 import {
   LAST_ORDERS_GAME_ID, isLastOrdersGame, newLastOrdersGame, initLastOrdersSeats, setLastOrdersOptions, makeLastOrdersMove, lastOrdersGameToDict, lastOrdersGameToDictForViewer,
 } from "./last-orders/rules.js";
+import {
+  REEFKEEPERS_GAME_ID, isReefkeepersGame, newReefkeepersGame, initReefkeepersSeats, setReefkeepersOptions, makeReefkeepersMove, reefkeepersGameToDict, reefkeepersGameToDictForViewer,
+} from "./reefkeepers/rules.js";
+import {
+  BLOOMWORK_GAME_ID, isBloomworkGame, newBloomworkGame, initBloomworkSeats, setBloomworkOptions, makeBloomworkMove, bloomworkGameToDict, bloomworkGameToDictForViewer,
+} from "./bloomwork/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -174,6 +180,14 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isRealmwrightGame(prevGame) && prevGame.options) setRealmwrightOptions(nextGame, { realm_options: prevGame.options });
     } },
+  { id: TRACKLAYERS_GAME_ID, is: isTracklayersGame, create: newTracklayersGame, toDict: tracklayersGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeTracklayersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initTracklayersSeats,
+    // Host option (trains per seat 25/35/45) from the lobby, applied at
+    // /api/room/start and carried across a reset.
+    applyStartOptions: (game, payload) => setTracklayersOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isTracklayersGame(prevGame) && prevGame.options) setTracklayersOptions(nextGame, { tracklayers_options: prevGame.options });
+    } },
   { id: CHINESE_CHECKERS_GAME_ID, is: isChineseCheckersGame, create: newChineseCheckersGame, toDict: chineseCheckersGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeChineseCheckersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initChineseCheckersSeats,
     // Host options (jumps, marbles, capture, teams, stay-in-goal, no-parking,
@@ -190,6 +204,14 @@ const GAME_HANDLERS = [
     applyStartOptions: (game, payload) => setLastOrdersOptions(game, payload),
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isLastOrdersGame(prevGame) && prevGame.options) setLastOrdersOptions(nextGame, { lo_options: prevGame.options });
+    } },
+  { id: REEFKEEPERS_GAME_ID, is: isReefkeepersGame, create: newReefkeepersGame, toDict: reefkeepersGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeReefkeepersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initReefkeepersSeats,
+    // Host options (reef size, heart/full bonuses, spots, live score, hints)
+    // from the lobby, applied at /api/room/start and carried across a reset.
+    applyStartOptions: (game, payload) => setReefkeepersOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isReefkeepersGame(prevGame) && prevGame.options) setReefkeepersOptions(nextGame, { reef_options: prevGame.options });
     } },
   { id: BLOOMWORK_GAME_ID, is: isBloomworkGame, create: newBloomworkGame, toDict: bloomworkGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeBloomworkMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initBloomworkSeats,
@@ -254,8 +276,10 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isPotionLabGame(game)) return potionLabGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isWnykGame(game)) return wnykGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isRealmwrightGame(game)) return realmwrightGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isTracklayersGame(game)) return tracklayersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isChineseCheckersGame(game)) return chineseCheckersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isReefkeepersGame(game)) return reefkeepersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isBloomworkGame(game)) return bloomworkGameToDictForViewer(game, viewerMark);
   return game;
 }

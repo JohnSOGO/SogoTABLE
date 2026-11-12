@@ -90,22 +90,9 @@ import {
 import { wireLobby, renderRoomSlots, renderRoomInviteStatus } from "./games/lobby.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
+import { pickHostStartRenderer } from "./games/room-render-dispatch.js";
 import { wireTenThousandFarkleAck, maybeAutoAckTenThousandFarkle } from "./games/ten-thousand/farkle-ack.js";
-import { renderZombieDiceGame } from "./games/zombie-dice/render.js";
-import { renderLiarsDiceGame } from "./games/liars-dice/render.js";
-import { renderNoThanksGame } from "./games/no-thanks/render.js";
-import { renderHeartsGame } from "./games/hearts/render.js";
-import { renderYahtzeeGame } from "./games/yahtzee/render.js";
-import { renderMazewrightGame } from "./games/mazewright/render.js";
 import { wireChessTutor } from "./games/chess-tutor/index.js";
-import { renderRttaGame } from "./games/rtta/render.js";
-import { renderPotionLabGame } from "./games/potion-lab/render.js";
-import { renderRealmwrightGame } from "./games/realmwright/render.js";
-import { renderLastOrdersGame } from "./games/last-orders/render.js";
-import { renderBloomworkGame } from "./games/bloomwork/render.js";
-import { renderChineseCheckersGame } from "./games/chinese-checkers/render.js";
-import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
-import { renderWnykGame } from "./games/wnyk/render.js";
 import {
   setSoundEnabled,
   setSoundVolumeLevel,
@@ -124,6 +111,7 @@ let games = [...fallbackGames];
 // Game-kind predicates live in the pure games/game-kinds.js leaf; wire them
 // with the shell's `canonicalGameId` (hoisted below) so alias resolution keeps
 // tracking the live games list.
+const gameKinds = createGameKinds(canonicalGameId);
 const {
   isTacticalGameState,
   isBoxesGameState,
@@ -131,8 +119,8 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isBloomworkGameState,
-} = createGameKinds(canonicalGameId);
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isReefkeepersGameState, isBloomworkGameState,
+} = gameKinds;
 
 migrateStorageNamespace();
 initSessionStore(); // device identity now lives in client/session-store.js
@@ -184,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
     visibleBattleshipPlayerMark, getBattleshipReviewMark, setBattleshipReviewMark,
     isTacticalGameState, isBattleshipGameState, isTenThousandGameState, isYahtzeeGameState,
     isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
-    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isBloomworkGameState,
+    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isReefkeepersGameState, isBloomworkGameState,
   });
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat();
@@ -1658,10 +1646,11 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game) || isRealmwrightGameState(game) || isChineseCheckersGameState(game) || isLastOrdersGameState(game) || isBloomworkGameState(game)) {
+  const hostStartRender = pickHostStartRenderer(game, gameKinds);
+  if (hostStartRender) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : isRealmwrightGameState(game) ? renderRealmwrightGame : isChineseCheckersGameState(game) ? renderChineseCheckersGame : isLastOrdersGameState(game) ? renderLastOrdersGame : isBloomworkGameState(game) ? renderBloomworkGame : renderYahtzeeGame)({
+    hostStartRender({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,

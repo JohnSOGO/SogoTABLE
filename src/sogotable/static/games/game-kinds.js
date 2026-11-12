@@ -43,6 +43,10 @@ export function createGameKinds(canonicalGameId) {
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.chineseCheckers);
   const isLastOrdersGameState = (game) =>
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.lastOrders);
+  const isTracklayersGameState = (game) =>
+    Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.tracklayers);
+  const isReefkeepersGameState = (game) =>
+    Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.reefkeepers);
   const isBloomworkGameState = (game) =>
     Boolean(game && canonicalGameId(game.game_id) === GAME_IDS.bloomwork);
   return {
@@ -64,6 +68,8 @@ export function createGameKinds(canonicalGameId) {
     isRealmwrightGameState,
     isChineseCheckersGameState,
     isLastOrdersGameState,
+    isTracklayersGameState,
+    isReefkeepersGameState,
     isBloomworkGameState,
   };
 }
