@@ -16,7 +16,7 @@
 //           anchor on procedural tiles (e.g. a custom cloister picture).
 //   meeple: url — one image used for every player's piece (it is tinted with
 //           a coloured ring underneath so players stay distinguishable).
-//   sounds: { place, meeple, complete, reject, round, win } — audio files.
+//   sounds: { tap, place, meeple, complete, reject, round, win } — audio files.
 //
 // The palette drives every procedural colour; `light` and `dark` follow the
 // platform theme (<html data-theme>). Change a hex here to re-skin the board.
@@ -48,7 +48,7 @@ export const ASSETS = {
   tiles: {},
   tileFeatureArt: {},
   meeple: null,
-  sounds: { place: null, meeple: null, complete: null, reject: null, round: null, win: null },
+  sounds: { tap: null, place: null, meeple: null, complete: null, reject: null, round: null, win: null },
 };
 
 export function paletteFor(theme) {

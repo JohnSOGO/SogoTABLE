@@ -11,7 +11,6 @@
 // by round + tile_serial — so re-renders never reset it. The DOM skeleton
 // (incl. the gesture-wired viewport) is kept across snapshots; only the panel
 // contents are repainted. All wiring is addEventListener; no app.js imports.
-import { playClick } from "../../sound.js";
 import { paletteFor } from "./assets.js";
 import { featureAnchor } from "./art.js";
 import { applyCamera, attachGestures, cancelTween, fitCamera, newCamera, tweenCamera, ZOOM_MAX, zoomAt } from "./board-view.js";
@@ -271,7 +270,7 @@ function onBoardTap(wx, wy) {
       });
       if (best !== null) {
         S.meeple = S.meeple === best ? null : best;
-        playClick();
+        playCue("tap");
         paint(ctx);
         return;
       }
@@ -286,7 +285,7 @@ function onBoardTap(wx, wy) {
   S.sel = { x, y, r };
   S.rot = r;
   S.meeple = null;
-  playClick();
+  playCue("tap");
   zoomToCell(x, y);
   paint(ctx);
 }
@@ -309,7 +308,7 @@ function rotate(ctx, me) {
   } else {
     S.rot = (S.rot + 1) % 4;
   }
-  playClick();
+  playCue("tap");
   paint(ctx);
 }
 
@@ -352,7 +351,7 @@ async function confirm(ctx, me) {
 
 function voteSkip(ctx, target) {
   if (movePending(ctx)) return;
-  playClick();
+  playCue("tap");
   Promise.resolve(ctx.makeMove({ type: "SKIP_PLAYER", target, round: ctx.game.round })).then((error) => {
     if (typeof error === "string" && error) { setFlash(error, "error"); playCue("reject"); repaint(); }
   }).catch(() => {});
@@ -481,7 +480,7 @@ function ensureSkeleton(host) {
   root.addEventListener("click", (e) => {
     if (!e.target.closest || !e.target.closest("[data-rw-bag]")) return;
     S.bagOpen = !S.bagOpen;
-    playClick();
+    playCue("tap");
     repaint();
   });
   root.querySelectorAll("[data-rw-zoom]").forEach((button) => {
@@ -640,7 +639,7 @@ function paint(ctx) {
       if (button.disabled) return;
       const v = button.getAttribute("data-rw-meeple");
       S.meeple = v === "none" ? null : Number(v);
-      playClick();
+      playCue("tap");
       paint(S.lastCtx || ctx);
     });
   });

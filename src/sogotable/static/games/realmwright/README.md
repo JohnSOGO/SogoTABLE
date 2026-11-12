@@ -23,7 +23,7 @@ decided, and one `PLACE_TILE` (tile + optional meeple) is sent per round.
 | `lobby.js` | Host options over the shared `renderHostStartLobby`; store keyed by room+epoch; `getStartArg → { realm_options }`. |
 | `fx.js` | Animation timeline (view only): one queue of timed beats from new events — tile drop, meeple drop ~1 s later, scoring jump + "+N", round banner, last-tile pulse, score count-up, game-over sequence. Absolute start times + negative `animation-delay`, so re-renders never restart it; Plays even when the OS asks for reduced motion (`HONOR_OS_REDUCED_MOTION` in fx.js turns that back on). |
 | `bot-tick.js` | Bot think-time nudger: maps the earliest unplaced bot's `act_at` onto the local clock (`server_now` offset) + a per-seat stagger and sends `BOT_TICK`; errors are silent, retries back off. |
-| `sfx.js` | Sound cues as tone data via `sound.js` `playTones`, event-log diffing so everyone hears completions. |
+| `sfx.js` | Sound cues as tone + noise data via `sound.js` `playTones`: natural wood clacks, marimba and bell voices (no square/saw "8-bit" waves), including the UI `tap`. Event-log diffing so everyone hears completions. |
 | `styles.js` | Scoped `.realmwright-root` CSS (`rw-*` classes), `#macroBoard` / `#turnStatus` neutralisers, dark block. |
 
 ## Swapping art or sounds

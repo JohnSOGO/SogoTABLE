@@ -1,4 +1,4 @@
-// Realmwright — sound cues as tone data (synthesised through sound.js, which
+// Realmwright — sound cues as tone and noise data (synthesised through sound.js, which
 // owns mute + volume). Each cue checks ASSETS.sounds for a file override first.
 //
 // Cues are driven by diffing the server's event log (game.events[].seq)
@@ -8,49 +8,80 @@
 import { playSoundFile, playTones } from "../../sound.js";
 import { ASSETS } from "./assets.js";
 
+// Natural, not chiptune: wood knocks and clacks are short band-passed noise
+// bursts over a soft sine thump; melodic cues are marimba / bell voices (a
+// sine fundamental plus quiet partials, each decaying on its own). No square
+// or sawtooth waves anywhere.
 const C_MAJOR = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];
 
+// One marimba note: fundamental + the bar's 4th partial, both plucked.
+function marimba(f, { delay = 0, volume = 0.05, decay = 0.45 } = {}) {
+  return [
+    { frequency: f, duration: decay, type: "sine", volume, delay },
+    { frequency: f * 3.93, duration: decay * 0.35, type: "sine", volume: volume * 0.22, delay },
+    { type: "noise", frequency: f * 2, filter: "bandpass", q: 4, duration: 0.025, attack: 0.002, volume: volume * 0.35, delay },
+  ];
+}
+
+// A small hand bell: inharmonic partials with long, staggered decays.
+function bell(f, { delay = 0, volume = 0.03, decay = 1.2 } = {}) {
+  return [
+    { frequency: f, duration: decay, type: "sine", volume, delay },
+    { frequency: f * 2.76, duration: decay * 0.6, type: "sine", volume: volume * 0.45, delay },
+    { frequency: f * 5.4, duration: decay * 0.3, type: "sine", volume: volume * 0.2, delay },
+  ];
+}
+
+// A wooden tile set down on the table: a click, a body and a low thump.
+function woodClack(scale = 1) {
+  return [
+    { type: "noise", frequency: 2200, filter: "bandpass", q: 3, duration: 0.05, attack: 0.002, volume: 0.07 * scale },
+    { type: "noise", frequency: 700, filter: "bandpass", q: 1.4, duration: 0.11, attack: 0.003, volume: 0.06 * scale },
+    { frequency: 120, slideTo: 72, duration: 0.14, type: "sine", volume: 0.07 * scale },
+  ];
+}
+
 const CUES = {
-  place: () => [
-    { frequency: 150, slideTo: 70, duration: 0.14, type: "sine", volume: 0.09 },
-    { frequency: 320, slideTo: 180, duration: 0.05, type: "triangle", volume: 0.03 },
+  // UI taps (pick a spot, rotate, buttons): a light wooden tick.
+  tap: () => [
+    { type: "noise", frequency: 3200, filter: "bandpass", q: 5, duration: 0.025, attack: 0.001, volume: 0.035 },
+    { frequency: 1400, slideTo: 1100, duration: 0.03, type: "sine", volume: 0.02 },
   ],
-  placeOther: () => [
-    { frequency: 140, slideTo: 80, duration: 0.1, type: "sine", volume: 0.04 },
-  ],
+  place: () => woodClack(1),
+  placeOther: () => woodClack(0.55),
+  // A wooden figure tapped onto its spot: a hollow "tok".
   meeple: () => [
-    { frequency: 1250, duration: 0.028, type: "triangle", volume: 0.05 },
-    { frequency: 880, duration: 0.03, type: "triangle", volume: 0.045, delay: 0.06 },
+    { frequency: 880, slideTo: 620, duration: 0.07, type: "sine", volume: 0.05 },
+    { type: "noise", frequency: 2600, filter: "bandpass", q: 6, duration: 0.03, attack: 0.002, volume: 0.04 },
   ],
+  // A rising marimba run; bigger scores run longer, ending on a soft bell.
   complete: (points = 4) => {
     const steps = Math.max(2, Math.min(C_MAJOR.length - 2, 2 + Math.floor(points / 3)));
     const tones = [];
-    for (let i = 0; i < steps; i += 1) {
-      tones.push({ frequency: C_MAJOR[i], duration: 0.11, type: "triangle", volume: 0.045, delay: i * 0.075 });
-    }
+    for (let i = 0; i < steps; i += 1) tones.push(...marimba(C_MAJOR[i], { delay: i * 0.085, volume: 0.045 }));
     const top = C_MAJOR[Math.min(steps + 1, C_MAJOR.length - 1)];
-    tones.push({ frequency: top, duration: 0.32, type: "sine", volume: 0.05, delay: steps * 0.075 });
-    tones.push({ frequency: top / 2, duration: 0.32, type: "triangle", volume: 0.025, delay: steps * 0.075 });
+    tones.push(...bell(top, { delay: steps * 0.085, volume: 0.035, decay: 0.9 }));
+    tones.push({ type: "noise", frequency: 7000, slideTo: 3500, filter: "highpass", q: 0.7, duration: 0.5, attack: 0.04, volume: 0.012, delay: steps * 0.085 });
     return tones;
   },
+  // Two soft, low wooden knocks: "not there".
   reject: () => [
-    { frequency: 190, slideTo: 140, duration: 0.14, type: "sawtooth", volume: 0.018 },
-    { frequency: 170, slideTo: 120, duration: 0.16, type: "sawtooth", volume: 0.016, delay: 0.16 },
+    { frequency: 180, slideTo: 130, duration: 0.11, type: "sine", volume: 0.06 },
+    { type: "noise", frequency: 450, filter: "bandpass", q: 2, duration: 0.07, attack: 0.002, volume: 0.04 },
+    { frequency: 160, slideTo: 115, duration: 0.12, type: "sine", volume: 0.055, delay: 0.15 },
+    { type: "noise", frequency: 400, filter: "bandpass", q: 2, duration: 0.07, attack: 0.002, volume: 0.035, delay: 0.15 },
   ],
-  round: () => [
-    { frequency: 1318.51, duration: 0.5, type: "sine", volume: 0.03 },
-    { frequency: 1975.53, duration: 0.42, type: "sine", volume: 0.018, delay: 0.09 },
-  ],
+  round: () => bell(1046.5, { volume: 0.028, decay: 1.3 }),
   win: () => [
-    { frequency: 523.25, duration: 0.14, type: "triangle", volume: 0.05 },
-    { frequency: 659.25, duration: 0.14, type: "triangle", volume: 0.05, delay: 0.14 },
-    { frequency: 783.99, duration: 0.14, type: "triangle", volume: 0.05, delay: 0.28 },
-    { frequency: 1046.5, duration: 0.5, type: "sine", volume: 0.06, delay: 0.42 },
-    { frequency: 523.25, duration: 0.5, type: "triangle", volume: 0.03, delay: 0.42 },
+    ...marimba(523.25, { volume: 0.05 }),
+    ...marimba(659.25, { delay: 0.14, volume: 0.05 }),
+    ...marimba(783.99, { delay: 0.28, volume: 0.05 }),
+    ...bell(1046.5, { delay: 0.42, volume: 0.045, decay: 1.6 }),
+    ...marimba(523.25, { delay: 0.42, volume: 0.035, decay: 0.8 }),
   ],
 };
 
-const OVERRIDE_KEY = { place: "place", placeOther: "place", meeple: "meeple", complete: "complete", reject: "reject", round: "round", win: "win" };
+const OVERRIDE_KEY = { tap: "tap", place: "place", placeOther: "place", meeple: "meeple", complete: "complete", reject: "reject", round: "round", win: "win" };
 
 export function playCue(name, arg) {
   const url = ASSETS.sounds && ASSETS.sounds[OVERRIDE_KEY[name]];
