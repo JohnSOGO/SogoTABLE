@@ -30,6 +30,7 @@ export const GAME_IDS = {
   chineseCheckers: "6bc129b1bbed",
   lastOrders: "618a2d361857",
   tracklayers: "7c31e9a05b42",
+  reefkeepers: "661942bc1422",
   hiddenIsles: "aa6b6dee04ef",
 };
 
@@ -294,6 +295,19 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["tracklayers", "track_layers", "train_routes", "rail_routes"],
+  },
+  {
+    id: GAME_IDS.reefkeepers,
+    lobbyMode: "hostStart",
+    name: "🐚 Reefkeepers",
+    summary: "Everyone drafts reef tiles at the same time and grows a coral reef around their home grotto — match habitats, gather pearls and score each patch by size × pearls; bots fill the table.",
+    players: "1–8 players",
+    player_count: null,
+    host_start: true,
+    category: "board",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["reefkeepers", "reef_keepers", "reef-keepers"],
   },
   {
     id: GAME_IDS.hiddenIsles,

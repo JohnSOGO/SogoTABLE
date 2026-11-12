@@ -90,8 +90,8 @@ import {
 import { wireLobby, renderRoomSlots, renderRoomInviteStatus } from "./games/lobby.js";
 import { renderSuperTicTacToeBoard } from "./games/super-tic-tac-toe/render.js";
 import { renderTenThousandGame } from "./games/ten-thousand/render.js";
+import { pickHostStartRenderer } from "./games/room-render-dispatch.js";
 import { wireTenThousandFarkleAck, maybeAutoAckTenThousandFarkle } from "./games/ten-thousand/farkle-ack.js";
-import { ctxRendererFor } from "./games/room-render-dispatch.js";
 import { wireChessTutor } from "./games/chess-tutor/index.js";
 import {
   setSoundEnabled,
@@ -111,6 +111,7 @@ let games = [...fallbackGames];
 // Game-kind predicates live in the pure games/game-kinds.js leaf; wire them
 // with the shell's `canonicalGameId` (hoisted below) so alias resolution keeps
 // tracking the live games list.
+const gameKinds = createGameKinds(canonicalGameId);
 const {
   isTacticalGameState,
   isBoxesGameState,
@@ -118,8 +119,8 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isHiddenIslesGameState,
-} = createGameKinds(canonicalGameId);
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isReefkeepersGameState, isHiddenIslesGameState,
+} = gameKinds;
 
 migrateStorageNamespace();
 initSessionStore(); // device identity now lives in client/session-store.js
@@ -171,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
     visibleBattleshipPlayerMark, getBattleshipReviewMark, setBattleshipReviewMark,
     isTacticalGameState, isBattleshipGameState, isTenThousandGameState, isYahtzeeGameState,
     isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
-    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isHiddenIslesGameState,
+    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState, isTracklayersGameState, isReefkeepersGameState, isHiddenIslesGameState,
   });
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat();
@@ -1645,11 +1646,11 @@ function renderGame() {
     });
     return;
   }
-  const renderCtxGame = ctxRendererFor(game, canonicalGameId);
-  if (renderCtxGame) {
+  const hostStartRender = pickHostStartRenderer(game, gameKinds);
+  if (hostStartRender) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    renderCtxGame({
+    hostStartRender({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,

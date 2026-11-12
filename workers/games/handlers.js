@@ -94,6 +94,9 @@ import {
   LAST_ORDERS_GAME_ID, isLastOrdersGame, newLastOrdersGame, initLastOrdersSeats, setLastOrdersOptions, makeLastOrdersMove, lastOrdersGameToDict, lastOrdersGameToDictForViewer,
 } from "./last-orders/rules.js";
 import {
+  REEFKEEPERS_GAME_ID, isReefkeepersGame, newReefkeepersGame, initReefkeepersSeats, setReefkeepersOptions, makeReefkeepersMove, reefkeepersGameToDict, reefkeepersGameToDictForViewer,
+} from "./reefkeepers/rules.js";
+import {
   HIDDEN_ISLES_GAME_ID, isHiddenIslesGame, newHiddenIslesGame, initHiddenIslesSeats, setHiddenIslesOptions, carryHiddenIslesOnReset, makeHiddenIslesMove, hiddenIslesGameToDict, hiddenIslesGameToDictForViewer,
 } from "./hidden-isles/rules.js";
 
@@ -202,6 +205,14 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isLastOrdersGame(prevGame) && prevGame.options) setLastOrdersOptions(nextGame, { lo_options: prevGame.options });
     } },
+  { id: REEFKEEPERS_GAME_ID, is: isReefkeepersGame, create: newReefkeepersGame, toDict: reefkeepersGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeReefkeepersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initReefkeepersSeats,
+    // Host options (reef size, heart/full bonuses, spots, live score, hints)
+    // from the lobby, applied at /api/room/start and carried across a reset.
+    applyStartOptions: (game, payload) => setReefkeepersOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isReefkeepersGame(prevGame) && prevGame.options) setReefkeepersOptions(nextGame, { reef_options: prevGame.options });
+    } },
   { id: HIDDEN_ISLES_GAME_ID, is: isHiddenIslesGame, create: newHiddenIslesGame, toDict: hiddenIslesGameToDict, legalMoves: () => [],
     applyAction: (game, mark, payload) => makeHiddenIslesMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initHiddenIslesSeats,
     // Host options (word pack, clue ideas, crew pointers) from the lobby; a
@@ -267,6 +278,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isTracklayersGame(game)) return tracklayersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isChineseCheckersGame(game)) return chineseCheckersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isReefkeepersGame(game)) return reefkeepersGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isHiddenIslesGame(game)) return hiddenIslesGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }

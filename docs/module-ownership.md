@@ -55,7 +55,7 @@ concern), then implement.
 | `src/sogotable/static/games/registry.js` | Single game registry — metadata source of truth | — |
 | `src/sogotable/static/games/game-kinds.js` | Client game-kind predicates (classify a room game blob by id) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/games/render-keys.js` | Room render-cache key | — |
-| `src/sogotable/static/games/room-render-dispatch.js` | Game id → ctx-bag render function table for the room screen (presentation routing only) | `src/sogotable/static/app.js` |
+| `src/sogotable/static/games/room-render-dispatch.js` | Host-start game render dispatch — predicate → `render*Game` table + `pickHostStartRenderer` (kinds injected) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/games/lobby.js` | Shared pre-game lobby — mode-driven (fixed-capacity/auto-start + host-start) | `src/sogotable/static/app.js` |
 | `src/sogotable/static/games/game-list-view.js` | Game-select list view | — |
 | `src/sogotable/static/games/playing-cards.js` | Shared standard-deck (52-card) card-face + hand HTML primitives — pure builders, no rules, no per-game logic | `src/sogotable/static/app.js` |
