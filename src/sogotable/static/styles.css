@@ -203,3 +203,12 @@ html[data-updating="true"] .update-overlay { opacity: 1; visibility: visible; tr
 .update-logo { width: min(38vw, 180px); aspect-ratio: 1; border-radius: 24%; box-shadow: 0 10px 40px var(--shadow); animation: update-breathe 2.4s ease-in-out infinite; }
 @keyframes update-breathe { 0%, 100% { transform: scale(0.94) rotate(-3deg); opacity: 0.85; } 50% { transform: scale(1.04) rotate(3deg); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .update-logo { animation-duration: 6s; } }
+
+/* Toasts (controllers/toast.js): non-blocking notices replacing window.alert(). */
+.toast-host { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 60; display: grid; gap: 8px; width: min(92vw, 420px); transform: translateX(-50%); pointer-events: none; }
+.toast { pointer-events: auto; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--danger-ink); border-radius: 12px; background: var(--panel); color: var(--ink); font: inherit; text-align: left; box-shadow: 0 10px 30px var(--shadow); animation: toast-in 180ms ease-out; cursor: pointer; }
+.toast-info { border-left-color: var(--x); }
+.toast-success { border-left-color: #1f7a5f; }
+.toast-leaving { opacity: 0; transform: translateY(6px); transition: opacity 160ms, transform 160ms; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } .toast-leaving { transition: none; } }

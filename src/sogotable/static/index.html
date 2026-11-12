@@ -237,6 +237,7 @@
             </div>
           </div>
           <div id="roomInviteStatus" class="notice hidden"></div>
+          <div id="roomSharePanel" class="room-share hidden"></div>
         </div>
         <div id="gamePlayerSwitch" class="player-switch"></div>
         <div id="turnStatus" class="turn-status"></div>
@@ -246,7 +247,10 @@
           <div class="win-card">
             <span id="winMark" class="win-icon"></span>
             <h3 id="winMessage"></h3>
-            <button id="closeWinOverlay" class="primary" type="button">Back to Board</button>
+            <div class="win-actions">
+              <button id="rematchWinOverlay" class="primary" type="button">Same players again</button>
+              <button id="closeWinOverlay" class="secondary" type="button">Back to Board</button>
+            </div>
           </div>
         </div>
       </section>

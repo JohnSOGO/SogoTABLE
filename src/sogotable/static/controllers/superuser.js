@@ -8,6 +8,7 @@
 import { api } from "../api-client.js";
 import { confirmAction, promptForPasscode } from "./prompts.js";
 import { playConfirm } from "../sound.js";
+import { showToast } from "./toast.js";
 import {
   readSogoSuperuserPasscode,
   storeSogoSuperuserPasscode,
@@ -50,7 +51,7 @@ export async function verifySogoSuperuserPasscode(player) {
     return true;
   } catch (error) {
     forgetSogoSuperuserPasscode();
-    alert(error.message);
+    showToast(error.message);
     return false;
   }
 }

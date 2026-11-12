@@ -31,10 +31,13 @@ import {
   getBattleshipReviewMark,
   setBattleshipReviewMark,
 } from "./games/battleship/client.js";
-import { confirmAction, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
+import { confirmAction, isConfirmPending, showInfoPrompt, promptForPasscode, wirePromptControls } from "./controllers/prompts.js";
 import { wireGameOptions } from "./controllers/game-options.js";
 import { refreshGameStats, renderGameStatsLink, applyGameStats, resetGameStatsKey, wireGameStats } from "./controllers/game-stats.js";
 import { scheduleWinOverlay, hideWinOverlay, wireWinOverlay, resetWinCelebration } from "./controllers/win-overlay.js";
+import { showToast, showInfoToast } from "./controllers/toast.js";
+import { wireRoomShare, captureJoinLink, resumePendingJoin, renderRoomShare } from "./controllers/room-share.js";
+import { syncTurnAttention } from "./client/turn-attention.js";
 import { wireTurnStatus, renderGamePlayerSwitch, showTurnStatus, setTurnStatusText } from "./controllers/turn-status.js";
 import { downloadReviewZip } from "./review-export.js";
 import {
@@ -245,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshGameDefinitions();
   renderGames();
   renderAppearanceChoices();
-  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate);   // after an auto-update, put the player back
+  void Promise.resolve(refreshPlayers()).catch(() => {}).then(resumeAfterUpdate).then(() => resumePendingJoin());   // after an auto-update, put the player back
   renderSelectedGame();
   renderSelectedPlayer();
   renderCurrentPlayer();
@@ -283,7 +286,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("superCloseRoom").addEventListener("click", closeCurrentRoomAsSuperuser);
   document.getElementById("resetGame").addEventListener("click", resetGame);
   wirePromptControls();
-  wireWinOverlay({ getRoom: () => currentRoom });
+  wireWinOverlay({ getRoom: () => currentRoom, requestRematch: () => resetGame({ skipConfirm: true }) });
+  wireRoomShare({ joinRoomByCode: (code) => enterRoomSummary({ code }), hasSelectedPlayer: () => Boolean(deviceSelectedPlayer()), isSoloRoom });
+  captureJoinLink();
   bindRefreshTitleControls();
   realtime.connectAppEvents();
 });
@@ -650,14 +655,14 @@ function renderCreateGameButton() {
 
 async function enterRoomSummary(summary) {
   const player = deviceSelectedPlayer();
-  if (!player) return alert("Select a player first.");
+  if (!player) return showToast("Select a player first.");
   let freshSummary = summary;
   try {
     const data = await fetchJson(roomReadUrl(summary.code));
-    if (!data.ok) return alert(data.error || "Game not found.");
+    if (!data.ok) return showToast(data.error || "Game not found.");
     freshSummary = data.room;
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
     return;
   }
   const selectedSeat = freshSummary.players.find((seat) => seat.id === player.id);
@@ -667,7 +672,7 @@ async function enterRoomSummary(summary) {
     return;
   }
   if (freshSummary.status !== "waiting_for_player" || (freshSummary.open_seats !== null && freshSummary.open_seats !== undefined && freshSummary.open_seats <= 0)) {
-    alert("That game is no longer open.");
+    showToast("That game is no longer open.");
     refreshGameRooms();
     return;
   }
@@ -677,7 +682,7 @@ async function enterRoomSummary(summary) {
     refreshGameRooms();
     showScreen("game");
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -819,7 +824,7 @@ async function createPlayer(event) {
     players = response.players;
     if (await finishPlayerSave(response.player.id, input, wasEditing)) playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -897,7 +902,7 @@ async function unclaimPlayerAsSuperuser(playerId) {
     playConfirm();
   } catch (error) {
     if (String(error.message || "").toLowerCase().includes("passcode")) forgetSogoSuperuserPasscode();
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -938,9 +943,9 @@ async function clearEditingPlayerStats() {
     await refreshSelectedPlayerStats();
     await refreshGameStats(selectedGame());
     playConfirm();
-    alert(`Stats cleared for ${player.name}.`);
+    showInfoToast(`Stats cleared for ${player.name}.`);
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1058,7 +1063,7 @@ async function exportReviewZip() {
     await downloadReviewZip(revisionText);
     playConfirm();
   } catch (error) {
-    alert(error.message || "Export failed.");
+    showToast(error.message || "Export failed.");
   } finally {
     if (button) {
       button.disabled = false;
@@ -1111,7 +1116,7 @@ async function deletePlayer(playerId) {
     players = response.players;
     finishPlayerDelete(playerId);
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1174,7 +1179,7 @@ async function createRoom() {
 }
 async function attemptCreateRoom(retried) {
   const player = deviceSelectedPlayer();
-  if (!player) return alert("Select a player first.");
+  if (!player) return showToast("Select a player first.");
   try {
     const response = await api("/api/room/create", { game_id: selectedGameId, player, owner_token: await ensureOwnerToken(player.id) });
     hostInviteStatus = null;
@@ -1194,7 +1199,7 @@ async function attemptCreateRoom(retried) {
     }
     playerApiAvailable = false;
     renderCreateGameButton();
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1215,7 +1220,7 @@ async function closeGame() {
       const exitingPlayerId = getSelectedPlayerId() || getDeviceSelectedPlayerId();
       await api("/api/room/leave", { code: roomToClose.code, player_id: exitingPlayerId, requester_id: exitingPlayerId, owner_token: await ensureOwnerToken(exitingPlayerId) });
     } catch (error) {
-      alert(error.message);
+      showToast(error.message);
       return;
     }
   }
@@ -1257,11 +1262,11 @@ async function closeRoomAsSuperuser(code) {
     refreshGameRooms();
   } catch (error) {
     if (String(error.message || "").toLowerCase().includes("passcode")) forgetSogoSuperuserPasscode();
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
-async function resetGame() {
+async function resetGame(options = {}) {
   if (!currentRoom) return;
   const completed = isCompletedRoom(currentRoom);
   // Agreement is only sought when more than one human is seated; bots auto-agree
@@ -1275,7 +1280,7 @@ async function resetGame() {
     : (needsAgreement
       ? "Request a board reset? The other players must agree."
       : "Reset the board and start over?");
-  const confirmed = await confirmAction("Are you sure?", message);
+  const confirmed = options.skipConfirm === true || await confirmAction("Are you sure?", message);
   if (!confirmed) return;
   const player =
     currentRoom.players.find((seat) => seat.id === getSelectedPlayerId() || seat.id === getDeviceSelectedPlayerId())
@@ -1283,7 +1288,7 @@ async function resetGame() {
     || currentRoom.players[0]
     || selectedPlayer();
   if (!player) {
-    alert("Select your player first.");
+    showToast("Select your player first.");
     return;
   }
   hideWinOverlay();
@@ -1421,7 +1426,7 @@ async function startTenThousandGame(openingMinimum) {
     setRoom(response.room);
     playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1466,7 +1471,7 @@ async function removeBotFromRoom(botId) {
     setRoom(response.room);
     playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1485,7 +1490,7 @@ async function startYahtzeeGame(options) {
     setRoom(response.room);
     playConfirm();
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1506,6 +1511,8 @@ function setRoom(room) {
   maybeAutoAckTenThousandFarkle(room);
   document.getElementById("roomTitle").textContent = gameName(room.game_id);
   renderRoomSlots();
+  renderRoomShare(room, getDeviceSelectedPlayerId());
+  syncTurnAttention(room, localRoomSeat(room), isSoloRoom(room));
   renderGame();
   handleIncomingResetRequest();
 }
@@ -1555,7 +1562,7 @@ async function handleIncomingResetRequest() {
     handledResetRequestKey = "";
     return;
   }
-  if (pendingConfirmAction) return;
+  if (isConfirmPending()) return;
   const request = currentRoom.reset_request;
   const localPlayer = selectedPlayer();
   if (!localPlayer || localPlayer.id === request.requester_id) return;
@@ -1572,7 +1579,7 @@ async function handleIncomingResetRequest() {
     });
     setRoom(response.room);
   } catch (error) {
-    alert(error.message);
+    showToast(error.message);
   }
 }
 
@@ -1788,6 +1795,7 @@ function startRoomLiveUpdates() {
 
 function stopRoomLiveUpdates() {
   realtime.stopRoomLiveUpdates();
+  syncTurnAttention(null);
 }
 
 function handleRoomSocketMessage(event) {
@@ -1947,6 +1955,7 @@ function setDeviceSelectedPlayer(playerId) {
   saveSelectedPlayer();
   realtime.sendAppEventSubscription();
   if (currentRoom && previousPlayerId !== getDeviceSelectedPlayerId()) realtime.refreshRoomLiveUpdates();
+  void resumePendingJoin();
 }
 
 function syncSelectedPlayerForLocalRoom() {
@@ -2021,7 +2030,7 @@ function gameIsReady(game) {
 function playerCountForGame(game) {
   const count = Number(game && game.player_count);
   if (Number.isFinite(count) && count > 0) return count;
-  return Boolean(game && game.host_start) ? Number.POSITIVE_INFINITY : 2;
+  return game && game.host_start ? Number.POSITIVE_INFINITY : 2;
 }
 
 function selectedGameIsSolo() {

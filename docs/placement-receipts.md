@@ -1377,3 +1377,26 @@ PLACEMENT RECEIPT
     - Out of scope, recorded: an away seat holding the current turn stalls the game (no bot takeover).
 - New owner row: none
 ```
+
+## 2026-11-12 — Join link + QR, rematch button, turn signals, toasts
+Commit: feat(client): join link + QR, one-tap rematch, your-turn signals, toasts instead of alert() (this entry's commit)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Shareable join link + QR on the room screen (`?join=CODE` deep link, navigator.share/copy);
+                "Same players again" on the win card; your-turn title/badge/vibrate + Screen Wake Lock;
+                in-app toasts replacing all 26 window.alert() calls.
+- Verdict:      controllers/room-share.js, client/turn-attention.js, controllers/toast.js  [NEW owner rows];
+                src/sogotable/static/vendor/  [NEW exempt row, qrcode-generator 1.4.4 MIT, minified ESM];
+                controllers/win-overlay.js  [EXISTING, ctx.requestRematch -> resetGame({ skipConfirm })].
+- Flow stage:   render UI / capture intent. Joins reuse enterRoomSummary; rematch reuses the reset vote.
+- Considerations:
+    - Sharing hidden for hot-seat, solo and started rooms (seats are fixed once a game starts).
+    - Turn signal uses the platform `game.current_player` convention (same as the realtime poll and the
+      turn sound); games without it never light the signal — a per-game awaiting-seats projection is a
+      server follow-up. Suppressed in hot-seat and solo rooms; wake lock re-acquired on return.
+    - Found by ESLint while here: handleIncomingResetRequest read an undefined `pendingConfirmAction`
+      (ReferenceError), so the other phone never saw reset/rematch requests. prompts.js now exports
+      isConfirmPending(); covered by the two-phone e2e test.
+- New owner row: see docs/module-ownership.md (toast, room-share, turn-attention, vendor/)
+```
