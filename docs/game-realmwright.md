@@ -28,8 +28,10 @@ The first valid placement the server receives wins. A later one that no longer
 fits (cell taken, edges changed, feature now claimed) is **rejected with a
 reason**. The player keeps their tile and picks again from the fresh board. If
 the board changes so that an unplaced tile can no longer go anywhere, the server
-discards it and deals that seat a new one (`tile_serial` bumps). Bots place at
-the round barrier, after every human (the RTTA / Potion Lab precedent). A
+discards it and deals that seat a new one (`tile_serial` bumps). Bots play during
+the round like everyone else, after a per-level think-time (easy 15+1d5 s,
+intermediate 10+1d5 s, hard 5+1d5 s). The Worker has no timers, so a player's
+phone sends `BOT_TICK` when a bot's time comes. A
 dropped player can be skipped by unanimous vote of those who have already
 placed (`workers/games/skip-vote.js`).
 

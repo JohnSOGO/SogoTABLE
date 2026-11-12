@@ -158,6 +158,18 @@ neighbour's port `3((s+2)%4) + (2−k)`.
   — `serial` must equal the seat's `tile_serial`; a mismatched `round`/`serial`
   is rejected loudly as stale.
 - `{ type: "SKIP_PLAYER", target, round }` — toggles a skip vote.
+- `{ type: "BOT_TICK", round }` — any seated human's client sends it once the
+  earliest unplaced bot's `act_at` has passed; due bots place (earliest
+  first). Rejected without a write ("No bot is ready yet.") when none is due.
+
+**Bot timing (MojoSOGO 2026-11-12):** bots act during the round like players,
+after a think-time of BASE + 1d5 s from round open (`BOT_DELAY_BASE_S`: easy 15,
+intermediate 10, hard/overlord 5). The projection carries `round_opened_at`,
+`server_now` (to map server time onto the client clock) and `players[].act_at`
+(non-zero only for an unplaced bot). Any action first releases bots already
+due, so server order stays fair. An all-bot table plays straight through.
+Score events carry `meeples: [{x, y, f, mark}]` (who stood there) and end-game
+ones `final: true`.
 
 ## Expansion seam
 

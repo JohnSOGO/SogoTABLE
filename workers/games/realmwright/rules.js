@@ -40,6 +40,22 @@ export function isRealmwrightGame(game) {
   try { return cleanGameId(game.game_id) === REALMWRIGHT_GAME_ID; } catch { return String(game.game_id).trim() === REALMWRIGHT_GAME_ID; }
 }
 
+// Clock seam (epoch ms): bots act on a timer, so every transition reads time
+// through here — tests pin it, the Worker uses the real clock.
+let realmClock = () => Date.now();
+export function setRealmwrightClock(fn) {
+  realmClock = typeof fn === "function" ? fn : () => Date.now();
+}
+
+// Bot "thinking" time per level, from round open: BASE + 1d5 seconds (plus a
+// sub-second jitter so bots never land in lockstep). MojoSOGO 2026-11-12:
+// hard 5+1d5 s, intermediate 10+1d5 s; easy is slower still.
+export const BOT_DELAY_BASE_S = [0, 15, 10, 5, 5];
+function botDelayMs(level) {
+  const base = BOT_DELAY_BASE_S[level] !== undefined ? BOT_DELAY_BASE_S[level] : 10;
+  return (base + 1 + Math.floor(realmRandom() * 5)) * 1000 + Math.floor(realmRandom() * 900);
+}
+
 let realmRandom = Math.random;
 export function setRealmwrightRandom(fn) {
   realmRandom = typeof fn === "function" ? fn : Math.random;
@@ -173,6 +189,7 @@ export function initRealmwrightSeats(game, seats) {
       tile_serial: 0,
       placed: false,
       skipped: false,
+      act_at: 0, // bots only: epoch ms when this bot places this round
     };
   });
   if (!game.seat_order.length) throw new Error("Realmwright needs at least one player — invite players or bots to fill the table.");
@@ -187,8 +204,9 @@ export function initRealmwrightSeats(game, seats) {
   game.skip_votes = {};
   game.winner = null;
   game.results = null;
-  dealRound(game);
-  advance(game); // an all-bot table runs straight through
+  const now = realmClock();
+  dealRound(game, now);
+  advance(game, now); // an all-bot table runs straight through
 }
 
 // ---------- events ----------
@@ -213,8 +231,10 @@ function drawTile(game, derived) {
   return null;
 }
 
-function dealRound(game) {
+function dealRound(game, now) {
   game.round += 1;
+  game.round_opened_at = now;
+  const humansSeated = game.seat_order.some((m) => !game.players[m].is_bot);
   game.skip_votes = {};
   const derived = derive(game.board, defsFor(game.options));
   let dealt = 0;
@@ -224,26 +244,36 @@ function dealRound(game) {
     seat.skipped = false;
     seat.tile = drawTile(game, derived);
     if (seat.tile) { seat.tile_serial += 1; dealt += 1; }
+    // With humans watching, a bot "thinks" for a while; an all-bot table
+    // (nobody to watch) plays straight through.
+    seat.act_at = seat.is_bot && humansSeated ? now + botDelayMs(seat.level) : 0;
   }
   if (!dealt) { completeGame(game); return; }
   pushEvent(game, { type: "round" });
 }
 
-// The barrier: hold while any human is unplaced; then bots place in seat
-// order, then next deal (or the end). Loops so an all-bot table finishes.
-function advance(game) {
+// Bots whose think-time has passed place now, earliest first (so a bot due
+// before a human's commit lands before it). Returns how many placed.
+function releaseDueBots(game, now) {
+  const due = game.seat_order
+    .filter((m) => { const s = game.players[m]; return s.is_bot && !isDone(s) && s.act_at <= now; })
+    .sort((a, b) => game.players[a].act_at - game.players[b].act_at || game.seat_order.indexOf(a) - game.seat_order.indexOf(b));
+  due.forEach((mark) => { if (!isDone(game.players[mark])) placeBot(game, mark); });
+  return due.length;
+}
+
+// The barrier: due bots place; once every seat is done the next round deals
+// (or the game ends). Bots still thinking hold the round open — a client
+// sends BOT_TICK when the next act_at passes. Loops so an all-bot table
+// (act_at 0) finishes in one call.
+function advance(game, now) {
   let guard = 0;
   while (game.status === "playing" && guard < 10000) {
     guard += 1;
-    const humans = game.seat_order.filter((m) => !game.players[m].is_bot);
-    if (humans.some((m) => !isDone(game.players[m]))) return;
-    for (const mark of game.seat_order) {
-      const seat = game.players[mark];
-      if (seat.is_bot && !isDone(seat)) placeBot(game, mark);
-    }
-    if (!game.seat_order.every((m) => isDone(game.players[m]))) continue;
+    releaseDueBots(game, now);
+    if (!game.seat_order.every((m) => isDone(game.players[m]))) return;
     if (!game.bag.length) completeGame(game);
-    else dealRound(game);
+    else dealRound(game, now);
   }
 }
 
@@ -317,14 +347,24 @@ function applyPlacement(game, mark, move) {
   const after = derive(game.board, defs);
   for (const done of completedByPlacement(game.board, after, defs, game.board.length - 1, game.options)) {
     credit(game, done.marks, done.feature.kind, done.points);
+    const scoredMeeples = meepleSpots(game, done.feature);
     done.feature.meeples.forEach((m) => {
       const holder = game.board[m.at];
       holder.meeples = holder.meeples.filter((mm) => !(mm.f === m.f && mm.mark === m.mark));
       if (game.players[m.mark]) game.players[m.mark].meeples_left += 1;
     });
-    pushEvent(game, { type: "score", kind: done.feature.kind, points: done.points, marks: done.marks, cells: done.feature.cells });
+    pushEvent(game, { type: "score", kind: done.feature.kind, points: done.points, marks: done.marks, cells: done.feature.cells, meeples: scoredMeeples });
   }
   knockOnRedraw(game, after);
+}
+
+// Where a feature's meeples stood (for the client's jump-for-joy), captured
+// before they go home.
+function meepleSpots(game, feature) {
+  return feature.meeples.map((m) => {
+    const holder = game.board[m.at];
+    return { x: holder.x, y: holder.y, f: m.f, mark: m.mark };
+  });
 }
 
 // Any unplaced seat whose tile no longer fits anywhere gets a fresh one.
@@ -353,7 +393,7 @@ function completeGame(game) {
   for (const s of endGameScores(derived, game.options)) {
     if (s.points > 0) {
       credit(game, s.marks, s.feature.kind, s.points);
-      pushEvent(game, { type: "score", kind: s.feature.kind, points: s.points, marks: s.marks, cells: s.feature.cells });
+      pushEvent(game, { type: "score", kind: s.feature.kind, points: s.points, marks: s.marks, cells: s.feature.cells, meeples: meepleSpots(game, s.feature), final: true });
     }
   }
   game.seat_order.forEach((m) => { game.players[m].tile = null; });
@@ -404,6 +444,17 @@ export function makeRealmwrightMove(game, mark, action) {
   if (!seat) throw new Error("You are not seated in this game.");
   if (seat.is_bot) throw new Error("Bot seats play automatically.");
   const type = String(action && action.type || "").trim();
+  const now = realmClock();
+  if (type === "BOT_TICK") {
+    // Any seated human's client nudges the table when a bot's think-time
+    // passes. Nothing due → reject quietly (no write, no broadcast).
+    if (!releaseDueBots(game, now)) throw new Error("No bot is ready yet.");
+    pruneVotes(game);
+    advance(game, now);
+    return;
+  }
+  // Bots whose time already came go first, so server order stays fair.
+  releaseDueBots(game, now);
   if (type === "PLACE_TILE") {
     if (Number(action.round) !== game.round) throw new Error(`Stale move: that was for round ${action.round}; the table is on round ${game.round}.`);
     if (seat.placed) throw new Error("You already placed your tile this round.");
@@ -414,10 +465,10 @@ export function makeRealmwrightMove(game, mark, action) {
   } else if (type === "SKIP_PLAYER") {
     applySkip(game, mark, action);
   } else {
-    throw new Error("Realmwright action must be PLACE_TILE or SKIP_PLAYER.");
+    throw new Error("Realmwright action must be PLACE_TILE, SKIP_PLAYER or BOT_TICK.");
   }
   pruneVotes(game);
-  advance(game);
+  advance(game, now);
 }
 
 // ---------- projections ----------
@@ -456,6 +507,7 @@ export function realmwrightGameToDict(game) {
       tile_serial: seat.tile_serial,
       placed: seat.placed,
       skipped: seat.skipped,
+      act_at: seat.is_bot && !isDone(seat) ? seat.act_at : 0,
     };
   });
   const legal = {};
@@ -469,6 +521,8 @@ export function realmwrightGameToDict(game) {
     game_id: REALMWRIGHT_GAME_ID,
     status: game.status,
     round: game.round,
+    round_opened_at: game.round_opened_at,
+    server_now: realmClock(), // lets clients map bot act_at onto their own clock
     move_count: game.move_count,
     options: { ...game.options, expansions: [...game.options.expansions] },
     seat_order: [...game.seat_order],
@@ -527,8 +581,10 @@ function normalizeRealmwrightGame(game) {
       tile_serial: clampInt(seat.tile_serial, 0, 999999, 0),
       placed: Boolean(seat.placed),
       skipped: Boolean(seat.skipped),
+      act_at: Number.isFinite(Number(seat.act_at)) ? Math.max(0, Number(seat.act_at)) : 0,
     };
   });
+  game.round_opened_at = Number.isFinite(Number(game.round_opened_at)) ? Number(game.round_opened_at) : 0;
   game.board = Array.isArray(game.board) ? game.board.filter((p) => p && defs[p.t]
     && Number.isInteger(p.x) && Number.isInteger(p.y) && Number.isInteger(p.r) && p.r >= 0 && p.r <= 3) : [];
   game.board.forEach((p) => {
