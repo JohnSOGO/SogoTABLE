@@ -192,8 +192,10 @@ function move(step) {
   select(next.key, { scroll: true });
 }
 
+// Order ignores the status filter, so the asset just judged (which may have
+// left an "unreviewed" view) still marks where to continue from.
 function nextUnreviewed() {
-  const list = visible();
+  const list = filterEntries(entries, reviews, { ...filters, status: "all" });
   const at = list.findIndex((e) => e.key === selectedKey);
   const ordered = [...list.slice(at + 1), ...list.slice(0, at + 1)];
   const next = ordered.find((e) => !reviews[e.key] || reviews[e.key].status === "pending");
@@ -302,7 +304,9 @@ async function save(entry, patch) {
 function setStatus(entry, status) {
   save(entry, { status });
   render();
-  if (status !== "pending" && filters.status === "unreviewed") setTimeout(nextUnreviewed, 150);
+  // Approving moves straight on; a rejection stays open for its note unless
+  // the view only shows unreviewed assets.
+  if (status === "approved" || (status === "rejected" && filters.status === "unreviewed")) setTimeout(nextUnreviewed, 250);
 }
 
 function setNote(entry, note) {
