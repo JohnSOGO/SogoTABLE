@@ -37,7 +37,7 @@ let S = freshState("");
 
 function freshState(key) {
   return {
-    key, lastCtx: null, sending: false, selKey: "", sel: null, target: null, discardSel: new Set(), orderTarget: null, orderSpike: null,
+    key, lastCtx: null, sending: false, selKey: "", sel: null, target: null, discardSel: new Set(), orderTarget: null, orderSpike: null, handHome: false,
     toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false,
     autoPassStep: -1, autoPassTimer: null, autoPassed: -1, sawPlaying: false, winPlayed: false, lastBeep: -1, bgTheme: "",
   };
@@ -189,6 +189,7 @@ function reconcile(game, info) {
   if (selKey !== S.selKey) {
     S.selKey = selKey;
     S.sel = null; S.target = null; S.discardSel = new Set(); S.orderTarget = null; S.orderSpike = null;
+    S.handHome = true; // new step or window: bring the hand back to its start (see paint)
   }
   const me = info.me;
   const hand = me && Array.isArray(me.hand) ? me.hand : [];
@@ -451,12 +452,23 @@ function paint(ctx, fresh) {
   const handBefore = snapHand(root);
   setSection(root, "hand", picking || complete ? "" : handHtml(vm), !picking && !complete && !(vm.mySeat && vm.mySeat.out));
   slideHand(root, handBefore);
+  scrollHandHome(root, vm.mode);
   setSection(root, "ticker", tickerHtml(vm));
   setSection(root, "toast", S.toast ? `<div class="lo-toast-msg lo-toast-${S.toast.kind}">${vm.esc(S.toast.text)}</div>` : "");
   armRings(root, g);
   ensureCountdown();
   if (complete && S.sawPlaying && !S.winPlayed) { S.winPlayed = true; playCue("win"); }
   fxAfterPaint(root, { fresh, items: g.reaction ? g.reaction.stack : [], game: g, labels: reducedMotion() ? null : statLabels });
+}
+
+// When my action step or a reaction window opens, scroll the hand back to its
+// left edge: playable cards sort to the left, so what I can play is in view.
+function scrollHandHome(root, mode) {
+  if (!S.handHome) return;
+  S.handHome = false;
+  if (mode !== "action" && mode !== "window") return;
+  const row = root.querySelector(".lo-hand-row");
+  if (row && row.scrollLeft) row.scrollTo({ left: 0, behavior: reducedMotion() ? "auto" : "smooth" });
 }
 
 // ---------- countdown (window.closes_at on the local clock) ----------
