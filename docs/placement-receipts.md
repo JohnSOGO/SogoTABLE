@@ -1115,3 +1115,29 @@ app.js import + dispatch, the render-keys slice, the games/wnyk/ client module
 gameToDictForViewer chain line (hidden-info game — the sanitizer line may never trail
 the row). Review-export allowlist extended with the six worker-side and four
 client-side wnyk modules for the import-closure guard.
+
+## 2026-11-12 — Chinese Checkers (new game module, simultaneous submit + priority barrier)
+
+- Ask:          Place a new parallel-play Chinese Checkers game (simultaneous submit, round barrier,
+                priority conflict resolution, host-start lobby), mirroring Realmwright (98b85b4).
+- Verdict:      workers/games/chinese-checkers/ (board.js, resolve.js, rules.js, ai.js) +
+                src/sogotable/static/games/chinese-checkers/ (manifest, branding, assets, board-svg,
+                render, panels, lobby, sfx, styles, PLAN.md, README.md) + one-row wiring entries
+                (registry.js, game-kinds.js, app.js, handlers.js row + gameToDictForViewer line,
+                stats.js, review-export.js allowlist, tests/helpers.js, sogotable-api.test.js list)
+                [EXISTING owner: directory patterns]
+- Flow stage:   validate + apply (board/resolve/rules, server-authoritative at the round barrier);
+                render (client dir); record (stats.js score branch).
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js, docs/placement-receipts.md,
+                docs/live-rounds.md, docs/game-integration-spec.md (PR #3). Game spec:
+                docs/game-chinese-checkers.md + games/chinese-checkers/PLAN.md.
+- Considerations:
+    - app.js 2263/2285 (+1 line); sogotable-api.test.js games-list row only; behaviour tests live
+      in chinese-checkers-*.test.js. No reorganizer.
+    - Priority conflict resolution split out of rules.js into pure resolve.js (+ its own test) so
+      rules.js does not carry five concerns toward the 800 backstop.
+    - Rejected: barrier/priority logic in skip-vote.js, the shared lobby, or room-view.js.
+    - Hidden commits: the handlers.js row and the gameToDictForViewer line land in one commit.
+    - Hot-seat explicitly out of scope (hidden simultaneous commits need a hand-off screen).
+- Reorganizer:  NONE
+- New owner row: none
