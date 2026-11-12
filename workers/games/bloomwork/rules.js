@@ -12,7 +12,7 @@
 // When the stalls and the Square are empty the round ends: full rows plant,
 // compost costs points, and the table reviews the round (READY_NEXT). The
 // game ends after the round in which anyone completes a horizontal bed row
-// (or after round 5 in the Quick game).
+// (or after round 3 in the Quick game).
 //
 // Hidden info: a seat's committed pick is masked from everyone else until
 // the step resolves (bloomworkGameToDictForViewer). The bag order is secret
@@ -34,7 +34,7 @@ export const BLOOMWORK_GAME_ID = GAME_IDS.bloomwork;
 export const BLOOMWORK_MIN_PLAYERS = 2;
 export const BLOOMWORK_MAX_PLAYERS = 6;
 const STALL_SIZE = 4;
-const QUICK_ROUNDS = 5;
+const QUICK_ROUNDS = 3;
 const MAX_ROUNDS = 20; // safety stop; a real game ends far earlier
 const EVENT_CAP = 80;
 

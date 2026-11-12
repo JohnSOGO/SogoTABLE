@@ -157,7 +157,7 @@ test("game ends after the round someone completes a bed row; bonuses and results
   assert.throws(() => makeBloomworkMove(game, "P1", anyPick(game)), /finished/);
 });
 
-test("an all-bot table plays to completion; quick option caps at round 5", () => {
+test("an all-bot table plays to completion; quick option caps at round 3", () => {
   for (const level of [1, 2, 3, 4]) {
     const game = start([bot("P1", level), bot("P2", level), bot("P3", level)]);
     assert.equal(game.status, "complete");
@@ -165,7 +165,7 @@ test("an all-bot table plays to completion; quick option caps at round 5", () =>
   }
   const quick = start([bot("P1"), bot("P2")], { length: "quick" });
   assert.equal(quick.status, "complete");
-  assert.ok(quick.round <= 5);
+  assert.equal(quick.round, 3);
   assert.deepEqual(quick.options, { length: "quick", helps: true });
 });
 

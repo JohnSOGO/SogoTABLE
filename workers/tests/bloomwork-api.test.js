@@ -60,7 +60,7 @@ test("Bloomwork plays end-to-end over the room API", async () => {
     game = await view(guest);
   }
   assert.equal(game.status, "complete");
-  assert.ok(game.round <= 5, "quick game");
+  assert.ok(game.round <= 3, "quick game");
   assert.ok(Array.isArray(game.results) && game.results.length === 2);
   assert.ok(game.winner);
 });

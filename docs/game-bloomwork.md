@@ -22,7 +22,7 @@ Opaque id `9e962268ca5f` (never changes). Spec followed: [game-integration-spec.
   column run it joins. The rest of the row is discarded. Compost costs −1, −1, −2, −2, −2, −3, −3.
   Scores never drop below zero.
 - **End.** The game ends after the round in which anyone completes a horizontal bed row (Quick
-  game: also after round 5). Bonuses: +2 per full bed row, +7 per full column, +10 per flower kind
+  game: also after round 3). Bonuses: +2 per full bed row, +7 per full column, +10 per flower kind
   planted in all five rows. Highest score wins; ties go to more full bed rows.
 
 ## Parallel play
