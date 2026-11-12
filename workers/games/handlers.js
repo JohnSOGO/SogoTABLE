@@ -84,6 +84,9 @@ import {
 import {
   REALMWRIGHT_GAME_ID, isRealmwrightGame, newRealmwrightGame, initRealmwrightSeats, setRealmwrightOptions, makeRealmwrightMove, realmwrightGameToDict, realmwrightGameToDictForViewer,
 } from "./realmwright/rules.js";
+import {
+  LAST_ORDERS_GAME_ID, isLastOrdersGame, newLastOrdersGame, initLastOrdersSeats, setLastOrdersOptions, makeLastOrdersMove, lastOrdersGameToDict, lastOrdersGameToDictForViewer,
+} from "./last-orders/rules.js";
 
 const TACTICAL_GAME_ID = GAME_IDS.tactical;
 const BOXES_GAME_ID = GAME_IDS.boxes;
@@ -165,6 +168,14 @@ const GAME_HANDLERS = [
     carryOptionsOnReset: (prevGame, nextGame) => {
       if (isRealmwrightGame(prevGame) && prevGame.options) setRealmwrightOptions(nextGame, { realm_options: prevGame.options });
     } },
+  { id: LAST_ORDERS_GAME_ID, is: isLastOrdersGame, create: newLastOrdersGame, toDict: lastOrdersGameToDict, legalMoves: () => [],
+    applyAction: (game, mark, payload) => makeLastOrdersMove(game, mark, payload.action || payload), resolvesBotsInternally: true, initSeats: initLastOrdersSeats,
+    // Host options (reaction seconds, expansions, closing time, random patrons,
+    // playable glow) from the lobby, applied at /api/room/start and carried across a reset.
+    applyStartOptions: (game, payload) => setLastOrdersOptions(game, payload),
+    carryOptionsOnReset: (prevGame, nextGame) => {
+      if (isLastOrdersGame(prevGame) && prevGame.options) setLastOrdersOptions(nextGame, { lo_options: prevGame.options });
+    } },
   { id: BATTLESHIP_GAME_ID, is: isBattleshipGame, create: newBattleshipGame, toDict: battleshipGameToDict, legalMoves: battleshipLegalMoves, bot: (game, bot, moves) => chooseBattleshipBotMove(game, bot, moves),
     applyAction: (game, mark, payload) => makeBattleshipMove(game, mark, payload.action || payload), preMove: (room) => ensureBattleshipBotFleets(room) },
   { id: QUORIDOR_GAME_ID, is: isQuoridorGame, create: newQuoridorGame, toDict: quoridorGameToDict, legalMoves: quoridorLegalMoves, bot: (game, bot, moves) => chooseQuoridorBotMove(game, bot, moves),
@@ -221,6 +232,7 @@ export function gameToDictForViewer(game, viewerMark, roomStatusValue) {
   if (isPotionLabGame(game)) return potionLabGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isWnykGame(game)) return wnykGameToDictForViewer(game, viewerMark, roomStatusValue);
   if (isRealmwrightGame(game)) return realmwrightGameToDictForViewer(game, viewerMark, roomStatusValue);
+  if (isLastOrdersGame(game)) return lastOrdersGameToDictForViewer(game, viewerMark, roomStatusValue);
   return game;
 }
 
