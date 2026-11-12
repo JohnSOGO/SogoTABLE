@@ -1484,3 +1484,32 @@ PLACEMENT RECEIPT
     - No reefkeepers file may import another game's module.
 - Reorganizer:  NONE
 - New owner row: none
+
+## 2026-11-12 — REORG: extract host-start render dispatch to games/room-render-dispatch.js
+
+```
+REORG RECEIPT
+- Trigger:      src/sogotable/static/app.js at 2175/2180 with several host-start games landing;
+                each new game added a render import + two predicate-list edits to app.js.
+- Seam moved:   host-start render dispatch (15 render imports, the host-start branch predicate
+                list and the render-function chooser ternary) from `src/sogotable/static/app.js`
+                to `src/sogotable/static/games/room-render-dispatch.js` as an ordered
+                HOST_START_RENDERERS table + pickHostStartRenderer(game, kinds) [NEW owner row]
+- Room opened:  app.js: 2175 → 2163 lines; ceiling stays 2155+25 (= 2180). Re-pinning at
+                2163+25 would RAISE the cap, which a reorg never does; per-game cost in app.js
+                is now zero lines, so the 17 lines of headroom are not consumed by new games.
+- Behavior:     PRESERVED — verified via `npm test` (all green); same predicate set (the old
+                condition == chooser set + Yahtzee fallback), same chooser order with Yahtzee
+                last, same render args; predicates are id-exclusive so order cannot change
+                which renderer wins. Kinds object is the same createGameKinds instance.
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js,
+                src/sogotable/static/app.js, src/sogotable/static/games/game-kinds.js,
+                src/sogotable/static/controllers/turn-status.js,
+                src/sogotable/static/review-export.js, docs/game-integration-spec.md,
+                docs/placement-receipts.md
+- Restraint:    Ten Thousand (own branch + extra args) and legacy games untouched. The
+                renderGamePlayerSwitch hide list in controllers/turn-status.js was NOT driven
+                from the table: it includes Ten Thousand and omits WNYK, so unifying would
+                change behavior. The wireTurnStatus predicate pass-through stays as-is.
+- New owner row: | `src/sogotable/static/games/room-render-dispatch.js` | Host-start game render dispatch — predicate → `render*Game` table + `pickHostStartRenderer` (kinds injected) | `src/sogotable/static/app.js` |
+```

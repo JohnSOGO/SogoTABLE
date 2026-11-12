@@ -250,6 +250,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/game-kinds.js",
   "src/sogotable/static/games/game-list-view.js",
   "src/sogotable/static/games/render-keys.js",
+  "src/sogotable/static/games/room-render-dispatch.js",
   "src/sogotable/static/games/lobby.js",
   "src/sogotable/static/games/README.md",
   "src/sogotable/static/games/battleship/client.js",
