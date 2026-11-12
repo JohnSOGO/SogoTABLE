@@ -8,7 +8,7 @@ import { renderHostStartLobby } from "../lobby.js";
 import { playClick } from "../../sound.js";
 import { LOBBY } from "./branding.js";
 
-export const REALM_DEFAULTS = { farmers: "on", live_tally: true, meeples: 7, small_city: false, deck: "standard" };
+export const REALM_DEFAULTS = { farmers: "on", live_tally: true, show_spots: true, meeples: 7, small_city: false, deck: "standard" };
 
 let lobbyKey = "";
 let lobbyStore = null;
@@ -51,6 +51,7 @@ export function renderRealmwrightLobby(host, ctx) {
     extraHtml: `<div class="rw-options">
         ${segment("farmers", [["on", LOBBY.on], ["off", LOBBY.off]], stored, esc)}
         ${segment("live_tally", [[true, LOBBY.on], [false, LOBBY.off]], stored, esc)}
+        ${segment("show_spots", [[true, LOBBY.on], [false, LOBBY.off]], stored, esc)}
         ${segment("meeples", [5, 6, 7, 8, 9, 10].map((n) => [n, String(n)]), stored, esc)}
         ${segment("small_city", [[false, LOBBY.off], [true, LOBBY.on]], stored, esc)}
         ${segment("deck", [["quick", LOBBY.deckNames.quick], ["standard", LOBBY.deckNames.standard], ["big", LOBBY.deckNames.big]], stored, esc)}

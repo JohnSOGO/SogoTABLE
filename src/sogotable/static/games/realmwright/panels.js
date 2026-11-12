@@ -41,7 +41,7 @@ export function trayHtml(vm, esc) {
     ? tileSvg(vm.myTileDef, { r: vm.handRot, size: 64, palette: vm.palette, idPrefix: "rwHand" })
     : `<div class="rw-hand-empty">?</div>`;
   const chips = [];
-  const chooser = vm.preview && vm.canAct;
+  const chooser = vm.preview && !vm.preview.bad && vm.canAct;
   chips.push(`<button type="button" class="rw-chip${chooser && vm.preview.meeple === null ? " rw-on" : ""}" data-rw-meeple="none" ${chooser ? "" : "disabled"}>🚫 ${esc(UI.noMeeple())}</button>`);
   if (chooser) {
     vm.choices.forEach((c) => {
