@@ -1461,3 +1461,26 @@ PLACEMENT RECEIPT
     - sound-files.js must not import sound.js (cycle).
 - New owner row: | `src/sogotable/static/sound-files.js` | Global sound-cue file overrides — pure data map … | `src/sogotable/static/sound.js` |
 ```
+## 2026-11-12 — Reefkeepers (new game module, domino drafting, simultaneous submit)
+
+- Ask:          Place a new host-start, parallel-play domino-drafting reef builder (5x5 grid,
+                region x pearls), following game-integration-spec.md with Realmwright as precedent.
+- Verdict:      workers/games/reefkeepers/ (tiles, board, rules, ai) + src/sogotable/static/games/
+                reefkeepers/ (manifest, branding, assets, art, render [+views], lobby, sfx, styles)
+                + one-row wiring (registry.js, game-kinds.js, app.js, handlers.js row +
+                gameToDictForViewer line, stats.js, review-export.js, tests/helpers.js,
+                sogotable-api.test.js list) [EXISTING owner: directory patterns]
+- Flow stage:   validate + apply (board/rules, server-authoritative at the round barrier);
+                render (client dir); record (stats.js score branch).
+- Sources read: docs/module-ownership.md, workers/tests/architecture.test.js,
+                scripts/audit-ceilings.mjs, docs/placement-receipts.md, app.js, service-worker.js.
+- Considerations:
+    - app.js ~2174/2180: +1 import line only; ids appended to existing predicate lines.
+      Parallel game merges share 6 lines of headroom; crossing = re-consult, never bump.
+    - Scoring/legality in pure board.js, deck in tiles.js, so rules.js stays well under 800.
+    - Skip vote reuses workers/games/skip-vote.js; lobby reuses shared games/lobby.js.
+    - Rejected: draft/barrier logic in skip-vote.js, the shared lobby, or the shell.
+    - Hidden picks: the handlers.js row and the gameToDictForViewer line land in one commit.
+    - No reefkeepers file may import another game's module.
+- Reorganizer:  NONE
+- New owner row: none
