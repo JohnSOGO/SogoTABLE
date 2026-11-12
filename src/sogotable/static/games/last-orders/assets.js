@@ -12,15 +12,47 @@
 //   portraits: { [characterId]: url } — a square bust image (e.g. "base:gorrum").
 //              Shown cropped to a rounded square, so keep the face centred.
 //   cards:     { [cardId]: url }  — card illustration (square), e.g.
-//              "base:gorrum:headbutt". Missing ids use the effect icon art.
+//            "base:gorrum:headbutt". Missing ids use the effect icon art.
 //   drinks:    { [drinkId]: url } — drink illustration (square).
 //   cardBack / drinkBack / tableBg: url — one image each (tableBg tiles/covers).
 //   sounds:    { play, react, drink, coins, hit, gamble, out, win, tick, turn }.
+//
+// PICTURES (docs/PICTURES.md): illustrated WebP files live in ./img/, named after
+// the slot id with ":" turned into "-" (base:gorrum:headbutt -> base-gorrum-headbutt.webp).
+// Only ids listed below are mapped, and every listed file is committed (a test
+// checks), so any id not listed keeps its SVG art.
 //
 // The palette drives every procedural colour; `light` and `dark` follow the
 // platform theme (<html data-theme>). Change a hex here to re-skin the game.
 // Character skin/hair colours live with their drawings in art.js; only the
 // frames, backdrops, icons, card kinds and table come from here.
+const pic = (id) => new URL(`./img/${id.replace(/:/g, "-")}.webp`, import.meta.url).href;
+// "pack:who": "card-a card-b ..." -> { "pack:who:card-a": url, ... }
+const picsOf = (groups) => Object.fromEntries(Object.entries(groups).flatMap(([prefix, names]) =>
+  names.split(" ").map((n) => [`${prefix}:${n}`, pic(`${prefix}:${n}`)])));
+const CHARACTER_IDS = "base:gorrum base:tilly base:ansel base:zephyrine harbor:marrow harbor:nessa frost:hrolga frost:sable masquerade:verrin masquerade:bim clockwork:sprocket clockwork:brassbell";
+const CARD_PICS = {
+  "base:gorrum": "headbutt shoulder-barge bear-hug table-flip shake-down knuckle-crack arm-wrestle not-on-my-watch no-thanks-big-fella thick-skull bouncer-says-no toss-it-back lucky-knuckles slam-the-table make-it-a-double knuckle-salt",
+  "base:tilly": "lift-a-purse quick-fingers pass-the-hat count-the-take shin-kick trip-wire dice-up-the-sleeve wasnt-me under-the-table oops-spilled-it slippery-as-soap lucky-thimble sneaky-peek double-or-nothing pinch-of-pepper mystery-drops",
+  "base:ansel": "herbal-tonic sobering-brew staff-sweep stern-lecture collection-plate quiet-meditation calm-the-room charity-coin-toss i-took-a-vow serene-step gentle-palm peace-brother humble-wager blessed-raise monastery-reserve bitter-herbs",
+  "base:zephyrine": "mirror-image sparkle-dart time-hiccup phantom-pint dazzle prism-burst illusory-coins smoke-and-mirrors look-over-there not-really-here vanishing-glass unweave shimmering-cards illusion-of-wealth fizzy-glitter starlight-shot",
+  "harbor:marrow": "next-ones-on-me keelhaul cutlass-swipe buried-treasure harbor-toll rum-ration wager-at-sea all-hands over-the-rail batten-down belay-that captains-call raise-the-anchor splash-of-brine sailors-measure",
+  "harbor:nessa": "siren-shanty undertow seashell-lullaby turn-the-tide salt-spray pearl-wager tidal-mist riptide foam-and-fizzle oceans-hush shell-game high-tide kelp-garnish mermaid-kiss",
+  "frost:hrolga": "keg-toss mallet-tap tasting-flight brewers-tab hearty-stew cask-wager stone-belly seen-worse oaken-shield hall-rules rune-dice stack-the-steins fire-mead-dash smoked-malt",
+  "frost:sable": "pinpoint-jab snare snowball read-the-tracks sell-a-pelt follow-the-jingle fox-and-hound tuck-and-roll sniff-it-out vanish-in-snow quick-as-a-fox tail-flick silver-bet frostberry-squeeze pine-needle-shot",
+  "masquerade:verrin": "draining-glance velvet-slap noble-tithe old-money tomato-juice-toast backhanded-compliment high-stakes-soiree cape-swirl only-tomato-juice how-dare-you i-insist family-fortune silk-purse ruby-cordial garlic-twist",
+  "masquerade:bim": "pie-in-the-face juggling-jugs whoopee-cushion confetti-shower lily-pad-hop hat-trick leapfrog-bet wrong-pond boing spit-take punchline rubber-chicken jingle-the-bells swamp-fizz bubble-pop",
+  "clockwork:sprocket": "spring-loaded-glove overclock blueprint-scribble boom-bottle coin-magnet gizmo-gamble pop-up-umbrella rocket-boots bounce-plate spanner-in-the-works rigged-roulette chain-reaction jackpot-o-matic rocket-fizz sparkplug-shot",
+  "clockwork:brassbell": "piston-punch clang polish-the-glasses overtime-tips tip-jar-sweep coin-sorting-routine beverage-rejected reinforced-plating rustproof-lining servo-sidestep does-not-compute calculated-odds insert-coin motor-oil-twist steam-shot",
+};
+const DRINK_PICS = {
+  "base:drink": "house-ale barrel-stout cinder-whiskey well-water warm-milk mystery-jug bubbly-mead barkeeps-special grannys-cordial sour-cider fancy-port lucky-penny-punch the-dare",
+  "harbor:drink": "ships-grog bilge-water squid-ink-stout farewell-shanty seafoam-tea",
+  "frost:drink": "frostmead glacier-melt yeti-nog avalanche",
+  "masquerade:drink": "masked-punch midnight-tea bubbly-fountain mystery-flute",
+  "clockwork:drink": "fizzbang-soda steam-cider coolant-cooler unstable-tonic",
+};
+
 export const ASSETS = {
   palette: {
     light: {
@@ -56,12 +88,12 @@ export const ASSETS = {
       badge: "#f6ead0",
     },
   },
-  portraits: {},
-  cards: {},
-  drinks: {},
-  cardBack: null,
-  drinkBack: null,
-  tableBg: null,
+  portraits: Object.fromEntries(CHARACTER_IDS.split(" ").map((id) => [id, pic(id)])),
+  cards: picsOf(CARD_PICS),
+  drinks: picsOf(DRINK_PICS),
+  cardBack: pic("card-back"),
+  drinkBack: pic("drink-back"),
+  tableBg: pic("table"),
   sounds: {
     play: new URL("./sounds/play.mp3", import.meta.url).href,
     react: null, drink: null,
