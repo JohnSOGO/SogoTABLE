@@ -19,6 +19,7 @@ import { renderRealmwrightGame } from "./realmwright/render.js";
 import { renderChineseCheckersGame } from "./chinese-checkers/render.js";
 import { renderLastOrdersGame } from "./last-orders/render.js";
 import { renderTracklayersGame } from "./tracklayers/render.js";
+import { renderHiddenIslesGame } from "./hidden-isles/render.js";
 
 const CTX_RENDERERS = new Map([
   [GAME_IDS.yahtzee, renderYahtzeeGame],
@@ -35,6 +36,7 @@ const CTX_RENDERERS = new Map([
   [GAME_IDS.chineseCheckers, renderChineseCheckersGame],
   [GAME_IDS.lastOrders, renderLastOrdersGame],
   [GAME_IDS.tracklayers, renderTracklayersGame],
+  [GAME_IDS.hiddenIsles, renderHiddenIslesGame],
 ]);
 
 // The ctx-bag renderer for this room game, or null for games the shell still
