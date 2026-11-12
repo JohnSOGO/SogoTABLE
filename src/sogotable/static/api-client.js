@@ -28,6 +28,7 @@ export async function api(url, payload, options = {}) {
       body: JSON.stringify(payload),
     });
     if (!data.ok) throw new Error(data.error || "Request failed.");
+    if (actionObserver) actionObserver(url);
     return data;
   } catch (error) {
     // Self-heal a stale/unclaimed owner token once, transparently, for any action.
@@ -47,6 +48,9 @@ export async function api(url, payload, options = {}) {
 // only reports it; client/app-update.js decides what a change means.
 let workerVersionObserver = null;
 export function setWorkerVersionObserver(fn) { workerVersionObserver = fn; }
+// Passive hook: told the URL of each POST that succeeded (a player action landed).
+let actionObserver = null;
+export function setActionObserver(fn) { actionObserver = fn; }
 
 export async function fetchJson(url, options = {}) {
   const response = await fetch(apiUrl(url), options);

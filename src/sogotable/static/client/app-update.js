@@ -5,7 +5,10 @@
 //      visible-only interval, after a socket reconnect (a Worker deploy drops
 //      sockets), and when the Worker reports a new deploy id (skew hint).
 //   2. Reload — only when the front-end revision really changed, and never while
-//      a move is in flight or the player is typing. A short-lived sessionStorage
+//      a move is in flight or the player is typing. Mid-game it also waits for the
+//      player's turn to finish (see turnSettled): a turn-based game reloads once
+//      it is someone else's turn; a parallel or solo game reloads right after
+//      the player's next action lands. A hidden tab reloads straight away. A short-lived sessionStorage
 //      marker records where the player was (screen, game, room code).
 //   3. Resume — the next page load reads the marker, re-enters that room or
 //      screen, then fades the logo overlay out. Room state itself lives on the
@@ -30,6 +33,8 @@ let workerVersion = "";
 let checking = false;
 let reloading = false;
 let skewTimers = [];
+let actionCount = 0;      // this tab's successful room actions (noteActionCompleted)
+let turnSnapshot = null;  // turn state when the pending reload was first held back
 
 export function wireAppUpdate(context) {
   ctx = context;
@@ -40,6 +45,22 @@ export function wireAppUpdate(context) {
   setInterval(() => { if (document.visibilityState === "visible") checkForUpdate("interval"); }, CHECK_INTERVAL_MS);
 }
 
+
+// The transport reports each successful POST; room actions mark a turn boundary
+// for games with no shared "whose turn" (parallel play, solo).
+export function noteActionCompleted(url) {
+  if (String(url || "").startsWith("/api/room/")) actionCount += 1;
+}
+
+// ctx.turnState() → { inPlay, myTurn, turnKey }. turnKey names the current turn
+// ("" when the game has no shared turn order). Safe to reload when nobody is
+// mid-turn here: not in a live game, someone else's turn, the turn has moved on
+// since the update was found, or (no turn order) an action of ours has landed.
+export function turnSettled(state, snapshot, actions) {
+  if (!state || !state.inPlay) return true;
+  if (state.turnKey) return !state.myTurn || Boolean(snapshot && snapshot.turnKey !== state.turnKey);
+  return Boolean(snapshot && actions > snapshot.actions);
+}
 
 // The transport reports the Worker deploy id it saw on a response. A change means
 // the backend was redeployed; the matching front end may land a little later, so
@@ -95,6 +116,10 @@ function reloadWhenSafe(latest) {
 
 function isBusy() {
   if (ctx.isBusy && ctx.isBusy()) return true;
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;   // nobody watching: reload now
+  const state = ctx.turnState ? ctx.turnState() : null;
+  if (!turnSnapshot) turnSnapshot = { turnKey: state && state.turnKey, actions: actionCount };
+  if (!turnSettled(state, turnSnapshot, actionCount)) return true;
   const active = document.activeElement;
   if (!active) return false;
   const tag = (active.tagName || "").toLowerCase();

@@ -1,4 +1,4 @@
-import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError, setOwnerTokenHealer, setWorkerVersionObserver } from "./api-client.js";
+import { api, fetchJson, isAlreadyClaimedError, isUnclaimedError, isStaleOwnerTokenError, setOwnerTokenHealer, setWorkerVersionObserver, setActionObserver } from "./api-client.js";
 import { wireHouses, renderHouseControls, renderPlayerPicker, buildPlayerCard, resetPlayerPicker } from "./controllers/houses.js";
 import {
   colorWithAlpha,
@@ -66,7 +66,7 @@ import {
   getDeviceSelectionHash,
   saveDeviceIdentity,
 } from "./client/session-store.js";
-import { refreshRevisionSummary, registerServiceWorker, wireAppUpdate, checkForUpdate, noteWorkerVersion, resumeAfterUpdate } from "./client/app-update.js";
+import { refreshRevisionSummary, registerServiceWorker, wireAppUpdate, checkForUpdate, noteWorkerVersion, noteActionCompleted, resumeAfterUpdate } from "./client/app-update.js";
 import {
   wireInvites,
   openInvitePlayerModal,
@@ -226,8 +226,10 @@ document.addEventListener("DOMContentLoaded", () => {
   purgeDeprecatedLocalRoster();
   registerServiceWorker();
   setWorkerVersionObserver(noteWorkerVersion);
+  setActionObserver(noteActionCompleted);
   wireAppUpdate({
     isBusy: () => Boolean(pendingMove),
+    turnState: () => { const r = currentRoom, g = r && r.game, seat = r && localRoomSeat(r); const turnKey = g && g.current_player && !isSoloRoom(r) ? `${r.code}:${r.game_epoch || 0}:${g.current_player}` : ""; return { inPlay: Boolean(r && r.started && g && g.status === "playing" && document.getElementById("game").classList.contains("active")), myTurn: Boolean(seat && seat.mark === g.current_player), turnKey }; },
     getResumeState: () => ({ screen: (document.querySelector(".screen.active") || {}).id || "", selectedGameId, roomCode: currentRoom ? currentRoom.code : "" }),
     resume: resumeFromUpdate,
   });
