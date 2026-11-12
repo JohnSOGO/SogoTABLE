@@ -1146,3 +1146,31 @@ REORG RECEIPT
                 (workers/games/battleship/) changes; no feature code added.
                 Reorganizer: reorganizer agent (2026-11-12).
 ```
+
+## 2026-11-12 — Battleship visual + sound upgrade (client-only)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Client-only Battleship upgrade — 3D-look SVG ship overlay, animated water /
+                hit / fire / splash / sink / shake fx, richer synth cues needing a
+                filtered-noise primitive, swappable assets (palette, ship art, sound files),
+                and per-device options (effects full/lite/off, tilt, coord labels, fleet
+                tracker). No server/rules/transport change.
+- Verdict:      EXISTING owners, no new owner row (src/sogotable/static/games/ dir pattern):
+                  • games/battleship/assets.js — swappable palette/ship/sound overrides (data)
+                  • games/battleship/ship-art.js — pure SVG ship builders
+                  • games/battleship/fx.js — reveal→fx markup/classes; reduced-motion + level gate;
+                    driven by the existing reveal timeline (no second timer)
+                  • games/battleship/sfx.js — cue tone data + playCue; absorbs playBattleshipHit/Miss
+                  • games/battleship/styles.js — all new CSS (styles-games.css untouched)
+                  • games/battleship/settings.js — per-device prefs (sogotable.battleship.view)
+                sound.js (EXISTING): filtered-noise voice via playTones `{type:"noise"}`.
+                client.js: wiring only (reorg-first commit made room: 746 → 613).
+- Flow stage:   render UI + record-outcome feedback. No normalize/validate/apply/persist/broadcast change.
+- Considerations:
+    - storage.js rejected for game-local prefs (platform keys only).
+    - Fleet tracker counts only Worker-revealed sunk ships on offence; no hidden-info inference.
+    - Overlay is pointer-events:none so tilt/touch hit-testing still lands on cells.
+    - Next seam when client.js regrows: reveal subsystem + move action → reveal.js.
+- New owner row: none.
+```

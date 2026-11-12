@@ -12,7 +12,12 @@
 // clearBattleshipDraft stays exported for the shell's fleet-POST path.
 import { actionLabelStyle } from "../../storage.js";
 import { randomBattleshipAttackPhrase, randomBattleshipResultPhrase } from "./phrases.js";
-import { playBattleshipHit, playBattleshipMiss, playClick, playInvalidMove } from "../../sound.js";
+import { playClick, playInvalidMove } from "../../sound.js";
+import { playCue } from "./sfx.js";
+import { ASSETS, paletteFor } from "./assets.js";
+import { shipSvg } from "./ship-art.js";
+import { effectiveFxLevel, resultElapsed, burstMarkup, markMarkup, shipFxClass, shakeClass } from "./fx.js";
+import { loadBattleshipView, buildBattleshipSettings } from "./settings.js";
 import { BATTLESHIP_CSS } from "./styles.js";
 import {
   randomBattleshipDraft, battleshipShipAt, battleshipShipSunk, coerceBattleshipPlacement,
@@ -36,6 +41,7 @@ let battleshipResultReveal = null;
 let battleshipResultTimer = null;
 let battleshipRevealQueue = [];
 let battleshipReviewMark = "";
+let battleshipArtSeq = 0;                  // unique SVG gradient ids per drawn ship
 
 const BATTLESHIP_RADAR_MS = 1000;          // radar scan before the hit/miss lands
 const BATTLESHIP_RESULT_MS = 2000;         // how long the hit/miss stays up
@@ -100,7 +106,7 @@ function buildRenderCtx() {
   };
 }
 
-// Inject the dark palette (BATTLESHIP_CSS, from styles.js) once. CSS is theme-gated, so it is inert in light mode.
+// Inject the board CSS (BATTLESHIP_CSS, from styles.js: sea, ships, effects, dark palette) once.
 function ensureBattleshipTheme() {
   if (document.getElementById("battleship-theme")) return;
   const styleEl = document.createElement("style");
@@ -221,6 +227,7 @@ function renderBattleshipSetup(host, game, selectedSeat, playerState) {
     <div class="battleship-ship-list"></div>
     <div class="battleship-grid" role="grid" aria-label="Battleship setup board"></div>
   `;
+  panel.appendChild(buildBattleshipSettings(() => ctx.rerender()));
   const shipList = panel.querySelector(".battleship-ship-list");
   (game.fleet || []).forEach((ship) => {
     const placed = draft.some((item) => item.id === ship.id);
@@ -279,6 +286,7 @@ function renderBattleshipPlay(host, game, selectedSeat, playerState, opponent, o
     <div class="battleship-board-title"></div>
     <div class="battleship-grid" role="grid"></div>
   `;
+  panel.appendChild(buildBattleshipSettings(() => ctx.rerender()));
   panel.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       ctx.setViewMode(button.dataset.view);
@@ -324,8 +332,6 @@ function renderBattleshipGrid(grid, game, options = {}) {
   const ships = Array.isArray(options.ships) ? options.ships : [];
   const shots = Array.isArray(options.shots) ? options.shots : [];
   const targetShips = Array.isArray(options.targetShips) ? options.targetShips : ships;
-  const ownerIcon = options.owner && options.owner.icon ? options.owner.icon : "#";
-  const shooterIcon = options.shooter && options.shooter.icon ? options.shooter.icon : ownerIcon;
   const ownerColor = ctx.isHexColor(options.owner && options.owner.color || "") ? options.owner.color : "#1f7a5f";
   const revealColor = ctx.isHexColor(options.shooter && options.shooter.color || "") ? options.shooter.color : ownerColor;
   grid.style.setProperty("--battle-size", String(size));
@@ -337,6 +343,13 @@ function renderBattleshipGrid(grid, game, options = {}) {
   grid.style.setProperty("--battle-reveal-glow", ctx.colorWithAlpha(revealColor, 0.42));
   grid.innerHTML = "";
   const revealPhase = battleshipRevealPhase(options.reveal);
+  const view = loadBattleshipView();
+  const fxLevel = effectiveFxLevel(view);
+  const elapsed = resultElapsed(options.reveal);
+  // The revealed shot stays hidden until the radar resolves, so sunk state is
+  // derived from the visible shots only (no wreck spoiling the result).
+  const hiddenShot = options.reveal && revealPhase !== "result" ? options.reveal : null;
+  const visibleShots = hiddenShot ? shots.filter((item) => item.row !== hiddenShot.row || item.col !== hiddenShot.col) : shots;
   for (let row = 0; row < size; row += 1) {
     for (let col = 0; col < size; col += 1) {
       const ship = ships.find((item) => battleshipShipCells(item, battleshipShipSize(game, item.id)).some((cell) => cell.row === row && cell.col === col));
@@ -353,17 +366,77 @@ function renderBattleshipGrid(grid, game, options = {}) {
       // Identify the hit's ship by position (shot.ship_id is stripped from the
       // viewer projection); targetShips holds the fleet whose cells can be marked.
       const hitShip = shot && shot.hit ? battleshipShipAt(targetShips, game, row, col) : null;
-      const sunkHit = hitShip ? battleshipShipSunk(hitShip, game, shots) : false;
+      const sunkHit = hitShip ? battleshipShipSunk(hitShip, game, visibleShots) : false;
       const cell = document.createElement("button");
       cell.type = "button";
       cell.className = `battle-cell ${ship ? "ship" : ""} ${selectedShip ? "selected-ship" : ""} ${shot ? shot.hit ? "hit" : "miss" : ""} ${shot && shot.hit ? sunkHit ? "sunk-hit" : "damaged-hit" : ""} ${radarScan ? "battle-radar-scan" : ""} ${radarTarget ? "battle-radar-target" : ""} ${attackLock ? "battle-attack-lock" : ""} ${reveal ? "battle-result-reveal" : ""} ${reveal && reveal.hit ? "reveal-hit" : ""} ${reveal && !reveal.hit ? "reveal-miss" : ""}`;
-      cell.textContent = reveal ? reveal.hit ? "💥" : "•" : shot ? shot.hit ? "💥" : "•" : ship ? ownerIcon : "";
+      const mark = shot ? shot.hit ? sunkHit ? "sunk" : "damaged" : "miss" : "";
+      cell.innerHTML = (reveal ? burstMarkup(reveal, fxLevel, elapsed) : "") + markMarkup(mark, fxLevel);
       cell.disabled = Boolean(options.disabled || shot);
       cell.setAttribute("aria-label", `Row ${row + 1}, Column ${col + 1}`);
       cell.addEventListener("click", () => options.onCell && options.onCell(row, col));
       grid.appendChild(cell);
     }
   }
+  decorateBattleshipBoard(grid, game, { ...options, size, view, fxLevel, elapsed, revealPhase, visibleShots, shots });
+}
+
+// Wrap the cell grid in the sea stage: animated water underneath, the 3D ship
+// overlay (pointer-events: none, so taps still land on the cells), coordinate
+// labels, the fleet tracker, the tilt and the hit shake. All view-only.
+function decorateBattleshipBoard(grid, game, o) {
+  const palette = paletteFor(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  const stage = document.createElement("div");
+  stage.className = `bs-stage fx-${o.fxLevel} ${o.revealPhase === "result" ? shakeClass(o.reveal, o.fxLevel) : ""}`;
+  stage.style.cssText = `--bs-sea-deep:${palette.seaDeep};--bs-sea-mid:${palette.seaMid};--bs-sea-light:${palette.seaLight};--bs-foam:${palette.foam};--bs-grid-line:${palette.gridLine};--bs-fire:${palette.fire};--bs-fire-core:${palette.fireCore};--bs-smoke:${palette.smoke};--bs-miss:${palette.missPeg};--bs-hit:${palette.hitPeg};--bs-wreck:${palette.wreck};--battle-size:${o.size};animation-delay:-${Math.round(o.elapsed)}ms`;
+  const letters = Array.from({ length: o.size }, (_, i) => String.fromCharCode(65 + i));
+  stage.innerHTML = `<div class="bs-frame ${o.view.tilt ? "bs-tilt" : ""} ${o.view.coords ? "bs-coords" : ""}">
+    ${o.view.coords ? `<div class="bs-corner"></div><div class="bs-cols">${letters.map((_, i) => `<span>${i + 1}</span>`).join("")}</div><div class="bs-rows">${letters.map((l) => `<span>${l}</span>`).join("")}</div>` : ""}
+    <div class="bs-board"><div class="bs-water"></div><div class="bs-ships"></div></div></div>`;
+  grid.replaceWith(stage);
+  const board = stage.querySelector(".bs-board");
+  board.insertBefore(grid, board.querySelector(".bs-ships"));
+  // Ships to draw: your own fleet (setup/defence), or the enemy ships the Worker
+  // has revealed to you (sunk ones; every ship once the game is complete).
+  const drawn = o.mode === "offence" ? (o.targetShips || []) : (o.ships || []);
+  const revealCell = o.reveal ? { row: o.reveal.row, col: o.reveal.col } : null;
+  board.querySelector(".bs-ships").innerHTML = drawn.map((ship) => {
+    const len = battleshipShipSize(game, ship.id);
+    const cells = battleshipShipCells(ship, len);
+    const holdsReveal = revealCell && cells.some((c) => c.row === revealCell.row && c.col === revealCell.col);
+    // An enemy ship sunk by the shot still under the radar stays hidden until it lands.
+    if (o.mode === "offence" && holdsReveal && o.revealPhase !== "result" && game.status === "playing") return "";
+    const sunk = battleshipShipSunk(ship, game, o.visibleShots);
+    const fx = shipFxClass(sunk, Boolean(holdsReveal && o.reveal.sunk && o.revealPhase === "result"), o.fxLevel);
+    const selected = o.mode === "setup" && ship.id === o.selectedShipId ? "bs-selected" : "";
+    const area = ship.orientation === "v"
+      ? `grid-row:${Number(ship.row) + 1} / span ${len};grid-column:${Number(ship.col) + 1}`
+      : `grid-row:${Number(ship.row) + 1};grid-column:${Number(ship.col) + 1} / span ${len}`;
+    battleshipArtSeq += 1;
+    return `<div class="bs-ship ${ship.orientation === "v" ? "bs-v" : "bs-h"} ${fx} ${selected}" style="${area};animation-delay:-${Math.round(o.elapsed)}ms">${shipSvg(ship, len, ship.orientation, palette, ASSETS.ships && ASSETS.ships[ship.id], `bs${battleshipArtSeq}`)}</div>`;
+  }).join("");
+  if (o.view.tracker && o.mode !== "setup") stage.appendChild(buildFleetTracker(game, o));
+}
+
+// Fleet tracker: which ships of the shown fleet are still afloat. Offence
+// counts only the Worker-revealed sunk ships (nothing hidden is inferred);
+// defence knows your own ships, so it also shows their damage.
+function buildFleetTracker(game, o) {
+  const known = o.mode === "offence" ? (o.targetShips || []) : (o.ships || []);
+  const hits = new Set(o.visibleShots.filter((s) => s.hit).map((s) => `${s.row}:${s.col}`));
+  const items = (game.fleet || []).map((ship) => {
+    const placed = known.find((item) => item.id === ship.id);
+    const cells = placed ? battleshipShipCells(placed, ship.size) : [];
+    const damage = cells.filter((c) => hits.has(`${c.row}:${c.col}`)).length;
+    const sunk = Boolean(placed) && damage >= ship.size;
+    const pips = Array.from({ length: ship.size }, (_, i) => `<i class="${sunk || (o.mode !== "offence" && i < damage) ? "hit" : ""}"></i>`).join("");
+    return { sunk, html: `<li class="${sunk ? "sunk" : ""}"><span>${ship.name}</span><b>${pips}</b></li>` };
+  });
+  const afloat = items.filter((item) => !item.sunk).length;
+  const el = document.createElement("div");
+  el.className = "bs-tracker";
+  el.innerHTML = `<div class="bs-tracker-title">${o.mode === "offence" ? "Enemy fleet" : "Your fleet"} · ${afloat} afloat</div><ul>${items.map((item) => item.html).join("")}</ul>`;
+  return el;
 }
 function battleshipDraftFor(game, seat, playerState) {
   if (!seat) return [];
@@ -467,17 +540,22 @@ function showBattleshipResultReveal(reveal) {
   };
   battleshipResultReveal = active;
   window.clearTimeout(battleshipResultTimer);
-  // Repaint when the radar scan begins (after the settle pause)...
+  // Repaint (and fire / hear the incoming shell) when the radar scan begins...
+  const launchCue = () => playCue(active.view === "offence" ? "fire" : "incoming");
   if (settleMs) {
     window.setTimeout(() => {
-      if (battleshipResultReveal === active) shell.rerender();
+      if (battleshipResultReveal !== active) return;
+      launchCue();
+      shell.rerender();
     }, settleMs);
+  } else {
+    launchCue();
   }
-  // ...play the hit/miss cue and repaint when the scan resolves...
+  // ...play the explosion / splash (and the sinking) and repaint when the scan resolves...
   window.setTimeout(() => {
     if (battleshipResultReveal !== active) return;
-    if (active.hit) playBattleshipHit();
-    else playBattleshipMiss();
+    playCue(active.hit ? "hit" : "miss");
+    if (active.sunk) playCue("sunk");
     shell.rerender();
   }, radarUntil - now);
   // ...then clear and move on to the next queued reveal.
