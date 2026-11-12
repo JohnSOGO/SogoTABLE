@@ -7,6 +7,7 @@
 // All wiring is addEventListener — no inline onclick, no imports from app.js.
 import { renderHostStartLobby } from "../lobby.js";
 import { POTION_LAB_CSS } from "./styles.js";
+import { cardArt } from "./art.js";
 
 let stylesInjected = false;
 // Local draft selection, keyed to the exact barrier so it resets when the pick
@@ -235,15 +236,15 @@ function playingHtml(game, room, me) {
 }
 
 function cardFace(c) {
+  const { emoji: em, name } = CARD_META[c.type];
   if (c.type === "moondust" || c.type === "potion") {
     const stack = c.type === "moondust" ? c.icons : c.val;
-    const em = CARD_META[c.type].emoji;
     const rows = stack >= 3
       ? `<span class="pl-mrow"><i>${em}</i></span><span class="pl-mrow"><i>${em}</i><i>${em}</i></span>`
       : `<span class="pl-mrow">${("<i>" + em + "</i>").repeat(stack)}</span>`;
-    return `<span class="pl-face pl-moons pl-m${stack}">${rows}</span>`;
+    return cardArt(c.type, name, em.repeat(stack), `<span class="pl-face pl-moons pl-m${stack}">${rows}</span>`);
   }
-  return `<span class="pl-face">${CARD_META[c.type].emoji}</span>`;
+  return cardArt(c.type, name, "", `<span class="pl-face">${em}</span>`);
 }
 
 function reviewHtml(game, room, me) {
