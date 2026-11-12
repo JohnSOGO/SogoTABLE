@@ -97,9 +97,11 @@ import { renderNoThanksGame } from "./games/no-thanks/render.js";
 import { renderHeartsGame } from "./games/hearts/render.js";
 import { renderYahtzeeGame } from "./games/yahtzee/render.js";
 import { renderMazewrightGame } from "./games/mazewright/render.js";
+import { wireChessTutor } from "./games/chess-tutor/index.js";
 import { renderRttaGame } from "./games/rtta/render.js";
 import { renderPotionLabGame } from "./games/potion-lab/render.js";
 import { renderRealmwrightGame } from "./games/realmwright/render.js";
+import { renderLastOrdersGame } from "./games/last-orders/render.js";
 import { renderChineseCheckersGame } from "./games/chinese-checkers/render.js";
 import { renderMysticWoodGame } from "./games/mystic-wood/render.js";
 import { renderWnykGame } from "./games/wnyk/render.js";
@@ -128,7 +130,7 @@ const {
   isQuoridorGameState,
   isTenThousandGameState,
   isYahtzeeGameState,
-  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState, isRealmwrightGameState, isChineseCheckersGameState,
+  isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState, isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isWnykGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState,
 } = createGameKinds(canonicalGameId);
 
 migrateStorageNamespace();
@@ -181,7 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
     visibleBattleshipPlayerMark, getBattleshipReviewMark, setBattleshipReviewMark,
     isTacticalGameState, isBattleshipGameState, isTenThousandGameState, isYahtzeeGameState,
     isMazewrightGameState, isRttaGameState, isZombieDiceGameState, isLiarsDiceGameState, isNoThanksGameState,
-    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState,
+    isHeartsGameState, isPotionLabGameState, isMysticWoodGameState, isRealmwrightGameState, isChineseCheckersGameState, isLastOrdersGameState,
   });
   wireSuperuser({ deviceSelectedPlayer, renderAdminActions: renderIntroAdminActions, renderPlayers });
   wireLocalSeat();
@@ -286,6 +288,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("superCloseRoom").addEventListener("click", closeCurrentRoomAsSuperuser);
   document.getElementById("resetGame").addEventListener("click", resetGame);
   wirePromptControls();
+  wireChessTutor({ deviceSelectedPlayer });
   wireWinOverlay({ getRoom: () => currentRoom, requestRematch: () => resetGame({ skipConfirm: true }) });
   wireRoomShare({ joinRoomByCode: (code) => enterRoomSummary({ code }), hasSelectedPlayer: () => Boolean(deviceSelectedPlayer()), isSoloRoom });
   captureJoinLink();
@@ -1654,10 +1657,10 @@ function renderGame() {
     });
     return;
   }
-  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game) || isRealmwrightGameState(game) || isChineseCheckersGameState(game)) {
+  if (isYahtzeeGameState(game) || isMazewrightGameState(game) || isRttaGameState(game) || isZombieDiceGameState(game) || isLiarsDiceGameState(game) || isNoThanksGameState(game) || isHeartsGameState(game) || isPotionLabGameState(game) || isMysticWoodGameState(game) || isWnykGameState(game) || isRealmwrightGameState(game) || isChineseCheckersGameState(game) || isLastOrdersGameState(game)) {
     ["gamePlayersPanel", "turnStatus"].forEach((id) => document.getElementById(id).classList.add("hidden"));
     const localSeat = localRoomSeat(currentRoom);
-    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : isRealmwrightGameState(game) ? renderRealmwrightGame : isChineseCheckersGameState(game) ? renderChineseCheckersGame : renderYahtzeeGame)({
+    (isMazewrightGameState(game) ? renderMazewrightGame : isRttaGameState(game) ? renderRttaGame : isZombieDiceGameState(game) ? renderZombieDiceGame : isLiarsDiceGameState(game) ? renderLiarsDiceGame : isNoThanksGameState(game) ? renderNoThanksGame : isHeartsGameState(game) ? renderHeartsGame : isPotionLabGameState(game) ? renderPotionLabGame : isMysticWoodGameState(game) ? renderMysticWoodGame : isWnykGameState(game) ? renderWnykGame : isRealmwrightGameState(game) ? renderRealmwrightGame : isChineseCheckersGameState(game) ? renderChineseCheckersGame : isLastOrdersGameState(game) ? renderLastOrdersGame : renderYahtzeeGame)({
       host: document.getElementById("macroBoard"),
       game,
       room: currentRoom,

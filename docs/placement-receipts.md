@@ -1417,4 +1417,27 @@ PLACEMENT RECEIPT
     - Prettier is configured but not enforced, to avoid one repo-wide reformat colliding with other threads.
     - Swapped the unused `playwright` devDependency for `@playwright/test` (same 1.61 line).
 - New owner row: none (exempt rows above)
+
+## 2026-11-12 — Chess Tutor (client-only opening trainer)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Place a single-player Chess Opening Tutor (book lines + explanations, weighted
+                defender, spaced repetition, mistake explanations; vendored chess.js + cm-chessboard).
+- Verdict:      src/sogotable/static/games/chess-tutor/ (EXISTING dir pattern) +
+                src/sogotable/static/vendor/ [NEW directory owner row: vendored third-party libs,
+                one per subdirectory]; client-only — no registry entry, GAME_HANDLERS row, or Worker change.
+- Flow stage:   validate+apply = chess-tutor/rules.js + scheduler.js + session.js (pure);
+                persist = storage.js keys via chess-tutor/progress.js; render = render.js /
+                drill-view.js / board.js / styles.js; orchestrate = index.js, wired by app.js (2 lines).
+- Considerations:
+    - app.js at its ceiling: shell takes only an import + one wire call; navigation reuses
+      [data-screen]; tutor renders lazily when #chessTutor becomes active (covers update-resume).
+    - Rejected hostStart / Game-Locked room: no shared state; would need a handler row, D1 writes
+      and a Worker deploy for a solo drill.
+    - Vendor at platform level so a future chess game can share it without a cross-game import;
+      chess.js (3368 lines, unmodified) gets a FILE_CAP_EXCEPTIONS entry.
+    - Progress is device-local (per player id); cross-device sync is a future Worker owner.
+    - Product flag: a non-room "trainer" entry on the Games screen is a new category.
+- New owner row: | `src/sogotable/static/vendor/` | Vendored third-party browser libraries … |
 ```

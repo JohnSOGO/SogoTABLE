@@ -28,6 +28,7 @@ export const GAME_IDS = {
   wnyk: "c9d4e72a81f5",
   realmwright: "4d8e2b6a9c13",
   chineseCheckers: "6bc129b1bbed",
+  lastOrders: "618a2d361857",
 };
 
 // Display categories for the game-select screen, in the order they appear.
@@ -265,5 +266,18 @@ export const GAME_REGISTRY = [
     status: "Ready",
     availability: "ready",
     aliases: ["chinese_checkers", "chinese-checkers", "chinesecheckers", "star_checkers", "sternhalma"],
+  },
+  {
+    id: GAME_IDS.lastOrders,
+    lobbyMode: "hostStart",
+    name: "🍻 Last Orders",
+    summary: "A rowdy tavern card game: pick a patron, brawl, buy your rivals drinks, gamble for coins and answer every dirty trick in quick reaction windows. Last one still standing with coins in their purse wins. Expansion packs add new patrons, drinks and wild tavern nights.",
+    players: "2+ players",
+    player_count: null,
+    host_start: true,
+    category: "card",
+    status: "Ready",
+    availability: "ready",
+    aliases: ["last_orders", "last-orders", "lastorders", "tavern_brawl", "tavern-brawl"],
   },
 ];

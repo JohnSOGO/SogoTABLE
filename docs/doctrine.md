@@ -30,6 +30,7 @@ doctrine index points back to it.
 - [Wu Wei Method](wu-wei-method.md): the flow doctrine for shaping the app so correct play is the natural path.
 - [Modularity](modularity.md): the structure doctrine for module ownership, no god files, and growing code by extracting seams.
 - [Adding a Game](adding-a-game.md): the intake survey, build checklist, and AI-handoff brief for a new game module.
+- [Game Integration Spec](game-integration-spec.md): the lobby ↔ game contract — what the lobby provides, what a game implements, parallel play + conflict handling, asset swapping and renaming.
 - [Lessons & Gotchas](lessons.md): cross-cutting traps that cost real time (shell CSS class collisions, deploy lag, per-seat state) — read before re-paying for them.
 - [Building Offline UI Prototypes](offline-ui.md): the UI shape and shell contract for a Phase 0 standalone (no intro/setup, N-player, status table at the bottom).
 - [AREC](AREC.md): the idea-pressure test used before new concepts become doctrine or architecture.
@@ -57,6 +58,7 @@ If the idea is still fuzzy or architecture-shaping, run AREC before implementati
 - Flow, event-driven behavior, or explicit refresh doctrine -> `docs/wu-wei-method.md`
 - Module ownership, no-god-file discipline, placement decisions, or preparatory refactoring (making room before a feature) -> `docs/modularity.md`
 - Adding a new game end to end (intake survey, then the build checklist) -> `docs/adding-a-game.md`
+- The lobby/game plug-in contract, parallel-play barriers, conflict rules, or re-theming/renaming a game -> `docs/game-integration-spec.md`
 - Building a Phase 0 offline UI prototype (shape, shell contract, what not to build) -> `docs/offline-ui.md`
 - Bot behavior contract or shared strategy guidance -> `docs/bots/index.md`
 - Recruitable bot naming and AI tiers -> `docs/ai-difficulty.md`

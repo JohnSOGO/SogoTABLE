@@ -107,6 +107,27 @@ export function applyTheme() {
   if (meta) meta.setAttribute("content", theme === "dark" ? "#14181f" : "#ffffff");
 }
 
+// Chess Tutor progress (spaced-repetition cards + help settings), one blob per
+// player on this device. Owned by games/chess-tutor/progress.js.
+export const CHESS_TUTOR_PROGRESS_KEY_PREFIX = "sogotable.chessTutor.progress.";
+
+export function loadChessTutorProgress(playerId) {
+  try {
+    return JSON.parse(localStorage.getItem(CHESS_TUTOR_PROGRESS_KEY_PREFIX + (playerId || "guest")) || "null");
+  } catch {
+    return null;
+  }
+}
+
+export function saveChessTutorProgress(playerId, progress) {
+  try {
+    localStorage.setItem(CHESS_TUTOR_PROGRESS_KEY_PREFIX + (playerId || "guest"), JSON.stringify(progress));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Drop the long-retired local roster keys (players now live in the Worker).
 export function purgeDeprecatedLocalRoster() {
   localStorage.removeItem("sogotable.players");

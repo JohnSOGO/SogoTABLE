@@ -75,8 +75,22 @@
         <div id="gamesSection">
           <h2>Games</h2>
           <div id="gamesList" class="games-list"></div>
+          <h2>Learn</h2>
+          <div class="games-list">
+            <button id="openChessTutor" class="game-card" type="button" data-screen="chessTutor">♞ Chess Tutor</button>
+          </div>
         </div>
         <p id="gamesNeedPlayer" class="games-need-player hidden">Select or create a player above to choose a game.</p>
+      </section>
+
+      <section id="chessTutor" class="screen">
+        <header class="topbar">
+          <button class="ghost icon-button" data-screen="games" aria-label="Back" title="Back">🔙</button>
+          <span></span>
+          <h2 id="chessTutorTitle">♞ Chess Tutor</h2>
+          <span></span>
+        </header>
+        <div class="ct-mount chess-tutor-root"></div>
       </section>
 
       <section id="gameSelected" class="screen">

@@ -62,6 +62,8 @@ http://127.0.0.1:8788/
 
 ## Deploy the hosted brain
 
+Merges to `main` deploy the Worker automatically through `.github/workflows/deploy.yml` (Worker tests first, then `wrangler deploy`) once the repository secret `CLOUDFLARE_API_TOKEN` (a Cloudflare "Edit Cloudflare Workers" token) is set. To deploy by hand:
+
 The public site uses a shared API brain for players, lobby presence, rooms, invites, and moves. Deploy it with:
 
 ```powershell
