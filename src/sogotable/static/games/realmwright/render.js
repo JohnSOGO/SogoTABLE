@@ -412,6 +412,19 @@ function fitToBoard(viewport) {
   return fitCamera(S.cam, boardBounds(board, canAct(ctx, me) ? me.legal : []), viewport.clientWidth, viewport.clientHeight);
 }
 
+// True when every legal cell sits fully inside the visible viewport.
+function legalOnScreen(legal, viewport) {
+  const w = viewport.clientWidth;
+  const h = viewport.clientHeight;
+  if (!w || !h) return true;
+  const { x, y, z } = S.cam;
+  return legal.every((e) => {
+    const left = e.x * 100 * z + x;
+    const top = e.y * 100 * z + y;
+    return left >= 0 && top >= 0 && left + 100 * z <= w && top + 100 * z <= h;
+  });
+}
+
 function paint(ctx) {
   const host = ctx.host;
   if (!host || !ctx.game) return;
@@ -430,6 +443,12 @@ function paint(ctx) {
   viewport.style.background = vm.palette.boardBg;
   viewport.classList.toggle("rw-can-act", vm.canAct);
   root.querySelector(".rw-cam").innerHTML = buildBoardMarkup(vm);
+  // A fresh tile in hand (new round or redraw) re-fits the camera when any of
+  // its glowing spots sit off screen, so the realm growing past the edge never
+  // hides where you can build. Panning within a round is never overridden.
+  const tileKey = me.mySeat ? `${ctx.game.round}:${me.mySeat.tile_serial}` : "";
+  if (S.cam.fitted && tileKey && S.cam.tileKey !== tileKey && canAct(ctx, me) && !legalOnScreen(me.legal, viewport)) S.cam.fitted = false;
+  S.cam.tileKey = tileKey;
   if (!S.cam.fitted) {
     if (!fitToBoard(viewport)) requestAnimationFrame(() => { if (!S.cam.fitted && fitToBoard(viewport)) applyCamera(viewport, S.cam); });
   }
