@@ -16,6 +16,7 @@ import { GAME_EMOJI, GAME_NAME, TURN_STEPS, UI } from "./branding.js";
 import { calloutFeed, calloutReset } from "./callout.js";
 import { turnSummaryFeed, turnSummaryReset } from "./turn-summary.js";
 import { gambleResultHtml } from "./gamble-result.js";
+import { peekChipsHtml, peekPopoverHtml, starterPeekHtml } from "./hand-peek.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
 import { wireGestures } from "./gestures.js";
@@ -33,7 +34,7 @@ const GHOST_MS = 1700;
 const AUTO_PASS_MS = 650;
 const PREFS_KEY = "sogotable.lastOrders.prefs";
 const PREF_DEFAULTS = { tips: true, primer: true, autopass: true, steptips: true, callouts: true, voice: true };
-const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "ticker", "toast", "gamble"];
+const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "peek", "ticker", "toast", "gamble"];
 
 let stylesInjected = false;
 let themeObserved = false;
@@ -43,7 +44,7 @@ let S = freshState("");
 function freshState(key) {
   return {
     key, lastCtx: null, sending: false, selKey: "", sel: null, target: null, discardSel: new Set(), orderTarget: null, orderSpike: null, handHome: false,
-    toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false, stepTip: "", stepTimer: null, stepKey: "",
+    toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, peek: null, primerOpen: false, stepTip: "", stepTimer: null, stepKey: "",
     autoPassStep: -1, autoPassTimer: null, autoPassed: -1, sawPlaying: false, winPlayed: false, lastBeep: -1, bgTheme: "",
   };
 }
@@ -349,7 +350,8 @@ function onAct(act, value) {
   const mode = modeOf(ctx.game, info);
   const playable = new Set(me ? me.playable || [] : []);
   switch (act) {
-    case "menu": S.menuOpen = !S.menuOpen; playClick(); break;
+    case "menu": S.menuOpen = !S.menuOpen; S.peek = null; playClick(); break;
+    case "peek": S.peek = S.peek === value ? null : value; S.menuOpen = false; playClick(); break;
     case "pref": setPref(value, !prefs()[value]); playClick(); if (value === "autopass") maybeAutoPass(ctx, info); break;
     case "primer": S.primerOpen = !S.primerOpen; playClick(); break;
     case "step": // a turn-step dot: explain that step (tap again, or the tip, to close)
@@ -500,11 +502,11 @@ function topHtml(vm) {
   let status;
   if (g.status === "complete") status = UI.resultsTitle;
   else if (g.phase === "pick") status = UI.pickTitle;
-  else if (vm.turnMark === vm.myMark) status = UI.yourTurn;
+  else if (vm.turnMark === vm.myMark) status = ""; // the step dots say it's mine; the bar shows my hand chips
   else status = vm.turnMark ? UI.turnOf(vm.nameOf(vm.turnMark)) : "";
   const steps = turnStepsHtml(vm, S.stepTip);
-  return `<span class="lo-title">${GAME_EMOJI} <span class="lo-title-text">${vm.esc(GAME_NAME)}</span></span>${steps}<span class="lo-status">${vm.esc(status)}</span>
-    <button type="button" class="lo-gear${S.menuOpen ? " lo-on" : ""}" data-lo-act="menu" aria-expanded="${S.menuOpen}" aria-label="${vm.esc(UI.settings)}">⚙︎</button>`;
+  return `<span class="lo-title">${GAME_EMOJI} <span class="lo-title-text">${vm.esc(GAME_NAME)}</span></span>${steps}<span class="lo-status">${vm.esc(status)}</span>${peekChipsHtml(vm, S.peek)}
+    <button type="button" class="lo-gear${S.menuOpen ? " lo-on" : ""}" data-lo-act="menu" aria-expanded="${S.menuOpen}" aria-label="${vm.esc(UI.settings)}">⚙︎</button>${peekPopoverHtml(vm, S.peek)}`;
 }
 
 function menuHtml(vm) {
@@ -616,6 +618,7 @@ function paint(ctx, fresh) {
   root.setAttribute("data-lo-focus", focusOf(vm, picking || complete));
   setSection(root, "hand", picking || complete ? "" : handHtml(vm), !picking && !complete && !(vm.mySeat && vm.mySeat.out));
   slideHand(root, handBefore);
+  setSection(root, "peek", picking || complete ? "" : starterPeekHtml(vm), !picking && !complete);
   scrollHandHome(root, vm.mode);
   setSection(root, "ticker", tickerHtml(vm));
   setSection(root, "gamble", gambleResultHtml(vm));
