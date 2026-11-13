@@ -26,6 +26,7 @@ import {
 } from "./engine.js";
 import { playableFor, canPass, windowEligible, topItem, orderTargets, discardLimit } from "./legal.js";
 import { botPickCharacter, botDiscard, botAction, botOrder, botReact } from "./ai.js";
+import { openGambleResult, gambleResultHolding, gambleResultDueAt, ackGambleResult, projectGambleResult, normalizeGambleResult } from "./gamble-result.js";
 
 export const LAST_ORDERS_GAME_ID = GAME_IDS.lastOrders;
 export const REACT_SECONDS = [5, 8, 12, 20];
@@ -294,8 +295,9 @@ function closeWindow(game, now) {
   const w = game.reaction;
   if (w.kind === "gamble" && !w.stack.length) {
     game.reaction = null;
-    finishGamble(game);
+    const result = finishGamble(game);
     checkOuts(game);
+    if (game.status === "playing") openGambleResult(game, result, now); // hold for "Got it"
     bump(game);
     return;
   }
@@ -461,6 +463,7 @@ function advance(game, now) {
     guard += 1;
     let moved;
     if (game.phase === "pick") moved = maybeFinishPick(game, now);
+    else if (game.gamble_result && gambleResultHolding(game, now, () => bump(game))) return;
     else if (game.reaction) moved = stepWindow(game, now);
     else moved = stepTurn(game, now);
     if (!moved) return;
@@ -469,6 +472,7 @@ function advance(game, now) {
 
 function nextDueAt(game) {
   if (game.status !== "playing" || game.phase !== "play") return 0;
+  if (game.gamble_result) return gambleResultDueAt(game);
   const w = game.reaction;
   if (w) {
     if (w.paused_at) return w.lapse_at || 0;
@@ -605,6 +609,8 @@ export function makeLastOrdersMove(game, mark, action) {
   if (type === "ACK_DRINK") { doAckDrink(game, mark, now); finish(game); return; }
   if (type === "STILL_HERE") { doStillHere(game, mark, Boolean(a.hold), now); finish(game); return; }
   if (type === "PAUSE_TIMER" || type === "RESUME_TIMER") { doPause(game, mark, type, now); finish(game); return; }
+  if (type === "ACK_GAMBLE") { if (ackGambleResult(game, mark)) bump(game); advance(game, now); finish(game); return; }
+  if (game.gamble_result && type !== "PICK") throw new Error("Have a look at the gamble result first, then tap Got it.");
   if (type === "SKIP_PLAYER") { doSkip(game, mark, String(a.target || ""), now); advance(game, now); finish(game); return; }
   const stamped = a.step == null ? NaN : Math.trunc(Number(a.step));
   if (type !== "PICK" && Number.isFinite(stamped) && stamped !== game.step) throw new Error("The table moved on — have another look and try again.");
@@ -686,6 +692,7 @@ export function lastOrdersGameToDict(game) {
       stack: w.stack.map((it) => ({ uid: it.uid, by: it.by, kind: it.kind, card: it.card, target: it.target, canceled: Boolean(it.canceled), soften: it.soften || 0, spikes: [...(it.spikes || [])] })),
     } : null,
     gamble: game.gamble ? { leader: game.gamble.leader, pot: game.gamble.pot, in: [...game.gamble.in] } : null,
+    gamble_result: projectGambleResult(game),
     event: game.event, drink_deck_count: game.drink_deck.length, last_drink: game.last_drink ? { ...game.last_drink, spikes: [...game.last_drink.spikes] } : null,
     events: game.events.map((e) => ({ ...e })), skip_votes: normalizeSkipVotes(game.skip_votes),
     private: priv, // stripped per viewer — never sent whole
@@ -754,6 +761,7 @@ function normalizeLastOrdersGame(game) {
   game.winner = game.seat_order.includes(game.winner) ? game.winner : null;
   game.results = Array.isArray(game.results) ? game.results : null;
   if (game.turn && !game.players[game.turn.mark]) game.turn = null;
+  normalizeGambleResult(game);
   if (game.reaction && !(Array.isArray(game.reaction.stack) && Array.isArray(game.reaction.passed))) game.reaction = null;
   if (game.reaction && (!game.reaction.plans || typeof game.reaction.plans !== "object")) game.reaction.plans = {};
   if (game.reaction) { game.reaction.paused_at = Math.max(0, Number(game.reaction.paused_at) || 0); game.reaction.lapse_at = Math.max(0, Number(game.reaction.lapse_at) || 0); }
