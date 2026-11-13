@@ -1732,3 +1732,19 @@ PLACEMENT RECEIPT
     - Sibling parity: content + rules tests list every expansion; review-export lists every pack file
 - New owner row: none (games/ directory rows cover it)
 ```
+
+## Last Orders — end-of-my-turn summary card (2026-11-13)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Client-only Last Orders card at the end of my turn showing how my Grit / Buzz / Coins changed since my previous turn ended (or game start), animated, dismissed by tap or after a few seconds.
+- Verdict:      src/sogotable/static/games/last-orders/turn-summary.js (new, under the existing games/ directory row) + TURN_SUMMARY strings in branding.js + CSS in styles.js + reset/feed hooks in render.js  [EXISTING owners; no new owner row]
+- Flow stage:   render (view effect over projected public stats; decides nothing)
+- Considerations:
+    - render.js (~680/800, owns S and paint) rejected: a second concern; leaf module with reset/feed hooks follows callout.js / fx.js
+    - panels.js is stateless HTML builders: a timed overlay does not fit
+    - Prime-only first snapshot + sessionStorage baseline: no fake card on reload / reconnect / second tab
+    - Only the card takes pointer events; it dismisses when a reaction I can answer opens
+    - Listed in REVIEW_EXPORT_FILES for the import-closure test
+- New owner row: none (games/ directory rows cover it)
+```

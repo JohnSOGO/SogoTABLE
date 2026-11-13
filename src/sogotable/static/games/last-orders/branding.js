@@ -15,6 +15,18 @@ export const STATS = {
   buzz: { name: "Buzz", icon: "🍺", hint: "how drunk you are — out when it reaches your Grit" },
   gold: { name: "Coins", one: "Coin", icon: "🪙", hint: "your purse — out when it hits 0" },
 };
+// The end-of-my-turn summary card (turn-summary.js).
+export const TURN_SUMMARY = {
+  title: "Your turn's done!",
+  since: "Since the end of your last turn · tap to close",
+  face: { good: "🥳", mixed: "😅", steady: "🙂", rough: "😵‍💫" },
+  mood: {
+    good: "What a turn! The bar loves you.",
+    mixed: "Swings and roundabouts.",
+    steady: "Steady as a barstool.",
+    rough: "Rough one. Hydrate!",
+  },
+};
 export const coinWord = (n) => (Math.abs(Number(n)) === 1 ? STATS.gold.one : STATS.gold.name);
 export const cardWord = (n) => (Math.abs(Number(n)) === 1 ? "card" : "cards");
 export const drinkWord = (n) => (Math.abs(Number(n)) === 1 ? "drink" : "drinks");

@@ -290,6 +290,30 @@ const PLAY = `
 .last-orders-root .lo-defending{animation:lo-defender 1s ease-in-out infinite}
 @keyframes lo-defender{0%,100%{box-shadow:0 0 0 3px var(--lo-grit),0 0 14px 2px rgba(226,71,91,.55);background:color-mix(in srgb,var(--lo-grit) 18%,var(--lo-panel))}50%{box-shadow:0 0 0 2px rgba(226,71,91,.35),0 0 0 rgba(226,71,91,0);background:var(--lo-panel)}}
 @media (prefers-reduced-motion:reduce){.last-orders-root .lo-defending{animation:none;box-shadow:0 0 0 3px var(--lo-grit)}}
+/* end-of-my-turn summary (turn-summary.js): floats mid-screen, only the card takes taps */
+.last-orders-root .lo-turnsum{position:fixed;left:0;right:0;top:26%;z-index:21;height:0;overflow:visible;pointer-events:none;display:flex;align-items:flex-start;justify-content:center}
+.last-orders-root .lo-ts{pointer-events:auto;cursor:pointer;width:min(88%,340px);padding:12px 14px 10px;border-radius:22px;background:var(--lo-panel);color:var(--lo-ink);border:3px solid var(--lo-ts-k,#c9a227);box-shadow:0 14px 36px rgba(0,0,0,.4);animation:lo-ts-in .55s cubic-bezier(.2,.9,.3,1.35) both}
+.last-orders-root .lo-ts-good{--lo-ts-k:#3aa860}.last-orders-root .lo-ts-rough{--lo-ts-k:var(--lo-grit)}.last-orders-root .lo-ts-mixed{--lo-ts-k:#e0a32e}
+.last-orders-root .lo-ts-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.last-orders-root .lo-ts-head b{display:block;font-size:17px}
+.last-orders-root .lo-ts-head small{display:block;font-size:13px;color:var(--lo-muted)}
+.last-orders-root .lo-ts-face{font-size:38px;line-height:1;animation:lo-ts-wobble 1.2s ease-in-out .3s 2}
+.last-orders-root .lo-ts-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.last-orders-root .lo-ts-stat{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:16px;background:rgba(127,127,127,.13);animation:lo-ts-pop .45s cubic-bezier(.2,.9,.3,1.5) both;animation-delay:calc(.15s + var(--i) * .12s)}
+.last-orders-root .lo-ts-icon{font-size:26px;line-height:1.1}
+.last-orders-root .lo-ts-up .lo-ts-icon{animation:lo-ts-hop .5s ease-out calc(.5s + var(--i) * .12s) 2}
+.last-orders-root .lo-ts-name{font-size:11.5px;font-weight:700;color:var(--lo-muted)}
+.last-orders-root .lo-ts-num{font-size:18px;font-variant-numeric:tabular-nums}
+.last-orders-root .lo-ts-num s{font-size:12px;color:var(--lo-muted)}
+.last-orders-root .lo-ts-chip{font-size:13px;font-weight:900;padding:1px 9px;border-radius:999px;background:rgba(127,127,127,.18)}
+.last-orders-root .lo-ts-up .lo-ts-chip{background:#3aa860;color:#fff}
+.last-orders-root .lo-ts-down .lo-ts-chip{background:var(--lo-grit);color:#fff}
+.last-orders-root .lo-ts-foot{margin-top:8px;text-align:center;font-size:11.5px;color:var(--lo-muted)}
+@keyframes lo-ts-in{from{transform:scale(.4) rotate(-6deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes lo-ts-pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+@keyframes lo-ts-hop{50%{transform:translateY(-7px) scale(1.15)}}
+@keyframes lo-ts-wobble{25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+@media (prefers-reduced-motion:reduce){.last-orders-root .lo-ts,.last-orders-root .lo-ts *{animation:none !important}}
 /* play callout (callout.js): a banner pinned to the top of the viewport */
 .last-orders-root .lo-callout{position:sticky;top:8px;z-index:20;height:0;margin-bottom:-8px;overflow:visible;pointer-events:none;display:flex;align-items:flex-start;justify-content:center;grid-column:1 / -1;grid-row:1}
 .last-orders-root .lo-co{display:flex;align-items:center;gap:10px;width:min(94%,520px);padding:8px 10px;border-radius:16px;background:var(--lo-panel);color:var(--lo-ink);border:2px solid var(--lo-co-k,var(--lo-k-action));box-shadow:0 10px 28px rgba(0,0,0,.35);animation:lo-co-in .42s cubic-bezier(.2,.8,.3,1.2) both}

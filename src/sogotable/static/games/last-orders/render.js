@@ -14,6 +14,7 @@ import { playClick } from "../../sound.js";
 import { tableBgCssUrl } from "./art.js";
 import { GAME_EMOJI, GAME_NAME, TURN_STEPS, UI } from "./branding.js";
 import { calloutFeed, calloutReset } from "./callout.js";
+import { turnSummaryFeed, turnSummaryReset } from "./turn-summary.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
 import { wireGestures } from "./gestures.js";
@@ -105,6 +106,7 @@ export function renderLastOrdersGame(ctx) {
     S = freshState(key);
     fxReset(key);
     calloutReset(key);
+    turnSummaryReset(key);
   }
   S.lastCtx = ctx;
   const info = seatInfo(ctx);
@@ -621,6 +623,7 @@ function paint(ctx, fresh) {
   fxAfterPaint(root, { fresh, items: g.reaction ? g.reaction.stack : [], game: g, labels: reducedMotion() ? null : statLabels });
   calloutFeed(mountedRoot, fresh, { myMark: vm.myMark, players: vm.players, defs: vm.defs, nameOf: vm.nameOf, theme: vm.theme, esc: vm.esc },
     { enabled: prefs().callouts && g.status === "playing", voice: prefs().voice });
+  turnSummaryFeed(mountedRoot, g, { myMark: vm.myMark, me: vm.me, players: vm.players, esc: vm.esc, reduced: reducedMotion() });
 }
 
 // When my action step or a reaction window opens, scroll the hand back to its
