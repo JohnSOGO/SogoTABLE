@@ -27,6 +27,19 @@ export const TURN_SUMMARY = {
     rough: "Rough one. Hydrate!",
   },
 };
+// The hand peek (hand-peek.js): a chip per card type in the top bar, and my
+// gamble cards shown under a gamble starter I've lifted.
+export const HAND_PEEK = {
+  icon: { action: "👊", reaction: "✋", gamble: "🎲", spike: "🧪" },
+  groupLabel: "Peek at your hand by card type",
+  chipLabel: (n, kind) => `${n} ${kind} ${n === 1 ? "card" : "cards"} in hand — tap to peek`,
+  title: (kind, n) => `Your ${kind.toLowerCase()} cards (${n})`,
+  close: "tap to close",
+  none: (kind) => `No ${kind.toLowerCase()} cards in your hand.`,
+  backup: (n) => (n ? `Your gamble cards to back it up (${n})` : "Your gamble cards to back it up"),
+  noBackup: "None — once it starts, you can't take the lead back.",
+};
+
 // The gamble result card (gamble-result.js): who won the pot, what each
 // gambler lost, and a "Got it" each human taps before play moves on.
 export const GAMBLE_RESULT = {

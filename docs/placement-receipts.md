@@ -1762,3 +1762,17 @@ PLACEMENT RECEIPT
     - Players who haven't acked appear in awaiting_marks for the short hold (accepted)
 - New owner row: none (games/ directory rows cover both new files)
 ```
+
+## Last Orders — hand peek chips + gamble-starter peek (2026-11-13)
+
+```
+PLACEMENT RECEIPT
+- Ask:          Drop "Your turn" from the top bar; show a chip per hand-card type (action, reaction, gamble, spike) with a count, tap to peek those cards; when a gamble-starting card is lifted, show my gamble cards under the hand.
+- Verdict:      NEW src/sogotable/static/games/last-orders/hand-peek.js (pure builders), wired by render.js (S.peek, "peek" act, new "peek" section after "hand"); labels HAND_PEEK in branding.js; CSS in styles.js; review-export.js allowlist  [games/ directory pattern; no new owner row]
+- Flow stage:   render (read-only view of projected me.hand + defs)
+- Considerations:
+    - Rejected render.js (orchestrator near 800), hand.js (would disturb snapHand/slideHand), panels.js (junk drawer)
+    - No client judgement of gamble strength: shows each card's own text only
+    - Chips show for any live seat in play (most useful during others' gambles); "X's turn" kept for other players
+- New owner row: none
+```

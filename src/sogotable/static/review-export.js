@@ -231,6 +231,7 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/last-orders/callout.js",
   "src/sogotable/static/games/last-orders/turn-summary.js",
   "src/sogotable/static/games/last-orders/gamble-result.js",
+  "src/sogotable/static/games/last-orders/hand-peek.js",
   "src/sogotable/static/games/last-orders/voice.js",
   "src/sogotable/static/games/last-orders/hand.js",
   "src/sogotable/static/games/last-orders/hand-fx.js",

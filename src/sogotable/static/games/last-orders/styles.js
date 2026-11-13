@@ -338,6 +338,23 @@ const PLAY = `
 .last-orders-root .lo-gr-wait{min-height:44px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;color:var(--lo-muted);font-size:14px}
 .last-orders-root .lo-gr-count{font-size:13px;font-weight:700;opacity:.75}
 .last-orders-root .lo-gr-count:not(:empty)::before{content:"· "}.last-orders-root .lo-gr-count:not(:empty)::after{content:"s"}
+.last-orders-root .lo-peek-chips{flex:none;display:inline-flex;gap:3px}
+.last-orders-root button.lo-peek-chip{min-height:0;height:30px;padding:0 6px;display:inline-flex;align-items:center;gap:2px;border-radius:15px;border:1px solid var(--lo-line);background:var(--lo-chip);color:var(--lo-ink);font-size:14px;line-height:1}
+.last-orders-root button.lo-peek-chip b{font-size:13px}
+.last-orders-root button.lo-peek-chip.lo-peek-none{opacity:.45}
+.last-orders-root button.lo-peek-chip.lo-on{background:var(--lo-accent);color:var(--lo-accent-ink);border-color:var(--lo-accent);opacity:1}
+.last-orders-root .lo-peek-pop{position:absolute;top:46px;right:0;z-index:20;width:min(340px,100%);max-height:60vh;overflow:auto;padding:8px 10px;border-radius:14px;background:var(--lo-panel);border:1px solid var(--lo-line);box-shadow:0 8px 30px rgba(0,0,0,.3);cursor:pointer;animation:lo-toast-in-down .18s ease-out}
+.last-orders-root .lo-peek-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-weight:800;font-size:14px;margin-bottom:6px}
+.last-orders-root .lo-peek-head small{color:var(--lo-muted);font-weight:600;font-size:11.5px}
+.last-orders-root .lo-peek-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.last-orders-root .lo-peek-card{padding:6px 8px;border-radius:10px;background:var(--lo-panel-2);display:flex;flex-direction:column;gap:1px}
+.last-orders-root .lo-peek-card b{font-size:14px}
+.last-orders-root .lo-peek-card small{font-size:12.5px;line-height:1.3;color:var(--lo-ink);opacity:.85}
+.last-orders-root .lo-peek-empty{margin:0;font-size:13px;color:var(--lo-muted)}
+.last-orders-root .lo-peek{background:var(--lo-panel);border-radius:14px;box-shadow:var(--lo-shadow);padding:8px 10px;border:2px dashed var(--lo-turn)}
+.last-orders-root .lo-peek[hidden]{display:none}
+.last-orders-root .lo-peek-row{flex-direction:row;flex-wrap:wrap}
+.last-orders-root .lo-peek-row .lo-peek-card{flex:1 1 150px}
 @keyframes lo-ts-in{from{transform:scale(.4) rotate(-6deg);opacity:0}to{transform:none;opacity:1}}
 @keyframes lo-ts-pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
 @keyframes lo-ts-hop{50%{transform:translateY(-7px) scale(1.15)}}
@@ -401,11 +418,11 @@ const PLAY = `
 
 /* desktop: bar beside my seat + controls */
 @media (min-width:900px){
-  .last-orders-root.lo-play{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-areas:"top top" "primer primer" "results results" "pick pick" "opps opps" "bar mine" "bar controls" "hand hand" "ticker ticker";align-items:start}
+  .last-orders-root.lo-play{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-areas:"top top" "primer primer" "results results" "pick pick" "opps opps" "bar mine" "bar controls" "hand hand" "peek peek" "ticker ticker";align-items:start}
   .last-orders-root .lo-top{grid-area:top}.last-orders-root .lo-primer{grid-area:primer}.last-orders-root .lo-results{grid-area:results}
   .last-orders-root .lo-pick{grid-area:pick}.last-orders-root .lo-opps{grid-area:opps}.last-orders-root .lo-bar{grid-area:bar;align-self:stretch}
   .last-orders-root .lo-mine{grid-area:mine}.last-orders-root .lo-controls{grid-area:controls;align-self:stretch}
-  .last-orders-root .lo-hand{grid-area:hand}.last-orders-root .lo-ticker{grid-area:ticker}
+  .last-orders-root .lo-hand{grid-area:hand}.last-orders-root .lo-peek{grid-area:peek}.last-orders-root .lo-ticker{grid-area:ticker}
   .last-orders-root .lo-toast{grid-column:1 / -1}
   .last-orders-root .lo-opps-row{flex-wrap:wrap;overflow:visible}
   .last-orders-root .lo-seat{flex:0 0 200px}
@@ -519,6 +536,7 @@ ${F("order")} .lo-targets > span{flex-basis:100%}
   ${F("act")} .lo-bar{order:2}
   ${F("act")} .lo-mine{order:3}
   ${F("act")} .lo-hand{order:4}
+  ${F("act")} .lo-peek{order:4}
   ${F("act")} .lo-controls{order:5;position:sticky;bottom:8px;z-index:14;box-shadow:0 -6px 22px rgba(0,0,0,.22)}
   ${F("act")} .lo-ticker{order:6}
   ${F("react")} .lo-bar{order:1}
