@@ -10,7 +10,7 @@ export const PACKS = {
   frost: { name: "Frostmead Hall", blurb: "A dwarf brewmistress and a fox-folk tracker come in from the snow." },
   masquerade: { name: "Midnight Masquerade", blurb: "A dapper night-noble and a frog-folk jester crash the ball." },
   clockwork: { name: "Clockwork Cellar", blurb: "A goblin tinkerer and her tin barback clank up from the cellar." },
-  storm: { name: "Storm Road", blurb: "A tide-blooded war cleric and a goblin bard blow in with the rain." },
+  storm: { name: "Storm Road", blurb: "A tide-blooded war cleric, a goblin bard and a lanky loremaster blow in with the rain." },
   rowdy: { name: "Rowdy Nights", blurb: "An event deck: every round, something new is happening at the tavern." },
 };
 
@@ -29,6 +29,7 @@ export const CHARACTERS = {
   "clockwork:brassbell": { name: "Brassbell", title: "Tin Automaton Barback", blurb: "Polishes glasses, carries kegs, and was never told how to get drunk.", traitText: "Starts with +3 Grit and 2 fewer coins.", palette: { main: "#8c6d2f", accent: "#7fd1c7" } },
   "storm:monsoon": { name: "Monsoon", title: "Tide-Blooded War Cleric", blurb: "Sea-blue skin, hair that ripples like a breaking wave, and a warhammer blessed by the storm. She heals her friends and floods everyone else.", traitText: "Water in her veins: every drink gives her 1 less Buzz; starts with 2 less Grit and 2 fewer coins.", palette: { main: "#1d5c7a", accent: "#7fe0e6" } },
   "storm:notepick": { name: "NotePick", title: "Goblin Bard", blurb: "Plays a lute three sizes too big and knows every song, mostly the rude verses. Tips welcome. Tomatoes expected.", traitText: "May discard and redraw up to 4 cards in their discard step.", palette: { main: "#6a3d7a", accent: "#b8e05a" } },
+  "storm:longshanks": { name: "Longshanks Ohd", title: "Human Loremaster Bard", blurb: "Tall as a doorframe, with a story for every occasion and a footnote for every story. Keeps the whole table patched up, mostly by talking.", traitText: "Holds one extra card in hand; starts with 1 less Grit.", palette: { main: "#2e5a46", accent: "#e6c27a" } },
 };
 
 export const CARDS = {
@@ -262,6 +263,24 @@ export const CARDS = {
   "storm:notepick:crescendo": { name: "Crescendo", flavor: "Louder! Higher! Pay more!" },
   "storm:notepick:goblin-grog": { name: "Goblin Grog", flavor: "Green, lumpy and enthusiastic." },
   "storm:notepick:honey-for-the-throat": { name: "Honey for the Throat", flavor: "Soothing for singers. Sneaky for everyone else." },
+  // Longshanks Ohd
+  "storm:longshanks:fireside-ballad": { name: "Fireside Ballad", flavor: "A slow song by the hearth. Bruises fade by the last verse." },
+  "storm:longshanks:soothing-verse": { name: "Soothing Verse", flavor: "Gentle words. The room stops spinning." },
+  "storm:longshanks:bolstering-ode": { name: "Bolstering Ode", flavor: "An ode to stout hearts. Theirs, specifically." },
+  "storm:longshanks:round-of-applause": { name: "Round of Applause", flavor: "Everyone feels a little better. Even the losers." },
+  "storm:longshanks:ancient-lore": { name: "Ancient Lore", flavor: "They read it in a very old book. Twice." },
+  "storm:longshanks:tale-of-woe": { name: "Tale of Woe", flavor: "So sad that you physically hurt." },
+  "storm:longshanks:quill-jab": { name: "Quill Jab", flavor: "The pen is mightier. And pointier." },
+  "storm:longshanks:patrons-purse": { name: "Patron's Purse", flavor: "Every great bard needs a sponsor. Tonight it's you." },
+  "storm:longshanks:wager-of-legends": { name: "Wager of Legends", flavor: "Bet on the hero. They know how the story ends." },
+  "storm:longshanks:i-know-how-this-ends": { name: "I Know How This Ends", flavor: "Seen this one before. You lose." },
+  "storm:longshanks:cautionary-tale": { name: "Cautionary Tale", flavor: "The last fellow who drank that... well. Let's not." },
+  "storm:longshanks:footnote": { name: "Footnote", flavor: "Actually, there's a small exception." },
+  "storm:longshanks:plot-twist": { name: "Plot Twist!", flavor: "The villain was someone else all along." },
+  "storm:longshanks:steady-rhythm": { name: "Steady Rhythm", flavor: "Keep the beat, roll with the punch." },
+  "storm:longshanks:old-tavern-trick": { name: "Old Tavern Trick", flavor: "Learned it from a song. Works every time." },
+  "storm:longshanks:raise-the-chorus": { name: "Raise the Chorus", flavor: "Everyone sing! Everyone pay!" },
+  "storm:longshanks:bards-toast": { name: "Bard's Toast", flavor: "To your health! Mostly to theirs." },
 };
 
 export const DRINKS = {

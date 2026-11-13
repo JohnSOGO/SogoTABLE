@@ -314,6 +314,26 @@ function notepick() {
   ].join("");
 }
 
+function longshanks() {
+  const skin = "#e3b48c"; const skinD = "#c48f66"; const hair = "#6b4a2e"; const coat = "#2e5a46"; const trim = "#e6c27a";
+  return [
+    P_("M6 104C10 80 28 72 50 72C72 72 90 80 94 104Z", coat), P_("M44 72L50 90L56 72Z", "#f3ead2", 1.2),
+    L_("M36 76L30 104M64 76L70 104", 1.6, trim),
+    // open book held up at the chest
+    G_("translate(26 86) rotate(-8)", P_("M0 0L14 -3L14 14L0 17Z", "#f6eedb", 1.3) + P_("M14 -3L28 0L28 17L14 14Z", "#efe4c8", 1.3) + L_("M3 4L11 2.5M3 8L11 6.5M17 2.5L25 4M17 6.5L25 8", 0.7, "#9a8466")),
+    P_("M43 56L43 74Q50 77 57 74L57 56Z", skinD),
+    P_("M36 40C36 25 42 19 50 19C58 19 64 25 64 40C64 56 58 68 50 68C42 68 36 56 36 40Z", skin),
+    P_("M34 42C31 24 40 14 50 14C60 14 69 24 66 42C64 33 60 27 56 26C50 30 42 31 36 30C35 34 34 38 34 42Z", hair),
+    both(P_("M35 38C31 46 32 54 34 60C36 54 37 46 37 40Z", hair, 1.1)),
+    L_("M39.5 37Q43 35 46.5 37M53.5 37Q57 35 60.5 37", 1.5), dotEyes(43, 57, 41.5, 2.1),
+    L_("M50 43L48.4 50L50.6 50.6", 1.1), P_("M44 56Q50 60 56 56", "none", 1.4),
+    P_("M43 61Q50 66 57 61L56 64Q50 70 44 64Z", hair, 1),
+    // quill tucked behind the ear
+    G_("translate(66 28) rotate(35)", P_("M0 0C4 -6 8 -16 6 -24C2 -16 -2 -8 0 0Z", "#f4f1e6", 1) + L_("M0 0L5 -22", 0.7, "#9a9a9a")),
+    P_("M74 66L84 58L86 60L77 69Z", trim, 1), C_(80, 72, 1.2, "#6a4a2e", 0),
+  ].join("");
+}
+
 function genericPatron(seed) {
   const c = hashColor(seed, 0.35, 0.5);
   return () => [
@@ -330,6 +350,7 @@ const CHARACTERS = {
   "masquerade:verrin": { bg: "#c98c9e", draw: verrin }, "masquerade:bim": { bg: "#f2d276", draw: bim },
   "clockwork:sprocket": { bg: "#d9b77e", draw: sprocket }, "clockwork:brassbell": { bg: "#9fcbc6", draw: brassbell },
   "storm:monsoon": { bg: "#8cc6dc", draw: monsoon }, "storm:notepick": { bg: "#c9a6d8", draw: notepick },
+  "storm:longshanks": { bg: "#a7c9a2", draw: longshanks },
 };
 /** Ids that have hand-drawn portraits (anything else gets a tinted silhouette). */
 export const PORTRAIT_IDS = Object.keys(CHARACTERS);

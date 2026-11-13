@@ -26,6 +26,7 @@ export const VOICE_PROFILES = {
   "clockwork:sprocket": { kokoro: "af_jessica", speed: 1.15, gender: "f", pitch: 1.45, rate: 1.2 },
   "clockwork:brassbell": { kokoro: "am_echo", speed: 0.9, gender: "m", pitch: 0.4, rate: 0.85 },
   "storm:monsoon": { kokoro: "af_kore", speed: 0.92, gender: "f", pitch: 0.85, rate: 0.92 },
+  "storm:longshanks": { kokoro: "am_michael", speed: 0.95, gender: "m", pitch: 0.95, rate: 0.95 },
   "storm:notepick": { kokoro: "am_liam", speed: 1.12, gender: "m", pitch: 1.55, rate: 1.15 },
 };
 export const NARRATOR = { kokoro: "bm_fable", speed: 1.0, gender: "m", pitch: 1.0, rate: 1.0 };

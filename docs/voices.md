@@ -31,6 +31,7 @@ Decided 2026-11-13 at MojoSOGO's request ("I need a voice voicing the card they 
 | Brassbell | am_echo | 0.90 |
 | Monsoon | af_kore | 0.92 |
 | NotePick | am_liam | 1.12 |
+| Longshanks Ohd | am_michael | 0.95 |
 
 `voice.js` is the source of truth; a test keeps every patron on a distinct voice.
 
