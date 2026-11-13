@@ -40,8 +40,8 @@ placed (`workers/games/skip-vote.js`).
 ## Round timer (optional)
 
 With a round timer set in the lobby, the countdown sits in the status bar
-with a ⏸ / ▶ button any seated player can use (the server freezes the time
-left). From 10 s a wooden tick sounds each second for anyone who hasn't
+and any seated player can tap it to pause or resume (the server freezes the
+time left). From 10 s a wooden tick sounds each second for anyone who hasn't
 placed, sharper for the last 3, and a gong at zero. At the deadline the
 server places any bot still thinking and skips every human still holding a
 tile (tile back in the bag, `skip` event with `timeout: true`); the next
