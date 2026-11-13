@@ -450,6 +450,19 @@ function canDragCard(uid) {
   if (!(me.playable || []).includes(uid)) return false;
   return mode === "action" || mode === "window" || (mode === "order" && isSpike(ctx, me, uid));
 }
+// Would letting go of `uid` over `drop` (a seat mark or "bar") do something?
+// Read straight off game.me: a drink / spike goes to someone I may buy for; a
+// card that needs a target goes on one of its targets; one that doesn't goes
+// on the table (or on its only target). gestures.js shows ✓ / ✕ from this.
+function canDropAt(uid, drop) {
+  const ctx = S.lastCtx;
+  if (!ctx || !drop || !canDragCard(uid)) return false;
+  const info = seatInfo(ctx);
+  const me = info.me;
+  if (uid === DRINK || modeOf(ctx.game, info) === "order") return drop !== "bar" && (me.order_targets || []).includes(drop);
+  const targets = (me.targets && me.targets[uid]) || [];
+  return targets.length > 1 ? targets.includes(drop) : drop === "bar" || drop === targets[0];
+}
 function onDropCard(uid, drop) {
   const ctx = S.lastCtx;
   if (!ctx || !canDragCard(uid)) return;
@@ -457,16 +470,16 @@ function onDropCard(uid, drop) {
   const me = info.me;
   const mode = modeOf(ctx.game, info);
   playClick();
-  if (uid === DRINK) { if (drop && drop !== "bar") quickOrder(me, drop, S.orderSpike); return; }
+  const ok = canDropAt(uid, drop); // a drop on a ✕ plays nothing
+  if (uid === DRINK) { if (ok) quickOrder(me, drop, S.orderSpike); return; }
   if (mode === "order") {
-    if (drop && drop !== "bar" && quickOrder(me, drop, uid)) return;
+    if (ok && quickOrder(me, drop, uid)) return;
     S.orderSpike = uid; S.sel = uid;
     repaint();
     return;
   }
   const targets = (me.targets && me.targets[uid]) || [];
-  if (drop && drop !== "bar" && targets.includes(drop) && quickPlay(me, uid, drop)) return;
-  if (targets.length <= 1 && drop && quickPlay(me, uid, targets[0])) return;
+  if (ok && quickPlay(me, uid, drop === "bar" ? targets[0] : drop)) return;
   S.sel = uid; S.target = null;
   repaint();
 }
@@ -551,7 +564,7 @@ function ensureSkeleton(host) {
     onAct(el.getAttribute("data-lo-act"), el.getAttribute("data-v") || "");
   });
   wireGestures(root, {
-    canDrag: canDragCard, onHold: (uid) => onAct("card", uid), onDrop: onDropCard,
+    canDrag: canDragCard, canDropAt, onHold: (uid) => onAct("card", uid), onDrop: onDropCard,
     onDragStart: () => {
       S.dragging = true;
       ping(true); // freeze the clock while the card is in my hand
