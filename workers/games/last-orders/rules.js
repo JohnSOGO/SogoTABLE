@@ -236,6 +236,8 @@ function pushItem(game, item, now) {
   w.passed = [];
   w.closes_at = now + windowMs(game);
   w.show_until = now + showMs(game);
+  w.paused_at = 0; // a new card on the table restarts the clock
+  w.held = false;
   planBots(game, now);
   pushEvent(game, { type: w.stack.length > 1 ? "react" : "play", uid: item.uid, mark: item.by, card: item.card, kind: item.kind, target: item.target, spikes: item.spikes });
   bump(game);
@@ -257,6 +259,8 @@ function planBots(game, now) {
 
 function stepWindow(game, now) {
   const w = game.reaction;
+  if (w.paused_at && w.held && now >= w.paused_at + HOLD_CAP_MS) unpause(w, now); // a card held by a vanished phone
+  if (w.paused_at) return false; // frozen: no bot answers, no timeout, until resumed
   const due = Object.keys(w.plans).filter((m) => w.plans[m].at <= now).sort((a, b) => w.plans[a].at - w.plans[b].at);
   if (due.length) {
     const m = due[0];
@@ -465,12 +469,61 @@ function nextDueAt(game) {
   if (game.status !== "playing" || game.phase !== "play") return 0;
   const w = game.reaction;
   if (w) {
+    if (w.paused_at) return w.held ? w.paused_at + HOLD_CAP_MS : 0;
     const plans = Object.values(w.plans).map((p) => p.at);
     const allPassed = windowEligible(game).every((m) => w.passed.includes(m));
     return Math.min(w.closes_at, ...plans, ...(allPassed ? [Math.max(Number(w.show_until) || 0, 1)] : []));
   }
   const t = game.turn;
   return t && isBotLike(game.players[t.mark]) ? t.act_at : 0;
+}
+
+// ---------- pausing the countdown ----------
+// Any seated human may tap the ring to freeze the open reaction (its countdown,
+// the reveal beat and every bot's think time) and anyone may tap to resume:
+// the frozen time is added back so nothing is lost. Toggles are idempotent so
+// a double tap or a stale repeat is harmless.
+function unpause(w, now) {
+  const shift = Math.max(0, now - w.paused_at);
+  w.closes_at += shift;
+  if (w.show_until) w.show_until += shift;
+  Object.values(w.plans).forEach((p) => { p.at += shift; });
+  w.paused_at = 0;
+  w.held = false;
+}
+
+function doPause(game, mark, type, now) {
+  const w = game.reaction;
+  if (!w) throw new Error("There's no countdown running right now.");
+  if (type === "PAUSE_TIMER") {
+    if (w.paused_at && !w.held) return;
+    if (!w.paused_at) w.paused_at = now;
+    w.held = false; // a tap pause stays until someone taps again
+    w.paused_by = mark;
+    pushEvent(game, { type: "pause", mark });
+    return;
+  }
+  if (!w.paused_at) return;
+  unpause(w, now);
+  pushEvent(game, { type: "resume", mark });
+}
+
+// The clock only exists to move past an absent player (2026-11-13), so a
+// player who could still answer and touches the table is plainly here:
+// any touch tops the clock back up to full, and holding / dragging a card
+// freezes it (hold: true) until the card is let go (hold: false). A held
+// freeze lapses after HOLD_CAP_MS in case that phone vanished mid-drag.
+// Quiet: no event, no step bump, never an error, so a racing ping is harmless.
+const HOLD_CAP_MS = 20000;
+function doStillHere(game, mark, hold, now) {
+  const w = game.reaction;
+  if (!w || w.passed.includes(mark) || !windowEligible(game).includes(mark)) return;
+  if (hold) {
+    if (!w.paused_at) { w.paused_at = now; w.held = true; w.paused_by = mark; }
+    return;
+  }
+  if (w.paused_at && w.held) unpause(w, now);
+  if (!w.paused_at) w.closes_at = Math.max(w.closes_at, now + windowMs(game));
 }
 
 // ---------- skip vote (a stuck human is auto-played until they return) ----------
@@ -527,6 +580,8 @@ export function makeLastOrdersMove(game, mark, action) {
   }
   advance(game, now);
   if (game.status === "complete") { finish(game); return; }
+  if (type === "STILL_HERE") { doStillHere(game, mark, Boolean(a.hold), now); finish(game); return; }
+  if (type === "PAUSE_TIMER" || type === "RESUME_TIMER") { doPause(game, mark, type, now); finish(game); return; }
   if (type === "SKIP_PLAYER") { doSkip(game, mark, String(a.target || ""), now); advance(game, now); finish(game); return; }
   const stamped = a.step == null ? NaN : Math.trunc(Number(a.step));
   if (type !== "PICK" && Number.isFinite(stamped) && stamped !== game.step) throw new Error("The table moved on — have another look and try again.");
@@ -603,7 +658,7 @@ export function lastOrdersGameToDict(game) {
     }),
     turn: game.turn ? { mark: game.turn.mark, phase: game.turn.phase, actions_left: game.turn.actions_left } : null,
     reaction: w ? {
-      kind: w.kind, closes_at: w.closes_at, passed: [...w.passed], eligible: windowEligible(game),
+      kind: w.kind, closes_at: w.closes_at, paused_left: w.paused_at ? Math.max(0, w.closes_at - w.paused_at) : 0, paused_by: w.paused_at ? w.paused_by || null : null, held: Boolean(w.paused_at && w.held), passed: [...w.passed], eligible: windowEligible(game),
       stack: w.stack.map((it) => ({ uid: it.uid, by: it.by, kind: it.kind, card: it.card, target: it.target, canceled: Boolean(it.canceled), soften: it.soften || 0, spikes: [...(it.spikes || [])] })),
     } : null,
     gamble: game.gamble ? { leader: game.gamble.leader, pot: game.gamble.pot, in: [...game.gamble.in] } : null,
@@ -677,4 +732,5 @@ function normalizeLastOrdersGame(game) {
   if (game.turn && !game.players[game.turn.mark]) game.turn = null;
   if (game.reaction && !(Array.isArray(game.reaction.stack) && Array.isArray(game.reaction.passed))) game.reaction = null;
   if (game.reaction && (!game.reaction.plans || typeof game.reaction.plans !== "object")) game.reaction.plans = {};
+  if (game.reaction) { game.reaction.paused_at = Math.max(0, Number(game.reaction.paused_at) || 0); game.reaction.held = Boolean(game.reaction.held); }
 }

@@ -48,6 +48,18 @@ negate can itself be negated.
 
 You may not respond to your own card on top of the stack.
 
+The clock only exists to move past an absent player (2026-11-13). So:
+
+- **Any touch** from a player who could still answer (`STILL_HERE`) tops the
+  clock back up to the full time. The client sends at most one every 2 s, and
+  only once the clock has run a little.
+- **Dragging a card** freezes the clock (`STILL_HERE` with `hold: true`) until
+  the card is let go. A freeze lapses after 20 s in case that phone vanished.
+- **Tapping the ring** (`PAUSE_TIMER` / `RESUME_TIMER`) pauses it for the whole
+  table until someone taps again; bots' think time freezes too.
+
+These moves never bump `step`, so a stamped play racing a ping still lands.
+
 ### Gambling rounds
 
 An action with `{op:"gamble"}` starts a gambling round. Everyone still in pays

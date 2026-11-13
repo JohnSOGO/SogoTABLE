@@ -252,9 +252,46 @@ function skipInfo(ctx, info) {
 }
 
 // ---------- intents ----------
+// "Still here" pings (2026-11-13): the countdown only exists to move past an
+// absent player, so while a window waits on me any touch tops it back up and a
+// dragged card freezes it (the server decides; it ignores pings it can't use).
+// One ping at a time, never while a real move is sending, and a plain touch
+// writes only once the clock has run a little, to spare the backend.
+const PING_GAP_MS = 2000;
+function ping(hold) {
+  const ctx = S.lastCtx;
+  if (!ctx || S.sending || S.pingP || (typeof ctx.isMovePending === "function" && ctx.isMovePending())) return;
+  const w = ctx.game.reaction;
+  const mark = seatInfo(ctx).myMark;
+  if (!w || !mark || !(w.eligible || []).includes(mark) || (w.passed || []).includes(mark)) return;
+  if (hold === null) {
+    if (Number(w.paused_left) > 0) return;
+    const total = Math.max(1, Number(ctx.game.options && ctx.game.options.react_seconds) || 8) * 1000;
+    const left = Number(w.closes_at) - clockOffset(ctx.game) - Date.now();
+    if (left > total - PING_GAP_MS || Date.now() - (S.lastPing || 0) < PING_GAP_MS) return;
+  }
+  S.lastPing = Date.now();
+  if (!hold) S.wantRelease = false;
+  S.pingP = Promise.resolve()
+    .then(() => ctx.makeMove(hold ? { type: "STILL_HERE", hold: true } : { type: "STILL_HERE" }))
+    .catch(() => {})
+    .then(() => {
+      S.pingP = null;
+      if (S.dragging && !hold) ping(true); // a drag began while that ping was out
+      else if (S.wantRelease && !S.dragging && !S.sending) ping(false); // let go while it was out
+    });
+}
+
 async function send(action, { stamp = true, quiet = false } = {}) {
   let ctx = S.lastCtx;
   if (!ctx || S.sending) return false;
+  S.sentAt = Date.now();
+  if (S.pingP) { // a ping is on its way: the real move goes right after it
+    S.sending = true;
+    await S.pingP;
+    S.sending = false;
+    ctx = S.lastCtx || ctx;
+  }
   const builtStep = ctx.game.step;
   const tick = tickInFlight();
   if (tick) {
@@ -317,6 +354,13 @@ function onAct(act, value) {
       break;
     case "pick": playClick(); send({ type: "PICK", character: value }, { stamp: false }); return;
     case "skip": playClick(); send({ type: "SKIP_PLAYER", target: value }, { stamp: false }); return;
+    case "timer": { // pause / resume the table's clock (server-side, everyone sees it)
+      const w = ctx.game.reaction;
+      if (!w) return;
+      playClick();
+      send({ type: Number(w.paused_left) > 0 ? "RESUME_TIMER" : "PAUSE_TIMER" }, { stamp: false });
+      return;
+    }
     case "card": {
       if (!me) return;
       playClick();
@@ -438,6 +482,7 @@ function buildViewModel(ctx, info) {
     prefs: prefs(), showPlayable: !(g.options && g.options.show_playable === false),
     mode, sel: S.sel, target: S.target, discardSel: S.discardSel, orderTarget: S.orderTarget, orderSpike: S.orderSpike,
     targetables, chosenTarget, sending: S.sending, orderDeck: mode === "order",
+    canPause: Boolean(info.mySeat && !info.mySeat.is_bot),
     barTarget: (mode === "action" || mode === "window") && Boolean(S.sel) && (me.playable || []).includes(S.sel) && ((me.targets && me.targets[S.sel]) || []).length <= 1, ghost: S.ghost, primerOpen: S.primerOpen,
     autoPassedStep: S.autoPassed === g.step, skip: skipInfo(ctx, info),
   };
@@ -498,8 +543,19 @@ function ensureSkeleton(host) {
   });
   wireGestures(root, {
     canDrag: canDragCard, onHold: (uid) => onAct("card", uid), onDrop: onDropCard,
-    onDragStart: () => { if (S.stepTip) { openStepTip(""); repaint(); } }, // clear the view of the rivals
+    onDragStart: () => {
+      S.dragging = true;
+      ping(true); // freeze the clock while the card is in my hand
+      if (S.stepTip) { openStepTip(""); repaint(); } // clear the view of the rivals
+    },
+    onDragEnd: () => {
+      S.dragging = false;
+      // A drop that plays restarts the clock by itself; otherwise unfreeze it.
+      S.wantRelease = true;
+      setTimeout(() => { if (S.sending || Date.now() - (S.sentAt || 0) < 100) S.wantRelease = false; else ping(false); }, 0);
+    },
   });
+  root.addEventListener("pointerdown", () => ping(null), true); // any touch: I'm still here
   root.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     const el = e.target.closest ? e.target.closest("[data-lo-act][role=button]") : null;
@@ -582,6 +638,12 @@ function armRings(root, game) {
     el.setAttribute("data-armed", "1");
     const close = Number(el.getAttribute("data-lo-ring")) - offset;
     const total = Number(el.getAttribute("data-total")) || 8000;
+    const frozen = Number(el.getAttribute("data-left")) || 0;
+    if (frozen > 0) { // paused: hold the ring where it stopped
+      el.style.animation = "none";
+      el.style.strokeDashoffset = String(100 * (1 - Math.min(total, frozen) / total));
+      return;
+    }
     const remaining = Math.max(0, Math.min(total, close - Date.now()));
     el.style.animation = `lo-ring ${total}ms linear ${-(total - remaining)}ms forwards`;
   });
@@ -597,10 +659,12 @@ function updateCounts() {
   const offset = clockOffset(ctx.game);
   const info = seatInfo(ctx);
   els.forEach((el) => {
-    const left = Math.max(0, Number(el.getAttribute("data-lo-count")) - offset - Date.now());
+    const frozen = Number(el.getAttribute("data-left")) || 0;
+    const left = frozen > 0 ? frozen : Math.max(0, Number(el.getAttribute("data-lo-count")) - offset - Date.now());
     const sec = Math.ceil(left / 1000);
     if (el.textContent !== String(sec)) el.textContent = String(sec);
-    el.classList.toggle("lo-hurry", sec <= 3);
+    el.classList.toggle("lo-hurry", sec <= 3 && !frozen);
+    if (frozen) return;
     if (sec > 0 && sec <= 3 && info.me && info.me.can_pass && (info.me.playable || []).length && S.lastBeep !== sec) {
       S.lastBeep = sec;
       playCue("tick");

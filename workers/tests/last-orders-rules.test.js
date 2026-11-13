@@ -111,6 +111,52 @@ test("last orders: the window closes on its own clock (TICK)", () => {
   assert.equal(game.players.P2.grit, 17);
 });
 
+test("last orders: tapping the clock pauses the window for everyone, and resume gives the time back", () => {
+  const game = duel(["base:gorrum:headbutt"], []);
+  move(game, "P1", { type: "PLAY", uid: "a0", target: "P2" });
+  now += 3000;
+  makeLastOrdersMove(game, "P2", { type: "PAUSE_TIMER" });
+  makeLastOrdersMove(game, "P2", { type: "PAUSE_TIMER" }); // double tap is harmless
+  assert.equal(view(game, "P1").reaction.paused_left, 5000);
+  assert.equal(lastOrdersGameToDict(game).next_due_at, 0, "nothing is due while paused");
+  now += 60_000;
+  assert.throws(() => makeLastOrdersMove(game, "P1", { type: "TICK" }), /Nothing is due/);
+  assert.ok(game.reaction, "the window waits while paused");
+  makeLastOrdersMove(game, "P1", { type: "RESUME_TIMER" });
+  assert.equal(game.reaction.closes_at, now + 5000);
+  assert.equal(view(game, "P1").reaction.paused_left, 0);
+  now += 5000;
+  makeLastOrdersMove(game, "P1", { type: "TICK" });
+  assert.equal(game.reaction, null);
+  assert.equal(game.players.P2.grit, 17);
+  assert.throws(() => makeLastOrdersMove(game, "P1", { type: "PAUSE_TIMER" }), /no countdown/);
+});
+
+test("last orders: a touch from a player who can answer tops the clock up; a held card freezes it", () => {
+  const game = duel(["base:gorrum:headbutt"], []);
+  move(game, "P1", { type: "PLAY", uid: "a0", target: "P2" });
+  now += 6000;
+  makeLastOrdersMove(game, "P2", { type: "STILL_HERE" });
+  assert.equal(game.reaction.closes_at, now + 8000, "back to a full clock");
+  makeLastOrdersMove(game, "P1", { type: "STILL_HERE" }); // P1 played it: not eligible, ignored
+  assert.equal(game.reaction.closes_at, now + 8000);
+  now += 2000;
+  makeLastOrdersMove(game, "P2", { type: "STILL_HERE", hold: true });
+  assert.ok(view(game, "P2").reaction.held);
+  now += 15_000;
+  assert.throws(() => makeLastOrdersMove(game, "P1", { type: "TICK" }), /Nothing is due/);
+  makeLastOrdersMove(game, "P2", { type: "STILL_HERE", hold: false });
+  assert.equal(game.reaction.closes_at, now + 8000, "let go: full clock again");
+  makeLastOrdersMove(game, "P2", { type: "STILL_HERE", hold: true });
+  now += 20_000; // the phone vanished mid-drag: the freeze lapses
+  makeLastOrdersMove(game, "P1", { type: "TICK" });
+  assert.ok(game.reaction && !game.reaction.paused_at);
+  now += 8000;
+  makeLastOrdersMove(game, "P1", { type: "TICK" });
+  assert.equal(game.reaction, null);
+  makeLastOrdersMove(game, "P2", { type: "STILL_HERE" }); // no window: quietly ignored
+});
+
 test("last orders: negate cancels, a counter-negate restores (LIFO stack)", () => {
   const game = duel(["base:gorrum:headbutt", "base:gorrum:bouncer-says-no"], ["base:gorrum:not-on-my-watch"]);
   move(game, "P1", { type: "PLAY", uid: "a0", target: "P2" });
