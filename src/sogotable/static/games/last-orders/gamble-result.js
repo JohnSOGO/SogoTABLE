@@ -7,7 +7,7 @@
 // client does no arithmetic and no win logic. render.js mounts it in its own
 // section and routes the button (data-lo-act="gamble_ack") to ACK_GAMBLE.
 import { GAMBLE_RESULT as L, STATS } from "./branding.js";
-import { portrait } from "./panels.js";
+import { patronName, portrait } from "./panels.js";
 
 const signed = (n) => `${n > 0 ? "+" : n < 0 ? "−" : "±"}${Math.abs(n)}`;
 
@@ -16,11 +16,14 @@ export function gambleResultHtml(vm) {
   const r = vm.game.gamble_result;
   if (!r || vm.game.status !== "playing") return "";
   const seat = (m) => (vm.players || []).find((p) => p.mark === m) || {};
+  // Patron first, the player's name smaller beside it.
+  const who = (m) => (seat(m).character ? patronName(seat(m).character) : vm.nameOf(m));
+  const player = (m) => (seat(m).character ? `<i class="lo-gr-player">${vm.esc(vm.nameOf(m))}</i>` : "");
   const winner = seat(r.winner);
   const mine = r.rows.find((row) => row.mark === vm.myMark);
   const iWon = r.winner === vm.myMark;
   const winRow = r.rows.find((row) => row.mark === r.winner) || { net: r.pot + r.bonus };
-  const headline = iWon ? L.youWin : L.wins(vm.nameOf(r.winner));
+  const headline = iWon ? L.youWin : L.wins(who(r.winner));
   const mineLine = mine && !iWon && mine.paid ? `<div class="lo-gr-mine">${vm.esc(L.youLost(mine.paid))}</div>` : "";
 
   const losers = r.rows.filter((row) => row.mark !== r.winner).map((row) => {
@@ -29,7 +32,7 @@ export function gambleResultHtml(vm) {
     const sub = p.out === "broke" ? `<small class="lo-gr-broke">${vm.esc(L.broke)}</small>` : `<small>${vm.esc(L.now(p.gold))} ${STATS.gold.icon}</small>`;
     return `<li class="lo-gr-row${me ? " lo-me" : ""}">
         <span class="lo-gr-face">${portrait(vm, p.character, 36)}</span>
-        <span class="lo-gr-name"><b style="color:${vm.colorOf(row.mark)}">${vm.esc(vm.nameOf(row.mark))}</b>${sub}</span>
+        <span class="lo-gr-name"><b style="color:${vm.colorOf(row.mark)}">${vm.esc(who(row.mark))} ${player(row.mark)}</b>${sub}</span>
         <span class="lo-gr-delta lo-gr-down">${vm.esc(L.lost)} <b>${vm.esc(signed(row.net))}</b> ${STATS.gold.icon}</span>
       </li>`;
   }).join("");
@@ -53,7 +56,7 @@ export function gambleResultHtml(vm) {
       <div class="lo-gr-winner">
         <span class="lo-gr-crown" aria-hidden="true">👑</span>
         <span class="lo-gr-wface">${portrait(vm, winner.character, 72)}</span>
-        <b class="lo-gr-wname" style="color:${vm.colorOf(r.winner)}">${vm.esc(headline)}</b>
+        <b class="lo-gr-wname" style="color:${vm.colorOf(r.winner)}">${vm.esc(headline)}</b>${iWon ? "" : player(r.winner)}
         <span class="lo-gr-won">${vm.esc(L.won)} <b>${vm.esc(signed(winRow.net))}</b> ${STATS.gold.icon}</span>
         <small class="lo-gr-pot">${vm.esc(L.pot(r.pot, r.bonus))} · ${vm.esc(L.put(winRow.paid || 0))}</small>
       </div>

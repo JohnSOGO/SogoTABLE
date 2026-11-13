@@ -82,6 +82,15 @@ export function oppsHtml(vm) {
   return opps.map((p) => seatHtml(vm, p)).join("");
 }
 
+// The patron leads (it's who you're fighting); the player's name rides along
+// smaller. Before a patron is picked, the player's name is all there is.
+function seatNameHtml(vm, p, tags) {
+  const player = vm.nameOf(p.mark);
+  const ch = p.character ? CHARACTERS[p.character] : null;
+  if (!ch || !ch.name) return `<div class="lo-seat-name"><span>${vm.esc(player)}</span>${tags}</div>`;
+  return `<div class="lo-seat-name"><span>${vm.esc(ch.name)}</span><em class="lo-seat-player">${vm.esc(player)}</em>${tags}</div>`;
+}
+
 function seatHtml(vm, p) {
   const turn = vm.turnMark === p.mark && !p.out;
   const targetable = vm.targetables.includes(p.mark);
@@ -92,7 +101,7 @@ function seatHtml(vm, p) {
   return `<div class="${cls}" data-lo-seat="${vm.esc(p.mark)}"${attrs} style="--lo-seat:${vm.esc(vm.colorOf(p.mark))}">
       <div class="lo-seat-face">${portrait(vm, p.character, 44)}</div>
       <div class="lo-seat-body">
-        <div class="lo-seat-name"><span>${vm.esc(vm.nameOf(p.mark))}</span>${tags}</div>
+        ${seatNameHtml(vm, p, tags)}
         ${meter(p)}
         ${stats(vm, p)}
         <div class="lo-seat-misc"><span class="lo-handcount" title="${vm.esc(UI.handCount(p.hand_count))}">🂠 ${Number(p.hand_count) || 0}</span>${mugs(vm, p.line_count)}${outBadge(vm, p)}</div>
@@ -105,11 +114,10 @@ export function mineHtml(vm) {
   const p = vm.mySeat;
   if (!p) return `<div class="lo-myseat lo-myseat-empty">${vm.esc(UI.spectating)}</div>`;
   const turn = vm.turnMark === p.mark && !p.out;
-  const ch = CHARACTERS[p.character] || {};
   return `<div class="lo-myseat${underAttack(vm, p.mark) ? " lo-defending" : ""}${turn ? " lo-turn" : ""}${p.out ? " lo-is-out" : ""}" data-lo-seat="${vm.esc(p.mark)}" style="--lo-seat:${vm.esc(vm.colorOf(p.mark))}">
       <div class="lo-seat-face">${portrait(vm, p.character, 56)}</div>
       <div class="lo-seat-body">
-        <div class="lo-seat-name"><span>${vm.esc(vm.nameOf(p.mark))}</span><em>${vm.esc(ch.name || "")}</em></div>
+        ${seatNameHtml(vm, p, "")}
         ${meter(p)}
         <div class="lo-mine-row">${stats(vm, p)}${mugs(vm, p.line_count)}${outBadge(vm, p)}</div>
       </div>
