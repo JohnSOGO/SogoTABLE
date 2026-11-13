@@ -51,10 +51,9 @@ test("host + two bots: another patron's card plays as a voiced callout", async (
   };
   for (let i = 0; i < 200 && !(await banner.count()); i += 1) {
     // Keep my own turn moving with the simplest legal steps.
+    // (Buying the round: tapping who drinks sends it — there is no confirm button.)
     if (!(await act('[data-lo-act="discard"]')) && !(await act('[data-lo-act="end_action"]'))) {
-      if (await page.locator('.last-orders-root [data-lo-act="order"]').count()) {
-        await act('[data-lo-act="target"]'); await act('[data-lo-act="order_target"]'); await act('[data-lo-act="order"]');
-      }
+      await act('[data-lo-act="order_target"]');
     }
     await page.waitForTimeout(400);
   }

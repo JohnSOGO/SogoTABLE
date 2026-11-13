@@ -68,19 +68,19 @@ function detailHtml(vm) {
   return `<div class="lo-detail"><b>${vm.esc(e.name || thingName(card.id))}</b> ${vm.esc(describeLines(def, e).join(" "))}${e.flavor ? ` <i>${vm.esc(e.flavor)}</i>` : ""}</div>`;
 }
 
-// Play-a-selected-card controls shared by the action step and windows.
+// Target chips for a picked-up card that has a choice of targets (shared by the
+// action step and windows). There is no Play button: a card plays the moment
+// it is tapped, or, with a choice, the moment its target is tapped.
 function playControls(vm) {
   const me = vm.me;
   const playable = new Set(me.playable || []);
   const selOk = vm.sel && playable.has(vm.sel);
   const targets = selOk ? (me.targets && me.targets[vm.sel]) || [] : [];
   const needsTarget = targets.length > 0;
-  const ready = selOk && (!needsTarget || targets.includes(vm.target));
   const card = vm.sel ? (me.hand || []).find((c) => c.uid === vm.sel) : null;
-  const name = card ? thingName(card.id) : "";
+  const name = card ? (CARDS[card.id] || {}).name || thingName(card.id) : "";
   return {
-    targets: needsTarget ? `<div class="lo-targets"><span>${vm.esc(UI.playOn)}</span>${targetChips(vm, targets, vm.target)}</div>` : "",
-    play: btn(vm, "play", card ? UI.playBtn((CARDS[card.id] || {}).name || name) : UI.playBtn("…"), { primary: true, disabled: !ready }),
+    targets: needsTarget ? `<div class="lo-targets"><span>${vm.esc(UI.playOn(name))}</span>${targetChips(vm, targets, vm.target)}</div>` : "",
   };
 }
 
@@ -105,7 +105,7 @@ function phaseParts(vm) {
     if (me.can_pass) {
       if (!(me.playable || []).length) prompt = `${prompt} ${UI.reactNothing}`;
       const pc = playControls(vm);
-      return { prompt, body: `${pc.targets}<div class="lo-btns">${pc.play}${btn(vm, "pass", UI.passBtn)}</div>` };
+      return { prompt, body: `${pc.targets}<div class="lo-btns">${btn(vm, "pass", UI.passBtn)}</div>` };
     }
     if ((w.passed || []).includes(vm.myMark)) return { prompt: vm.autoPassedStep ? UI.autoPassed : UI.passed, body: waitingOn(vm) };
     return { prompt, body: waitingOn(vm) };
@@ -121,17 +121,16 @@ function phaseParts(vm) {
   if (turn.phase === "action") {
     const pc = playControls(vm);
     const more = turn.actions_left > 1 ? ` ${UI.actionPromptMore(turn.actions_left)}` : "";
-    return { prompt: `${UI.actionPrompt}${more} ${vm.sel ? "" : UI.actionPick}`.trim(), body: `${pc.targets}<div class="lo-btns">${pc.play}${btn(vm, "end_action", UI.endAction)}</div>` };
+    return { prompt: `${UI.actionPrompt}${more} ${vm.sel ? "" : UI.actionPick}`.trim(), body: `${pc.targets}<div class="lo-btns">${btn(vm, "end_action", UI.endAction)}</div>` };
   }
   if (turn.phase === "order") {
     const targets = me.order_targets || [];
     const spikeCard = vm.orderSpike ? (me.hand || []).find((c) => c.uid === vm.orderSpike) : null;
     const spikeName = spikeCard ? thingName(spikeCard.id) : "";
-    const label = vm.orderTarget ? UI.sendDrinkTo(vm.nameOf(vm.orderTarget)) : UI.sendDrink;
     return {
       prompt: UI.orderPrompt,
       body: `<div class="lo-targets"><span>${vm.esc(UI.orderPick)}</span>${targetChips(vm, targets, vm.orderTarget, "order_target")}</div>
-        <div class="lo-btns"><span class="lo-spike-state">${vm.esc(spikeCard ? UI.spikeWith(spikeName) : UI.spikeNone)}</span>${btn(vm, "order", label, { primary: true, disabled: !targets.includes(vm.orderTarget) })}</div>`,
+        <div class="lo-btns"><span class="lo-spike-state">${vm.esc(spikeCard ? UI.spikeWith(spikeName) : UI.spikeNone)}</span></div>`,
     };
   }
   return { prompt: UI.drinkPrompt, body: "" };
