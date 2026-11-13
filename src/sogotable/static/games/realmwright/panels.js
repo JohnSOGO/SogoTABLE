@@ -17,11 +17,12 @@ export function stripHtml(vm, esc) {
     <div class="rw-strip-line rw-ticker${tickerClass}">${tickerText ? esc(tickerText) : "&nbsp;"}</div>`;
 }
 
-// The round clock: time left plus a pause / resume button (any seated player).
+// The round clock: one button — tap anywhere on it to pause / resume (any
+// seated player). Shows time left and a ⏸ / ▶ hint.
 function clockHtml(clock, esc) {
   const label = clock.paused ? UI.clockResume : UI.clockPause;
-  return `<span class="rw-clock${clock.warn ? " rw-clock-warn" : ""}${clock.paused ? " rw-clock-paused" : ""}">⏱ <span class="rw-clock-time">${esc(clock.text)}</span>`
-    + `<button type="button" class="rw-clock-btn" data-rw-clock ${clock.canToggle ? "" : "disabled"} aria-label="${esc(label)}" title="${esc(label)}">${clock.paused ? "▶" : "⏸"}</button></span>`;
+  return `<button type="button" class="rw-clock${clock.warn ? " rw-clock-warn" : ""}${clock.paused ? " rw-clock-paused" : ""}" data-rw-clock ${clock.canToggle ? "" : "disabled"} aria-label="${esc(label)}" title="${esc(label)}">`
+    + `⏱ <span class="rw-clock-time">${esc(clock.text)}</span><span class="rw-clock-icon" aria-hidden="true">${clock.paused ? "▶" : "⏸"}</span></button>`;
 }
 
 function directionWord(anchor) {
