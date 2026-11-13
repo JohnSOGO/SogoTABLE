@@ -11,6 +11,7 @@
     "hooks": "git config core.hooksPath scripts/git-hooks",
     "arch:audit": "node scripts/audit-ceilings.mjs",
     "bench:bots": "node scripts/bench-ten-thousand-bots.mjs",
+    "balance:last-orders": "node scripts/balance-last-orders.mjs",
     "bugreports": "node scripts/export-bug-reports.mjs",
     "bugreports:ui": "node scripts/serve-bug-manager.mjs",
     "bugreports:manage": "node scripts/manage-bug-reports.mjs",

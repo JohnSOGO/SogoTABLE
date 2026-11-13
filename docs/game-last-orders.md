@@ -90,3 +90,29 @@ the bot brain after a unanimous skip vote, until they act again.
 Add `packs/<id>.js` exporting `{ id, characters, drinks, events }` using only the
 effect vocabulary in PLAN.md §2, list it in `packs.js`, add display entries in
 `content.js`, and run `npm test` (the content test checks every id and op).
+Then run the balance check below and tune until the new patrons sit near even.
+
+## Balance
+
+`npm run balance:last-orders` plays all-bot games through the real rules and
+prints each patron's win rate against a fair share (1 / table size), with a 95%
+interval, plus wins by turn position. Flags: `--games N` (per table size,
+default 2000), `--level 1-4|mix`, `--packs all|base`, `--sizes 2,3,4,5,6`,
+`--seed`, `--closing off`, and `--patch file.mjs` (a default-export function
+that mutates `PACKS` in memory, to try a tune before editing pack files).
+
+**2026-11-13 tune** (judged on 160,000 games: bot levels 3, 4 and mixed with
+all packs, plus base only, 2–6 seats). Before, patrons ranged from −5.0 to +7.5
+points of edge (Hrolga strongest, Zephyrine weakest); after, −1.8 to +1.4 on
+the average, and −3.5 to +3.1 at mixed-skill tables. Changes: Hrolga −1 Grit;
+Sable Snowball 3→2; Verrin Only Tomato Juice 3→2; Zephyrine +1 Grit; Ansel
+Sobering Brew 1→2 and Staff Sweep 5→4; Gorrum Knuckle Crack 1→2; Marrow Rum
+Ration 1→2; Sprocket Rocket Boots 2→3 and no self-damage on Boom Bottle and
+Jackpot-o-Matic; Bim Spit Take 2→3 and Punchline 2→3.
+
+Notes: one Grit (or one starting Buzz) is worth about 7–8 points of win rate,
+so tune with card copies first. Strong bots (level 4) focus the weakest seat,
+which punishes low-Grit patrons (Bim) more than mixed tables do. Turn order
+leaves the last seat about +3 points and the first about −3 at 4–6 seats; one
+Buzz of seat compensation overshoots and coins or an extra card do nothing, so
+it is left as is.

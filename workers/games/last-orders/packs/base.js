@@ -17,7 +17,7 @@ export const BASE_PACK = {
         { id: "base:gorrum:bear-hug", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }, { op: "buzz", who: "target", n: 1 }] },
         { id: "base:gorrum:table-flip", kind: "action", copies: 1, target: "none", effects: [{ op: "grit", who: "others", n: -1 }] },
         { id: "base:gorrum:shake-down", kind: "action", copies: 2, target: "opponent", effects: [{ op: "steal", n: 2 }] },
-        { id: "base:gorrum:knuckle-crack", kind: "action", copies: 1, target: "none", free: true, effects: [{ op: "grit", who: "self", n: 3 }] },
+        { id: "base:gorrum:knuckle-crack", kind: "action", copies: 2, target: "none", free: true, effects: [{ op: "grit", who: "self", n: 3 }] },
         { id: "base:gorrum:arm-wrestle", kind: "action", copies: 3, target: "none", effects: [{ op: "gamble" }] },
         { id: "base:gorrum:not-on-my-watch", kind: "reaction", copies: 2, target: "none", answers: ["action"], needs: "targeted", effects: [{ op: "negate" }] },
         { id: "base:gorrum:no-thanks-big-fella", kind: "reaction", copies: 2, target: "none", answers: ["drink"], needs: "targeted", effects: [{ op: "negate" }] },
@@ -59,8 +59,8 @@ export const BASE_PACK = {
       trait: { hand_size: 1 },
       deck: [
         { id: "base:ansel:herbal-tonic", kind: "action", copies: 3, target: "none", effects: [{ op: "grit", who: "self", n: 3 }] },
-        { id: "base:ansel:sobering-brew", kind: "action", copies: 1, target: "none", effects: [{ op: "buzz", who: "self", n: -2 }] },
-        { id: "base:ansel:staff-sweep", kind: "action", copies: 5, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }] },
+        { id: "base:ansel:sobering-brew", kind: "action", copies: 2, target: "none", effects: [{ op: "buzz", who: "self", n: -2 }] },
+        { id: "base:ansel:staff-sweep", kind: "action", copies: 4, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }] },
         { id: "base:ansel:stern-lecture", kind: "action", copies: 1, target: "opponent", effects: [{ op: "grit", who: "target", n: -1 }, { op: "draw", who: "self", n: 1 }] },
         { id: "base:ansel:collection-plate", kind: "action", copies: 1, target: "none", effects: [{ op: "collect", n: 1 }] },
         { id: "base:ansel:quiet-meditation", kind: "action", copies: 1, target: "none", effects: [{ op: "draw", who: "self", n: 2 }] },
@@ -79,7 +79,7 @@ export const BASE_PACK = {
     {
       id: "base:zephyrine",
       pack: "base",
-      trait: { draw_bonus: 1 },
+      trait: { draw_bonus: 1, start_grit: 1 },
       deck: [
         { id: "base:zephyrine:mirror-image", kind: "action", copies: 2, target: "none", effects: [{ op: "draw", who: "self", n: 2 }] },
         { id: "base:zephyrine:sparkle-dart", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }] },

@@ -16,7 +16,7 @@ export const HARBOR_PACK = {
         { id: "harbor:marrow:cutlass-swipe", kind: "action", copies: 3, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }] },
         { id: "harbor:marrow:buried-treasure", kind: "action", copies: 1, target: "none", effects: [{ op: "gold", who: "self", n: 2 }] },
         { id: "harbor:marrow:harbor-toll", kind: "action", copies: 1, target: "none", effects: [{ op: "collect", n: 1 }] },
-        { id: "harbor:marrow:rum-ration", kind: "action", copies: 1, target: "none", free: true, effects: [{ op: "grit", who: "self", n: 1 }, { op: "buzz", who: "self", n: -1 }] },
+        { id: "harbor:marrow:rum-ration", kind: "action", copies: 2, target: "none", free: true, effects: [{ op: "grit", who: "self", n: 1 }, { op: "buzz", who: "self", n: -1 }] },
         { id: "harbor:marrow:wager-at-sea", kind: "action", copies: 3, target: "none", effects: [{ op: "gamble" }] },
         { id: "harbor:marrow:all-hands", kind: "reaction", copies: 2, target: "none", answers: ANY, needs: "any", effects: [{ op: "negate" }] },
         { id: "harbor:marrow:over-the-rail", kind: "reaction", copies: 3, target: "none", answers: ["drink"], needs: "targeted", effects: [{ op: "negate" }] },

@@ -9,7 +9,7 @@ export const FROST_PACK = {
     {
       id: "frost:hrolga",
       pack: "frost",
-      trait: { drink_buzz_mod: -1, start_gold: -2 },
+      trait: { drink_buzz_mod: -1, start_gold: -2, start_grit: -1 },
       deck: [
         { id: "frost:hrolga:keg-toss", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -3 }] },
         { id: "frost:hrolga:mallet-tap", kind: "action", copies: 3, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }] },
@@ -34,7 +34,7 @@ export const FROST_PACK = {
       deck: [
         { id: "frost:sable:pinpoint-jab", kind: "action", copies: 3, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }] },
         { id: "frost:sable:snare", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -1 }, { op: "buzz", who: "target", n: 1 }] },
-        { id: "frost:sable:snowball", kind: "action", copies: 3, target: "opponent", free: true, effects: [{ op: "grit", who: "target", n: -1 }] },
+        { id: "frost:sable:snowball", kind: "action", copies: 2, target: "opponent", free: true, effects: [{ op: "grit", who: "target", n: -1 }] },
         { id: "frost:sable:read-the-tracks", kind: "action", copies: 2, target: "none", effects: [{ op: "draw", who: "self", n: 2 }] },
         { id: "frost:sable:sell-a-pelt", kind: "action", copies: 1, target: "none", effects: [{ op: "gold", who: "self", n: 2 }] },
         { id: "frost:sable:follow-the-jingle", kind: "action", copies: 1, target: "opponent", effects: [{ op: "steal", n: 1 }] },
