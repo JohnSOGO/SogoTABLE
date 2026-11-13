@@ -38,7 +38,7 @@ let S = freshState("");
 
 function freshState(key) {
   return {
-    key, lastCtx: null, sending: false, selKey: "", sel: null, target: null, discardSel: new Set(), orderTarget: null, orderSpike: null,
+    key, lastCtx: null, sending: false, selKey: "", sel: null, target: null, discardSel: new Set(), orderTarget: null, orderSpike: null, handHome: false,
     toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false,
     autoPassStep: -1, autoPassTimer: null, autoPassed: -1, sawPlaying: false, winPlayed: false, lastBeep: -1, bgTheme: "",
   };
@@ -191,6 +191,7 @@ function reconcile(game, info) {
   if (selKey !== S.selKey) {
     S.selKey = selKey;
     S.sel = null; S.target = null; S.discardSel = new Set(); S.orderTarget = null; S.orderSpike = null;
+    S.handHome = true; // new step or window: bring the hand back to its start (see paint)
   }
   const me = info.me;
   const hand = me && Array.isArray(me.hand) ? me.hand : [];
@@ -387,6 +388,20 @@ function menuHtml(vm) {
     <button type="button" class="lo-btn" data-lo-act="menu">${vm.esc(UI.close)}</button></div>`;
 }
 
+// What the screen is for right now; styles.js re-shapes the table around it.
+// "act" = a decision of mine is open; "big" = pick a card to play from the hand.
+function focusOf(vm, offTable) {
+  if (offTable) return "";
+  const gamble = vm.reaction && vm.reaction.kind === "gamble";
+  switch (vm.mode) {
+    case "discard": return "act keep";
+    case "action": return "act big play";
+    case "order": return "act big order";
+    case "window": return gamble ? "act big gamble" : "act big react";
+    default: return gamble && vm.mySeat && !vm.mySeat.out ? "watch gamble" : "watch";
+  }
+}
+
 // ---------- paint ----------
 function ensureSkeleton(host) {
   let root = host.querySelector(":scope > .lo-play");
@@ -452,8 +467,10 @@ function paint(ctx, fresh) {
   setSection(root, "mine", picking ? "" : mineHtml(vm), !picking);
   setSection(root, "controls", picking || complete ? "" : controlsHtml(vm), !picking && !complete);
   const handBefore = snapHand(root);
+  root.setAttribute("data-lo-focus", focusOf(vm, picking || complete));
   setSection(root, "hand", picking || complete ? "" : handHtml(vm), !picking && !complete && !(vm.mySeat && vm.mySeat.out));
   slideHand(root, handBefore);
+  scrollHandHome(root, vm.mode);
   setSection(root, "ticker", tickerHtml(vm));
   setSection(root, "toast", S.toast ? `<div class="lo-toast-msg lo-toast-${S.toast.kind}">${vm.esc(S.toast.text)}</div>` : "");
   armRings(root, g);
@@ -462,6 +479,16 @@ function paint(ctx, fresh) {
   fxAfterPaint(root, { fresh, items: g.reaction ? g.reaction.stack : [], game: g, labels: reducedMotion() ? null : statLabels });
   calloutFeed(mountedRoot, fresh, { myMark: vm.myMark, players: vm.players, defs: vm.defs, nameOf: vm.nameOf, theme: vm.theme, esc: vm.esc },
     { enabled: prefs().callouts && g.status === "playing", voice: prefs().voice });
+}
+
+// When my action step or a reaction window opens, scroll the hand back to its
+// left edge: playable cards sort to the left, so what I can play is in view.
+function scrollHandHome(root, mode) {
+  if (!S.handHome) return;
+  S.handHome = false;
+  if (mode !== "action" && mode !== "window") return;
+  const row = root.querySelector(".lo-hand-row");
+  if (row && row.scrollLeft) row.scrollTo({ left: 0, behavior: reducedMotion() ? "auto" : "smooth" });
 }
 
 // ---------- countdown (window.closes_at on the local clock) ----------

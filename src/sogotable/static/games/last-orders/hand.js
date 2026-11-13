@@ -4,10 +4,18 @@
 // and who may be bought a drink all arrive decided in `game.me` (server-
 // computed). These builders only show it: controls are disabled, never
 // hidden, so the bar keeps its height and nothing jumps.
-import { STATS, UI, outText } from "./branding.js";
+import { KINDS, STATS, UI, outText } from "./branding.js";
 import { CARDS } from "./content.js";
 import { describeLines } from "./describe.js";
 import { handCardHtml, phaseName, skipButton, thingName } from "./panels.js";
+
+// Keep-or-draw groups the hand by card type (action, reaction, gamble, spike),
+// stable within a type, so the choice of what to throw back is easy to scan.
+const KIND_ORDER = Object.keys(KINDS);
+const kindRank = (vm, c) => {
+  const i = KIND_ORDER.indexOf((vm.defs[c.id] || {}).kind);
+  return i < 0 ? KIND_ORDER.length : i;
+};
 
 export function handHtml(vm) {
   const me = vm.me;
@@ -19,9 +27,11 @@ export function handHtml(vm) {
   // Playable cards slide to the left (stable, so the rest keep their order).
   // Only while the playable glow is on: with the help off, order stays a secret.
   const sortPlayable = vm.showPlayable && mode !== "discard";
-  const ordered = sortPlayable
-    ? [...hand.filter((c) => playable.has(c.uid)), ...hand.filter((c) => !playable.has(c.uid))]
-    : hand;
+  const ordered = mode === "discard"
+    ? [...hand].sort((a, b) => kindRank(vm, a) - kindRank(vm, b))
+    : sortPlayable
+      ? [...hand.filter((c) => playable.has(c.uid)), ...hand.filter((c) => !playable.has(c.uid))]
+      : hand;
   const cards = ordered.map((c) => {
     const isPlayable = playable.has(c.uid);
     const def = vm.defs[c.id] || {};
@@ -46,10 +56,11 @@ function targetChips(vm, marks, chosen, act = "target") {
       <span class="lo-dot" style="background:${vm.esc(vm.colorOf(m))}"></span>${vm.esc(vm.nameOf(m))}</button>`).join("");
 }
 
-// The selected card's full text (the "tap to expand" view).
+// The selected card's full text (the "tap to expand" view). With tips on, the
+// big hand card already shows that text, so the phase bar stays short.
 function detailHtml(vm) {
   const me = vm.me;
-  if (!me || !vm.sel) return "";
+  if (!me || !vm.sel || vm.prefs.tips) return "";
   const card = (me.hand || []).find((c) => c.uid === vm.sel);
   if (!card) return "";
   const def = vm.defs[card.id] || {};
