@@ -338,6 +338,7 @@ const PLAY = `
 .last-orders-root .lo-gr-wait{min-height:44px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;color:var(--lo-muted);font-size:14px}
 .last-orders-root .lo-gr-count{font-size:13px;font-weight:700;opacity:.75}
 .last-orders-root .lo-gr-count:not(:empty)::before{content:"· "}.last-orders-root .lo-gr-count:not(:empty)::after{content:"s"}
+<<<<<<< HEAD
 .last-orders-root .lo-peek-chips{flex:none;display:inline-flex;gap:3px}
 .last-orders-root button.lo-peek-chip{min-height:0;height:30px;padding:0 6px;display:inline-flex;align-items:center;gap:2px;border-radius:15px;border:1px solid var(--lo-line);background:var(--lo-chip);color:var(--lo-ink);font-size:14px;line-height:1}
 .last-orders-root button.lo-peek-chip b{font-size:13px}
@@ -355,6 +356,8 @@ const PLAY = `
 .last-orders-root .lo-peek[hidden]{display:none}
 .last-orders-root .lo-peek-row{flex-direction:row;flex-wrap:wrap}
 .last-orders-root .lo-peek-row .lo-peek-card{flex:1 1 150px}
+=======
+>>>>>>> origin/claude/project-thread-im7kl3
 @keyframes lo-ts-in{from{transform:scale(.4) rotate(-6deg);opacity:0}to{transform:none;opacity:1}}
 @keyframes lo-ts-pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
 @keyframes lo-ts-hop{50%{transform:translateY(-7px) scale(1.15)}}

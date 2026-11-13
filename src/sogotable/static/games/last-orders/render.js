@@ -16,7 +16,10 @@ import { GAME_EMOJI, GAME_NAME, TURN_STEPS, UI } from "./branding.js";
 import { calloutFeed, calloutReset } from "./callout.js";
 import { turnSummaryFeed, turnSummaryReset } from "./turn-summary.js";
 import { gambleResultHtml } from "./gamble-result.js";
+<<<<<<< HEAD
 import { peekChipsHtml, peekPopoverHtml, starterPeekHtml } from "./hand-peek.js";
+=======
+>>>>>>> origin/claude/project-thread-im7kl3
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
 import { wireGestures } from "./gestures.js";
@@ -34,7 +37,11 @@ const GHOST_MS = 1700;
 const AUTO_PASS_MS = 650;
 const PREFS_KEY = "sogotable.lastOrders.prefs";
 const PREF_DEFAULTS = { tips: true, primer: true, autopass: true, steptips: true, callouts: true, voice: true };
+<<<<<<< HEAD
 const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "peek", "ticker", "toast", "gamble"];
+=======
+const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "ticker", "toast", "gamble"];
+>>>>>>> origin/claude/project-thread-im7kl3
 
 let stylesInjected = false;
 let themeObserved = false;

@@ -1762,6 +1762,7 @@ PLACEMENT RECEIPT
     - Players who haven't acked appear in awaiting_marks for the short hold (accepted)
 - New owner row: none (games/ directory rows cover both new files)
 ```
+<<<<<<< HEAD
 
 ## Last Orders — hand peek chips + gamble-starter peek (2026-11-13)
 
@@ -1776,3 +1777,5 @@ PLACEMENT RECEIPT
     - Chips show for any live seat in play (most useful during others' gambles); "X's turn" kept for other players
 - New owner row: none
 ```
+=======
+>>>>>>> origin/claude/project-thread-im7kl3

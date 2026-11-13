@@ -27,6 +27,7 @@ export const TURN_SUMMARY = {
     rough: "Rough one. Hydrate!",
   },
 };
+<<<<<<< HEAD
 // The hand peek (hand-peek.js): a chip per card type in the top bar, and my
 // gamble cards shown under a gamble starter I've lifted.
 export const HAND_PEEK = {
@@ -40,6 +41,8 @@ export const HAND_PEEK = {
   noBackup: "None — once it starts, you can't take the lead back.",
 };
 
+=======
+>>>>>>> origin/claude/project-thread-im7kl3
 // The gamble result card (gamble-result.js): who won the pot, what each
 // gambler lost, and a "Got it" each human taps before play moves on.
 export const GAMBLE_RESULT = {
