@@ -7,6 +7,9 @@
 //              table thing marked data-lo-drag (the drink deck), or a card in
 //              a hand that doesn't scroll (touch-action:none), drags any way:
 //              onDrop(uid, drop) with drop = a seat mark, "bar", or null;
+//   • while dragging, every spot the card can go is marked (lo-drop-ok), and
+//     the spot under the finger lights up green (lo-drop-hot) or shows a red
+//     ✕ (lo-drop-bad, and the ghost card too) per canDropAt(uid, drop);
 //   • it also stops the long-press text selection / callout / context menu.
 // It reports raw facts only. render.js decides, from server-computed game.me,
 // whether the hold or drop means a play, and ignores anything illegal.
@@ -26,16 +29,24 @@ const noScroll = (el) => {
   try { return getComputedStyle(el).touchAction === "none"; } catch { return false; }
 };
 
-export function wireGestures(root, { canDrag, onHold, onDrop, onDragStart = () => {}, onDragEnd = () => {} }) {
+export function wireGestures(root, { canDrag, canDropAt = () => true, onHold, onDrop, onDragStart = () => {}, onDragEnd = () => {} }) {
   let g = null; // { id, uid, el, x, y, timer, held, ghost, hot }
   let swallowUntil = 0;
 
-  const clearHot = () => { if (g && g.hot) { g.hot.classList.remove("lo-drop-hot"); g.hot = null; } };
+  const clearHot = () => {
+    if (g && g.hot) { g.hot.classList.remove("lo-drop-hot", "lo-drop-bad"); g.hot = null; }
+    if (g && g.ghost) g.ghost.classList.remove("lo-ghost-bad");
+  };
+  const markTargets = (on) => root.querySelectorAll("[data-lo-seat], .lo-bar").forEach((el) => {
+    const drop = el.classList.contains("lo-bar") ? "bar" : el.getAttribute("data-lo-seat");
+    el.classList.toggle("lo-drop-ok", Boolean(on && !el.closest(".lo-results") && canDropAt(g.uid, drop)));
+  });
   const end = () => {
     if (!g) return;
     if (g.ghost) onDragEnd(g.uid);
     clearTimeout(g.timer);
     clearHot();
+    if (g.ghost) markTargets(false);
     if (g.ghost) g.ghost.remove();
     if (g.el) g.el.classList.remove("lo-dragging", "lo-held");
     try { if (root.hasPointerCapture && root.hasPointerCapture(g.id)) root.releasePointerCapture(g.id); } catch { /* gone */ }
@@ -73,6 +84,7 @@ export function wireGestures(root, { canDrag, onHold, onDrop, onDragStart = () =
     g.ghost = ghost;
     g.el.classList.add("lo-dragging");
     g.el.classList.remove("lo-held");
+    markTargets(true);
     onDragStart(g.uid);
   };
 
@@ -93,8 +105,16 @@ export function wireGestures(root, { canDrag, onHold, onDrop, onDragStart = () =
     }
     if (e.cancelable) e.preventDefault();
     g.ghost.style.transform = `translate(${dx}px, ${dy}px) rotate(-4deg) scale(.6)`;
-    const { el } = dropAt(e.clientX, e.clientY);
-    if (el !== g.hot) { clearHot(); if (el) { el.classList.add("lo-drop-hot"); g.hot = el; } }
+    const { el, drop } = dropAt(e.clientX, e.clientY);
+    if (el !== g.hot) {
+      clearHot();
+      if (el) {
+        const ok = canDropAt(g.uid, drop);
+        el.classList.add(ok ? "lo-drop-hot" : "lo-drop-bad");
+        g.ghost.classList.toggle("lo-ghost-bad", !ok);
+        g.hot = el;
+      }
+    }
   };
 
   const onUp = (e) => {

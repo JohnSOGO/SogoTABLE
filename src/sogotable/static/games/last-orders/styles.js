@@ -232,7 +232,12 @@ const PLAY = `
 .last-orders-root .lo-lift-hint{font-size:14px;font-weight:800;color:var(--lo-accent)}
 .last-orders-root .lo-card.lo-held{transform:translateY(-8px) scale(1.03);box-shadow:0 0 0 3px var(--lo-turn),0 10px 22px rgba(0,0,0,.3)}
 .last-orders-root .lo-drag-ghost.lo-deck,.last-orders-root button.lo-card.lo-drag-ghost{position:fixed;z-index:60;margin:0;pointer-events:none;box-shadow:0 14px 34px rgba(0,0,0,.45);transition:none}
-.last-orders-root .lo-drop-hot{outline:3px solid var(--lo-turn);outline-offset:2px;box-shadow:0 0 0 6px rgba(240,169,46,.35),var(--lo-shadow)}
+.last-orders-root .lo-drop-ok{outline:2px dashed #3aa860;outline-offset:2px}
+.last-orders-root .lo-drop-hot{outline:3px solid #3aa860;outline-offset:2px;box-shadow:0 0 0 6px rgba(58,168,96,.35),var(--lo-shadow)}
+.last-orders-root .lo-drop-bad{position:relative;outline:3px solid var(--lo-bad);outline-offset:2px;box-shadow:0 0 0 6px rgba(179,38,30,.3),var(--lo-shadow)}
+.last-orders-root .lo-drop-bad::before{content:"✕";position:absolute;inset:0;z-index:5;display:grid;place-items:center;font-size:42px;font-weight:900;color:var(--lo-bad);background:rgba(179,38,30,.14);border-radius:inherit;pointer-events:none}
+.last-orders-root .lo-drag-ghost.lo-ghost-bad{filter:grayscale(.6);opacity:.75}
+.last-orders-root .lo-drag-ghost.lo-ghost-bad::after{content:"✕";position:absolute;top:-14px;right:-14px;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--lo-bad);color:#fff;font-size:24px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .last-orders-root .lo-card-mark{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--lo-bad);color:#fff;font-size:14px;font-weight:900;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .last-orders-root .lo-spiking .lo-card-mark{background:var(--lo-k-spike)}
 
