@@ -36,7 +36,6 @@ concern), then implement.
 | `src/sogotable/static/html-utils.js` | HTML escaping + markup helpers | — |
 | `src/sogotable/static/review-export.js` | Admin source-review ZIP export + the export allowlist | — |
 | `src/sogotable/static/service-worker.js` | PWA service worker / cache | — |
-| `src/sogotable/static/dev-inspect.js` | Dev-only shift+click element locator (passive) | — |
 | `src/sogotable/static/controllers/prompts.js` | Confirm / info / passcode modal prompts | — |
 | `src/sogotable/static/controllers/houses.js` | House (clan) controls in the player modal | — |
 | `src/sogotable/static/controllers/game-options.js` | Game-options menu | — |
@@ -102,7 +101,7 @@ Each game owns its own subtree; per-game files do not need individual rows.
 |---|---|
 | `src/sogotable/static/games/` | A game's browser module (client / render / rules / state / manifest / index) |
 | `workers/games/` | A game's server rules + bot |
-| `src/sogotable/static/vendor/` | Vendored third-party browser libraries, one library per subdirectory, unmodified, with its LICENSE beside it (chess.js BSD-2, cm-chessboard MIT). Imported by game modules; never edited in place — upgrade by replacing the folder |
+| `src/sogotable/static/vendor/` | Vendored third-party browser libraries, one library per subdirectory, unmodified, with its LICENSE beside it (chess.js BSD-2, cm-chessboard MIT; `sogo-tao/point-at.js` is our own shared canon, the admin-only ◎ Point at it selector from sogo-tao `specs/shared/point-at.js`, switched on from `renderIntroAdminActions` in app.js). Imported by game modules; never edited in place — upgrade by replacing the folder |
 
 ## Exempt (no architectural owner required)
 

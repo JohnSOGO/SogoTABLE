@@ -983,6 +983,7 @@ function renderIntroAdminActions() {
   const forgetButton = document.getElementById("forgetSogoAdmin");
   if (forgetButton) forgetButton.classList.toggle("hidden", !active);
   document.getElementById("adminGames")?.classList.toggle("hidden", !active);
+  window.SogoPointAt?.setEnabled(active, { app: "SogoTABLE", context: () => `Screen: ${document.querySelector(".screen.active")?.id ?? "?"}` }); // POINT-AT.md
 }
 
 // Admin-only screens, loaded on demand so they stay off every family's boot path.
