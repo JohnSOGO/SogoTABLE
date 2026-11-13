@@ -19,7 +19,17 @@ function seeded(seed) {
 const human = (mark) => ({ mark, kind: "human" });
 const bot = (mark, level = 2) => ({ mark, kind: "bot", bot_level: level });
 const view = (game, mark) => lastOrdersGameToDictForViewer(lastOrdersGameToDict(game), mark);
-const move = (game, mark, action) => makeLastOrdersMove(game, mark, { step: game.step, ...action });
+// A pass that leaves the window waiting only on its minimum show time
+// (rules.js SHOW_MS) lets that beat elapse, so the card resolves as before.
+function move(game, mark, action) {
+  makeLastOrdersMove(game, mark, { step: game.step, ...action });
+  const w = game.reaction;
+  if (action.type !== "PASS" || !w || !w.show_until || w.show_until <= now) return;
+  const eligible = view(game, "").reaction ? view(game, "").reaction.eligible : [];
+  if (!eligible.every((m) => w.passed.includes(m))) return;
+  now = w.show_until;
+  makeLastOrdersMove(game, mark, { type: "TICK" });
+}
 
 // Two humans, fixed patrons, P1 to act, in the action phase with a known hand.
 function duel(hand1 = [], hand2 = []) {
@@ -235,4 +245,18 @@ test("last orders: bots play through windows with a human at the table", () => {
     }
   }
   assert.equal(game.status, "complete");
+});
+
+test("last orders: a played card stays on the table for its show time before it resolves", () => {
+  const game = duel(["base:gorrum:headbutt"], []);
+  makeLastOrdersMove(game, "P1", { type: "PLAY", uid: "a0", target: "P2", step: game.step });
+  const showUntil = game.reaction.show_until;
+  assert.equal(showUntil, now + 2200);
+  makeLastOrdersMove(game, "P2", { type: "PASS", step: game.step });
+  assert.ok(game.reaction, "everyone passed, but the card is still showing");
+  assert.equal(lastOrdersGameToDict(game).next_due_at, showUntil);
+  now = showUntil;
+  makeLastOrdersMove(game, "P1", { type: "TICK" });
+  assert.equal(game.reaction, null);
+  assert.equal(game.players.P2.grit, 17);
 });

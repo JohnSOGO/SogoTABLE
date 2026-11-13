@@ -246,12 +246,34 @@ const PLAY = `
 .last-orders-root .lo-result-why{font-size:12.5px;font-weight:800;white-space:nowrap}
 
 /* fx layer (fx.js) */
+/* play callout (callout.js): a banner pinned to the top of the viewport */
+.last-orders-root .lo-callout{position:sticky;top:8px;z-index:20;height:0;margin-bottom:-8px;overflow:visible;pointer-events:none;display:flex;align-items:flex-start;justify-content:center;grid-column:1 / -1;grid-row:1}
+.last-orders-root .lo-co{display:flex;align-items:center;gap:10px;width:min(94%,520px);padding:8px 10px;border-radius:16px;background:var(--lo-panel);color:var(--lo-ink);border:2px solid var(--lo-co-k,var(--lo-k-action));box-shadow:0 10px 28px rgba(0,0,0,.35);animation:lo-co-in .42s cubic-bezier(.2,.8,.3,1.2) both}
+.last-orders-root .lo-co-k-action{--lo-co-k:var(--lo-k-action)}.last-orders-root .lo-co-k-reaction{--lo-co-k:var(--lo-k-reaction)}
+.last-orders-root .lo-co-k-gamble{--lo-co-k:var(--lo-k-gamble)}.last-orders-root .lo-co-k-spike{--lo-co-k:var(--lo-k-spike)}.last-orders-root .lo-co-k-drink{--lo-co-k:var(--lo-k-drink)}
+.last-orders-root .lo-co-atme{box-shadow:0 0 0 3px var(--lo-grit),0 10px 28px rgba(0,0,0,.35)}
+.last-orders-root .lo-co-face{flex:none;width:64px;height:64px;border-radius:18px;box-shadow:0 0 0 3px var(--lo-co-k,var(--lo-k-action))}
+.last-orders-root .lo-co-face svg,.last-orders-root .lo-co-art svg{width:100%;height:100%}
+.last-orders-root .lo-co-speaking .lo-co-face{animation:lo-co-talk .5s ease-in-out 4 alternate}
+.last-orders-root .lo-co-body{flex:1;min-width:0;line-height:1.25}
+.last-orders-root .lo-co-who{font-weight:800;font-size:13px}
+.last-orders-root .lo-co-who small{font-weight:600;color:var(--lo-muted)}
+.last-orders-root .lo-co-line{font-size:15px}
+.last-orders-root .lo-co-card{font-size:17px;color:var(--lo-co-k,var(--lo-k-action))}
+.last-orders-root .lo-co-rules{font-size:12px;color:var(--lo-muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.last-orders-root .lo-co-art{flex:none;width:64px;height:64px;animation:lo-co-flip .6s .15s ease-out both}
+@keyframes lo-co-in{from{opacity:0;transform:translateY(-24px) scale(.92)}to{opacity:1;transform:none}}
+@keyframes lo-co-talk{from{transform:scale(1)}to{transform:scale(1.07) rotate(-2deg)}}
+@keyframes lo-co-flip{from{transform:rotateY(90deg) scale(.6);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.last-orders-root .lo-co,.last-orders-root .lo-co-art,.last-orders-root .lo-co-speaking .lo-co-face{animation:none}}
+@media (max-width:420px){.last-orders-root .lo-co-face,.last-orders-root .lo-co-art{width:52px;height:52px}}
 .last-orders-root .lo-fx{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:12}
 .last-orders-root .lo-float{position:absolute;font-weight:900;font-size:16px;white-space:nowrap;text-shadow:0 1px 0 #fff,0 0 6px rgba(255,255,255,.8);will-change:transform,opacity}
 .last-orders-root .lo-float-grit{color:var(--lo-grit)}
 .last-orders-root .lo-float-buzz{color:#c2417d}
 .last-orders-root .lo-float-gold{color:var(--lo-gold)}
-.last-orders-root .lo-flycoin{position:absolute;width:18px;height:18px;will-change:transform,opacity;filter:drop-shadow(0 2px 2px rgba(0,0,0,.4))}
+.last-orders-root .lo-flycoin{position:absolute;width:22px;height:22px;will-change:transform,opacity;filter:drop-shadow(0 2px 2px rgba(0,0,0,.4))}
+.last-orders-root .lo-flymug{width:28px;height:28px}
 .last-orders-root .lo-confetti{position:absolute;width:8px;height:12px;border-radius:2px;will-change:transform,opacity}
 @keyframes lo-blink{0%,100%{opacity:1}50%{opacity:.35}}
 @keyframes lo-throb{0%,100%{opacity:1}50%{opacity:.55}}

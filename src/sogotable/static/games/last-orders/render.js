@@ -13,6 +13,7 @@
 import { playClick } from "../../sound.js";
 import { tableBgCssUrl } from "./art.js";
 import { GAME_EMOJI, GAME_NAME, UI } from "./branding.js";
+import { calloutFeed, calloutReset } from "./callout.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
 import { snapHand, slideHand } from "./hand-fx.js";
@@ -27,7 +28,7 @@ const TOAST_MS = 4500;
 const GHOST_MS = 1700;
 const AUTO_PASS_MS = 650;
 const PREFS_KEY = "sogotable.lastOrders.prefs";
-const PREF_DEFAULTS = { tips: true, primer: true, autopass: true };
+const PREF_DEFAULTS = { tips: true, primer: true, autopass: true, callouts: true, voice: true };
 const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "ticker", "toast"];
 
 let stylesInjected = false;
@@ -101,6 +102,7 @@ export function renderLastOrdersGame(ctx) {
     clearTimeout(S.toastTimer); clearTimeout(S.ghostTimer); clearTimeout(S.autoPassTimer);
     S = freshState(key);
     fxReset(key);
+    calloutReset(key);
   }
   S.lastCtx = ctx;
   const info = seatInfo(ctx);
@@ -382,6 +384,7 @@ function menuHtml(vm) {
         <span><b>${vm.esc(label)}</b><small>${vm.esc(hint)}</small></span><span class="lo-switch${on ? " lo-on" : ""}"><i></i></span></button>`;
   };
   return `<div class="lo-menu-card">${row("tips", UI.tipsLabel, UI.tipsHint)}${row("primer", UI.primerLabel, UI.primerHint)}${row("autopass", UI.autoPassLabel, UI.autoPassHint)}
+    ${row("callouts", UI.calloutsLabel, UI.calloutsHint)}${vm.prefs.callouts ? row("voice", UI.voiceLabel, UI.voiceHint) : ""}
     <button type="button" class="lo-btn" data-lo-act="menu">${vm.esc(UI.close)}</button></div>`;
 }
 
@@ -474,6 +477,8 @@ function paint(ctx, fresh) {
   ensureCountdown();
   if (complete && S.sawPlaying && !S.winPlayed) { S.winPlayed = true; playCue("win"); }
   fxAfterPaint(root, { fresh, items: g.reaction ? g.reaction.stack : [], game: g, labels: reducedMotion() ? null : statLabels });
+  calloutFeed(mountedRoot, fresh, { myMark: vm.myMark, players: vm.players, defs: vm.defs, nameOf: vm.nameOf, theme: vm.theme, esc: vm.esc },
+    { enabled: prefs().callouts && g.status === "playing", voice: prefs().voice });
 }
 
 // When my action step or a reaction window opens, scroll the hand back to its

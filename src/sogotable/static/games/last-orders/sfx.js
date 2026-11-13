@@ -56,6 +56,13 @@ const CUES = {
     { frequency: 1046.5, duration: 0.5, type: "sine", volume: 0.06, delay: 0.42 },
     { frequency: 523.25, duration: 0.5, type: "triangle", volume: 0.03, delay: 0.42 },
   ],
+  // "Ah-ha!" sting when a card is aimed at me: a stab, then a rising hit.
+  attacked: () => [
+    { frequency: 196, duration: 0.09, type: "sawtooth", volume: 0.05 },
+    { frequency: 233.08, duration: 0.09, type: "sawtooth", volume: 0.05, delay: 0.11 },
+    { frequency: 311.13, slideTo: 466.16, duration: 0.32, type: "square", volume: 0.045, delay: 0.22 },
+    { frequency: 98, slideTo: 60, duration: 0.3, type: "sine", volume: 0.09, delay: 0.22 },
+  ],
   tick: () => [{ frequency: 1400, duration: 0.03, type: "square", volume: 0.015 }],
   turn: () => [
     { frequency: 659.25, duration: 0.09, type: "sine", volume: 0.045 },
@@ -67,7 +74,7 @@ const CUES = {
   ],
 };
 
-const OVERRIDE_KEY = { play: "play", react: "react", negate: "react", drink: "drink", coins: "coins", pot: "coins", hit: "hit", gamble: "gamble", out: "out", win: "win", tick: "tick", turn: "turn" };
+const OVERRIDE_KEY = { attacked: "attacked", play: "play", react: "react", negate: "react", drink: "drink", coins: "coins", pot: "coins", hit: "hit", gamble: "gamble", out: "out", win: "win", tick: "tick", turn: "turn" };
 
 export function playCue(name) {
   const url = ASSETS.sounds && ASSETS.sounds[OVERRIDE_KEY[name]];
@@ -82,8 +89,10 @@ let lastSeq = -1;
 
 function cueFor(e, myMark) {
   switch (e.type) {
-    case "play": return e.kind === "drink" ? "drink" : "play";
-    case "react": return "react";
+    case "play":
+      if (e.kind === "drink") return "drink";
+      return e.target === myMark && e.mark !== myMark ? "attacked" : "play";
+    case "react": return e.target === myMark && e.mark !== myMark ? "attacked" : "react";
     case "negated": return "negate";
     case "grit": return Number(e.n) < 0 ? "hit" : null;
     case "gold": return Number(e.n) > 0 ? "coins" : null;
@@ -111,7 +120,9 @@ export function consumeEvents(key, events, myMark) {
   if (!fresh.length) return fresh;
   const seen = new Set();
   let delay = 0;
-  fresh.forEach((e) => {
+  // A card aimed at me jumps the queue: its sting plays first.
+  const ordered = [...fresh].sort((a, b) => (cueFor(b, myMark) === "attacked") - (cueFor(a, myMark) === "attacked"));
+  ordered.forEach((e) => {
     const cue = cueFor(e, myMark);
     if (!cue || seen.has(cue) || seen.size >= 4) return; // one of each per batch
     seen.add(cue);

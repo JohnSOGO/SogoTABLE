@@ -88,16 +88,25 @@ export function setLastOrdersOptions(game, payload) {
 
 const humansWatching = (game) => game.seat_order.some((m) => !game.players[m].is_bot);
 const humansPlaying = (game) => living(game).some((m) => !isBotLike(game.players[m]));
-const windowMs = (game) => (humansPlaying(game) ? game.options.react_seconds * 1000 : 0);
+// Pacing (2026-11-13): every play stays on the table for at least SHOW_MS
+// while any human is watching (seated or knocked out), so the callout and its
+// voice line land before the card resolves; bot steps leave a beat to read.
+const SHOW_MS = 2200;
+const showMs = (game) => (humansWatching(game) ? SHOW_MS : 0);
+function windowMs(game) {
+  if (humansPlaying(game)) return game.options.react_seconds * 1000;
+  return showMs(game);
+}
 function botStepMs(game) {
   if (!humansWatching(game)) return 0;
-  const base = humansPlaying(game) ? 900 : 450;
-  return base + Math.floor(random() * base);
+  const [base, spread] = humansPlaying(game) ? [1600, 1200] : [1200, 800];
+  return base + Math.floor(random() * spread);
 }
 function botThinkMs(game) {
-  if (!humansPlaying(game)) return 0;
+  if (!humansWatching(game)) return 0;
+  if (!humansPlaying(game)) return 500 + Math.floor(random() * (SHOW_MS - 900));
   const cap = Math.max(400, game.options.react_seconds * 1000 - 900);
-  return Math.min(cap, 700 + Math.floor(random() * 1900));
+  return Math.min(cap, 900 + Math.floor(random() * 1900));
 }
 const bump = (game) => { game.step = (Number(game.step) || 0) + 1; };
 
@@ -226,6 +235,7 @@ function pushItem(game, item, now) {
   w.stack.push(item);
   w.passed = [];
   w.closes_at = now + windowMs(game);
+  w.show_until = now + showMs(game);
   planBots(game, now);
   pushEvent(game, { type: w.stack.length > 1 ? "react" : "play", uid: item.uid, mark: item.by, card: item.card, kind: item.kind, target: item.target, spikes: item.spikes });
   bump(game);
@@ -258,7 +268,8 @@ function stepWindow(game, now) {
     return true;
   }
   const eligible = windowEligible(game);
-  if (eligible.every((m) => w.passed.includes(m)) || now >= w.closes_at) {
+  const allPassed = eligible.every((m) => w.passed.includes(m));
+  if ((allPassed && now >= (Number(w.show_until) || 0)) || now >= w.closes_at) {
     closeWindow(game, now);
     return true;
   }
@@ -453,7 +464,11 @@ function advance(game, now) {
 function nextDueAt(game) {
   if (game.status !== "playing" || game.phase !== "play") return 0;
   const w = game.reaction;
-  if (w) return Math.min(w.closes_at, ...Object.values(w.plans).map((p) => p.at));
+  if (w) {
+    const plans = Object.values(w.plans).map((p) => p.at);
+    const allPassed = windowEligible(game).every((m) => w.passed.includes(m));
+    return Math.min(w.closes_at, ...plans, ...(allPassed ? [Math.max(Number(w.show_until) || 0, 1)] : []));
+  }
   const t = game.turn;
   return t && isBotLike(game.players[t.mark]) ? t.act_at : 0;
 }

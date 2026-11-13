@@ -15,7 +15,7 @@
 //            "base:gorrum:headbutt". Missing ids use the effect icon art.
 //   drinks:    { [drinkId]: url } — drink illustration (square).
 //   cardBack / drinkBack / tableBg: url — one image each (tableBg tiles/covers).
-//   sounds:    { play, react, drink, coins, hit, gamble, out, win, tick, turn }.
+//   sounds:    { play, react, drink, coins, hit, gamble, out, win, tick, turn, attacked }.
 //
 // PICTURES (docs/PICTURES.md): illustrated WebP files live in ./img/, named after
 // the slot id with ":" turned into "-" (base:gorrum:headbutt -> base-gorrum-headbutt.webp).
@@ -52,6 +52,14 @@ const DRINK_PICS = {
   "masquerade:drink": "masked-punch midnight-tea bubbly-fountain mystery-flute",
   "clockwork:drink": "fizzbang-soda steam-cider coolant-cooler unstable-tonic",
 };
+
+// VOICES (docs/voices.md): one MP3 per card id in ./voice/, named like the
+// pictures (base:gorrum:headbutt -> base-gorrum-headbutt.mp3), spoken by the
+// card's patron in their Kokoro voice (voice.js VOICE_PROFILES). Only ids
+// listed here are mapped (a test checks every listed file is committed); any
+// other card falls back to the browser's speech voice.
+const voiceClip = (id) => new URL(`./voice/${id.replace(/:/g, "-")}.mp3`, import.meta.url).href;
+export const VOICE_IDS = [];
 
 export const ASSETS = {
   palette: {
@@ -94,11 +102,12 @@ export const ASSETS = {
   cardBack: pic("card-back"),
   drinkBack: pic("drink-back"),
   tableBg: pic("table"),
+  voices: Object.fromEntries(VOICE_IDS.map((id) => [id, voiceClip(id)])),
   sounds: {
     play: new URL("./sounds/play.mp3", import.meta.url).href,
     react: null, drink: null,
     coins: new URL("./sounds/coins.mp3", import.meta.url).href,
-    hit: null, gamble: null, out: null, win: null, tick: null, turn: null,
+    hit: null, gamble: null, out: null, win: null, tick: null, turn: null, attacked: null,
   },
 };
 
