@@ -62,10 +62,10 @@ const LIGHT = `
 .last-orders-root .lo-primer-list li{margin:3px 0}
 
 /* seats */
-.last-orders-root .lo-opps-row{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;padding:2px 2px 6px;scrollbar-width:thin;scroll-snap-type:x proximity}
+.last-orders-root .lo-opps-row{display:flex;flex-wrap:wrap;gap:8px;padding:2px 2px 6px}
 .last-orders-root .lo-seat,.last-orders-root .lo-myseat{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;
   background:var(--lo-panel);border-radius:12px;box-shadow:var(--lo-shadow);padding:7px 8px;border:2px solid transparent;transition:border-color .2s, opacity .3s}
-.last-orders-root .lo-seat{flex:1 0 170px;max-width:230px;scroll-snap-align:start}
+.last-orders-root .lo-seat{flex:1 1 150px;min-width:0;max-width:260px}
 .last-orders-root .lo-seat .lo-stat{font-size:11.5px;padding:1px 4px 1px 2px}
 .last-orders-root .lo-seat .lo-stat svg{width:13px;height:13px}
 .last-orders-root .lo-seat .lo-stats{gap:3px}
@@ -207,7 +207,21 @@ const PLAY = `
 .last-orders-root .lo-hand,.last-orders-root .lo-drag-ghost{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .last-orders-root .lo-hand svg,.last-orders-root .lo-hand img{pointer-events:none;-webkit-user-drag:none}
 .last-orders-root .lo-card.lo-dragging{opacity:.3}
-.last-orders-root button.lo-card.lo-drag-ghost{position:fixed;z-index:60;margin:0;pointer-events:none;box-shadow:0 14px 34px rgba(0,0,0,.45);transition:none}
+/* order a round: the shuffled drink deck on the table, dragged onto a rival */
+.last-orders-root .lo-deck{display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 0;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.last-orders-root .lo-deck-pile{position:relative;display:block;width:72px;height:100px}
+.last-orders-root .lo-deck-card{position:absolute;inset:0;border-radius:10px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.4);transform:translate(calc(var(--d) * -3px),calc(var(--d) * -3px)) rotate(calc((var(--d) - 1) * 4deg));animation:lo-shuffle .9s ease-out calc(var(--d) * .08s) both}
+.last-orders-root .lo-deck-card svg{width:100%;height:100%}
+.last-orders-root .lo-deck-hint{padding:4px 12px;border-radius:12px;background:rgba(40,22,10,.6);color:#fff8e8;font-weight:800;font-size:14px}
+.last-orders-root .lo-deck.lo-dragging{opacity:.35}
+.last-orders-root .lo-deck.lo-drag-ghost .lo-deck-hint{display:none}
+@keyframes lo-shuffle{0%{transform:translateX(calc((var(--d) - 1) * 46px)) rotate(calc((var(--d) - 1) * -14deg))}55%{transform:translateX(calc((1 - var(--d)) * 18px)) rotate(calc((var(--d) - 1) * 8deg))}100%{transform:translate(calc(var(--d) * -3px),calc(var(--d) * -3px)) rotate(calc((var(--d) - 1) * 4deg))}}
+/* a lifted card that needs no one: the table lights up as the drop spot */
+.last-orders-root .lo-bar-main.lo-bar-target{position:relative;cursor:pointer;border-radius:14px;outline:3px dashed rgba(255,214,120,.85);outline-offset:-6px}
+.last-orders-root .lo-bar-drop{position:absolute;left:50%;top:10px;z-index:3;transform:translateX(-50%);padding:3px 12px;border-radius:12px;background:rgba(240,169,46,.92);color:#3b2400;font-weight:900;font-size:13px;white-space:nowrap;pointer-events:none}
+.last-orders-root .lo-lift-hint{font-size:14px;font-weight:800;color:var(--lo-accent)}
+.last-orders-root .lo-card.lo-held{transform:translateY(-8px) scale(1.03);box-shadow:0 0 0 3px var(--lo-turn),0 10px 22px rgba(0,0,0,.3)}
+.last-orders-root .lo-drag-ghost.lo-deck,.last-orders-root button.lo-card.lo-drag-ghost{position:fixed;z-index:60;margin:0;pointer-events:none;box-shadow:0 14px 34px rgba(0,0,0,.45);transition:none}
 .last-orders-root .lo-drop-hot{outline:3px solid var(--lo-turn);outline-offset:2px;box-shadow:0 0 0 6px rgba(240,169,46,.35),var(--lo-shadow)}
 .last-orders-root .lo-card-mark{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--lo-bad);color:#fff;font-size:14px;font-weight:900;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .last-orders-root .lo-spiking .lo-card-mark{background:var(--lo-k-spike)}
@@ -352,7 +366,7 @@ const PLAY = `
 const F = (t) => `.last-orders-root[data-lo-focus~="${t}"]`;
 const FOCUS = `
 /* any decision of mine: compact the rest of the table */
-${F("act")} .lo-seat{flex:1 0 132px;padding:5px 7px;gap:6px}
+${F("act")} .lo-seat{flex:1 1 128px;padding:5px 7px;gap:6px}
 ${F("act")} .lo-seat-face svg{width:36px;height:36px}
 ${F("act")} .lo-seat-misc{display:none}
 ${F("act")} .lo-myseat{padding:5px 8px}
@@ -404,7 +418,9 @@ ${F("react")} .lo-stack-top .lo-face-text{font-size:13px;color:var(--lo-card-ink
 ${F("react")} .lo-stack-who{font-size:12px}
 ${F("react")} .lo-bar-side{display:none}
 ${F("react")} .lo-hand-row,${F("act")}${F("gamble")} .lo-hand-row{justify-content:safe center}
-${F("react")} .lo-card.lo-dim,${F("act")}${F("gamble")} .lo-card.lo-dim{display:none}
+${F("react")} .lo-card.lo-dim,${F("act")}${F("gamble")} .lo-card.lo-dim,${F("play")} .lo-card.lo-dim,${F("order")} .lo-card.lo-dim{display:none}
+${F("play")} .lo-hand:not(:has(.lo-card:not(.lo-dim))),${F("order")} .lo-hand:not(:has(.lo-card:not(.lo-dim))){display:none}
+${F("play")} .lo-hand-row,${F("order")} .lo-hand-row{justify-content:safe center}
 ${F("react")} .lo-hand:not(:has(.lo-card:not(.lo-dim))),${F("act")}${F("gamble")} .lo-hand:not(:has(.lo-card:not(.lo-dim))){display:none}
 
 /* the gamble: the pot and who leads take the stage */
@@ -422,6 +438,7 @@ ${F("gamble")} .lo-gamble-call{font-size:16px;padding:12px 16px;max-width:none}
 ${F("act")}${F("gamble")} .lo-bar-main:has(> .lo-gamble-call){display:none}
 
 /* buying a drink: the people are the choice */
+${F("order")} .lo-bar-main{min-height:0}
 ${F("order")} .lo-target{height:48px;padding:0 18px;font-size:17px;border-radius:24px}
 ${F("order")} .lo-target .lo-dot{width:14px;height:14px}
 ${F("order")} .lo-targets{font-size:14px}

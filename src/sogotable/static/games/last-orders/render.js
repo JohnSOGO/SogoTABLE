@@ -12,7 +12,7 @@
 // its markup changes, and one delegated click listener handles every control.
 import { playClick } from "../../sound.js";
 import { tableBgCssUrl } from "./art.js";
-import { GAME_EMOJI, GAME_NAME, UI } from "./branding.js";
+import { GAME_EMOJI, GAME_NAME, TURN_STEPS, UI } from "./branding.js";
 import { calloutFeed, calloutReset } from "./callout.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
@@ -30,7 +30,7 @@ const STEP_TIP_MS = 7000;
 const GHOST_MS = 1700;
 const AUTO_PASS_MS = 650;
 const PREFS_KEY = "sogotable.lastOrders.prefs";
-const PREF_DEFAULTS = { tips: true, primer: true, autopass: true, callouts: true, voice: true };
+const PREF_DEFAULTS = { tips: true, primer: true, autopass: true, steptips: true, callouts: true, voice: true };
 const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "ticker", "toast"];
 
 let stylesInjected = false;
@@ -41,7 +41,7 @@ let S = freshState("");
 function freshState(key) {
   return {
     key, lastCtx: null, sending: false, selKey: "", sel: null, target: null, discardSel: new Set(), orderTarget: null, orderSpike: null, handHome: false,
-    toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false, stepTip: "", stepTimer: null,
+    toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false, stepTip: "", stepTimer: null, stepKey: "",
     autoPassStep: -1, autoPassTimer: null, autoPassed: -1, sawPlaying: false, winPlayed: false, lastBeep: -1, bgTheme: "",
   };
 }
@@ -113,6 +113,7 @@ export function renderLastOrdersGame(ctx) {
   if (game.status === "playing") S.sawPlaying = true;
   trackGhost(game, fresh);
   reconcile(game, info);
+  autoStepTip(game, info);
   paint(ctx, fresh);
   syncTick(key, game, info.myMark, {
     mounted: () => Boolean(mountedRoot()),
@@ -172,6 +173,23 @@ function trackGhost(game, fresh) {
   }
   S.prevStack = w && w.stack.length ? w.stack.map((it) => ({ ...it })) : null;
   if (w && w.stack.length) S.ghost = null;
+}
+
+// ---------- turn-step tip (top bar) ----------
+function openStepTip(step) {
+  S.stepTip = step;
+  clearTimeout(S.stepTimer);
+  if (step) S.stepTimer = setTimeout(() => { S.stepTip = ""; repaint(); }, STEP_TIP_MS);
+}
+// When MY turn moves on to a new step, explain it unprompted (the "Step tips"
+// setting turns this off; the dots still explain on tap).
+function autoStepTip(game, info) {
+  const t = game.turn;
+  const mine = t && game.phase === "play" && game.status === "playing" && t.mark === info.myMark && TURN_STEPS.includes(t.phase);
+  const key = mine ? `${game.round}:${t.mark}:${t.phase}` : "";
+  if (key === S.stepKey) return;
+  S.stepKey = key;
+  if (key && prefs().steptips) openStepTip(t.phase);
 }
 
 // ---------- selection ----------
@@ -294,9 +312,7 @@ function onAct(act, value) {
     case "pref": setPref(value, !prefs()[value]); playClick(); if (value === "autopass") maybeAutoPass(ctx, info); break;
     case "primer": S.primerOpen = !S.primerOpen; playClick(); break;
     case "step": // a turn-step dot: explain that step (tap again, or the tip, to close)
-      S.stepTip = S.stepTip === value ? "" : value;
-      clearTimeout(S.stepTimer);
-      if (S.stepTip) S.stepTimer = setTimeout(() => { S.stepTip = ""; repaint(); }, STEP_TIP_MS);
+      openStepTip(S.stepTip === value ? "" : value);
       playClick();
       break;
     case "pick": playClick(); send({ type: "PICK", character: value }, { stamp: false }); return;
@@ -312,11 +328,10 @@ function onAct(act, value) {
         // A spike rides along with the drink; tapping who drinks sends it.
         if (isSpike(ctx, me, value) && playable.has(value)) S.orderSpike = S.orderSpike === value ? null : value;
         S.sel = S.sel === value ? null : value;
-      } else if ((mode === "action" || mode === "window") && playable.has(value)) {
-        // Play straight off the card: no confirm. With a choice of targets the
-        // card is picked up and the next tap on a rival plays it.
-        const targets = (me.targets && me.targets[value]) || [];
-        if (targets.length <= 1) { quickPlay(me, value, targets[0]); return; }
+      } else if (mode === "action" || mode === "window") {
+        // A tap only lifts the card (shows where it can go); dragging it onto
+        // a rival, or up onto the table, is what plays it — the drop is the
+        // confirm. (Tapping a glowing rival / the table after a lift also works.)
         S.sel = S.sel === value ? null : value;
         S.target = null;
       } else {
@@ -325,6 +340,9 @@ function onAct(act, value) {
       }
       break;
     }
+    case "bar": // the table, tapped after lifting a card that needs no one picked
+      if (me && S.sel && playable.has(S.sel) && ((me.targets[S.sel] || []).length <= 1)) { playClick(); quickPlay(me, S.sel, (me.targets[S.sel] || [])[0]); return; }
+      break;
     case "target":
     case "order_target":
       if (mode === "order") { playClick(); quickOrder(me, value, S.orderSpike); return; }
@@ -338,6 +356,7 @@ function onAct(act, value) {
   repaint();
 }
 
+const DRINK = "drink"; // the drink deck on the table (order step), as a drag source
 const isSpike = (ctx, me, uid) => {
   const card = (me.hand || []).find((c) => c.uid === uid);
   const def = card ? ctx.game.defs[card.id] : null;
@@ -374,7 +393,9 @@ function canDragCard(uid) {
   const info = seatInfo(ctx);
   const mode = modeOf(ctx.game, info);
   const me = info.me;
-  if (!me || !(me.playable || []).includes(uid)) return false;
+  if (!me) return false;
+  if (uid === DRINK) return mode === "order" && (me.order_targets || []).length > 0;
+  if (!(me.playable || []).includes(uid)) return false;
   return mode === "action" || mode === "window" || (mode === "order" && isSpike(ctx, me, uid));
 }
 function onDropCard(uid, drop) {
@@ -384,6 +405,7 @@ function onDropCard(uid, drop) {
   const me = info.me;
   const mode = modeOf(ctx.game, info);
   playClick();
+  if (uid === DRINK) { if (drop && drop !== "bar") quickOrder(me, drop, S.orderSpike); return; }
   if (mode === "order") {
     if (drop && drop !== "bar" && quickOrder(me, drop, uid)) return;
     S.orderSpike = uid; S.sel = uid;
@@ -415,7 +437,8 @@ function buildViewModel(ctx, info) {
     turnMark: g.turn && g.phase === "play" ? g.turn.mark : null, reaction: g.reaction, gamble: g.gamble, defs: g.defs || {},
     prefs: prefs(), showPlayable: !(g.options && g.options.show_playable === false),
     mode, sel: S.sel, target: S.target, discardSel: S.discardSel, orderTarget: S.orderTarget, orderSpike: S.orderSpike,
-    targetables, chosenTarget, sending: S.sending, ghost: S.ghost, primerOpen: S.primerOpen,
+    targetables, chosenTarget, sending: S.sending, orderDeck: mode === "order",
+    barTarget: (mode === "action" || mode === "window") && Boolean(S.sel) && (me.playable || []).includes(S.sel) && ((me.targets && me.targets[S.sel]) || []).length <= 1, ghost: S.ghost, primerOpen: S.primerOpen,
     autoPassedStep: S.autoPassed === g.step, skip: skipInfo(ctx, info),
   };
 }
@@ -439,7 +462,7 @@ function menuHtml(vm) {
     return `<button type="button" class="lo-pref" data-lo-act="pref" data-v="${name}" role="switch" aria-checked="${on}">
         <span><b>${vm.esc(label)}</b><small>${vm.esc(hint)}</small></span><span class="lo-switch${on ? " lo-on" : ""}"><i></i></span></button>`;
   };
-  return `<div class="lo-menu-card">${row("tips", UI.tipsLabel, UI.tipsHint)}${row("primer", UI.primerLabel, UI.primerHint)}${row("autopass", UI.autoPassLabel, UI.autoPassHint)}
+  return `<div class="lo-menu-card">${row("tips", UI.tipsLabel, UI.tipsHint)}${row("primer", UI.primerLabel, UI.primerHint)}${row("autopass", UI.autoPassLabel, UI.autoPassHint)}${row("steptips", UI.stepTipsLabel, UI.stepTipsHint)}
     ${row("callouts", UI.calloutsLabel, UI.calloutsHint)}${vm.prefs.callouts ? row("voice", UI.voiceLabel, UI.voiceHint) : ""}
     <button type="button" class="lo-btn" data-lo-act="menu">${vm.esc(UI.close)}</button></div>`;
 }
@@ -473,7 +496,10 @@ function ensureSkeleton(host) {
     if (!el || !root.contains(el) || el.disabled) return;
     onAct(el.getAttribute("data-lo-act"), el.getAttribute("data-v") || "");
   });
-  wireGestures(root, { canDrag: canDragCard, onHold: (uid) => onAct("card", uid), onDrop: onDropCard });
+  wireGestures(root, {
+    canDrag: canDragCard, onHold: (uid) => onAct("card", uid), onDrop: onDropCard,
+    onDragStart: () => { if (S.stepTip) { openStepTip(""); repaint(); } }, // clear the view of the rivals
+  });
   root.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     const el = e.target.closest ? e.target.closest("[data-lo-act][role=button]") : null;
