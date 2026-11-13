@@ -24,6 +24,8 @@ import {
 import { BOT_DEFINITIONS, isBotSeat } from "./games/bots.js";
 // Bug-report store (append / list / clear) — its own leaf owner; the Worker only routes.
 import { appendBugReport, listBugReports, clearBugReports, resolveBugReports, updateBugReport } from "./bug-reports.js";
+import { listAssetReviews, upsertAssetReview, clearAssetReviews } from "./asset-reviews.js";
+import { altNameFor, setGameAltName } from "./game-alt-names.js";
 // Per-game dispatch layer (table + game-agnostic dispatchers). Each game's
 // server-authoritative rules live in its own module; games/handlers.js owns the
 // one table that binds them. The Worker entry only routes.
@@ -69,9 +71,14 @@ const BOT_MOVE_DELAY_MS = 700;
 // read-only or partial-profile route declares itself in ROUTE_SIDE_EFFECTS.
 const MUTATING = { mutates: true, notifyRooms: true, notifyApp: true };
 const READ_ONLY = { mutates: false, notifyRooms: false, notifyApp: false };
+const SAVE_QUIETLY = { mutates: true, notifyRooms: false, notifyApp: false };
 const ROUTE_SIDE_EFFECTS = new Map([
   ["POST /api/superuser/verify", READ_ONLY],
   ["POST /api/bug-reports/list", READ_ONLY],
+  ["POST /api/asset-reviews/list", READ_ONLY],
+  ["POST /api/asset-reviews/upsert", SAVE_QUIETLY],
+  ["POST /api/asset-reviews/clear", SAVE_QUIETLY],
+  ["POST /api/game-alt-names/set", SAVE_QUIETLY],
 ]);
 function sideEffectsFor(method, pathname) {
   if (method === "GET") return READ_ONLY;
@@ -418,7 +425,7 @@ async function routeRequest(method, url, payload, data, options = {}) {
   const autoBotMoves = options.autoBotMoves !== false;
   const superuserPasscode = options.superuserPasscode;
   const superuserPlayerIds = options.superuserPlayerIds;
-  if (method === "GET" && url.pathname === "/api/games") return { ok: true, games: GAME_DEFINITIONS.map(publicGameDefinition) };
+  if (method === "GET" && url.pathname === "/api/games") return { ok: true, games: GAME_DEFINITIONS.map((game) => ({ ...publicGameDefinition(game), alt_name: altNameFor(data, game.id) || null })) };
   if (method === "GET" && url.pathname === "/api/players") return { ok: true, players: publicPlayers(data) };
   if (method === "POST" && url.pathname === "/api/superuser/verify") {
     const requesterId = String(payload.requester_id || "").trim();
@@ -507,6 +514,10 @@ async function routeRequest(method, url, payload, data, options = {}) {
     if (method === "POST" && url.pathname === "/api/bug-reports/clear") return clearBugReports(data, payload, superuserPasscode);
     if (method === "POST" && url.pathname === "/api/bug-reports/resolve") return resolveBugReports(data, payload, superuserPasscode);
     if (method === "POST" && url.pathname === "/api/bug-reports/update") return updateBugReport(data, payload, superuserPasscode);
+    if (method === "POST" && url.pathname === "/api/asset-reviews/list") return listAssetReviews(data, payload, superuserPasscode);
+    if (method === "POST" && url.pathname === "/api/asset-reviews/upsert") return upsertAssetReview(data, payload, superuserPasscode);
+    if (method === "POST" && url.pathname === "/api/asset-reviews/clear") return clearAssetReviews(data, payload, superuserPasscode);
+    if (method === "POST" && url.pathname === "/api/game-alt-names/set") return setGameAltName(data, payload, superuserPasscode);
     if ((method === "POST" && url.pathname === "/api/players/delete") || (method === "DELETE" && url.pathname === "/api/players")) {
       const playerId = String(payload.id || url.searchParams.get("id") || "").trim();
       if (!playerId) throw new Error("Player id is required.");

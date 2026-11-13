@@ -15,6 +15,7 @@
     "bugreports:ui": "node scripts/serve-bug-manager.mjs",
     "bugreports:manage": "node scripts/manage-bug-reports.mjs",
     "bugreports:clear": "node scripts/clear-bug-reports.mjs",
+    "assetreviews": "node scripts/export-asset-reviews.mjs",
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "format": "prettier --write .",

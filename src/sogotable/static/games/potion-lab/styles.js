@@ -83,6 +83,9 @@ html[data-theme="dark"] .potion-lab-root{
 .potion-lab-root .pl-card .pl-face.pl-moons .pl-mrow{display:flex;flex-wrap:nowrap;justify-content:center}
 .potion-lab-root .pl-card .pl-face.pl-moons i{font-style:normal;display:inline-block;font-size:26px}
 .potion-lab-root .pl-card .pl-face.pl-m3 i{font-size:22px}
+.potion-lab-root .pl-card .pl-face.pl-pic{position:relative;display:block;width:56px;height:56px;margin-top:2px}
+.potion-lab-root .pl-card .pl-pic img{width:100%;height:100%;object-fit:cover;border-radius:8px;display:block}
+.potion-lab-root .pl-card .pl-pic .pl-badge{position:absolute;right:-4px;bottom:-4px;font-size:12px;line-height:1;padding:2px 3px;border-radius:7px;background:var(--pl-card);border:1px solid var(--pl-line);white-space:nowrap}
 .potion-lab-root .pl-card .pl-cn{font-size:10px;font-weight:700;margin-top:2px;text-align:center}
 .potion-lab-root .pl-controls{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap}
 .potion-lab-root .pl-commit{background:var(--pl-btn);color:var(--pl-btnink);border:none;border-radius:999px;padding:12px 30px;font-size:16px;font-weight:800;cursor:pointer;box-shadow:var(--pl-shadow)}

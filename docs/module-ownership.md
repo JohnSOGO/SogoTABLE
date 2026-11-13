@@ -71,6 +71,16 @@ concern), then implement.
 | `workers/stats.js` | Room outcome stats: completed-room recording, Elo, high scores, personal stats | `workers/sogotable-api.js` |
 | `workers/projections.js` | Public projections (player + bot views) | `workers/sogotable-api.js` |
 | `workers/bug-reports.js` | Bug-report store: append / list / clear / resolve-reopen-delete by id over data.bug_reports | `workers/sogotable-api.js` |
+| `workers/asset-reviews.js` | Asset-review store: passcode-gated list / upsert-by-asset-key / clear over data.asset_reviews (status, note, chosen take, regenerate flag) | `workers/sogotable-api.js` |
+| `workers/game-alt-names.js` | Game alt-name store: passcode-gated set/clear of an optional per-game display alias over data.game_alt_names (keyed by canonical game id), plus a read lookup | `workers/sogotable-api.js` |
+| `src/sogotable/static/admin/game-names.js` | Game Names admin screen: lists games from /api/games with an alt-name input each and saves through the passcode-gated route, via wireGameNames(ctx). Superuser-only, never changes the registry | `src/sogotable/static/app.js` |
+| `src/sogotable/static/admin/asset-review/index.js` | Asset Review admin screen: wire + orchestration (load catalog, fetch/upsert reviews, filters, playback, A/B, keyboard shortcuts) via wireAssetReview(ctx); superuser-only, never changes a shipped asset | `src/sogotable/static/app.js` |
+| `src/sogotable/static/admin/asset-review/catalog.js` | Pure reviewable-asset catalog: global cues, UI ticks, per-game sounds and pictures, alternate takes; filters and progress counts. No DOM, no playback | `src/sogotable/static/app.js` |
+| `src/sogotable/static/admin/asset-review/takes.js` | Alternate-take manifest and sound sources: pure data | `src/sogotable/static/app.js` |
+| `src/sogotable/static/admin/asset-review/render.js` | Asset Review view: toolbar, list, sound and picture detail markup. Render-only | `src/sogotable/static/app.js` |
+| `src/sogotable/static/admin/asset-review/waveform.js` | Audio decode, peak/RMS/clip/lead-silence measurement, buffer playback and waveform canvas draw | `src/sogotable/static/app.js` |
+| `src/sogotable/static/admin/asset-review/report.js` | Pure asset-review export formatter (records to JSON / Markdown), shared by the screen and scripts/export-asset-reviews.mjs | `src/sogotable/static/app.js` |
+| `src/sogotable/static/admin/asset-review/styles.js` | Asset Review screen styles (injected style tag) | `src/sogotable/static/app.js` |
 | `workers/custom-cards.js` | Custom card library store: append / list / retire attributed write-in cards over data.custom_cards | `workers/sogotable-api.js` |
 | `workers/card-ratings.js` | Card rating store: per-card 👍/👎 vote tallies + net-threshold removal decisions over data.card_ratings | `workers/sogotable-api.js` |
 | `workers/game-library.js` | Game↔card-library composition: creation-time deck inputs (active customs + removed keys + usage map) and resolution-time harvest (append write-ins, apply ratings, retire rating-removed customs) across the custom-cards + card-ratings stores | `workers/sogotable-api.js` |

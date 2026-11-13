@@ -4,10 +4,10 @@
 // seams are rewired: data source (the ctx.game projection) and intent (ctx.makeMove). Snapshot render.
 import { renderHostStartLobby } from "../lobby.js";
 import { MYSTIC_WOOD_CSS } from "./styles.js";
-import { syncHorn, resetHorn, hornOwnsTokens, hornRemainingMs } from "./horn.js";
-import { syncHerald, resetHeralds, raiseHerald } from "./herald.js";
+import { syncHorn, resetHorn, hornOwnsTokens, hornRemainingMs } from "./horn.js"; import { syncHerald, resetHeralds, raiseHerald } from "./herald.js";
 import { KNIGHTS, THINGS, DEN, DEN_CLASS, THING_DESC, COMP_DESC, AREA_NAMES, AREA_FX, EVENT_TALE } from "./content.js";
 import { E, denEmoji, sanitizeLog, tblRows, tileAt, tileSvg } from "./util.js";
+import { denPic, knightCrest, thingPic } from "./art.js";
 import { closePortals, showEncounter, showGreetPick, showCombatPick, showEscapePick, showPowerShed, showDice, showIntro, initEncounter, signalWorking, clearWorking } from "./encounter.js";
 import { wireBoardPointer, initBoardInput } from "./board-input.js";
 
@@ -457,11 +457,11 @@ function peekContent(game, spec) {
     const [r, c] = arg.split(",").map(Number); const t = tileAt(game, r, c); const id = type === "card2" ? t.card2 : t.card;
     const both = t.card && t.card2
       ? `<br><span style="color:var(--muted)">🃏 <b>§9:</b> two denizens hold this glade. Enter it and you must approach <b>both</b> before your turn ends — and the second may not be withdrawn from.</span>` : "";
-    return { title: `${denEmoji(id)} ${(DEN[id] || {}).name || "?"}`, body: denizenSummary(id) + both };
+    return { title: `${denEmoji(id)} ${(DEN[id] || {}).name || "?"}`, body: denPic(id) + denizenSummary(id) + both };
   }
   if (type === "tok" || type === "stats") { const seat = game.players.find((p) => p.mark === arg); return { title: seat ? E(seat.name) : "Knight", body: playerPeek(seat) }; }
-  if (type === "thing") return { title: (THINGS[arg] || {}).name || arg, body: THING_DESC[arg] || "A magical Thing." };
-  if (type === "comp") return { title: (DEN[arg] || {}).name || arg, body: COMP_DESC[arg] || "A companion travelling with you." };
+  if (type === "thing") return { title: (THINGS[arg] || {}).name || arg, body: thingPic(arg) + (THING_DESC[arg] || "A magical Thing.") };
+  if (type === "comp") return { title: (DEN[arg] || {}).name || arg, body: denPic(arg) + (COMP_DESC[arg] || "A companion travelling with you.") };
   if (type === "prowess") return { title: "Prowess card", body: "+1 Prowess — won by slaying a beast. Adds to your Prowess in every contest." };
   if (type === "pray") { const n = Number(arg) || 0; return { title: "🙏 Praying before the Bishop", body: `Three full turns of prayer earn the <b>Ring</b> (+1 Prowess). <b>${n} of 3</b> kept — ${3 - n} to go.<br>Each turn of prayer <b>costs you that turn</b>: you kneel instead of moving. If the prayer is interrupted, the turns kept are lost. (§18.2)` }; }
   if (type === "horse") return { title: "Horse", body: "+2 Strength. Caught when it bolts into a wall — greet it, chase it. Not a companion; another knight can win it in a joust." };
@@ -602,7 +602,7 @@ function wireChron(panel, game) {
 function closePanel() { document.querySelectorAll(".mw-panelover,.mw-backdrop").forEach((n) => n.remove()); }
 function knightCard(p, active) {
   return `<div class="card pl${active ? " active" : ""}">
-    <div class="plhead"><span class="crest" style="background:${E(p.color)}">${E((p.name || "?")[0])}</span>
+    <div class="plhead">${knightCrest(p.knight, p.color, (p.name || "?")[0])}
       <span class="plname" style="color:${E(p.color)}">${E(p.label || p.name)}${p.is_bot ? " 🤖" : ""}</span>${p.isKing ? `<span class="chip">👑 King</span>` : ""}</div>
     ${statsHtml(p)}
     <div class="quest">${p.questDone ? "✓ " : ""}${E(p.quest || "")}</div>

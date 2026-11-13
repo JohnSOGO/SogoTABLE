@@ -52,8 +52,9 @@ export const ASSETS = {
       pearl: "#f4f7ff", pearlShade: "#97a3c2", pearlRim: "rgba(0,0,0,.55)",
     },
   },
-  habitats: { sand: null, kelp: null, lagoon: null, seagrass: null, coral: null, trench: null },
-  grotto: null,
+  // Illustrated textures (docs/PICTURES.md); set a key to null to go back to the drawn SVG.
+  habitats: Object.fromEntries("sand kelp lagoon seagrass coral trench".split(" ").map((h) => [h, new URL(`./img/habitat-${h}.webp`, import.meta.url).href])),
+  grotto: new URL("./img/grotto.webp", import.meta.url).href,
   pearl: null,
   sounds: { place: null, pick: null, bumped: null, round: null, score: null, win: null },
 };

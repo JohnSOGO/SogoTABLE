@@ -81,6 +81,13 @@
           <div class="games-list">
             <button id="openChessTutor" class="game-card" type="button" data-screen="chessTutor">♞ Chess Tutor</button>
           </div>
+          <div id="adminGames" class="hidden">
+            <h2>Admin</h2>
+            <div class="games-list">
+              <button id="openAssetReview" class="game-card" type="button" data-admin-screen="assetReview">🎧 Asset Review</button>
+              <button id="openGameNames" class="game-card" type="button" data-admin-screen="gameNames">🏷️ Game Names</button>
+            </div>
+          </div>
         </div>
         <p id="gamesNeedPlayer" class="games-need-player hidden">Select or create a player above to choose a game.</p>
       </section>
@@ -95,6 +102,26 @@
         <div class="ct-mount chess-tutor-root"></div>
       </section>
 
+      <section id="assetReview" class="screen">
+        <header class="topbar">
+          <button class="ghost icon-button" data-screen="games" aria-label="Back" title="Back">🔙</button>
+          <span></span>
+          <h2>🎧 Asset Review</h2>
+          <span></span>
+        </header>
+        <div class="asset-review-root"></div>
+      </section>
+
+      <section id="gameNames" class="screen">
+        <header class="topbar">
+          <button class="ghost icon-button" data-screen="games" aria-label="Back" title="Back">🔙</button>
+          <span></span>
+          <h2>🏷️ Game Names</h2>
+          <span></span>
+        </header>
+        <div class="game-names-root"></div>
+      </section>
+
       <section id="gameSelected" class="screen">
         <header class="topbar">
           <button class="ghost icon-button" data-screen="games" aria-label="Back" title="Back">🔙</button>
@@ -102,6 +129,7 @@
           <h2 id="selectedGameTitle" class="refreshable-title">Super Tic Tac Toe</h2>
           <button class="ghost icon-button switcher-trigger hidden" type="button" data-game-switcher aria-label="Your games" title="Your games">🎲</button>
         </header>
+        <p id="selectedGameAltName" class="game-alt-name hidden"></p>
         <p id="selectedGameDescription" class="game-description"></p>
         <div id="activeGameNotice" class="notice hidden"></div>
         <div id="selectedGameLobbyPanel" class="panel">
