@@ -51,9 +51,10 @@ test("host + two bots: another patron's card plays as a voiced callout", async (
   };
   for (let i = 0; i < 200 && !(await banner.count()); i += 1) {
     // Keep my own turn moving with the simplest legal steps.
-    // (Buying the round: tapping who drinks sends it — there is no confirm button.)
+    // (Buying the round: dragging the drink deck onto a rival sends it; tapping a
+    // glowing rival seat is the quiet fallback used here.)
     if (!(await act('[data-lo-act="discard"]')) && !(await act('[data-lo-act="end_action"]'))) {
-      await act('[data-lo-act="order_target"]');
+      await act('.lo-opps [data-lo-act="target"]');
     }
     await page.waitForTimeout(400);
   }

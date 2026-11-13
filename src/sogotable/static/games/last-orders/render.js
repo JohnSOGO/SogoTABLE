@@ -328,11 +328,10 @@ function onAct(act, value) {
         // A spike rides along with the drink; tapping who drinks sends it.
         if (isSpike(ctx, me, value) && playable.has(value)) S.orderSpike = S.orderSpike === value ? null : value;
         S.sel = S.sel === value ? null : value;
-      } else if ((mode === "action" || mode === "window") && playable.has(value)) {
-        // Play straight off the card: no confirm. With a choice of targets the
-        // card is picked up and the next tap on a rival plays it.
-        const targets = (me.targets && me.targets[value]) || [];
-        if (targets.length <= 1) { quickPlay(me, value, targets[0]); return; }
+      } else if (mode === "action" || mode === "window") {
+        // A tap only lifts the card (shows where it can go); dragging it onto
+        // a rival, or up onto the table, is what plays it — the drop is the
+        // confirm. (Tapping a glowing rival / the table after a lift also works.)
         S.sel = S.sel === value ? null : value;
         S.target = null;
       } else {
@@ -341,6 +340,9 @@ function onAct(act, value) {
       }
       break;
     }
+    case "bar": // the table, tapped after lifting a card that needs no one picked
+      if (me && S.sel && playable.has(S.sel) && ((me.targets[S.sel] || []).length <= 1)) { playClick(); quickPlay(me, S.sel, (me.targets[S.sel] || [])[0]); return; }
+      break;
     case "target":
     case "order_target":
       if (mode === "order") { playClick(); quickOrder(me, value, S.orderSpike); return; }
@@ -354,6 +356,7 @@ function onAct(act, value) {
   repaint();
 }
 
+const DRINK = "drink"; // the drink deck on the table (order step), as a drag source
 const isSpike = (ctx, me, uid) => {
   const card = (me.hand || []).find((c) => c.uid === uid);
   const def = card ? ctx.game.defs[card.id] : null;
@@ -390,7 +393,9 @@ function canDragCard(uid) {
   const info = seatInfo(ctx);
   const mode = modeOf(ctx.game, info);
   const me = info.me;
-  if (!me || !(me.playable || []).includes(uid)) return false;
+  if (!me) return false;
+  if (uid === DRINK) return mode === "order" && (me.order_targets || []).length > 0;
+  if (!(me.playable || []).includes(uid)) return false;
   return mode === "action" || mode === "window" || (mode === "order" && isSpike(ctx, me, uid));
 }
 function onDropCard(uid, drop) {
@@ -400,6 +405,7 @@ function onDropCard(uid, drop) {
   const me = info.me;
   const mode = modeOf(ctx.game, info);
   playClick();
+  if (uid === DRINK) { if (drop && drop !== "bar") quickOrder(me, drop, S.orderSpike); return; }
   if (mode === "order") {
     if (drop && drop !== "bar" && quickOrder(me, drop, uid)) return;
     S.orderSpike = uid; S.sel = uid;
@@ -431,7 +437,8 @@ function buildViewModel(ctx, info) {
     turnMark: g.turn && g.phase === "play" ? g.turn.mark : null, reaction: g.reaction, gamble: g.gamble, defs: g.defs || {},
     prefs: prefs(), showPlayable: !(g.options && g.options.show_playable === false),
     mode, sel: S.sel, target: S.target, discardSel: S.discardSel, orderTarget: S.orderTarget, orderSpike: S.orderSpike,
-    targetables, chosenTarget, sending: S.sending, ghost: S.ghost, primerOpen: S.primerOpen,
+    targetables, chosenTarget, sending: S.sending, orderDeck: mode === "order",
+    barTarget: (mode === "action" || mode === "window") && Boolean(S.sel) && (me.playable || []).includes(S.sel) && ((me.targets && me.targets[S.sel]) || []).length <= 1, ghost: S.ghost, primerOpen: S.primerOpen,
     autoPassedStep: S.autoPassed === g.step, skip: skipInfo(ctx, info),
   };
 }
@@ -489,7 +496,10 @@ function ensureSkeleton(host) {
     if (!el || !root.contains(el) || el.disabled) return;
     onAct(el.getAttribute("data-lo-act"), el.getAttribute("data-v") || "");
   });
-  wireGestures(root, { canDrag: canDragCard, onHold: (uid) => onAct("card", uid), onDrop: onDropCard });
+  wireGestures(root, {
+    canDrag: canDragCard, onHold: (uid) => onAct("card", uid), onDrop: onDropCard,
+    onDragStart: () => { if (S.stepTip) { openStepTip(""); repaint(); } }, // clear the view of the rivals
+  });
   root.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     const el = e.target.closest ? e.target.closest("[data-lo-act][role=button]") : null;

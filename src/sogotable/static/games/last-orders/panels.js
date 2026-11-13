@@ -224,6 +224,10 @@ export function barHtml(vm) {
     center = `<div class="lo-stack${ghost ? " lo-resolving" : ""}" style="--n:${stack.length}">${stack.map((it, i) => stackItemHtml(vm, it, i, stack.length, negated)).join("")}</div>`;
   } else if (w && w.kind === "gamble") {
     center = `<div class="lo-stack-empty lo-gamble-call">🎲 ${vm.esc(UI.gamblePrompt(vm.nameOf(vm.gamble ? vm.gamble.leader : ""), vm.gamble ? vm.gamble.pot : 0))}</div>`;
+  } else if (vm.orderDeck) {
+    // Order a round: the shuffled drink deck sits on the table; drag one onto a rival.
+    const backs = [0, 1, 2].map((i) => `<span class="lo-deck-card" style="--d:${i}">${drinkBack(vm)}</span>`).join("");
+    center = `<div class="lo-deck" data-lo-drag="drink" role="img" aria-label="${vm.esc(UI.deckDrag)}"><span class="lo-deck-pile">${backs}</span><span class="lo-deck-hint">${vm.esc(UI.deckDrag)}</span></div>`;
   } else {
     center = `<div class="lo-stack-empty">${vm.esc(UI.quiet)}</div>`;
   }
@@ -233,7 +237,7 @@ export function barHtml(vm) {
     `<span class="lo-chip lo-chip-deck">${drinkBack(vm)} ${Number(vm.game.drink_deck_count) || 0}</span>`,
   ].join("");
   return `<div class="lo-bar-head">${chips}${ringHtml(vm)}</div>
-    <div class="lo-bar-main">${center}</div>
+    <div class="lo-bar-main${vm.barTarget ? " lo-bar-target" : ""}"${vm.barTarget ? ` data-lo-act="bar" role="button" tabindex="0" aria-label="${vm.esc(UI.dropOnTable)}"` : ""}>${center}${vm.barTarget ? `<span class="lo-bar-drop">${vm.esc(UI.dropOnTable)}</span>` : ""}</div>
     <div class="lo-bar-side">${potHtml(vm)}${eventHtml(vm)}${lastDrinkHtml(vm)}</div>`;
 }
 

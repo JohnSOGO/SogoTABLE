@@ -249,11 +249,13 @@ comes from server-decided `game.me`.
 | `act big order` | buying a round | big spike cards, big "who's drinking" buttons |
 | `watch` / `watch gamble` | everything else | normal table (gamble pot still enlarged) |
 
-Cards play straight off the hand (`gestures.js` + `render.js` quickPlay / quickOrder):
-a tap or long-press on a playable card plays it; with a choice of targets it is picked
-up and the tapped rival gets it; a card dragged onto a rival (or up onto the bar) plays
-there; a spike dragged onto a rival sends the round. A hold only lifts the card
-(let go to play it, or keep dragging), so a pause before a drag never plays it. No Play / Send drink buttons.
+Dragging is how you play (`gestures.js` + `render.js` quickPlay / quickOrder): drag a
+playable card onto a glowing rival, or up onto the table if it needs no one; the drop
+is the confirm. A tap or a hold only lifts the card (then tapping a glowing rival or
+the lit table also plays it, as a quiet fallback). Ordering a round shows the shuffled
+drink deck on the table: drag a drink onto a rival, or drag a spike card onto them to
+send it spiked. No Play / Send drink buttons or target chips. Opponents always all
+show at the top, wrapping to more rows.
 Keep-or-draw still multi-selects and commits with one button.
 
 The top bar shows the current turn's four steps (discard, action, order, drink) as

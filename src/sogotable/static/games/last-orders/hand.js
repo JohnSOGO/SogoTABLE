@@ -51,11 +51,6 @@ function btn(vm, act, label, { value = "", primary = false, disabled = false, ex
   return `<button type="button" class="lo-btn${primary ? " lo-btn-primary" : ""}${extra}" data-lo-act="${act}"${value ? ` data-v="${vm.esc(value)}"` : ""} ${disabled || vm.sending ? "disabled" : ""}>${vm.esc(label)}</button>`;
 }
 
-function targetChips(vm, marks, chosen, act = "target") {
-  return marks.map((m) => `<button type="button" class="lo-target${chosen === m ? " lo-on" : ""}" data-lo-act="${act}" data-v="${vm.esc(m)}" aria-pressed="${chosen === m}" ${vm.sending ? "disabled" : ""}>
-      <span class="lo-dot" style="background:${vm.esc(vm.colorOf(m))}"></span>${vm.esc(vm.nameOf(m))}</button>`).join("");
-}
-
 // The selected card's full text (the "tap to expand" view). With tips on, the
 // big hand card already shows that text, so the phase bar stays short.
 function detailHtml(vm) {
@@ -68,20 +63,15 @@ function detailHtml(vm) {
   return `<div class="lo-detail"><b>${vm.esc(e.name || thingName(card.id))}</b> ${vm.esc(describeLines(def, e).join(" "))}${e.flavor ? ` <i>${vm.esc(e.flavor)}</i>` : ""}</div>`;
 }
 
-// Target chips for a picked-up card that has a choice of targets (shared by the
-// action step and windows). There is no Play button: a card plays the moment
-// it is tapped, or, with a choice, the moment its target is tapped.
+// What a lifted card does next (no chips, no Play button: the drop confirms).
 function playControls(vm) {
   const me = vm.me;
-  const playable = new Set(me.playable || []);
-  const selOk = vm.sel && playable.has(vm.sel);
-  const targets = selOk ? (me.targets && me.targets[vm.sel]) || [] : [];
-  const needsTarget = targets.length > 0;
-  const card = vm.sel ? (me.hand || []).find((c) => c.uid === vm.sel) : null;
+  const selOk = vm.sel && (me.playable || []).includes(vm.sel);
+  if (!selOk) return { targets: "" };
+  const targets = (me.targets && me.targets[vm.sel]) || [];
+  const card = (me.hand || []).find((c) => c.uid === vm.sel);
   const name = card ? (CARDS[card.id] || {}).name || thingName(card.id) : "";
-  return {
-    targets: needsTarget ? `<div class="lo-targets"><span>${vm.esc(UI.playOn(name))}</span>${targetChips(vm, targets, vm.target)}</div>` : "",
-  };
+  return { targets: `<div class="lo-lift-hint">${vm.esc(targets.length > 1 ? UI.liftedTarget(name) : UI.liftedTable(name))}</div>` };
 }
 
 // { prompt, body } for the phase bar.
@@ -124,13 +114,11 @@ function phaseParts(vm) {
     return { prompt: `${UI.actionPrompt}${more} ${vm.sel ? "" : UI.actionPick}`.trim(), body: `${pc.targets}<div class="lo-btns">${btn(vm, "end_action", UI.endAction)}</div>` };
   }
   if (turn.phase === "order") {
-    const targets = me.order_targets || [];
     const spikeCard = vm.orderSpike ? (me.hand || []).find((c) => c.uid === vm.orderSpike) : null;
     const spikeName = spikeCard ? thingName(spikeCard.id) : "";
     return {
       prompt: UI.orderPrompt,
-      body: `<div class="lo-targets"><span>${vm.esc(UI.orderPick)}</span>${targetChips(vm, targets, vm.orderTarget, "order_target")}</div>
-        <div class="lo-btns"><span class="lo-spike-state">${vm.esc(spikeCard ? UI.spikeWith(spikeName) : UI.spikeNone)}</span></div>`,
+      body: spikeCard ? `<div class="lo-btns"><span class="lo-spike-state">${vm.esc(UI.spikeWith(spikeName))}</span></div>` : "",
     };
   }
   return { prompt: UI.drinkPrompt, body: "" };
