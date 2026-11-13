@@ -30,6 +30,19 @@ const LIGHT = `
 .last-orders-root .lo-top{display:flex;align-items:center;gap:8px;height:40px;padding:0 6px 0 12px;background:var(--lo-panel);border-radius:12px;box-shadow:var(--lo-shadow)}
 .last-orders-root .lo-title{font-weight:800;white-space:nowrap;font-size:14px}
 .last-orders-root .lo-status{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--lo-muted);font-weight:700;font-size:13px;text-align:right}
+.last-orders-root .lo-top{position:relative}
+.last-orders-root .lo-steps{display:inline-flex;align-items:center;flex:none}
+.last-orders-root button.lo-step{width:26px;height:34px;padding:0;border:0;background:transparent;display:grid;place-items:center;position:relative}
+.last-orders-root .lo-step+.lo-step::before{content:"";position:absolute;left:-4px;top:50%;width:8px;height:2px;margin-top:-1px;background:var(--lo-line)}
+.last-orders-root .lo-step i{display:block;width:13px;height:13px;border-radius:50%;border:2px solid var(--lo-muted);background:transparent;transition:background .25s,border-color .25s,transform .2s}
+.last-orders-root .lo-step-done i{background:var(--lo-good);border-color:var(--lo-good)}
+.last-orders-root .lo-step-done+.lo-step::before{background:var(--lo-good)}
+.last-orders-root .lo-step-now i{border-color:var(--lo-turn);background:radial-gradient(circle,var(--lo-turn) 0 3px,transparent 3.5px);transform:scale(1.2);animation:lo-blink 1.4s ease-in-out infinite}
+.last-orders-root .lo-step.lo-on i{box-shadow:0 0 0 3px rgba(61,125,191,.35)}
+.last-orders-root .lo-step-tip{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:19;padding:10px 12px;border-radius:12px;background:var(--lo-panel);border:1px solid var(--lo-line);box-shadow:0 8px 26px rgba(0,0,0,.25);font-size:14px;line-height:1.35;font-weight:600;cursor:pointer;animation:lo-toast-in-down .18s ease-out}
+.last-orders-root .lo-step-tip b{color:var(--lo-accent);font-weight:900}
+@keyframes lo-toast-in-down{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media (max-width:520px){.last-orders-root .lo-top:has(.lo-steps) .lo-title-text{display:none}}
 .last-orders-root .lo-gear{flex:none;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid var(--lo-line);background:var(--lo-chip);color:var(--lo-ink);font-size:17px;line-height:1}
 .last-orders-root .lo-gear.lo-on{background:var(--lo-accent);color:var(--lo-accent-ink);border-color:var(--lo-accent)}
 .last-orders-root .lo-menu{position:absolute;top:46px;right:0;z-index:20;width:min(320px,100%)}
