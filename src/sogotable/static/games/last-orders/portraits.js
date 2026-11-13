@@ -271,6 +271,49 @@ function brassbell(id) {
   ].join("");
 }
 
+function monsoon() {
+  const skin = "#5f9fbf"; const skinD = "#3f7a99"; const hair = "#cdeff5"; const hairD = "#7fc6d6"; const plate = "#9aa9b4"; const tabard = "#1f5a78";
+  const drop = (x, y, s) => P_(`M${x} ${y - 3 * s}C${x + 2.4 * s} ${y} ${x + 2.4 * s} ${y + 2.6 * s} ${x} ${y + 2.6 * s}C${x - 2.4 * s} ${y + 2.6 * s} ${x - 2.4 * s} ${y} ${x} ${y - 3 * s}Z`, "#a8e6f0", 0.9);
+  return [
+    P_("M6 104C10 82 28 73 50 73C72 73 90 82 94 104Z", plate),
+    [18, 30, 42, 54, 66, 78].map((x) => P_(`M${x} 84Q${x + 6} 92 ${x + 12} 84`, "none", 1, `stroke="${darken(plate, 0.3)}"`)).join(""),
+    P_("M38 78L62 78L60 104L40 104Z", tabard), drop(50, 90, 2.2), L_("M47 93L51 88L49 88L53 83", 1.1, "#ffe27a"),
+    P_("M14 90C8 70 18 50 16 36C22 18 40 12 50 12C60 12 78 18 84 36C82 50 92 70 86 90C80 80 74 66 70 52L30 52C26 66 20 80 14 90Z", hairD),
+    P_("M43 58L43 76Q50 79 57 76L57 58Z", skinD),
+    P_("M34 44C34 30 41 25 50 25C59 25 66 30 66 44C66 56 59 64 50 64C41 64 34 56 34 44Z", skin),
+    P_("M32 47C28 30 38 19 50 19C62 19 72 30 68 47C64 38 60 33 50 31C44 36 38 40 32 47Z", hair),
+    both(P_("M33 40C24 52 30 62 22 74C28 70 34 64 33.5 54C36 60 36 66 33 72C38 66 38 56 35.5 46Z", hair, 1.2)),
+    L_("M40 24C44 22 48 24 50 27C52 24 56 22 60 24", 1.1, "#ffffff"), L_("M30 36Q34 30 38 32M62 32Q66 30 70 36", 1, hairD),
+    both(L_("M38 50L36 54M40 51L39 55", 0.8, "#cdeff5")),
+    L_("M38.5 40.5Q42.5 38.5 46.5 40.5M53.5 40.5Q57.5 38.5 61.5 40.5", 1.6),
+    dotEyes(42.5, 57.5, 45, 2.3), L_("M50 47L48.6 52L50.6 52.4", 1.1), P_("M44.5 57.5Q50 61 55.5 57.5", "none", 1.4),
+    drop(20, 24, 1), drop(12, 56, 0.7),
+    // warhammer over the shoulder
+    G_("translate(85 50) rotate(18)", R_(-1.8, 0, 3.6, 50, 1.5, "#6b4a2e", 1.3) + R_(-9, -8, 18, 10, 2, plate, 1.5) + L_("M-6 -3H6", 1, "#ffffff", `opacity=".7"`) + P_("M-3 -12L1 -18L0 -13L4 -13L-1 -6L0 -11Z", "#ffe27a", 0.9)),
+  ].join("");
+}
+
+function notepick() {
+  const skin = "#8fb35a"; const skinD = "#6c8f3c"; const coat = "#7a3f8f"; const coatD = "#55296a"; const wood = "#c98a46";
+  const note = (x, y, s = 1) => G_(`translate(${x} ${y}) scale(${s})`, E_(0, 0, 2.8, 2.1, coatD, 0.9, `transform="rotate(-20)"`) + L_("M2.4 -0.6V-10L7 -8", 1.4, coatD));
+  return [
+    P_("M8 104C12 82 28 74 50 74C72 74 88 82 92 104Z", coat), P_("M42 76L50 92L58 76Z", "#f2e6c8", 1.2), L_("M30 84Q34 96 32 104M70 84Q66 96 68 104", 1, coatD),
+    // lute held across the chest
+    G_("translate(56 92) rotate(-32)", E_(0, 0, 13, 10.5, wood, 1.5) + C_(0, 0, 3.4, "#4a2c18", 1) + R_(10, -2.4, 30, 4.8, 1.2, "#8a5a2e", 1.3) + R_(38, -4, 7, 8, 1.5, "#6b4424", 1.2) + L_("M-8 -1H40M-8 1H40", 0.5, "#fff6d8")),
+    both(P_("M33 44C22 38 8 26 2 24C6 34 18 48 32 54Z", skin) + L_("M30 46C22 40 14 34 8 30", 1, skinD)),
+    P_("M31 46C31 31 39 25 50 25C61 25 69 31 69 46C69 60 61 69 50 69C39 69 31 60 31 46Z", skin),
+    // feathered cap
+    P_("M30 34C32 22 42 16 52 17C64 18 70 26 71 34C60 30 42 30 30 34Z", "#2f6b4f"), P_("M28 34.5C40 30 60 30 72 34.5L72 37.5C60 34 40 34 28 37.5Z", "#1f4a36", 1.1),
+    P_("M62 22C70 10 82 6 90 8C84 12 76 18 66 26Z", "#f2c94c", 1.2), L_("M64 24C72 16 80 11 88 9", 0.9, "#c99a2a"),
+    both(C_(42, 46, 4.4, "#fffbe0", 1.3) + C_(43, 46.6, 2, INK, 0) + C_(43.8, 45.8, 0.7, "#fff", 0)),
+    L_("M37 40.5Q42 38.5 46 41M54 41Q58 38.5 63 40.5", 1.5),
+    P_("M49.5 46.5C51 51 54 54 57.5 56C53.5 57.2 50 56.6 47.6 54.6Z", skinD, 1.3),
+    P_("M39 59Q50 70 61 59Q50 64 39 59Z", "#5a2a20", 1.4), P_("M44 60.6L45.3 63.2L46.7 61.1Z", "#fff", 0.7), P_("M53.6 61.2L54.9 63.6L56.2 60.8Z", "#fff", 0.7),
+    blush(37, 63, 55, 3.2, "#d46a6a", 0.4),
+    note(14, 64, 0.9), note(86, 44, 0.8), note(20, 20, 0.7),
+  ].join("");
+}
+
 function genericPatron(seed) {
   const c = hashColor(seed, 0.35, 0.5);
   return () => [
@@ -286,6 +329,7 @@ const CHARACTERS = {
   "frost:hrolga": { bg: "#f0b07c", draw: hrolga }, "frost:sable": { bg: "#a9c7e0", draw: sable },
   "masquerade:verrin": { bg: "#c98c9e", draw: verrin }, "masquerade:bim": { bg: "#f2d276", draw: bim },
   "clockwork:sprocket": { bg: "#d9b77e", draw: sprocket }, "clockwork:brassbell": { bg: "#9fcbc6", draw: brassbell },
+  "storm:monsoon": { bg: "#8cc6dc", draw: monsoon }, "storm:notepick": { bg: "#c9a6d8", draw: notepick },
 };
 /** Ids that have hand-drawn portraits (anything else gets a tinted silhouette). */
 export const PORTRAIT_IDS = Object.keys(CHARACTERS);

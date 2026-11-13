@@ -1716,3 +1716,19 @@ REORG RECEIPT
                 changes, no caller edits.
 - New owner row: none (games/ directory pattern covers per-game files).
 ```
+
+```
+PLACEMENT RECEIPT
+- Ask:          Last Orders expansion pack "storm" (Storm Road): Monsoon (water-blooded war cleric) and NotePick
+                (goblin bard), decks, traits from the existing vocabulary, 4 drinks, display text, picture slots,
+                Kokoro voice profiles, voice-line requests, procedural fallback portraits
+- Verdict:      NEW workers/games/last-orders/packs/storm.js (pure data, registered in packs.js); content.js,
+                lobby.js, assets.js, voice.js [EXISTING]; portraits in portraits.js (after the REORG above, not
+                art.js, not genericPatron); voices/voice-lines.json, docs/PICTURES.md, docs/voices.md,
+                review-export.js; NEW scripts/pictures/jobs-last-orders-storm.mjs (+ last-orders name map in place.mjs)
+- Flow stage:   rules data (validate/apply via the existing engine) + render (presentation and assets only)
+- Considerations:
+    - No new effect ops or trait fields: rules.js / engine.js / ai.js untouched
+    - Sibling parity: content + rules tests list every expansion; review-export lists every pack file
+- New owner row: none (games/ directory rows cover it)
+```

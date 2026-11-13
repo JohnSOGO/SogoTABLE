@@ -216,7 +216,7 @@ test("last orders: all-bot tables (every pack) finish, with bounded work", () =>
   for (let i = 0; i < 40; i += 1) {
     setLastOrdersRandom(seeded(100 + i));
     const game = newLastOrdersGame();
-    setLastOrdersOptions(game, { lo_options: { expansions: i % 2 ? ["harbor", "frost", "masquerade", "clockwork", "rowdy"] : [] } });
+    setLastOrdersOptions(game, { lo_options: { expansions: i % 2 ? ["harbor", "frost", "masquerade", "clockwork", "storm", "rowdy"] : [] } });
     initLastOrdersSeats(game, Array.from({ length: 2 + (i % 6) }, (_, k) => bot(`P${k + 1}`, 1 + (k % 4))));
     assert.equal(game.status, "complete", `game ${i}`);
     assert.ok(game.winner);

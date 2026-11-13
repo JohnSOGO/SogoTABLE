@@ -14,6 +14,7 @@ const NAME = {
   "potion-lab": (slot) => (slot.startsWith("cards:") ? slot.slice(6) : null), // its cardBack was dropped: no face-down card is drawn
   bloomwork: (slot) => slot.replace(/^flowerArt:/, "flower-").replace(/^birdArt$/, "bird").replace(/^tableBg$/, "table"),
   reefkeepers: (slot) => slot.replace(/^habitats:/, "habitat-"),
+  "last-orders": (slot) => slot.replace(/:/g, "-"),
 };
 const [outDir, picksFile] = process.argv.slice(2);
 const log = JSON.parse(fs.readFileSync(path.join(outDir, "log.json"), "utf8"));

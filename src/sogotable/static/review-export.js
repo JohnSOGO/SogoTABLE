@@ -119,6 +119,7 @@ const REVIEW_EXPORT_FILES = [
   "workers/games/last-orders/packs/frost.js",
   "workers/games/last-orders/packs/masquerade.js",
   "workers/games/last-orders/packs/clockwork.js",
+  "workers/games/last-orders/packs/storm.js",
   "workers/games/last-orders/packs/rowdy.js",
   "workers/games/tradewinds/board.js",
   "workers/games/tradewinds/ai.js",

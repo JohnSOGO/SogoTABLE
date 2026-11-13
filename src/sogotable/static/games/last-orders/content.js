@@ -10,6 +10,7 @@ export const PACKS = {
   frost: { name: "Frostmead Hall", blurb: "A dwarf brewmistress and a fox-folk tracker come in from the snow." },
   masquerade: { name: "Midnight Masquerade", blurb: "A dapper night-noble and a frog-folk jester crash the ball." },
   clockwork: { name: "Clockwork Cellar", blurb: "A goblin tinkerer and her tin barback clank up from the cellar." },
+  storm: { name: "Storm Road", blurb: "A tide-blooded war cleric and a goblin bard blow in with the rain." },
   rowdy: { name: "Rowdy Nights", blurb: "An event deck: every round, something new is happening at the tavern." },
 };
 
@@ -26,6 +27,8 @@ export const CHARACTERS = {
   "masquerade:bim": { name: "Bim Bolliwog", title: "Frog-Folk Jester", blurb: "Ribbit, honk, splat. Nobody at the table is safe, least of all Bim.", traitText: "May discard and redraw up to 4 cards in his discard step; starts with 2 less Grit.", palette: { main: "#3d8a3a", accent: "#f28cb8" } },
   "clockwork:sprocket": { name: "Sprocket Fizzlewick", title: "Goblin Tinkerer", blurb: "Every gadget works perfectly. Eventually. Stand back a little further.", traitText: "Holds one extra card in hand.", palette: { main: "#5c6b2a", accent: "#ff9f43" } },
   "clockwork:brassbell": { name: "Brassbell", title: "Tin Automaton Barback", blurb: "Polishes glasses, carries kegs, and was never told how to get drunk.", traitText: "Starts with +3 Grit and 2 fewer coins.", palette: { main: "#8c6d2f", accent: "#7fd1c7" } },
+  "storm:monsoon": { name: "Monsoon", title: "Tide-Blooded War Cleric", blurb: "Sea-blue skin, hair that ripples like a breaking wave, and a warhammer blessed by the storm. She heals her friends and floods everyone else.", traitText: "Water in her veins: every drink gives her 1 less Buzz; starts with 2 less Grit and 2 fewer coins.", palette: { main: "#1d5c7a", accent: "#7fe0e6" } },
+  "storm:notepick": { name: "NotePick", title: "Goblin Bard", blurb: "Plays a lute three sizes too big and knows every song, mostly the rude verses. Tips welcome. Tomatoes expected.", traitText: "May discard and redraw up to 4 cards in their discard step.", palette: { main: "#6a3d7a", accent: "#b8e05a" } },
 };
 
 export const CARDS = {
@@ -223,6 +226,42 @@ export const CARDS = {
   "clockwork:brassbell:insert-coin": { name: "Insert Coin", flavor: "Please insert coin to continue." },
   "clockwork:brassbell:motor-oil-twist": { name: "Motor Oil Twist", flavor: "Not recommended for organic patrons." },
   "clockwork:brassbell:steam-shot": { name: "Steam Shot", flavor: "Served piping hot. Literally." },
+  // Monsoon
+  "storm:monsoon:thunder-maul": { name: "Thunder Maul", flavor: "The hammer lands. The thunder arrives a moment later." },
+  "storm:monsoon:crashing-wave": { name: "Crashing Wave", flavor: "High tide, right at your table." },
+  "storm:monsoon:tidal-smite": { name: "Tidal Smite", flavor: "A holy wallop with a salty finish." },
+  "storm:monsoon:downpour": { name: "Downpour", flavor: "Everyone's soaked. Everyone's sore." },
+  "storm:monsoon:healing-rain": { name: "Healing Rain", flavor: "A warm shower of blessings. Mostly on her." },
+  "storm:monsoon:cleansing-tide": { name: "Cleansing Tide", flavor: "Rinse, repeat, sober." },
+  "storm:monsoon:storm-tithe": { name: "Storm Tithe", flavor: "The storm accepts coins. So does she." },
+  "storm:monsoon:rain-or-shine": { name: "Rain or Shine", flavor: "She bets on rain. It always rains." },
+  "storm:monsoon:shield-of-the-tide": { name: "Shield of the Tide", flavor: "A wall of water. Your fist goes splash." },
+  "storm:monsoon:water-off-my-back": { name: "Water Off My Back", flavor: "She was born in the sea. Your drink is a puddle." },
+  "storm:monsoon:rolling-mist": { name: "Rolling Mist", flavor: "Swing all you like. She's mostly fog right now." },
+  "storm:monsoon:storms-verdict": { name: "Storm's Verdict", flavor: "The sky has ruled: no." },
+  "storm:monsoon:backwash": { name: "Backwash", flavor: "What goes out with the tide comes back in." },
+  "storm:monsoon:eye-of-the-storm": { name: "Eye of the Storm", flavor: "Calm in the middle. Winning, too." },
+  "storm:monsoon:rising-waters": { name: "Rising Waters", flavor: "The pot is filling up. Bail out or pay up." },
+  "storm:monsoon:squall-splash": { name: "Squall Splash", flavor: "A splash of something stormy." },
+  "storm:monsoon:lightning-in-a-bottle": { name: "Lightning in a Bottle", flavor: "Crackles on the tongue. Bites on the way down." },
+  // NotePick
+  "storm:notepick:lute-to-the-head": { name: "Lute to the Head", flavor: "The loudest note of the night." },
+  "storm:notepick:cutting-lyric": { name: "Cutting Lyric", flavor: "A verse about your mother. It rhymes." },
+  "storm:notepick:off-key-solo": { name: "Off-Key Solo", flavor: "Right in your ear. Every wrong note." },
+  "storm:notepick:drinking-song": { name: "Drinking Song", flavor: "Everybody drink! No, everybody else." },
+  "storm:notepick:pass-the-lute-case": { name: "Pass the Lute Case", flavor: "Tips for the artist, please. Generous ones." },
+  "storm:notepick:encore": { name: "Encore!", flavor: "Nobody asked. One more anyway." },
+  "storm:notepick:rousing-ballad": { name: "Rousing Ballad", flavor: "A song about a brave goblin. Guess which one." },
+  "storm:notepick:name-that-tune": { name: "Name That Tune", flavor: "Three notes in. Coin on the table." },
+  "storm:notepick:drown-them-out": { name: "Drown Them Out", flavor: "A chord so loud you forget what you were doing." },
+  "storm:notepick:dodge-the-tomatoes": { name: "Dodge the Tomatoes", flavor: "Years of practice at every tavern on the road." },
+  "storm:notepick:not-my-verse": { name: "Not My Verse!", flavor: "That line was written about someone else." },
+  "storm:notepick:sour-note": { name: "Sour Note", flavor: "One sip, one screech. The mug goes back." },
+  "storm:notepick:hold-that-note": { name: "Hold That Note", flavor: "Nobody moves until the song is finished." },
+  "storm:notepick:lucky-pick": { name: "Lucky Pick", flavor: "Their favourite lute pick. Never lost a bet." },
+  "storm:notepick:crescendo": { name: "Crescendo", flavor: "Louder! Higher! Pay more!" },
+  "storm:notepick:goblin-grog": { name: "Goblin Grog", flavor: "Green, lumpy and enthusiastic." },
+  "storm:notepick:honey-for-the-throat": { name: "Honey for the Throat", flavor: "Soothing for singers. Sneaky for everyone else." },
 };
 
 export const DRINKS = {
@@ -256,6 +295,10 @@ export const DRINKS = {
   "clockwork:drink:steam-cider": { name: "Steam Cider", flavor: "Pressure-brewed. Hisses when poured.", emoji: "♨️" },
   "clockwork:drink:coolant-cooler": { name: "Coolant Cooler", flavor: "Minty. Chilly. Mostly safe.", emoji: "🥤" },
   "clockwork:drink:unstable-tonic": { name: "Unstable Tonic", flavor: "It's glowing. You're drinking it anyway.", emoji: "⚗️" },
+  "storm:drink:thunderhead-ale": { name: "Thunderhead Ale", flavor: "Dark as a storm cloud, with a rumble at the bottom.", emoji: "🍺" },
+  "storm:drink:rain-barrel": { name: "Rain Barrel", flavor: "Fresh rainwater, straight off the roof. Very refreshing.", emoji: "🥛" },
+  "storm:drink:chorus-round": { name: "Chorus Round", flavor: "Everyone sings, everyone drinks. Those are the rules.", emoji: "🍻" },
+  "storm:drink:lightning-cider": { name: "Lightning Cider", flavor: "Fizzes, crackles, and calls for another.", emoji: "⚡" },
 };
 
 export const EVENTS = {

@@ -4,6 +4,7 @@ import { HARBOR_PACK } from "./packs/harbor.js";
 import { FROST_PACK } from "./packs/frost.js";
 import { MASQUERADE_PACK } from "./packs/masquerade.js";
 import { CLOCKWORK_PACK } from "./packs/clockwork.js";
+import { STORM_PACK } from "./packs/storm.js";
 import { ROWDY_PACK } from "./packs/rowdy.js";
 
 export const PACKS = {
@@ -12,6 +13,7 @@ export const PACKS = {
   frost: FROST_PACK,
   masquerade: MASQUERADE_PACK,
   clockwork: CLOCKWORK_PACK,
+  storm: STORM_PACK,
   rowdy: ROWDY_PACK,
 };
 

@@ -29,6 +29,8 @@ Decided 2026-11-13 at MojoSOGO's request ("I need a voice voicing the card they 
 | Bim Bolliwog | am_puck | 1.15 |
 | Sprocket Fizzlewick | af_jessica | 1.15 |
 | Brassbell | am_echo | 0.90 |
+| Monsoon | af_kore | 0.92 |
+| NotePick | am_liam | 1.12 |
 
 `voice.js` is the source of truth; a test keeps every patron on a distinct voice.
 

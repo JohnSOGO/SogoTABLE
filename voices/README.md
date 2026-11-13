@@ -12,3 +12,7 @@
 - Delivery format is WAV, at most 3 s of speech plus 0.5 s of silence, one file per id.
 - When the files arrive, they go into `src/sogotable/static/games/last-orders/voice/` and are listed in `VOICE_IDS`
   (see `docs/voices.md`).
+- `storm-monsoon-*` and `storm-notepick-*` (42 lines, the Storm Road pack: 34 cards + win, lose, bluff and last-orders for
+  each) were added on 2026-11-13 and requested on their own ticket. Suggested voices: Monsoon, a calm, commanding warrior
+  priestess (Kokoro `af_kore`); NotePick, a quick, cheeky goblin bard (Kokoro `am_liam`, a bit fast). SogoAI may pick
+  Parler instead where it sounds better, as with Tilly and Ansel.
