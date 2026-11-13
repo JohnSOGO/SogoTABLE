@@ -255,6 +255,10 @@ up and the tapped rival gets it; a card dragged onto a rival (or up onto the bar
 there; a spike dragged onto a rival sends the round. No Play / Send drink buttons.
 Keep-or-draw still multi-selects and commits with one button.
 
+The top bar shows the current turn's four steps (discard, action, order, drink) as
+dots: filled = done, ringed = now, open = to come. Tapping a dot explains that step
+(`panels.js` turnStepsHtml, words in `branding.js` TURN_STEPS / STEP_HELP).
+
 Every `act` focus compacts the seats and ticker; on phones (<900px) the hand moves
 up under the bar and the buttons pin to the bottom edge (sticky).
 

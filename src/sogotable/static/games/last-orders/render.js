@@ -19,13 +19,14 @@ import { controlsHtml, handHtml, statLabels } from "./hand.js";
 import { wireGestures } from "./gestures.js";
 import { snapHand, slideHand } from "./hand-fx.js";
 import { renderLastOrdersLobby } from "./lobby.js";
-import { artBegin, barHtml, mineHtml, oppsHtml, pickHtml, primerHtml, resultsHtml, tickerHtml } from "./panels.js";
+import { turnStepsHtml, artBegin, barHtml, mineHtml, oppsHtml, pickHtml, primerHtml, resultsHtml, tickerHtml } from "./panels.js";
 import { consumeEvents, playCue } from "./sfx.js";
 import { LAST_ORDERS_CSS } from "./styles.js";
 import { clockOffset, stopTick, syncTick, tickInFlight } from "./tick.js";
 
 const FALLBACK_COLORS = ["#d94141", "#2f6fd6", "#e0b100", "#2e9e5b", "#8a4fc9", "#e07a1f", "#1fa3a3", "#d0499a"];
 const TOAST_MS = 4500;
+const STEP_TIP_MS = 7000;
 const GHOST_MS = 1700;
 const AUTO_PASS_MS = 650;
 const PREFS_KEY = "sogotable.lastOrders.prefs";
@@ -40,7 +41,7 @@ let S = freshState("");
 function freshState(key) {
   return {
     key, lastCtx: null, sending: false, selKey: "", sel: null, target: null, discardSel: new Set(), orderTarget: null, orderSpike: null, handHome: false,
-    toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false,
+    toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false, stepTip: "", stepTimer: null,
     autoPassStep: -1, autoPassTimer: null, autoPassed: -1, sawPlaying: false, winPlayed: false, lastBeep: -1, bgTheme: "",
   };
 }
@@ -100,7 +101,7 @@ export function renderLastOrdersGame(ctx) {
   }
   const key = `${ctx.room ? ctx.room.code : ""}#${ctx.room ? ctx.room.game_epoch : ""}`;
   if (S.key !== key) {
-    clearTimeout(S.toastTimer); clearTimeout(S.ghostTimer); clearTimeout(S.autoPassTimer);
+    clearTimeout(S.toastTimer); clearTimeout(S.stepTimer); clearTimeout(S.ghostTimer); clearTimeout(S.autoPassTimer);
     S = freshState(key);
     fxReset(key);
     calloutReset(key);
@@ -292,6 +293,12 @@ function onAct(act, value) {
     case "menu": S.menuOpen = !S.menuOpen; playClick(); break;
     case "pref": setPref(value, !prefs()[value]); playClick(); if (value === "autopass") maybeAutoPass(ctx, info); break;
     case "primer": S.primerOpen = !S.primerOpen; playClick(); break;
+    case "step": // a turn-step dot: explain that step (tap again, or the tip, to close)
+      S.stepTip = S.stepTip === value ? "" : value;
+      clearTimeout(S.stepTimer);
+      if (S.stepTip) S.stepTimer = setTimeout(() => { S.stepTip = ""; repaint(); }, STEP_TIP_MS);
+      playClick();
+      break;
     case "pick": playClick(); send({ type: "PICK", character: value }, { stamp: false }); return;
     case "skip": playClick(); send({ type: "SKIP_PLAYER", target: value }, { stamp: false }); return;
     case "card": {
@@ -420,7 +427,8 @@ function topHtml(vm) {
   else if (g.phase === "pick") status = UI.pickTitle;
   else if (vm.turnMark === vm.myMark) status = UI.yourTurn;
   else status = vm.turnMark ? UI.turnOf(vm.nameOf(vm.turnMark)) : "";
-  return `<span class="lo-title">${GAME_EMOJI} ${vm.esc(GAME_NAME)}</span><span class="lo-status">${vm.esc(status)}</span>
+  const steps = turnStepsHtml(vm, S.stepTip);
+  return `<span class="lo-title">${GAME_EMOJI} <span class="lo-title-text">${vm.esc(GAME_NAME)}</span></span>${steps}<span class="lo-status">${vm.esc(status)}</span>
     <button type="button" class="lo-gear${S.menuOpen ? " lo-on" : ""}" data-lo-act="menu" aria-expanded="${S.menuOpen}" aria-label="${vm.esc(UI.settings)}">⚙︎</button>`;
 }
 

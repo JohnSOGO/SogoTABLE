@@ -28,6 +28,18 @@ export const PHASES = {
   pick: "Pick a patron",
 };
 
+// The four steps of a turn, in order, as the top bar's dots show them; each
+// dot's tap opens its line here.
+export const TURN_STEPS = ["discard", "action", "order", "drink"];
+export const STEP_HELP = {
+  discard: "Throw back up to 3 cards you don't want (or keep them all), then draw back up to a full hand.",
+  action: "Play one action card on a rival or yourself, or skip it. Some cards give you an extra action.",
+  order: "Buy a rival a drink: it goes face-down on their line. You may slip a spike card into it first.",
+  drink: "Drink the top drink on your own line. Anyone may answer it with a reaction card.",
+};
+export const STEP_LABEL = (i, n, name, state) => `Step ${i} of ${n}: ${name}${state ? ` (${state})` : ""}`;
+export const STEP_STATE = { done: "done", now: "now" };
+
 export const KINDS = {
   action: "Action",
   reaction: "Reaction",

@@ -7,7 +7,7 @@
 // a given snapshot + view state (no clocks), so render.js can skip repainting
 // a section whose markup is unchanged and running animations survive.
 import { buzzIconSvg, cardArtSvg, coinSvg, drinkBackSvg, drinkSvg, gritIconSvg, mugIconSvg, portraitSvg } from "./art.js";
-import { BARKEEP, KINDS, OUT_ICONS, PHASES, PRIMER, STATS, TICKER, UI, outText } from "./branding.js";
+import { BARKEEP, KINDS, OUT_ICONS, PHASES, PRIMER, STATS, STEP_HELP, STEP_LABEL, STEP_STATE, TICKER, TURN_STEPS, UI, outText } from "./branding.js";
 import { CARDS, CHARACTERS, DRINKS, EVENTS, PACKS } from "./content.js";
 import { describe, describeLines, kindLabel, traitLines } from "./describe.js";
 
@@ -114,6 +114,25 @@ export function mineHtml(vm) {
         <div class="lo-mine-row">${stats(vm, p)}${mugs(vm, p.line_count)}${outBadge(vm, p)}</div>
       </div>
     </div>`;
+}
+
+// ---------- turn steps (top bar) ----------
+// One dot per step of the current turn: filled once done, ringed while it is
+// happening, open still to come. Tapping a dot explains its step (tip = the
+// open step's key, or ""). Only while someone's turn is under way.
+export function turnStepsHtml(vm, tip) {
+  const t = vm.game.turn;
+  if (!t || vm.game.phase !== "play" || vm.game.status !== "playing") return "";
+  const cur = t.phase === "done" ? TURN_STEPS.length : TURN_STEPS.indexOf(t.phase);
+  const n = TURN_STEPS.length;
+  const dots = TURN_STEPS.map((key, i) => {
+    const state = i < cur ? "done" : i === cur ? "now" : "";
+    const label = STEP_LABEL(i + 1, n, PHASES[key] || key, STEP_STATE[state] || "");
+    return `<button type="button" class="lo-step${state ? ` lo-step-${state}` : ""}${tip === key ? " lo-on" : ""}" data-lo-act="step" data-v="${key}" aria-label="${vm.esc(label)}" aria-expanded="${tip === key}" title="${vm.esc(label)}"><i></i></button>`;
+  }).join("");
+  const i = TURN_STEPS.indexOf(tip);
+  const card = i < 0 ? "" : `<div class="lo-step-tip" data-lo-act="step" data-v="${tip}" role="button" tabindex="0"><b>${i + 1} · ${vm.esc(PHASES[tip] || tip)}</b> ${vm.esc(STEP_HELP[tip] || "")}</div>`;
+  return `<span class="lo-steps" role="group">${dots}</span>${card}`;
 }
 
 // ---------- stack cards ----------
