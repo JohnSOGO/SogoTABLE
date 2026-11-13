@@ -234,6 +234,24 @@ Event types (for animation): `pick`, `turn`, `discard`, `play`, `react`,
 - `art.js` — original procedural SVG portraits, card frames, drink art.
 - `render.js` + helpers, `lobby.js` (options), `tick.js`, `sfx.js`, `fx.js`, `styles.js`.
 
+### Focus layouts (screen shaped to the task)
+
+`render.js` sets `data-lo-focus` on the play root; the `FOCUS` block in `styles.js`
+re-shapes the table around it. Display only: the tokens come from `vm.mode`, which
+comes from server-decided `game.me`.
+
+| focus | when | what changes |
+|---|---|---|
+| `act keep` | my keep-or-draw | hand becomes a list (art beside large text), quiet bar shrinks to a strip |
+| `act big play` | my action step | big hand cards, big target buttons |
+| `act big react` | an answer window I can play in | attacking card large on the bar, only my playable cards right under it (with the playable help on) |
+| `act big gamble` | a gamble I can play in | big pot + leader, only my gamble cards |
+| `act big order` | buying a round | big spike cards, big "who's drinking" buttons |
+| `watch` / `watch gamble` | everything else | normal table (gamble pot still enlarged) |
+
+Every `act` focus compacts the seats and ticker; on phones (<900px) the hand moves
+up under the bar and the buttons pin to the bottom edge (sticky).
+
 ### Host options
 
 | key | values | default |

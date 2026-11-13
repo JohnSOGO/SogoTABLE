@@ -302,6 +302,112 @@ const PLAY = `
 }
 `;
 
+// Focus layouts: render.js sets data-lo-focus on the play root to say what the
+// screen is FOR right now ("act keep", "act big play", "act big gamble", …,
+// or "watch"), and these rules re-shape the table around that one task: the
+// cards I'm deciding on get big and readable, everything else shrinks.
+const F = (t) => `.last-orders-root[data-lo-focus~="${t}"]`;
+const FOCUS = `
+/* any decision of mine: compact the rest of the table */
+${F("act")} .lo-seat{flex:1 0 132px;padding:5px 7px;gap:6px}
+${F("act")} .lo-seat-face svg{width:36px;height:36px}
+${F("act")} .lo-seat-misc{display:none}
+${F("act")} .lo-myseat{padding:5px 8px}
+${F("act")} .lo-myseat .lo-seat-face svg{width:40px;height:40px}
+${F("act")} .lo-myseat .lo-seat-name{font-size:14px}
+${F("act")} .lo-myseat .lo-stat{font-size:13px}
+${F("act")} .lo-bar-main:has(> .lo-stack-empty:not(.lo-gamble-call)){display:none}
+${F("act")} .lo-bar:has(.lo-bar-main > .lo-stack-empty:not(.lo-gamble-call)) .lo-lastdrink{display:none}
+${F("act")} .lo-bar-head{min-height:32px}
+${F("act")} .lo-event,${F("act")} .lo-lastdrink{padding:4px 8px;font-size:11.5px}
+${F("act")} .lo-lastdrink-art,${F("act")} .lo-lastdrink-art svg{width:28px;height:28px}
+${F("act")} .lo-log li:nth-last-child(n+3){display:none}
+${F("act")} .lo-controls{min-height:0}
+${F("act")} .lo-prompt{font-size:15px}
+${F("act")} .lo-btn{height:48px;font-size:16px}
+${F("act")} .lo-btns{flex-wrap:nowrap}
+${F("act")} .lo-btns .lo-btn:not(.lo-btn-primary){flex:none}
+${F("act")} .lo-target{height:42px;padding:0 14px;font-size:15px;border-radius:21px}
+${F("act")} .lo-detail{font-size:14px}
+
+/* keep-or-draw: the whole hand as a readable list, art beside the words */
+${F("keep")} .lo-lastdrink{display:none}
+${F("keep")} .lo-hand-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;overflow:visible;padding:4px 10px 8px;scroll-snap-type:none}
+${F("keep")} button.lo-card{width:auto;min-height:0;display:grid;grid-template-columns:84px minmax(0,1fr);grid-template-rows:auto auto 1fr;column-gap:12px;align-items:start;text-align:left;padding:6px 40px 6px 6px}
+${F("keep")} .lo-card-art{grid-row:1 / span 3;padding:0}
+${F("keep")} .lo-card-art svg{width:84px;height:84px}
+${F("keep")} .lo-card-kind{margin:2px 0 0;justify-self:start;font-size:10.5px}
+${F("keep")} .lo-card-name{font-size:17px;padding:3px 0 0}
+${F("keep")} .lo-card-text{font-size:14px;line-height:1.3;color:var(--lo-card-ink);padding:2px 0 0}
+${F("keep")} .lo-card.lo-discard{transform:none;opacity:.6}
+${F("keep")} .lo-card-mark{top:50%;right:8px;width:30px;height:30px;margin-top:-15px;font-size:16px}
+
+/* playing, answering, gambling, ordering: big cards, the unplayable ones tuck in small */
+${F("big")} .lo-hand-row{align-items:flex-start;padding-top:10px}
+${F("big")} button.lo-card{width:154px}
+${F("big")} .lo-card-kind{font-size:10.5px}
+${F("big")} .lo-card-name{font-size:15.5px}
+${F("big")} .lo-card-text{font-size:13px;line-height:1.3;color:var(--lo-card-ink)}
+${F("big")} button.lo-card.lo-dim{width:96px}
+${F("big")} .lo-card.lo-dim .lo-card-text{display:none}
+${F("big")} .lo-card.lo-dim .lo-card-name{font-size:12px}
+
+/* defending (any answer window, gamble too): the attacking card large, and
+   only the cards I can answer with right beneath it (with the playable help on) */
+${F("react")} .lo-stack-card.lo-stack-top{width:168px}
+${F("react")} .lo-stack-top .lo-face-name{font-size:16px}
+${F("react")} .lo-stack-top .lo-face-text{font-size:13px;color:var(--lo-card-ink)}
+${F("react")} .lo-stack-who{font-size:12px}
+${F("react")} .lo-bar-side{display:none}
+${F("react")} .lo-hand-row,${F("act")}${F("gamble")} .lo-hand-row{justify-content:safe center}
+${F("react")} .lo-card.lo-dim,${F("act")}${F("gamble")} .lo-card.lo-dim{display:none}
+${F("react")} .lo-hand:not(:has(.lo-card:not(.lo-dim))),${F("act")}${F("gamble")} .lo-hand:not(:has(.lo-card:not(.lo-dim))){display:none}
+
+/* the gamble: the pot and who leads take the stage */
+${F("gamble")} .lo-bar-side{order:1}
+${F("gamble")} .lo-bar-main{order:2;min-height:0}
+${F("gamble")} .lo-bar-main:has(.lo-stack){min-height:190px}
+${F("gamble")} .lo-event,${F("gamble")} .lo-lastdrink{display:none}
+${F("gamble")} .lo-pot{flex:1 1 100%;padding:12px 16px;gap:16px}
+${F("gamble")} .lo-pot-pile{width:66px;height:52px;transform:scale(1.5);transform-origin:left bottom}
+${F("gamble")} .lo-pot-text{gap:4px}
+${F("gamble")} .lo-pot-text b{font-size:28px;line-height:1}
+${F("gamble")} .lo-pot-text span{font-size:16px;font-weight:800}
+${F("gamble")} .lo-pot-text svg{width:36px;height:36px;border-radius:9px}
+${F("gamble")} .lo-gamble-call{font-size:16px;padding:12px 16px;max-width:none}
+${F("act")}${F("gamble")} .lo-bar-main:has(> .lo-gamble-call){display:none}
+
+/* buying a drink: the people are the choice */
+${F("order")} .lo-target{height:48px;padding:0 18px;font-size:17px;border-radius:24px}
+${F("order")} .lo-target .lo-dot{width:14px;height:14px}
+${F("order")} .lo-targets{font-size:14px}
+${F("order")} .lo-targets > span{flex-basis:100%}
+
+/* phone: my hand right under the bar, the buttons pinned to the bottom edge */
+@media (max-width:899px){
+  ${F("act")} .lo-primer{display:none}
+  ${F("act")} .lo-opps{order:1}
+  ${F("act")} .lo-bar{order:2}
+  ${F("act")} .lo-mine{order:3}
+  ${F("act")} .lo-hand{order:4}
+  ${F("act")} .lo-controls{order:5;position:sticky;bottom:8px;z-index:14;box-shadow:0 -6px 22px rgba(0,0,0,.22)}
+  ${F("act")} .lo-ticker{order:6}
+  ${F("react")} .lo-bar{order:1}
+  ${F("react")} .lo-hand{order:2}
+  ${F("react")} .lo-controls{order:3}
+  ${F("react")} .lo-mine{order:4}
+  ${F("react")} .lo-opps{order:5}
+  ${F("react")} .lo-hand{margin-top:-14px;padding-top:12px}
+  ${F("act")} .lo-toast{order:7}
+}
+@media (min-width:560px){
+  ${F("keep")} .lo-hand-row{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+}
+@media (min-width:900px){
+  ${F("big")} button.lo-card{width:170px}
+}
+`;
+
 const DARK = `
 :root[data-theme="dark"] .last-orders-root{
   --lo-ink:#f1e6d4;--lo-muted:#b2a28b;--lo-panel:#2a211b;--lo-panel-2:#342a22;--lo-line:#4a3c30;--lo-chip:#3a2f26;
@@ -317,4 +423,4 @@ const DARK = `
 :root[data-theme="dark"] .last-orders-root .lo-float-buzz{color:#f5a3c8}
 `;
 
-export const LAST_ORDERS_CSS = LIGHT + PLAY + DARK;
+export const LAST_ORDERS_CSS = LIGHT + PLAY + FOCUS + DARK;
