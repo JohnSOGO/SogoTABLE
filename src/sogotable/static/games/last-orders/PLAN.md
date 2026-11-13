@@ -252,12 +252,15 @@ comes from server-decided `game.me`.
 Cards play straight off the hand (`gestures.js` + `render.js` quickPlay / quickOrder):
 a tap or long-press on a playable card plays it; with a choice of targets it is picked
 up and the tapped rival gets it; a card dragged onto a rival (or up onto the bar) plays
-there; a spike dragged onto a rival sends the round. No Play / Send drink buttons.
+there; a spike dragged onto a rival sends the round. A hold only lifts the card
+(let go to play it, or keep dragging), so a pause before a drag never plays it. No Play / Send drink buttons.
 Keep-or-draw still multi-selects and commits with one button.
 
 The top bar shows the current turn's four steps (discard, action, order, drink) as
 dots: filled = done, ringed = now, open = to come. Tapping a dot explains that step
-(`panels.js` turnStepsHtml, words in `branding.js` TURN_STEPS / STEP_HELP).
+(`panels.js` turnStepsHtml, words in `branding.js` TURN_STEPS / STEP_HELP). When my
+own turn moves to a new step the tip opens by itself (per-device "Step tips" setting,
+on by default).
 
 Every `act` focus compacts the seats and ticker; on phones (<900px) the hand moves
 up under the bar and the buttons pin to the bottom edge (sticky).

@@ -12,7 +12,7 @@
 // its markup changes, and one delegated click listener handles every control.
 import { playClick } from "../../sound.js";
 import { tableBgCssUrl } from "./art.js";
-import { GAME_EMOJI, GAME_NAME, UI } from "./branding.js";
+import { GAME_EMOJI, GAME_NAME, TURN_STEPS, UI } from "./branding.js";
 import { calloutFeed, calloutReset } from "./callout.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
@@ -30,7 +30,7 @@ const STEP_TIP_MS = 7000;
 const GHOST_MS = 1700;
 const AUTO_PASS_MS = 650;
 const PREFS_KEY = "sogotable.lastOrders.prefs";
-const PREF_DEFAULTS = { tips: true, primer: true, autopass: true, callouts: true, voice: true };
+const PREF_DEFAULTS = { tips: true, primer: true, autopass: true, steptips: true, callouts: true, voice: true };
 const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "ticker", "toast"];
 
 let stylesInjected = false;
@@ -41,7 +41,7 @@ let S = freshState("");
 function freshState(key) {
   return {
     key, lastCtx: null, sending: false, selKey: "", sel: null, target: null, discardSel: new Set(), orderTarget: null, orderSpike: null, handHome: false,
-    toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false, stepTip: "", stepTimer: null,
+    toast: null, toastTimer: null, ghost: null, ghostTimer: null, prevStack: null, menuOpen: false, primerOpen: false, stepTip: "", stepTimer: null, stepKey: "",
     autoPassStep: -1, autoPassTimer: null, autoPassed: -1, sawPlaying: false, winPlayed: false, lastBeep: -1, bgTheme: "",
   };
 }
@@ -113,6 +113,7 @@ export function renderLastOrdersGame(ctx) {
   if (game.status === "playing") S.sawPlaying = true;
   trackGhost(game, fresh);
   reconcile(game, info);
+  autoStepTip(game, info);
   paint(ctx, fresh);
   syncTick(key, game, info.myMark, {
     mounted: () => Boolean(mountedRoot()),
@@ -172,6 +173,23 @@ function trackGhost(game, fresh) {
   }
   S.prevStack = w && w.stack.length ? w.stack.map((it) => ({ ...it })) : null;
   if (w && w.stack.length) S.ghost = null;
+}
+
+// ---------- turn-step tip (top bar) ----------
+function openStepTip(step) {
+  S.stepTip = step;
+  clearTimeout(S.stepTimer);
+  if (step) S.stepTimer = setTimeout(() => { S.stepTip = ""; repaint(); }, STEP_TIP_MS);
+}
+// When MY turn moves on to a new step, explain it unprompted (the "Step tips"
+// setting turns this off; the dots still explain on tap).
+function autoStepTip(game, info) {
+  const t = game.turn;
+  const mine = t && game.phase === "play" && game.status === "playing" && t.mark === info.myMark && TURN_STEPS.includes(t.phase);
+  const key = mine ? `${game.round}:${t.mark}:${t.phase}` : "";
+  if (key === S.stepKey) return;
+  S.stepKey = key;
+  if (key && prefs().steptips) openStepTip(t.phase);
 }
 
 // ---------- selection ----------
@@ -294,9 +312,7 @@ function onAct(act, value) {
     case "pref": setPref(value, !prefs()[value]); playClick(); if (value === "autopass") maybeAutoPass(ctx, info); break;
     case "primer": S.primerOpen = !S.primerOpen; playClick(); break;
     case "step": // a turn-step dot: explain that step (tap again, or the tip, to close)
-      S.stepTip = S.stepTip === value ? "" : value;
-      clearTimeout(S.stepTimer);
-      if (S.stepTip) S.stepTimer = setTimeout(() => { S.stepTip = ""; repaint(); }, STEP_TIP_MS);
+      openStepTip(S.stepTip === value ? "" : value);
       playClick();
       break;
     case "pick": playClick(); send({ type: "PICK", character: value }, { stamp: false }); return;
@@ -439,7 +455,7 @@ function menuHtml(vm) {
     return `<button type="button" class="lo-pref" data-lo-act="pref" data-v="${name}" role="switch" aria-checked="${on}">
         <span><b>${vm.esc(label)}</b><small>${vm.esc(hint)}</small></span><span class="lo-switch${on ? " lo-on" : ""}"><i></i></span></button>`;
   };
-  return `<div class="lo-menu-card">${row("tips", UI.tipsLabel, UI.tipsHint)}${row("primer", UI.primerLabel, UI.primerHint)}${row("autopass", UI.autoPassLabel, UI.autoPassHint)}
+  return `<div class="lo-menu-card">${row("tips", UI.tipsLabel, UI.tipsHint)}${row("primer", UI.primerLabel, UI.primerHint)}${row("autopass", UI.autoPassLabel, UI.autoPassHint)}${row("steptips", UI.stepTipsLabel, UI.stepTipsHint)}
     ${row("callouts", UI.calloutsLabel, UI.calloutsHint)}${vm.prefs.callouts ? row("voice", UI.voiceLabel, UI.voiceHint) : ""}
     <button type="button" class="lo-btn" data-lo-act="menu">${vm.esc(UI.close)}</button></div>`;
 }

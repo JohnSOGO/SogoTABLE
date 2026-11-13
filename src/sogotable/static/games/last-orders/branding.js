@@ -160,6 +160,8 @@ export const UI = {
   primerHint: "how-to-play notes at the top",
   autoPassLabel: "Auto-pass",
   autoPassHint: "pass for me when I hold nothing that answers",
+  stepTipsLabel: "Step tips",
+  stepTipsHint: "explain each step of my turn as it starts",
   calloutsLabel: "Play callouts",
   calloutsHint: "show who just played what, with their portrait",
   voiceLabel: "Voices",
