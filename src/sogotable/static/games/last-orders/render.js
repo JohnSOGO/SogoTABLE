@@ -16,6 +16,7 @@ import { GAME_EMOJI, GAME_NAME, UI } from "./branding.js";
 import { calloutFeed, calloutReset } from "./callout.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
+import { wireGestures } from "./gestures.js";
 import { snapHand, slideHand } from "./hand-fx.js";
 import { renderLastOrdersLobby } from "./lobby.js";
 import { artBegin, barHtml, mineHtml, oppsHtml, pickHtml, primerHtml, resultsHtml, tickerHtml } from "./panels.js";
@@ -301,44 +302,91 @@ function onAct(act, value) {
         else if (S.discardSel.size < (me.discard_max || 0)) S.discardSel.add(value);
         else setToast(UI.discardPrompt(me.discard_max || 0), "info");
       } else if (mode === "order") {
-        const card = (me.hand || []).find((c) => c.uid === value);
-        const def = card ? ctx.game.defs[card.id] : null;
-        if (def && def.kind === "spike" && playable.has(value)) S.orderSpike = S.orderSpike === value ? null : value;
+        // A spike rides along with the drink; tapping who drinks sends it.
+        if (isSpike(ctx, me, value) && playable.has(value)) S.orderSpike = S.orderSpike === value ? null : value;
         S.sel = S.sel === value ? null : value;
-      } else {
+      } else if ((mode === "action" || mode === "window") && playable.has(value)) {
+        // Play straight off the card: no confirm. With a choice of targets the
+        // card is picked up and the next tap on a rival plays it.
+        const targets = (me.targets && me.targets[value]) || [];
+        if (targets.length <= 1) { quickPlay(me, value, targets[0]); return; }
         S.sel = S.sel === value ? null : value;
         S.target = null;
-        const targets = S.sel && me.targets ? me.targets[S.sel] || [] : [];
-        if (targets.length === 1) S.target = targets[0];
+      } else {
+        S.sel = S.sel === value ? null : value; // not playable now: just look at it
+        S.target = null;
       }
       break;
     }
     case "target":
-      if (mode === "order") { S.orderTarget = value; playClick(); break; }
-      if (me && S.sel && (me.targets[S.sel] || []).includes(value)) { S.target = value; playClick(); }
+    case "order_target":
+      if (mode === "order") { playClick(); quickOrder(me, value, S.orderSpike); return; }
+      if (me && S.sel && playable.has(S.sel) && (me.targets[S.sel] || []).includes(value)) { playClick(); quickPlay(me, S.sel, value); return; }
       break;
-    case "order_target": S.orderTarget = value; playClick(); break;
-    case "play": {
-      if (!me || !S.sel || !playable.has(S.sel)) return;
-      const targets = me.targets[S.sel] || [];
-      if (targets.length && !targets.includes(S.target)) return;
-      const action = { type: "PLAY", uid: S.sel };
-      if (targets.length) action.target = S.target;
-      send(action).then((ok) => { if (ok) { S.sel = null; S.target = null; } });
-      return;
-    }
     case "pass": send({ type: "PASS" }); return;
     case "end_action": send({ type: "END_ACTION" }); return;
     case "discard": send({ type: "DISCARD", uids: [...S.discardSel] }).then((ok) => { if (ok) S.discardSel = new Set(); }); return;
-    case "order": {
-      if (!me || !(me.order_targets || []).includes(S.orderTarget)) return;
-      const action = { type: "ORDER", target: S.orderTarget };
-      if (S.orderSpike) action.spike = S.orderSpike;
-      send(action).then((ok) => { if (ok) { S.orderSpike = null; S.orderTarget = null; } });
-      return;
-    }
     default: return;
   }
+  repaint();
+}
+
+const isSpike = (ctx, me, uid) => {
+  const card = (me.hand || []).find((c) => c.uid === uid);
+  const def = card ? ctx.game.defs[card.id] : null;
+  return Boolean(def && def.kind === "spike");
+};
+
+// Send a play the moment the card is chosen (tap, hold or drop). Legality is
+// game.me's: a card that isn't playable, or a target it can't take, sends nothing.
+function quickPlay(me, uid, target) {
+  if (!me || !(me.playable || []).includes(uid)) return false;
+  const targets = (me.targets && me.targets[uid]) || [];
+  if (targets.length && !targets.includes(target)) return false;
+  const action = { type: "PLAY", uid };
+  if (targets.length) action.target = target;
+  S.sel = uid; S.target = target || null;
+  send(action).then((ok) => { if (ok) { S.sel = null; S.target = null; } });
+  return true;
+}
+function quickOrder(me, target, spike) {
+  if (!me || !(me.order_targets || []).includes(target)) return false;
+  const action = { type: "ORDER", target };
+  if (spike && (me.playable || []).includes(spike)) action.spike = spike;
+  S.orderTarget = target;
+  send(action).then((ok) => { if (ok) { S.orderSpike = null; S.orderTarget = null; } });
+  return true;
+}
+
+// Gestures (gestures.js reports; this decides). Hold = the same as a tap.
+// Drop on a rival plays on them; drop on the bar plays a card that needs no
+// target (or has only one). Anything else just picks the card up.
+function canDragCard(uid) {
+  const ctx = S.lastCtx;
+  if (!ctx) return false;
+  const info = seatInfo(ctx);
+  const mode = modeOf(ctx.game, info);
+  const me = info.me;
+  if (!me || !(me.playable || []).includes(uid)) return false;
+  return mode === "action" || mode === "window" || (mode === "order" && isSpike(ctx, me, uid));
+}
+function onDropCard(uid, drop) {
+  const ctx = S.lastCtx;
+  if (!ctx || !canDragCard(uid)) return;
+  const info = seatInfo(ctx);
+  const me = info.me;
+  const mode = modeOf(ctx.game, info);
+  playClick();
+  if (mode === "order") {
+    if (drop && drop !== "bar" && quickOrder(me, drop, uid)) return;
+    S.orderSpike = uid; S.sel = uid;
+    repaint();
+    return;
+  }
+  const targets = (me.targets && me.targets[uid]) || [];
+  if (drop && drop !== "bar" && targets.includes(drop) && quickPlay(me, uid, drop)) return;
+  if (targets.length <= 1 && drop && quickPlay(me, uid, targets[0])) return;
+  S.sel = uid; S.target = null;
   repaint();
 }
 
@@ -417,6 +465,7 @@ function ensureSkeleton(host) {
     if (!el || !root.contains(el) || el.disabled) return;
     onAct(el.getAttribute("data-lo-act"), el.getAttribute("data-v") || "");
   });
+  wireGestures(root, { canDrag: canDragCard, onHold: (uid) => onAct("card", uid), onDrop: onDropCard });
   root.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     const el = e.target.closest ? e.target.closest("[data-lo-act][role=button]") : null;

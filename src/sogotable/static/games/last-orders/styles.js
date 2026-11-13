@@ -191,6 +191,11 @@ const PLAY = `
 .last-orders-root .lo-card.lo-sel{transform:translateY(-6px);box-shadow:0 0 0 3px var(--lo-target),0 8px 18px rgba(0,0,0,.3);opacity:1}
 .last-orders-root .lo-card.lo-discard{transform:translateY(-6px) rotate(-2deg);opacity:.75;border-style:dashed}
 .last-orders-root .lo-card.lo-spiking{transform:translateY(-6px);box-shadow:0 0 0 3px var(--lo-k-spike),0 8px 18px rgba(0,0,0,.3);opacity:1}
+.last-orders-root .lo-hand,.last-orders-root .lo-drag-ghost{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.last-orders-root .lo-hand svg,.last-orders-root .lo-hand img{pointer-events:none;-webkit-user-drag:none}
+.last-orders-root .lo-card.lo-dragging{opacity:.3}
+.last-orders-root button.lo-card.lo-drag-ghost{position:fixed;z-index:60;margin:0;pointer-events:none;box-shadow:0 14px 34px rgba(0,0,0,.45);transition:none}
+.last-orders-root .lo-drop-hot{outline:3px solid var(--lo-turn);outline-offset:2px;box-shadow:0 0 0 6px rgba(240,169,46,.35),var(--lo-shadow)}
 .last-orders-root .lo-card-mark{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--lo-bad);color:#fff;font-size:14px;font-weight:900;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .last-orders-root .lo-spiking .lo-card-mark{background:var(--lo-k-spike)}
 
@@ -366,6 +371,7 @@ ${F("keep")} .lo-card-mark{top:50%;right:8px;width:30px;height:30px;margin-top:-
 
 /* playing, answering, gambling, ordering: big cards, the unplayable ones tuck in small */
 ${F("big")} .lo-hand-row{align-items:flex-start;padding-top:10px}
+${F("big")} button.lo-card{touch-action:pan-x}
 ${F("big")} button.lo-card{width:154px}
 ${F("big")} .lo-card-kind{font-size:10.5px}
 ${F("big")} .lo-card-name{font-size:15.5px}

@@ -249,6 +249,12 @@ comes from server-decided `game.me`.
 | `act big order` | buying a round | big spike cards, big "who's drinking" buttons |
 | `watch` / `watch gamble` | everything else | normal table (gamble pot still enlarged) |
 
+Cards play straight off the hand (`gestures.js` + `render.js` quickPlay / quickOrder):
+a tap or long-press on a playable card plays it; with a choice of targets it is picked
+up and the tapped rival gets it; a card dragged onto a rival (or up onto the bar) plays
+there; a spike dragged onto a rival sends the round. No Play / Send drink buttons.
+Keep-or-draw still multi-selects and commits with one button.
+
 Every `act` focus compacts the seats and ticker; on phones (<900px) the hand moves
 up under the bar and the buttons pin to the bottom edge (sticky).
 

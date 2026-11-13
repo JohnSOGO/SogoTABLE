@@ -1663,3 +1663,21 @@ PLACEMENT RECEIPT
     - Intentional exclusions: offline fallbackGames list and room/switcher headers show the published name only
 - New owner row: workers/game-alt-names.js, src/sogotable/static/admin/game-names.js
 ```
+
+```
+PLACEMENT RECEIPT
+- Ask:          Last Orders: play straight off the card (no Play / Send drink confirm), long-press plays,
+                drag a card onto a rival (or up onto the bar) to play it, drag a spike onto who drinks;
+                stop long-press text selection / callout menus on hand cards
+- Verdict:      games/last-orders/gestures.js [NEW file under the existing games/ dir row]; render.js
+                (wiring + intent mapping: quickPlay / quickOrder / onDropCard), hand.js (controls lose the
+                confirm buttons), branding.js (prompts), styles.js (CSS) [EXISTING]
+- Flow stage:   player input -> normalize action (client) -> server validates as before
+- Considerations:
+    - gestures.js reports raw facts {uid, drop: seat | "bar" | null}; render.js maps them against
+      server-computed game.me.playable / targets / order_targets and ignores anything illegal
+    - mirrors mystic-wood/board-input.js; render.js 535/800, styles.js 448/800, no ceiling pressure
+    - Siblings: tap and keyboard (Enter on the card button) play the same way; mouse and touch both use
+      pointer events; discard keeps its multi-select + one button (a batch choice, not a confirm)
+- New owner row: none (dir-prefix row covers it)
+```
