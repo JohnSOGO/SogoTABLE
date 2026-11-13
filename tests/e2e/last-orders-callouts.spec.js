@@ -69,5 +69,21 @@ test("host + two bots: another patron's card plays as a voiced callout", async (
   await expect.poll(() => page.evaluate(() => window.__spoken.length), { timeout: 90_000 }).toBeGreaterThan(0);
   const spoken = await page.evaluate(() => window.__spoken);
   expect(spoken[0].text).toMatch(/!$/);
+  if (SHOTS) {
+    // Best effort: catch an attack (the defender's seat flashes red) for the gallery.
+    const attacker = page.locator(".last-orders-root .lo-defending");
+    for (let i = 0; i < 150 && !(await attacker.count()); i += 1) {
+      if (!(await act('[data-lo-act="discard"]')) && !(await act('[data-lo-act="end_action"]'))) {
+        if (await page.locator('.last-orders-root [data-lo-act="order"]').count()) {
+          await act('[data-lo-act="target"]'); await act('[data-lo-act="order_target"]'); await act('[data-lo-act="order"]');
+        }
+      }
+      await page.waitForTimeout(300);
+    }
+    if (await attacker.count()) {
+      await attacker.first().scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${SHOTS}/defender-flash.png` });
+    }
+  }
   expect(errors).toEqual([]);
 });
