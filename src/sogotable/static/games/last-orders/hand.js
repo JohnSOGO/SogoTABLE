@@ -46,10 +46,11 @@ function targetChips(vm, marks, chosen, act = "target") {
       <span class="lo-dot" style="background:${vm.esc(vm.colorOf(m))}"></span>${vm.esc(vm.nameOf(m))}</button>`).join("");
 }
 
-// The selected card's full text (the "tap to expand" view).
+// The selected card's full text (the "tap to expand" view). With tips on, the
+// big hand card already shows that text, so the phase bar stays short.
 function detailHtml(vm) {
   const me = vm.me;
-  if (!me || !vm.sel) return "";
+  if (!me || !vm.sel || vm.prefs.tips) return "";
   const card = (me.hand || []).find((c) => c.uid === vm.sel);
   if (!card) return "";
   const def = vm.defs[card.id] || {};

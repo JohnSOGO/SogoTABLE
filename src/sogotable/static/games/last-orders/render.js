@@ -385,6 +385,20 @@ function menuHtml(vm) {
     <button type="button" class="lo-btn" data-lo-act="menu">${vm.esc(UI.close)}</button></div>`;
 }
 
+// What the screen is for right now; styles.js re-shapes the table around it.
+// "act" = a decision of mine is open; "big" = pick a card to play from the hand.
+function focusOf(vm, offTable) {
+  if (offTable) return "";
+  const gamble = vm.reaction && vm.reaction.kind === "gamble";
+  switch (vm.mode) {
+    case "discard": return "act keep";
+    case "action": return "act big play";
+    case "order": return "act big order";
+    case "window": return gamble ? "act big gamble" : "act big react";
+    default: return gamble && vm.mySeat && !vm.mySeat.out ? "watch gamble" : "watch";
+  }
+}
+
 // ---------- paint ----------
 function ensureSkeleton(host) {
   let root = host.querySelector(":scope > .lo-play");
@@ -450,6 +464,7 @@ function paint(ctx, fresh) {
   setSection(root, "mine", picking ? "" : mineHtml(vm), !picking);
   setSection(root, "controls", picking || complete ? "" : controlsHtml(vm), !picking && !complete);
   const handBefore = snapHand(root);
+  root.setAttribute("data-lo-focus", focusOf(vm, picking || complete));
   setSection(root, "hand", picking || complete ? "" : handHtml(vm), !picking && !complete && !(vm.mySeat && vm.mySeat.out));
   slideHand(root, handBefore);
   scrollHandHome(root, vm.mode);
