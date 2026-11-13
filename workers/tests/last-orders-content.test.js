@@ -76,7 +76,7 @@ test("last-orders content: pack registry is base first and keyed by pack id", ()
   assert.deepEqual(PACK_IDS, ["base", "harbor", "frost", "masquerade", "clockwork", "storm", "rowdy"]);
   for (const id of PACK_IDS) assert.equal(PACKS[id].id, id);
   assert.equal(PACKS.base.characters.length, 4);
-  for (const id of EXPANSIONS) assert.equal(PACKS[id].characters.length, 2, `${id} has 2 characters`);
+  for (const id of EXPANSIONS) assert.equal(PACKS[id].characters.length, id === "storm" ? 3 : 2, `${id} characters`);
 });
 
 test("last-orders content: every id is unique and namespaced by its pack", () => {

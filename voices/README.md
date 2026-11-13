@@ -16,3 +16,5 @@
   each) were added on 2026-11-13 and requested on their own ticket. Suggested voices: Monsoon, a calm, commanding warrior
   priestess (Kokoro `af_kore`); NotePick, a quick, cheeky goblin bard (Kokoro `am_liam`, a bit fast). SogoAI may pick
   Parler instead where it sounds better, as with Tilly and Ansel.
+- `storm-longshanks-*` (21 lines: 17 cards + the 4 event lines) for Longshanks Ohd, a warm, wry storyteller (suggest
+  Kokoro `am_michael`), were added later on 2026-11-13 on their own ticket.

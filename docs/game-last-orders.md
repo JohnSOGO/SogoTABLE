@@ -53,7 +53,7 @@ night always ends (host can switch it off).
 | Frostmead Hall | 2 patrons + northern drinks |
 | Midnight Masquerade | 2 patrons + masquerade drinks |
 | Clockwork Cellar | 2 patrons + workshop drinks |
-| Storm Road | 2 patrons (Monsoon, tide-blooded war cleric; NotePick, goblin bard) + storm drinks |
+| Storm Road | 3 patrons (Monsoon, tide-blooded war cleric; NotePick, goblin bard; Longshanks Ohd, loremaster support bard) + storm drinks |
 | Rowdy Nights | a tavern event deck: one event flips each table round |
 
 ## Host options
@@ -127,3 +127,9 @@ the spread of the other twelve. Tuning on the way: Monsoon with only −2 Grit w
 also starts 2 coins short; Healing Rain 2→1 and Crashing Wave 2→3; NotePick Drinking
 Song 2→1 and Cutting Lyric 1→2. NotePick swings with bot skill (strong against level 3,
 weak against level 4, which focuses the weakest seat), like Bim.
+
+**2026-11-13 Longshanks Ohd** (third Storm Road patron, a full-support loremaster bard:
+self-heals, sobering, card draw, lots of answers; 36,000 games at levels 3, 4 and mix).
+First cut (one extra card in hand only) was +15 / +8 / +7: answers plus heals win long
+nights. Adding −1 Grit brought it to +3.4 / +0.5 / −0.1 (average +1.3) with the deck
+left as designed. Storm Road is the first pack with three patrons.
