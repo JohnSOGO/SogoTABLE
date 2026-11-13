@@ -1681,3 +1681,38 @@ PLACEMENT RECEIPT
       pointer events; discard keeps its multi-select + one button (a batch choice, not a confirm)
 - New owner row: none (dir-prefix row covers it)
 ```
+
+```
+REORG RECEIPT
+- Trigger:      Two new Last Orders patron portraits land next, but
+                src/sogotable/static/games/last-orders/art.js sat at 744/800
+                (GLOBAL_FILE_CAP) — the placement named the shared SVG kit and the
+                patron drawings as the seams to open first.
+- Seam moved:   Shared SVG primitives (id counter, seeded rng, colour maths, INK +
+                stroke, P_/C_/E_/R_/L_/G_/mir/both/star4/starPoly, face bits,
+                svgWrap/imageSvg/paletteOf/svgDataUrl) from `art.js` to
+                `art-kit.js`; patron drawings + CHARACTERS / PORTRAIT_IDS /
+                characterAccent / portraitSvg from `art.js` to `portraits.js`
+                [NEW FILES, no owner row — covered by the games/ directory pattern].
+                INK stays one live `export let` in art-kit.js; the old `INK = P.ink`
+                assignments became `setInk(P.ink)`. art.js re-exports portraitSvg,
+                PORTRAIT_IDS, characterAccent and svgDataUrl, so panels.js, fx.js,
+                render.js and scripts/last-orders-gallery.mjs are unchanged.
+- Room opened:  art.js: 744 -> 367 lines (art-kit.js 90, portraits.js 318) vs the
+                800 global cap (per-file ceiling: none — GLOBAL_FILE_CAP applies; no
+                ratchet entry to move).
+- Behavior:     PRESERVED - verified via `npm test` (all green); a scratch dump of
+                every portrait (light + dark, sized + unsized, unknown ids),
+                characterAccent, every card icon/frame, every drink vessel, both
+                backs, table bg + CSS url, all stat icons (colour + mono) and the
+                art.js export-name list is byte-identical before vs after.
+- Sources read: src/sogotable/static/games/last-orders/art.js;
+                src/sogotable/static/review-export.js (new files added next to
+                art.js); scripts/last-orders-gallery.mjs; docs/module-ownership.md;
+                workers/tests/architecture.test.js (CEILINGS, GLOBAL_FILE_CAP,
+                review-export allowlist test).
+- Restraint:    Two seams only, as placed. Card icons, drinks, backs, table and stat
+                icons stay in art.js; no new portraits, no palette or assets.js
+                changes, no caller edits.
+- New owner row: none (games/ directory pattern covers per-game files).
+```

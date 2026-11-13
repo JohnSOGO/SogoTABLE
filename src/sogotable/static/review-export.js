@@ -219,6 +219,8 @@ const REVIEW_EXPORT_FILES = [
   "src/sogotable/static/games/chinese-checkers/sfx.js",
   "src/sogotable/static/games/chinese-checkers/styles.js",
   "src/sogotable/static/games/last-orders/art.js",
+  "src/sogotable/static/games/last-orders/art-kit.js",
+  "src/sogotable/static/games/last-orders/portraits.js",
   "src/sogotable/static/games/last-orders/assets.js",
   "src/sogotable/static/games/last-orders/branding.js",
   "src/sogotable/static/games/last-orders/content.js",
