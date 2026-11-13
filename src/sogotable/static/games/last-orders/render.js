@@ -15,6 +15,7 @@ import { tableBgCssUrl } from "./art.js";
 import { GAME_EMOJI, GAME_NAME, TURN_STEPS, UI } from "./branding.js";
 import { calloutFeed, calloutReset } from "./callout.js";
 import { turnSummaryFeed, turnSummaryReset } from "./turn-summary.js";
+import { gambleResultHtml } from "./gamble-result.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
 import { wireGestures } from "./gestures.js";
@@ -32,7 +33,7 @@ const GHOST_MS = 1700;
 const AUTO_PASS_MS = 650;
 const PREFS_KEY = "sogotable.lastOrders.prefs";
 const PREF_DEFAULTS = { tips: true, primer: true, autopass: true, steptips: true, callouts: true, voice: true };
-const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "ticker", "toast"];
+const SECTIONS = ["top", "menu", "primer", "results", "pick", "opps", "bar", "mine", "controls", "hand", "ticker", "toast", "gamble"];
 
 let stylesInjected = false;
 let themeObserved = false;
@@ -397,6 +398,7 @@ function onAct(act, value) {
       break;
     case "pass": send({ type: "PASS" }); return;
     case "ack": send({ type: "ACK_DRINK" }, { stamp: false }); return;
+    case "gamble_ack": playClick(); send({ type: "ACK_GAMBLE" }, { stamp: false }); return;
     case "end_action": send({ type: "END_ACTION" }); return;
     case "discard": send({ type: "DISCARD", uids: [...S.discardSel] }).then((ok) => { if (ok) S.discardSel = new Set(); }); return;
     default: return;
@@ -616,6 +618,7 @@ function paint(ctx, fresh) {
   slideHand(root, handBefore);
   scrollHandHome(root, vm.mode);
   setSection(root, "ticker", tickerHtml(vm));
+  setSection(root, "gamble", gambleResultHtml(vm));
   setSection(root, "toast", S.toast ? `<div class="lo-toast-msg lo-toast-${S.toast.kind}">${vm.esc(S.toast.text)}</div>` : "");
   armRings(root, g);
   ensureCountdown();

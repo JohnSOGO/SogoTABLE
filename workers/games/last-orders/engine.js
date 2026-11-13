@@ -296,18 +296,21 @@ export function startGamble(game, leader) {
   const ante = Math.max(1, 1 + eventMods(game).ante);
   const marks = living(game);
   let pot = 0;
+  const paid = {}; // coins each gambler has put in, for the result card
   marks.forEach((m) => {
     const pay = Math.min(ante, game.players[m].gold);
     game.players[m].gold -= pay;
     pot += pay;
+    paid[m] = pay;
   });
-  game.gamble = { leader, pot, in: marks };
+  game.gamble = { leader, pot, in: marks, paid };
   pushEvent(game, { type: "gamble_start", mark: leader, pot, ante });
 }
 
 function resolveGamblePlay(game, item) {
   const g = game.gamble;
   if (!g || !isLiving(game, item.by)) return;
+  if (!g.paid || typeof g.paid !== "object") g.paid = {}; // a gamble stored before paid tracking
   const def = cardDef(item.card) || { effects: [] };
   pushEvent(game, { type: "resolve", mark: item.by, card: item.card, kind: "gamble" });
   for (const eff of def.effects || []) {
@@ -317,6 +320,7 @@ function resolveGamblePlay(game, item) {
         const pay = Math.min(n, game.players[m].gold);
         game.players[m].gold -= pay;
         g.pot += pay;
+        g.paid[m] = (g.paid[m] || 0) + pay;
       });
       g.leader = item.by;
     } else if (eff.op === "take_lead") {
@@ -328,15 +332,22 @@ function resolveGamblePlay(game, item) {
   pushEvent(game, { type: "gamble_lead", mark: g.leader, pot: g.pot });
 }
 
+// Pays the winner and returns the settled result (who won, the pot, and what
+// every gambler put in) for the result card; null when nobody is left to win.
 export function finishGamble(game) {
   const g = game.gamble;
   game.gamble = null;
-  if (!g) return;
+  if (!g) return null;
   const winner = isLiving(game, g.leader) ? g.leader : g.in.find((m) => isLiving(game, m));
-  if (!winner) return;
+  if (!winner) return null;
   const bonus = Math.max(0, traitOf(game.players[winner]).pot_bonus);
   game.players[winner].gold += g.pot + bonus;
-  pushEvent(game, { type: "gamble_win", mark: winner, pot: g.pot + bonus });
+  // Everyone who put coins in, even a gambler who went out mid-gamble.
+  const marks = game.seat_order.filter((m) => g.in.includes(m) || (g.paid && m in g.paid));
+  const paid = {};
+  marks.forEach((m) => { paid[m] = Math.max(0, Math.trunc(Number(g.paid && g.paid[m]) || 0)); });
+  pushEvent(game, { type: "gamble_win", mark: winner, pot: g.pot + bonus, paid });
+  return { winner, pot: g.pot, bonus, in: marks, paid };
 }
 
 // ---------- elimination + victory ----------

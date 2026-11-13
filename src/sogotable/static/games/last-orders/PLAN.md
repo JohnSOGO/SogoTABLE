@@ -85,6 +85,14 @@ play a **gamble** card (take the lead, or raise: everyone in pays more and you
 lead). Gamble cards can be answered with reactions like any other card. When a
 gamble window closes with nobody taking over, the leader wins the pot.
 
+**Result card + ACK (2026-11-13).** When a gamble settles, play holds on a
+result card (`gamble_result`, owned by `workers/games/last-orders/gamble-result.js`):
+the winner and what they won, and every other gambler's coins lost (and who
+went broke). Each human who was in the gamble taps **Got it** (`ACK_GAMBLE`);
+other moves are refused until then. Bots and auto seats never block, an
+all-bot gamble opens no card, and the hold lapses after 20 s so an absent
+player can't stall the table.
+
 ### Closing time (keeps games finite)
 
 From table round 8 every drink gets +1 buzz, +2 from round 12, +3 from 16.
@@ -197,7 +205,8 @@ game = {
                    line: [{ drink, spikes: [...] }], out: null | "passed_out" | "knocked_out" | "broke", out_order, pick_done } },
   turn: { mark, phase: "discard" | "action" | "order" | "drink", actions_left, act_at },
   reaction: null | { kind: "react" | "gamble", stack: [Item], closes_at, passed: [marks], plans: { [botMark]: { at, uid, target } | { at, pass: true } } },
-  gamble: null | { leader, pot, in: [marks] },
+  gamble: null | { leader, pot, in: [marks], paid: { [mark]: coins } },
+  gamble_result: null | { id, winner, pot, bonus, in, paid, need: [marks], acked: [marks], until },
   drink_deck, drink_discard, event_deck, event, events: [], skip_votes, winner, results,
 }
 Item = { uid, by, kind: "action" | "drink" | "gamble" | "reaction" | "spike", card, target, spikes, canceled, soften }
@@ -239,6 +248,7 @@ whether a bot will react is never visible early.
   turn: { mark, phase, actions_left },
   reaction: null | { kind, closes_at, stack: [{ uid, by, kind, card, target, canceled, soften }], passed: [marks], eligible: [marks] },
   gamble: null | { leader, pot, in },
+  gamble_result: null | { id, winner, pot, bonus, until, need, acked, rows: [{ mark, paid, net }] },
   event: null | eventId,
   drink_deck_count, last_drink: { drink, spikes, by, target } | null,
   me: { mark, hand: [{ uid, id }], playable: [uid], targets: { [uid]: [marks] }, can_pass, discard_max },

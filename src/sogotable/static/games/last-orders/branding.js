@@ -27,6 +27,24 @@ export const TURN_SUMMARY = {
     rough: "Rough one. Hydrate!",
   },
 };
+// The gamble result card (gamble-result.js): who won the pot, what each
+// gambler lost, and a "Got it" each human taps before play moves on.
+export const GAMBLE_RESULT = {
+  title: "Gamble settled!",
+  wins: (who) => `${who} wins the pot!`,
+  youWin: "You win the pot!",
+  youLost: (n) => `You lost ${n} ${Math.abs(Number(n)) === 1 ? "Coin" : "Coins"}`,
+  pot: (pot, bonus) => (bonus ? `Pot ${pot} + ${bonus} bonus` : `Pot ${pot}`),
+  lost: "lost",
+  won: "won",
+  put: (n) => `put in ${n}`,
+  now: (n) => `now ${n}`,
+  broke: "Broke — out!",
+  ack: "Got it",
+  acked: "Got it ✓",
+  waiting: (names) => `Waiting for ${names}…`,
+  watching: "Everyone's reading the result…",
+};
 export const coinWord = (n) => (Math.abs(Number(n)) === 1 ? STATS.gold.one : STATS.gold.name);
 export const cardWord = (n) => (Math.abs(Number(n)) === 1 ? "card" : "cards");
 export const drinkWord = (n) => (Math.abs(Number(n)) === 1 ? "drink" : "drinks");

@@ -1748,3 +1748,17 @@ PLACEMENT RECEIPT
     - Listed in REVIEW_EXPORT_FILES for the import-closure test
 - New owner row: none (games/ directory rows cover it)
 ```
+
+## Last Orders — gamble result card with ACK (2026-11-13)
+
+```
+PLACEMENT RECEIPT
+- Ask:          After a gamble resolves, show unmistakably who won and how much each player lost; hold play until every human in the gamble taps "Got it" (lapses after 20 s; bots/auto never block; all-bot tables never hold).
+- Verdict:      engine.js [EXISTING] per-mark paid tracking + result record; NEW workers/games/last-orders/gamble-result.js (hold lifecycle); rules.js [EXISTING, wiring only, +8 lines]; awaiting.js [EXISTING]; NEW src/sogotable/static/games/last-orders/gamble-result.js (card view); render.js mount, styles.js CSS, branding.js labels; review-export.js allowlist
+- Flow stage:   rules (state transition + timing hold) on the server; render + capture intent on the client
+- Considerations:
+    - Rejected reusing the reaction freeze (window is already closed when the gamble settles) and inlining the hold in rules.js (760/800 hub)
+    - Server computes winner, pot, paid and net; the card does no arithmetic
+    - Players who haven't acked appear in awaiting_marks for the short hold (accepted)
+- New owner row: none (games/ directory rows cover both new files)
+```

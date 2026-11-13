@@ -240,7 +240,7 @@ test("last orders: gambling — antes, take the lead, leader wins the pot", () =
   move(game, "P1", { type: "PLAY", uid: "a0" });
   move(game, "P2", { type: "PASS" });
   assert.equal(game.reaction.kind, "gamble");
-  assert.deepEqual(game.gamble, { leader: "P1", pot: 2, in: ["P1", "P2"] });
+  assert.deepEqual(game.gamble, { leader: "P1", pot: 2, in: ["P1", "P2"], paid: { P1: 1, P2: 1 } });
   assert.equal(game.players.P2.gold, 9);
   assert.equal(view(game, "P1").me.can_pass, false, "the leader holds no say");
   move(game, "P2", { type: "PLAY", uid: "b0" });
@@ -250,6 +250,69 @@ test("last orders: gambling — antes, take the lead, leader wins the pot", () =
   move(game, "P1", { type: "PASS" });
   assert.equal(game.gamble, null);
   assert.equal(game.players.P2.gold, 9 + 2 + 1);
+  assert.deepEqual(game.events.at(-1), { ...game.events.at(-1), type: "gamble_win", mark: "P2", pot: 3, paid: { P1: 1, P2: 1 } });
+});
+
+// P1 starts a gamble and P2 wins it with a raise, both human; returns the game
+// with the result card up.
+function settledGamble() {
+  const game = duel(["base:gorrum:arm-wrestle", "base:gorrum:headbutt"], ["base:gorrum:lucky-knuckles"]);
+  move(game, "P1", { type: "PLAY", uid: "a0" });
+  move(game, "P2", { type: "PASS" });
+  move(game, "P2", { type: "PLAY", uid: "b0" });
+  move(game, "P1", { type: "PASS" });
+  move(game, "P1", { type: "PASS" });
+  return game;
+}
+
+test("last orders: gamble result — clear winner and losses, held until every gambler taps Got it", () => {
+  const game = settledGamble();
+  const r = view(game, "P1").gamble_result;
+  assert.ok(r, "result card is up");
+  assert.equal(game.turn.phase, "action", "the turn waits behind the card");
+  assert.equal(r.winner, "P2");
+  assert.equal(r.pot, 2);
+  assert.equal(r.bonus, 1);
+  assert.deepEqual(r.rows, [{ mark: "P1", paid: 1, net: -1 }, { mark: "P2", paid: 1, net: 2 }]);
+  assert.deepEqual(r.need, ["P1", "P2"]);
+  assert.deepEqual(view(game, "P2").gamble_result, r, "everyone sees the same card");
+  assert.equal(view(game, "").next_due_at, r.until, "the hold lapses on its own");
+  // Play waits: the turn player can't carry on yet.
+  assert.throws(() => makeLastOrdersMove(game, "P1", { step: game.step, type: "END_ACTION" }), /Got it/);
+  makeLastOrdersMove(game, "P1", { type: "ACK_GAMBLE" });
+  makeLastOrdersMove(game, "P1", { type: "ACK_GAMBLE" }); // duplicate tap: harmless
+  assert.deepEqual(game.gamble_result.acked, ["P1"]);
+  const step = game.step;
+  makeLastOrdersMove(game, "P2", { type: "ACK_GAMBLE" });
+  assert.equal(game.gamble_result, null, "everyone acked: play moves on");
+  assert.ok(game.step > step);
+  assert.equal(game.turn.phase, "order", "the turn carries on to ordering");
+});
+
+test("last orders: gamble result — an absent gambler can't stall the table", () => {
+  const game = settledGamble();
+  makeLastOrdersMove(game, "P1", { type: "ACK_GAMBLE" });
+  assert.throws(() => makeLastOrdersMove(game, "P1", { type: "TICK" }), /Nothing is due/);
+  now = game.gamble_result.until;
+  makeLastOrdersMove(game, "P1", { type: "TICK" });
+  assert.equal(game.gamble_result, null);
+  // A stranger's ack, or one with no card up, does nothing.
+  makeLastOrdersMove(game, "P2", { type: "ACK_GAMBLE" });
+  assert.equal(game.gamble_result, null);
+});
+
+test("last orders: gamble result — bots never hold the table", () => {
+  const game = duel(["base:gorrum:arm-wrestle"], []);
+  game.players.P2.is_bot = true;
+  game.players.P2.level = 2;
+  makeLastOrdersMove(game, "P1", { step: game.step, type: "PLAY", uid: "a0" });
+  now += 60000;
+  makeLastOrdersMove(game, "P1", { type: "TICK" });
+  if (game.reaction) { now += 60000; makeLastOrdersMove(game, "P1", { type: "TICK" }); }
+  assert.ok(game.gamble_result, "the human gambler still gets the card");
+  assert.deepEqual(game.gamble_result.need, ["P1"]);
+  makeLastOrdersMove(game, "P1", { type: "ACK_GAMBLE" });
+  assert.equal(game.gamble_result, null);
 });
 
 test("last orders: out checks — passing out ends the night for that patron", () => {
