@@ -58,7 +58,23 @@ The clock only exists to move past an absent player (2026-11-13). So:
 - **Tapping the ring** (`PAUSE_TIMER` / `RESUME_TIMER`) pauses it for the whole
   table until someone taps again; bots' think time freezes too.
 
+- **Reading my own drink.** When a human's drink comes up, the clock waits
+  up to 10 s (`DRINK_READ_MS`) under a draining bar, so they can see what it
+  does. **Cheers** starts the clock early (`ACK_DRINK`). With no answer in
+  hand, it drinks the drink straight down (a pass).
+
 These moves never bump `step`, so a stamped play racing a ping still lands.
+
+### End-of-my-turn summary (client only)
+
+When the turn passes off me, `turn-summary.js` compares my Grit, Buzz and
+Coins with the snapshot taken at the end of my previous turn. Rounds are
+global and turns are local, so this covers a full lap of the table. A small
+card pops up with the three changes, counted up, with a mood face. Buzz going
+up counts against me. It closes on a tap, after ~5 s, or as soon as a
+reaction I can answer opens. The baseline is kept per room, epoch and mark in
+sessionStorage, and the first look only primes it, so a reload never shows a
+fake card.
 
 ### Gambling rounds
 

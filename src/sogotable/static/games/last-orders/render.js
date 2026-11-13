@@ -14,6 +14,7 @@ import { playClick } from "../../sound.js";
 import { tableBgCssUrl } from "./art.js";
 import { GAME_EMOJI, GAME_NAME, TURN_STEPS, UI } from "./branding.js";
 import { calloutFeed, calloutReset } from "./callout.js";
+import { turnSummaryFeed, turnSummaryReset } from "./turn-summary.js";
 import { fxAfterPaint, fxReset, reducedMotion } from "./fx.js";
 import { controlsHtml, handHtml, statLabels } from "./hand.js";
 import { wireGestures } from "./gestures.js";
@@ -105,6 +106,7 @@ export function renderLastOrdersGame(ctx) {
     S = freshState(key);
     fxReset(key);
     calloutReset(key);
+    turnSummaryReset(key);
   }
   S.lastCtx = ctx;
   const info = seatInfo(ctx);
@@ -325,6 +327,7 @@ function maybeAutoPass(ctx, info) {
   const me = info.me;
   const g = ctx.game;
   if (!prefs().autopass || !me || !me.can_pass || (me.playable || []).length || S.sending) return;
+  if (g.reaction && g.reaction.pause_why === "ack") return; // let me read my drink first
   if (S.autoPassStep === g.step) return;
   S.autoPassStep = g.step;
   clearTimeout(S.autoPassTimer);
@@ -393,6 +396,7 @@ function onAct(act, value) {
       if (me && S.sel && playable.has(S.sel) && (me.targets[S.sel] || []).includes(value)) { playClick(); quickPlay(me, S.sel, value); return; }
       break;
     case "pass": send({ type: "PASS" }); return;
+    case "ack": send({ type: "ACK_DRINK" }, { stamp: false }); return;
     case "end_action": send({ type: "END_ACTION" }); return;
     case "discard": send({ type: "DISCARD", uids: [...S.discardSel] }).then((ok) => { if (ok) S.discardSel = new Set(); }); return;
     default: return;
@@ -483,6 +487,7 @@ function buildViewModel(ctx, info) {
     mode, sel: S.sel, target: S.target, discardSel: S.discardSel, orderTarget: S.orderTarget, orderSpike: S.orderSpike,
     targetables, chosenTarget, sending: S.sending, orderDeck: mode === "order",
     canPause: Boolean(info.mySeat && !info.mySeat.is_bot),
+    ackLeft: g.reaction && g.reaction.lapse_at ? Number(g.reaction.lapse_at) - clockOffset(g) - Date.now() : 0,
     barTarget: (mode === "action" || mode === "window") && Boolean(S.sel) && (me.playable || []).includes(S.sel) && ((me.targets && me.targets[S.sel]) || []).length <= 1, ghost: S.ghost, primerOpen: S.primerOpen,
     autoPassedStep: S.autoPassed === g.step, skip: skipInfo(ctx, info),
   };
@@ -618,6 +623,7 @@ function paint(ctx, fresh) {
   fxAfterPaint(root, { fresh, items: g.reaction ? g.reaction.stack : [], game: g, labels: reducedMotion() ? null : statLabels });
   calloutFeed(mountedRoot, fresh, { myMark: vm.myMark, players: vm.players, defs: vm.defs, nameOf: vm.nameOf, theme: vm.theme, esc: vm.esc },
     { enabled: prefs().callouts && g.status === "playing", voice: prefs().voice });
+  turnSummaryFeed(mountedRoot, g, { myMark: vm.myMark, me: vm.me, players: vm.players, esc: vm.esc, reduced: reducedMotion() });
 }
 
 // When my action step or a reaction window opens, scroll the hand back to its

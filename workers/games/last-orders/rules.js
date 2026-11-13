@@ -237,7 +237,8 @@ function pushItem(game, item, now) {
   w.closes_at = now + windowMs(game);
   w.show_until = now + showMs(game);
   w.paused_at = 0; // a new card on the table restarts the clock
-  w.held = false;
+  w.lapse_at = 0;
+  w.why = null;
   planBots(game, now);
   pushEvent(game, { type: w.stack.length > 1 ? "react" : "play", uid: item.uid, mark: item.by, card: item.card, kind: item.kind, target: item.target, spikes: item.spikes });
   bump(game);
@@ -259,7 +260,7 @@ function planBots(game, now) {
 
 function stepWindow(game, now) {
   const w = game.reaction;
-  if (w.paused_at && w.held && now >= w.paused_at + HOLD_CAP_MS) unpause(w, now); // a card held by a vanished phone
+  if (w.paused_at && w.lapse_at && now >= w.lapse_at) unpause(w, now); // a hold / drink read that ran its course
   if (w.paused_at) return false; // frozen: no bot answers, no timeout, until resumed
   const due = Object.keys(w.plans).filter((m) => w.plans[m].at <= now).sort((a, b) => w.plans[a].at - w.plans[b].at);
   if (due.length) {
@@ -413,6 +414,7 @@ function startDrink(game, now) {
   if (!entry.drink) { game.turn.phase = "done"; return; }
   openWindow(game, "react", now);
   pushItem(game, { uid: nextUid(game), by: entry.by || null, kind: "drink", card: entry.drink, target: mark, spikes: entry.spikes || [] }, now);
+  if (!isBotLike(seat) && humansPlaying(game)) freeze(game.reaction, now, "ack", mark, DRINK_READ_MS);
 }
 
 function advanceBotClock(game, now) {
@@ -469,7 +471,7 @@ function nextDueAt(game) {
   if (game.status !== "playing" || game.phase !== "play") return 0;
   const w = game.reaction;
   if (w) {
-    if (w.paused_at) return w.held ? w.paused_at + HOLD_CAP_MS : 0;
+    if (w.paused_at) return w.lapse_at || 0;
     const plans = Object.values(w.plans).map((p) => p.at);
     const allPassed = windowEligible(game).every((m) => w.passed.includes(m));
     return Math.min(w.closes_at, ...plans, ...(allPassed ? [Math.max(Number(w.show_until) || 0, 1)] : []));
@@ -489,16 +491,26 @@ function unpause(w, now) {
   if (w.show_until) w.show_until += shift;
   Object.values(w.plans).forEach((p) => { p.at += shift; });
   w.paused_at = 0;
-  w.held = false;
+  w.lapse_at = 0;
+  w.why = null;
+}
+
+// Freeze the open reaction for a reason; lapse_at 0 = until someone resumes.
+function freeze(w, now, why, mark, lapseMs) {
+  w.paused_at = now;
+  w.lapse_at = lapseMs ? now + lapseMs : 0;
+  w.why = why;
+  w.paused_by = mark;
 }
 
 function doPause(game, mark, type, now) {
   const w = game.reaction;
   if (!w) throw new Error("There's no countdown running right now.");
   if (type === "PAUSE_TIMER") {
-    if (w.paused_at && !w.held) return;
-    if (!w.paused_at) w.paused_at = now;
-    w.held = false; // a tap pause stays until someone taps again
+    if (w.paused_at && !w.lapse_at) return;
+    if (w.paused_at) w.lapse_at = 0; // a hold / drink read becomes a tap pause
+    else freeze(w, now, "tap", mark, 0);
+    w.why = "tap";
     w.paused_by = mark;
     pushEvent(game, { type: "pause", mark });
     return;
@@ -519,11 +531,21 @@ function doStillHere(game, mark, hold, now) {
   const w = game.reaction;
   if (!w || w.passed.includes(mark) || !windowEligible(game).includes(mark)) return;
   if (hold) {
-    if (!w.paused_at) { w.paused_at = now; w.held = true; w.paused_by = mark; }
+    if (!w.paused_at) freeze(w, now, "hold", mark, HOLD_CAP_MS);
     return;
   }
-  if (w.paused_at && w.held) unpause(w, now);
+  if (w.paused_at && w.why === "hold" && w.paused_by === mark) unpause(w, now);
   if (!w.paused_at) w.closes_at = Math.max(w.closes_at, now + windowMs(game));
+}
+
+// The drink step (2026-11-13): a human's own drink is shown for up to
+// DRINK_READ_MS before the answer clock starts, so they can take in what it
+// does. "Cheers" (ACK_DRINK) from the drinker starts the clock early; a
+// reaction played on it starts a fresh clock as usual.
+const DRINK_READ_MS = 10000;
+function doAckDrink(game, mark, now) {
+  const w = game.reaction;
+  if (w && w.paused_at && w.why === "ack" && w.paused_by === mark) unpause(w, now);
 }
 
 // ---------- skip vote (a stuck human is auto-played until they return) ----------
@@ -580,6 +602,7 @@ export function makeLastOrdersMove(game, mark, action) {
   }
   advance(game, now);
   if (game.status === "complete") { finish(game); return; }
+  if (type === "ACK_DRINK") { doAckDrink(game, mark, now); finish(game); return; }
   if (type === "STILL_HERE") { doStillHere(game, mark, Boolean(a.hold), now); finish(game); return; }
   if (type === "PAUSE_TIMER" || type === "RESUME_TIMER") { doPause(game, mark, type, now); finish(game); return; }
   if (type === "SKIP_PLAYER") { doSkip(game, mark, String(a.target || ""), now); advance(game, now); finish(game); return; }
@@ -608,6 +631,7 @@ export function makeLastOrdersMove(game, mark, action) {
         throw new Error("There's nothing to pass on right now.");
       }
       game.reaction.passed.push(mark);
+      doAckDrink(game, mark, now); // passing on my own drink is my "cheers"
       break;
     default: throw new Error(`Unknown action "${type}".`);
   }
@@ -658,7 +682,7 @@ export function lastOrdersGameToDict(game) {
     }),
     turn: game.turn ? { mark: game.turn.mark, phase: game.turn.phase, actions_left: game.turn.actions_left } : null,
     reaction: w ? {
-      kind: w.kind, closes_at: w.closes_at, paused_left: w.paused_at ? Math.max(0, w.closes_at - w.paused_at) : 0, paused_by: w.paused_at ? w.paused_by || null : null, held: Boolean(w.paused_at && w.held), passed: [...w.passed], eligible: windowEligible(game),
+      kind: w.kind, closes_at: w.closes_at, paused_left: w.paused_at ? Math.max(0, w.closes_at - w.paused_at) : 0, paused_by: w.paused_at ? w.paused_by || null : null, pause_why: w.paused_at ? w.why || "tap" : null, lapse_at: w.paused_at ? w.lapse_at || 0 : 0, passed: [...w.passed], eligible: windowEligible(game),
       stack: w.stack.map((it) => ({ uid: it.uid, by: it.by, kind: it.kind, card: it.card, target: it.target, canceled: Boolean(it.canceled), soften: it.soften || 0, spikes: [...(it.spikes || [])] })),
     } : null,
     gamble: game.gamble ? { leader: game.gamble.leader, pot: game.gamble.pot, in: [...game.gamble.in] } : null,
@@ -732,5 +756,5 @@ function normalizeLastOrdersGame(game) {
   if (game.turn && !game.players[game.turn.mark]) game.turn = null;
   if (game.reaction && !(Array.isArray(game.reaction.stack) && Array.isArray(game.reaction.passed))) game.reaction = null;
   if (game.reaction && (!game.reaction.plans || typeof game.reaction.plans !== "object")) game.reaction.plans = {};
-  if (game.reaction) { game.reaction.paused_at = Math.max(0, Number(game.reaction.paused_at) || 0); game.reaction.held = Boolean(game.reaction.held); }
+  if (game.reaction) { game.reaction.paused_at = Math.max(0, Number(game.reaction.paused_at) || 0); game.reaction.lapse_at = Math.max(0, Number(game.reaction.lapse_at) || 0); }
 }

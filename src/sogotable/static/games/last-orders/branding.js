@@ -15,6 +15,18 @@ export const STATS = {
   buzz: { name: "Buzz", icon: "🍺", hint: "how drunk you are — out when it reaches your Grit" },
   gold: { name: "Coins", one: "Coin", icon: "🪙", hint: "your purse — out when it hits 0" },
 };
+// The end-of-my-turn summary card (turn-summary.js).
+export const TURN_SUMMARY = {
+  title: "Your turn's done!",
+  since: "Since the end of your last turn · tap to close",
+  face: { good: "🥳", mixed: "😅", steady: "🙂", rough: "😵‍💫" },
+  mood: {
+    good: "What a turn! The bar loves you.",
+    mixed: "Swings and roundabouts.",
+    steady: "Steady as a barstool.",
+    rough: "Rough one. Hydrate!",
+  },
+};
 export const coinWord = (n) => (Math.abs(Number(n)) === 1 ? STATS.gold.one : STATS.gold.name);
 export const cardWord = (n) => (Math.abs(Number(n)) === 1 ? "card" : "cards");
 export const drinkWord = (n) => (Math.abs(Number(n)) === 1 ? "drink" : "drinks");
@@ -113,6 +125,11 @@ export const UI = {
   orderPrompt: "Buy a round: drag a drink from the deck onto a rival. To spike it, drag a spike card onto them instead.",
   spikeWith: (name) => `Spiked with ${name}`,
   drinkPrompt: "Bottoms up…",
+  drinkRead: (drink) => `Your drink: ${drink}. Have a look, then drink up.`,
+  drinkReadAnswer: (drink) => `Your drink: ${drink}. Drag a card onto the table to answer it, or start the clock.`,
+  drinkReadOther: (who, drink) => `${who} eyes up their ${drink}…`,
+  cheers: "Cheers! 🍻",
+  cheersClock: "Cheers 🍻 start the clock",
   // windows
   reactPrompt: "Anyone can answer! Drag a card up onto the table, or pass.",
   reactMine: "Your card is on top — the others may answer.",

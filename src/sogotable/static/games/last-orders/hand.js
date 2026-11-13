@@ -92,6 +92,7 @@ function phaseParts(vm) {
     if (w.kind === "gamble" && !top) {
       prompt = g.gamble && g.gamble.leader === vm.myMark ? UI.gambleLeading(g.gamble.pot) : UI.gamblePrompt(vm.nameOf(g.gamble ? g.gamble.leader : ""), g.gamble ? g.gamble.pot : 0);
     } else if (top && top.by === vm.myMark) prompt = UI.reactMine;
+    if (top && top.kind === "drink" && w.pause_why === "ack") return drinkRead(vm, top, me);
     if (me.can_pass) {
       if (!(me.playable || []).length) prompt = `${prompt} ${UI.reactNothing}`;
       const pc = playControls(vm);
@@ -122,6 +123,19 @@ function phaseParts(vm) {
     };
   }
   return { prompt: UI.drinkPrompt, body: "" };
+}
+
+// The drink step's read (2026-11-13): my own drink is shown for up to ~10 s
+// before the answer clock starts. With an answer in hand, Cheers starts the
+// clock; with none, Cheers drinks it straight down (a pass).
+const READ_MS = 10000; // rules.js DRINK_READ_MS
+function drinkRead(vm, top, me) {
+  const drink = thingName(top.card);
+  const bar = `<div class="lo-ackbar" aria-hidden="true"><span style="animation-duration:${READ_MS}ms;animation-delay:${-(READ_MS - Math.max(0, Math.min(READ_MS, vm.ackLeft)))}ms"></span></div>`;
+  if (top.target !== vm.myMark) return { prompt: UI.drinkReadOther(vm.nameOf(top.target), drink), body: bar };
+  const answers = (me.playable || []).length > 0;
+  const cheers = answers ? btn(vm, "ack", UI.cheersClock, { primary: true }) : btn(vm, "pass", UI.cheers, { primary: true });
+  return { prompt: answers ? UI.drinkReadAnswer(drink) : UI.drinkRead(drink), body: `${bar}<div class="lo-btns">${cheers}</div>` };
 }
 
 function waitingOn(vm) {
