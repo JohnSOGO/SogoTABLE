@@ -111,6 +111,13 @@ Sobering Brew 1→2 and Staff Sweep 5→4; Gorrum Knuckle Crack 1→2; Marrow Ru
 Ration 1→2; Sprocket Rocket Boots 2→3 and no self-damage on Boom Bottle and
 Jackpot-o-Matic; Bim Spit Take 2→3 and Punchline 2→3.
 
+**2026-11-13 Storm Road check** (200,000 games, 15 patrons including Longshanks
+Ohd from PR #52). The three new patrons landed near even with no changes:
+Monsoon +0.5, Longshanks +1.2, NotePick −1.1 points. The bigger roster and the
+Storm drinks pushed Hrolga back up (+4.3) and Gorrum down (−2.5), so: Hrolga
+Seen Worse 2→1 and Tasting Flight 2→3; Gorrum Bouncer Says No 2→3. Every
+patron now sits between −2.2 and +1.5.
+
 Notes: one Grit (or one starting Buzz) is worth about 7–8 points of win rate,
 so tune with card copies first. Strong bots (level 4) focus the weakest seat,
 which punishes low-Grit patrons (Bim) more than mixed tables do. Turn order

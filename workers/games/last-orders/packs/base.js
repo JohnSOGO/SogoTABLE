@@ -22,7 +22,7 @@ export const BASE_PACK = {
         { id: "base:gorrum:not-on-my-watch", kind: "reaction", copies: 2, target: "none", answers: ["action"], needs: "targeted", effects: [{ op: "negate" }] },
         { id: "base:gorrum:no-thanks-big-fella", kind: "reaction", copies: 2, target: "none", answers: ["drink"], needs: "targeted", effects: [{ op: "negate" }] },
         { id: "base:gorrum:thick-skull", kind: "reaction", copies: 2, target: "none", answers: ["action"], needs: "targeted", effects: [{ op: "soften", n: 2 }] },
-        { id: "base:gorrum:bouncer-says-no", kind: "reaction", copies: 2, target: "none", answers: ANY, needs: "any", effects: [{ op: "negate" }] },
+        { id: "base:gorrum:bouncer-says-no", kind: "reaction", copies: 3, target: "none", answers: ANY, needs: "any", effects: [{ op: "negate" }] },
         { id: "base:gorrum:toss-it-back", kind: "reaction", copies: 1, target: "none", answers: ["action"], needs: "targeted", effects: [{ op: "reflect" }] },
         { id: "base:gorrum:lucky-knuckles", kind: "gamble", copies: 3, effects: [{ op: "take_lead" }] },
         { id: "base:gorrum:slam-the-table", kind: "gamble", copies: 2, effects: [{ op: "raise", n: 1 }] },
