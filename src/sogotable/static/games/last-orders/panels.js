@@ -69,6 +69,12 @@ function outBadge(vm, p) {
   return p.out ? `<span class="lo-out-badge">${OUT_ICONS[p.out] || ""} ${vm.esc(outText(p.out))}</span>` : "";
 }
 
+// A seat flashes red while a card someone else aimed at it is still on the bar.
+function underAttack(vm, mark) {
+  const stack = vm.reaction && Array.isArray(vm.reaction.stack) ? vm.reaction.stack : [];
+  return stack.some((it) => it.target === mark && it.by && it.by !== mark && it.kind !== "drink");
+}
+
 // ---------- opponent strip ----------
 export function oppsHtml(vm) {
   const opps = vm.players.filter((p) => p.mark !== vm.myMark);
@@ -80,7 +86,7 @@ function seatHtml(vm, p) {
   const turn = vm.turnMark === p.mark && !p.out;
   const targetable = vm.targetables.includes(p.mark);
   const chosen = vm.chosenTarget === p.mark;
-  const cls = ["lo-seat", turn ? "lo-turn" : "", p.out ? "lo-is-out" : "", targetable ? "lo-targetable" : "", chosen ? "lo-chosen" : ""].filter(Boolean).join(" ");
+  const cls = ["lo-seat", underAttack(vm, p.mark) ? "lo-defending" : "", turn ? "lo-turn" : "", p.out ? "lo-is-out" : "", targetable ? "lo-targetable" : "", chosen ? "lo-chosen" : ""].filter(Boolean).join(" ");
   const tags = [p.is_bot ? UI.bot : "", p.auto ? UI.auto : ""].filter(Boolean).map((t) => `<em>${vm.esc(t)}</em>`).join("");
   const attrs = targetable ? ` data-lo-act="target" data-v="${vm.esc(p.mark)}" role="button" tabindex="0"` : "";
   return `<div class="${cls}" data-lo-seat="${vm.esc(p.mark)}"${attrs} style="--lo-seat:${vm.esc(vm.colorOf(p.mark))}">
@@ -100,7 +106,7 @@ export function mineHtml(vm) {
   if (!p) return `<div class="lo-myseat lo-myseat-empty">${vm.esc(UI.spectating)}</div>`;
   const turn = vm.turnMark === p.mark && !p.out;
   const ch = CHARACTERS[p.character] || {};
-  return `<div class="lo-myseat${turn ? " lo-turn" : ""}${p.out ? " lo-is-out" : ""}" data-lo-seat="${vm.esc(p.mark)}" style="--lo-seat:${vm.esc(vm.colorOf(p.mark))}">
+  return `<div class="lo-myseat${underAttack(vm, p.mark) ? " lo-defending" : ""}${turn ? " lo-turn" : ""}${p.out ? " lo-is-out" : ""}" data-lo-seat="${vm.esc(p.mark)}" style="--lo-seat:${vm.esc(vm.colorOf(p.mark))}">
       <div class="lo-seat-face">${portrait(vm, p.character, 56)}</div>
       <div class="lo-seat-body">
         <div class="lo-seat-name"><span>${vm.esc(vm.nameOf(p.mark))}</span><em>${vm.esc(ch.name || "")}</em></div>

@@ -246,6 +246,9 @@ const PLAY = `
 .last-orders-root .lo-result-why{font-size:12.5px;font-weight:800;white-space:nowrap}
 
 /* fx layer (fx.js) */
+.last-orders-root .lo-defending{animation:lo-defender 1s ease-in-out infinite}
+@keyframes lo-defender{0%,100%{box-shadow:0 0 0 3px var(--lo-grit),0 0 14px 2px rgba(226,71,91,.55);background:color-mix(in srgb,var(--lo-grit) 18%,var(--lo-panel))}50%{box-shadow:0 0 0 2px rgba(226,71,91,.35),0 0 0 rgba(226,71,91,0);background:var(--lo-panel)}}
+@media (prefers-reduced-motion:reduce){.last-orders-root .lo-defending{animation:none;box-shadow:0 0 0 3px var(--lo-grit)}}
 /* play callout (callout.js): a banner pinned to the top of the viewport */
 .last-orders-root .lo-callout{position:sticky;top:8px;z-index:20;height:0;margin-bottom:-8px;overflow:visible;pointer-events:none;display:flex;align-items:flex-start;justify-content:center;grid-column:1 / -1;grid-row:1}
 .last-orders-root .lo-co{display:flex;align-items:center;gap:10px;width:min(94%,520px);padding:8px 10px;border-radius:16px;background:var(--lo-panel);color:var(--lo-ink);border:2px solid var(--lo-co-k,var(--lo-k-action));box-shadow:0 10px 28px rgba(0,0,0,.35);animation:lo-co-in .42s cubic-bezier(.2,.8,.3,1.2) both}
