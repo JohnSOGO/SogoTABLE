@@ -105,6 +105,9 @@ const LIGHT = `
 .last-orders-root .lo-chip-hot{background:rgba(180,40,30,.8)}
 .last-orders-root .lo-chip-deck svg{width:12px;height:17px;border-radius:2px}
 .last-orders-root .lo-ring-wrap{position:relative;margin-left:auto;width:40px;height:40px;flex:none;padding:0;border:0;background:none;color:inherit;font:inherit}
+.last-orders-root .lo-ackbar{height:6px;margin:2px 0 8px;border-radius:3px;background:rgba(0,0,0,.12);overflow:hidden}
+.last-orders-root .lo-ackbar span{display:block;height:100%;background:var(--lo-turn);transform-origin:left;animation:lo-ack linear forwards}
+@keyframes lo-ack{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 .last-orders-root button.lo-ring-wrap{width:48px;height:48px;cursor:pointer;touch-action:manipulation}
 .last-orders-root button.lo-ring-wrap .lo-ring{width:48px;height:48px}
 .last-orders-root .lo-ring-icon{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:9px;line-height:1;background:rgba(30,16,8,.9);color:#fff;border:1px solid rgba(255,255,255,.35)}

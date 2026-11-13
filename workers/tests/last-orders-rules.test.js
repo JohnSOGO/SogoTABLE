@@ -142,7 +142,7 @@ test("last orders: a touch from a player who can answer tops the clock up; a hel
   assert.equal(game.reaction.closes_at, now + 8000);
   now += 2000;
   makeLastOrdersMove(game, "P2", { type: "STILL_HERE", hold: true });
-  assert.ok(view(game, "P2").reaction.held);
+  assert.equal(view(game, "P2").reaction.pause_why, "hold");
   now += 15_000;
   assert.throws(() => makeLastOrdersMove(game, "P1", { type: "TICK" }), /Nothing is due/);
   makeLastOrdersMove(game, "P2", { type: "STILL_HERE", hold: false });
@@ -176,6 +176,28 @@ test("last orders: a stale stamp is rejected loudly; a duplicate pass is ignored
   move(game, "P1", { type: "PLAY", uid: "a0", target: "P2" });
   assert.throws(() => makeLastOrdersMove(game, "P2", { type: "PLAY", uid: "b0", step: stale }), /moved on/);
   assert.throws(() => move(game, "P1", { type: "PASS" }), /nothing to pass/, "can't pass on your own card");
+});
+
+test("last orders: a human's own drink is shown before its clock starts; cheers starts it early", () => {
+  const game = duel([], []);
+  game.turn.phase = "order";
+  game.players.P1.line = [{ drink: "base:drink:house-ale", spikes: [], by: "P2" }];
+  move(game, "P1", { type: "ORDER", target: "P2" });
+  const w = view(game, "P1").reaction;
+  assert.equal(w.pause_why, "ack");
+  assert.equal(w.lapse_at, now + 10000);
+  assert.equal(w.paused_left, 8000, "the answer clock waits, full");
+  makeLastOrdersMove(game, "P2", { type: "ACK_DRINK" }); // only the drinker can cheers
+  assert.equal(view(game, "P1").reaction.pause_why, "ack");
+  now += 4000;
+  makeLastOrdersMove(game, "P1", { type: "ACK_DRINK" });
+  assert.equal(view(game, "P1").reaction.pause_why, null);
+  assert.equal(game.reaction.closes_at, now + 8000);
+  // Unanswered, the read lapses by itself and the clock then runs out.
+  game.players.P2.line = [{ drink: "base:drink:house-ale", spikes: [], by: "P1" }];
+  now += 8000;
+  makeLastOrdersMove(game, "P1", { type: "TICK" });
+  assert.equal(game.turn.mark, "P2");
 });
 
 test("last orders: refusing a drink, and drinks raise buzz with closing time", () => {

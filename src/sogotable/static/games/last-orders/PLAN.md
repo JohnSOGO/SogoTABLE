@@ -58,6 +58,11 @@ The clock only exists to move past an absent player (2026-11-13). So:
 - **Tapping the ring** (`PAUSE_TIMER` / `RESUME_TIMER`) pauses it for the whole
   table until someone taps again; bots' think time freezes too.
 
+- **Reading my own drink.** When a human's drink comes up, the clock waits
+  up to 10 s (`DRINK_READ_MS`) under a draining bar, so they can see what it
+  does. **Cheers** starts the clock early (`ACK_DRINK`). With no answer in
+  hand, it drinks the drink straight down (a pass).
+
 These moves never bump `step`, so a stamped play racing a ping still lands.
 
 ### Gambling rounds

@@ -113,6 +113,11 @@ export const UI = {
   orderPrompt: "Buy a round: drag a drink from the deck onto a rival. To spike it, drag a spike card onto them instead.",
   spikeWith: (name) => `Spiked with ${name}`,
   drinkPrompt: "Bottoms up…",
+  drinkRead: (drink) => `Your drink: ${drink}. Have a look, then drink up.`,
+  drinkReadAnswer: (drink) => `Your drink: ${drink}. Drag a card onto the table to answer it, or start the clock.`,
+  drinkReadOther: (who, drink) => `${who} eyes up their ${drink}…`,
+  cheers: "Cheers! 🍻",
+  cheersClock: "Cheers 🍻 start the clock",
   // windows
   reactPrompt: "Anyone can answer! Drag a card up onto the table, or pass.",
   reactMine: "Your card is on top — the others may answer.",
