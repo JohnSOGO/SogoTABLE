@@ -9,12 +9,13 @@
 //   grit / buzz / gold → "+2" / "−3" floats over that seat's stat chip
 //   grit damage        → the seat shakes
 //   new stack card     → flies in from whoever played it (drinks flip over)
+//   drink ordered      → a mug slides from the buyer to the drinker's seat
 //   gamble ante/raise  → coins slide from each gambler into the pot
 //   gamble win / steal → coins slide from the pot / the victim to the winner
 //   out                → a tipsy wobble, then the seat slumps (CSS end state)
 //   win                → confetti-ish cheers over the winner
 // prefers-reduced-motion: nothing runs (render.js still shows end states).
-import { coinSvg } from "./art.js";
+import { coinSvg, mugIconSvg } from "./art.js";
 
 let FX = { key: "", potRect: null, seenItems: new Set(), primed: false };
 
@@ -92,9 +93,9 @@ function coins(root, from, to, n, delay = 0) {
   for (let i = 0; i < count; i += 1) {
     const node = document.createElement("div");
     node.className = "lo-flycoin";
-    node.innerHTML = coinSvg({ size: 18 });
-    node.style.left = `${from.cx - 9}px`;
-    node.style.top = `${from.cy - 9}px`;
+    node.innerHTML = coinSvg({ size: 22 });
+    node.style.left = `${from.cx - 11}px`;
+    node.style.top = `${from.cy - 11}px`;
     L.appendChild(node);
     if (!canAnimate(node)) { node.remove(); continue; }
     const dx = to.cx - from.cx; const dy = to.cy - from.cy;
@@ -103,7 +104,48 @@ function coins(root, from, to, n, delay = 0) {
       { transform: "translate(0,0) scale(.7)", opacity: 0 },
       { transform: `translate(${dx * 0.5}px, ${dy * 0.5 + lift}px) scale(1.05)`, opacity: 1, offset: 0.5 },
       { transform: `translate(${dx}px, ${dy}px) scale(.8)`, opacity: 0.2 },
-    ], { duration: 640, delay: delay + i * 70, easing: "ease-in-out", fill: "both" }).onfinish = () => node.remove();
+    ], { duration: 950, delay: delay + i * 110, easing: "ease-in-out", fill: "both" }).onfinish = () => node.remove();
+  }
+}
+
+function mugFlight(root, from, to) {
+  const L = layer(root);
+  if (!L || !from || !to) return;
+  const node = document.createElement("div");
+  node.className = "lo-flycoin lo-flymug";
+  node.innerHTML = mugIconSvg({ size: 28 });
+  node.style.left = `${from.cx - 14}px`;
+  node.style.top = `${from.cy - 14}px`;
+  L.appendChild(node);
+  if (!canAnimate(node)) { node.remove(); return; }
+  const dx = to.cx - from.cx; const dy = to.cy - from.cy;
+  node.animate([
+    { transform: "translate(0,0) scale(.6) rotate(0)", opacity: 0 },
+    { transform: `translate(${dx * 0.15}px, ${dy * 0.15 - 10}px) scale(1.2) rotate(-8deg)`, opacity: 1, offset: 0.2 },
+    { transform: `translate(${dx * 0.85}px, ${dy * 0.85 - 10}px) scale(1.1) rotate(6deg)`, opacity: 1, offset: 0.8 },
+    { transform: `translate(${dx}px, ${dy}px) scale(.7) rotate(0)`, opacity: 0 },
+  ], { duration: 1000, easing: "ease-in-out", fill: "both" }).onfinish = () => node.remove();
+}
+
+// Gold moves: a steal/collect is a loss (by = the taker) followed at once by
+// the taker's matching gain, so those coins fly payer → taker (drawn on the
+// loss; the paired gain is skipped). Any other gain flies from the bank (the
+// bar) to the seat, any other loss from the seat into the bank.
+function isTransferGain(prev, e) {
+  return prev && prev.type === "gold" && Number(prev.n) < 0 && prev.by === e.mark && Number(prev.n) === -Number(e.n);
+}
+function goldFlight(root, e, prev, next) {
+  const n = Number(e.n) || 0;
+  if (!n || !e.mark) return;
+  const seat = rectIn(root, statEl(root, e.mark, "gold"));
+  const bank = rectIn(root, root.querySelector("[data-lo-pot]") || root.querySelector(":scope > .lo-bar"));
+  if (n > 0) {
+    if (isTransferGain(prev, e)) return;
+    coins(root, bank, seat, n);
+  } else if (next && next.type === "gold" && e.by && e.by !== e.mark && next.mark === e.by && Number(next.n) === -n) {
+    coins(root, seat, rectIn(root, statEl(root, e.by, "gold")), -n);
+  } else {
+    coins(root, seat, bank, -n);
   }
 }
 
@@ -120,11 +162,15 @@ function flyIn(root, el, fromRect, isDrink) {
       { transform: "translate(0,0) scale(1) rotateY(0deg)", opacity: 1 },
     ], { duration: 620, easing: "cubic-bezier(.2,.7,.3,1)" });
   } else {
+    // Slide out of the player's seat face-down, flip up big over the bar
+    // (the reveal beat), then settle onto the stack.
     el.animate([
-      { transform: `translate(${dx}px, ${dy}px) scale(.4) rotate(-14deg)`, opacity: 0.3 },
-      { transform: "translate(0,0) scale(1.08) rotate(2deg)", opacity: 1, offset: 0.7 },
+      { transform: `translate(${dx}px, ${dy}px) scale(.35) rotate(-14deg) rotateY(180deg)`, opacity: 0.35 },
+      { transform: `translate(${dx * 0.3}px, ${dy * 0.3 - 24}px) scale(.9) rotate(-6deg) rotateY(90deg)`, opacity: 1, offset: 0.45 },
+      { transform: "translate(0,-14px) scale(1.28) rotate(2deg) rotateY(0deg)", opacity: 1, offset: 0.68 },
+      { transform: "translate(0,-14px) scale(1.28) rotate(2deg)", opacity: 1, offset: 0.84 },
       { transform: "translate(0,0) scale(1) rotate(0)", opacity: 1 },
-    ], { duration: 460, easing: "cubic-bezier(.2,.7,.3,1)" });
+    ], { duration: 1150, easing: "cubic-bezier(.25,.7,.3,1)" });
   }
 }
 
@@ -197,9 +243,9 @@ export function fxAfterPaint(root, { fresh, items, game, labels }) {
     if (stat === "grit" && n < 0) shake(seatEl(root, mark), n <= -3);
   });
 
-  (fresh || []).forEach((e) => {
-    if (e.type === "gold" && Number(e.n) < 0 && e.by && e.by !== e.mark) {
-      coins(root, rectIn(root, statEl(root, e.mark, "gold")), rectIn(root, statEl(root, e.by, "gold")), -Number(e.n));
+  (fresh || []).forEach((e, i) => {
+    if (e.type === "gold") {
+      goldFlight(root, e, fresh[i - 1], fresh[i + 1]);
     } else if (e.type === "gamble_start" || (e.type === "gamble_lead" && potRect)) {
       const marks = game && game.gamble ? game.gamble.in : [];
       if (e.type === "gamble_start") marks.forEach((m, i) => coins(root, rectIn(root, statEl(root, m, "gold")), potRect, 1, i * 60));
@@ -207,6 +253,8 @@ export function fxAfterPaint(root, { fresh, items, game, labels }) {
     } else if (e.type === "gamble_win") {
       const from = potRect || prevPot;
       coins(root, from, rectIn(root, statEl(root, e.mark, "gold")), Number(e.pot) || 3);
+    } else if (e.type === "order" && e.by && e.mark && e.by !== e.mark) {
+      mugFlight(root, rectIn(root, seatEl(root, e.by)), rectIn(root, seatEl(root, e.mark)));
     } else if (e.type === "out") {
       wobbleOut(seatEl(root, e.mark));
     } else if (e.type === "win" && e.mark) {

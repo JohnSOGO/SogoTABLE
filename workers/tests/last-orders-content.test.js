@@ -215,3 +215,18 @@ test("last-orders content: every rules id has a client display entry", () => {
   const orphans = ["CHARACTERS", "CARDS", "DRINKS", "EVENTS"].flatMap((table) => Object.keys(CONTENT[table]).filter((id) => !ids.has(id)));
   assert.deepEqual(orphans, []);
 });
+
+test("last-orders voices: every patron has a distinct Kokoro voice and every listed clip is committed", async () => {
+  const { existsSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const { VOICE_PROFILES } = await import("../../src/sogotable/static/games/last-orders/voice.js");
+  const { ASSETS, VOICE_IDS } = await import("../../src/sogotable/static/games/last-orders/assets.js");
+  const ids = Object.keys(CONTENT.CHARACTERS);
+  assert.deepEqual(Object.keys(VOICE_PROFILES).sort(), [...ids].sort());
+  const kokoro = ids.map((id) => VOICE_PROFILES[id].kokoro);
+  assert.equal(new Set(kokoro).size, ids.length, "no two patrons share a voice");
+  for (const id of VOICE_IDS) {
+    assert.ok(CONTENT.CARDS[id], `${id} is a card`);
+    assert.ok(existsSync(fileURLToPath(ASSETS.voices[id])), `${id} clip is committed`);
+  }
+});

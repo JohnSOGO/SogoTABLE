@@ -151,6 +151,10 @@ export const UI = {
   primerHint: "how-to-play notes at the top",
   autoPassLabel: "Auto-pass",
   autoPassHint: "pass for me when I hold nothing that answers",
+  calloutsLabel: "Play callouts",
+  calloutsHint: "show who just played what, with their portrait",
+  voiceLabel: "Voices",
+  voiceHint: "each patron says the card they play (follows the sound button)",
   on: "On",
   off: "Off",
   close: "Close",
@@ -171,6 +175,15 @@ export const PRIMER = {
 };
 
 // Event log ticker lines. Names arrive already resolved (player name, card name).
+// The play callout banner (callout.js): "<who> plays <card> on <target>".
+export const CALLOUT = {
+  plays: "plays",
+  answers: "answers with",
+  drinks: "raises",
+  on: "on",
+  you: "you",
+};
+
 export const TICKER = {
   turn: (who) => `${who}'s turn.`,
   round: (n, esc) => (esc ? `Round ${n} — closing time +${esc}!` : `Round ${n}.`),
