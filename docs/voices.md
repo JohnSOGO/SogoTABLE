@@ -32,7 +32,18 @@ Decided 2026-11-13 at MojoSOGO's request ("I need a voice voicing the card they 
 
 `voice.js` is the source of truth; a test keeps every patron on a distinct voice.
 
-## Making the clips (on SogoAI, via Remote Control)
+## Requested from SogoAI (2026-11-13)
+
+MojoSOGO chose this route: SogoAI records the lines, and SogoTable does not generate audio itself. The request is
+`voices/voice-lines.json`. It covers 80 lines: the 64 base-pack cards (Gorrum, Tilly, Ansel, Zephyrine) plus win,
+lose, bluff and last-orders lines for each of them.
+
+- Engines were picked from the approved samples: Gorrum and Zephyrine use Kokoro, Tilly and Ansel use Parler.
+- It was posted as one Crossroads Board ticket to `sogoai`.
+- When the WAVs arrive, copy them into `games/last-orders/voice/`, list them in `VOICE_IDS`, and teach `voice.js` the
+  event lines.
+
+## Making clips ourselves (fallback script, not the chosen route)
 
 1. Run a Kokoro server with an OpenAI-compatible endpoint (for example Kokoro-FastAPI on `127.0.0.1:8880`, `POST /v1/audio/speech`).
 2. From the repo: `node scripts/voices/last-orders-voices.mjs --url http://127.0.0.1:8880` (add `--only base:gorrum` to try one patron, `--force` to redo).
