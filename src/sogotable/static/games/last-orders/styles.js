@@ -433,10 +433,14 @@ ${F("keep")} .lo-card.lo-discard{transform:none;opacity:.6}
 ${F("keep")} .lo-card-mark{top:50%;right:8px;width:30px;height:30px;margin-top:-15px;font-size:16px}
 
 /* playing, answering, gambling, ordering: big cards, the unplayable ones tuck in small */
-${F("big")} .lo-hand-row{align-items:flex-start;padding-top:10px}
+${F("big")} .lo-hand-row{align-items:stretch;padding-top:10px}
 ${F("big")} button.lo-card{touch-action:pan-x}
-${F("big")} .lo-hand-row:not(:has(> .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim))){flex-wrap:wrap;justify-content:center;overflow:visible;scroll-snap-type:none}
-${F("big")} .lo-hand-row:not(:has(> .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim))) > button.lo-card:not(.lo-dim){touch-action:none}
+${F("big")} .lo-hand-row{flex-wrap:wrap;justify-content:center;overflow:visible;scroll-snap-type:none}
+${F("big")} .lo-hand-row > button.lo-card:not(.lo-dim){touch-action:none}
+${F("big")} .lo-hand-row:has(> .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim)){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;gap:6px;padding-left:6px;padding-right:6px}
+${F("big")} .lo-hand-row:has(> .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim)) > button.lo-card{width:auto;min-width:0}
+${F("big")} .lo-hand-row:has(> .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim)) .lo-card-name{font-size:13px}
+${F("big")} .lo-hand-row:has(> .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim)) .lo-card-text{font-size:11.5px}
 ${F("big")} button.lo-card{width:154px}
 ${F("big")} .lo-card-kind{font-size:10.5px}
 ${F("big")} .lo-card-name{font-size:15.5px}
