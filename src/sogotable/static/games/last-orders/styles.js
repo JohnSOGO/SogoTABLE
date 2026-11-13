@@ -104,7 +104,13 @@ const LIGHT = `
 .last-orders-root .lo-chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:12px;background:rgba(40,22,10,.55);color:#fff8e8;font-size:12px;font-weight:800;white-space:nowrap}
 .last-orders-root .lo-chip-hot{background:rgba(180,40,30,.8)}
 .last-orders-root .lo-chip-deck svg{width:12px;height:17px;border-radius:2px}
-.last-orders-root .lo-ring-wrap{position:relative;margin-left:auto;width:40px;height:40px;flex:none}
+.last-orders-root .lo-ring-wrap{position:relative;margin-left:auto;width:40px;height:40px;flex:none;padding:0;border:0;background:none;color:inherit;font:inherit}
+.last-orders-root button.lo-ring-wrap{width:48px;height:48px;cursor:pointer;touch-action:manipulation}
+.last-orders-root button.lo-ring-wrap .lo-ring{width:48px;height:48px}
+.last-orders-root .lo-ring-icon{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:9px;line-height:1;background:rgba(30,16,8,.9);color:#fff;border:1px solid rgba(255,255,255,.35)}
+.last-orders-root .lo-ring-wrap.lo-paused .lo-ring-fg{stroke:#9fb4c8}
+.last-orders-root .lo-ring-wrap.lo-paused .lo-ring-num{color:#cfe0f0;animation:lo-paused 1.6s ease-in-out infinite}
+@keyframes lo-paused{50%{opacity:.45}}
 .last-orders-root .lo-ring{width:40px;height:40px;transform:rotate(-90deg)}
 .last-orders-root .lo-ring-bg{fill:rgba(30,16,8,.55);stroke:rgba(255,255,255,.18);stroke-width:4}
 .last-orders-root .lo-ring-fg{fill:none;stroke:var(--lo-turn);stroke-width:4;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:0}
@@ -402,6 +408,8 @@ ${F("keep")} .lo-card-mark{top:50%;right:8px;width:30px;height:30px;margin-top:-
 /* playing, answering, gambling, ordering: big cards, the unplayable ones tuck in small */
 ${F("big")} .lo-hand-row{align-items:flex-start;padding-top:10px}
 ${F("big")} button.lo-card{touch-action:pan-x}
+${F("big")} .lo-hand-row:not(:has(> .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim))){flex-wrap:wrap;justify-content:center;overflow:visible;scroll-snap-type:none}
+${F("big")} .lo-hand-row:not(:has(> .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim) ~ .lo-card:not(.lo-dim))) > button.lo-card:not(.lo-dim){touch-action:none}
 ${F("big")} button.lo-card{width:154px}
 ${F("big")} .lo-card-kind{font-size:10.5px}
 ${F("big")} .lo-card-name{font-size:15.5px}

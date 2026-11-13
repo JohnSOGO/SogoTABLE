@@ -4,7 +4,8 @@
 //   • hold   — press ~0.4 s and let go without moving: onHold(uid);
 //   • drag   — press and pull the card up/out of the hand (or, after a hold,
 //              in any direction the browser lets us have), then let go; a
-//              table thing marked data-lo-drag (the drink deck) drags any way:
+//              table thing marked data-lo-drag (the drink deck), or a card in
+//              a hand that doesn't scroll (touch-action:none), drags any way:
 //              onDrop(uid, drop) with drop = a seat mark, "bar", or null;
 //   • it also stops the long-press text selection / callout / context menu.
 // It reports raw facts only. render.js decides, from server-computed game.me,
@@ -21,13 +22,18 @@ const MOVE_PX = 8;
 const CARD = '.lo-hand [data-lo-act="card"][data-v]';
 const SOURCE = `${CARD}, [data-lo-drag]`; // hand cards, plus table things you can pick up (the drink deck)
 
-export function wireGestures(root, { canDrag, onHold, onDrop, onDragStart = () => {} }) {
+const noScroll = (el) => {
+  try { return getComputedStyle(el).touchAction === "none"; } catch { return false; }
+};
+
+export function wireGestures(root, { canDrag, onHold, onDrop, onDragStart = () => {}, onDragEnd = () => {} }) {
   let g = null; // { id, uid, el, x, y, timer, held, ghost, hot }
   let swallowUntil = 0;
 
   const clearHot = () => { if (g && g.hot) { g.hot.classList.remove("lo-drop-hot"); g.hot = null; } };
   const end = () => {
     if (!g) return;
+    if (g.ghost) onDragEnd(g.uid);
     clearTimeout(g.timer);
     clearHot();
     if (g.ghost) g.ghost.remove();
@@ -111,7 +117,9 @@ export function wireGestures(root, { canDrag, onHold, onDrop, onDragStart = () =
     end(); // never let a half-finished gesture block a new one
     const el = e.target.closest ? e.target.closest(SOURCE) : null;
     if (!el || el.disabled || !root.contains(el)) return;
-    const free = el.hasAttribute("data-lo-drag"); // not in the scrolling hand: any direction picks it up
+    // Not in a scrolling hand (the drink deck, or a play-focus hand that wraps
+    // and sets touch-action:none): any direction picks it up.
+    const free = el.hasAttribute("data-lo-drag") || noScroll(el);
     g = { id: e.pointerId, uid: el.getAttribute("data-v") || el.getAttribute("data-lo-drag"), el, free, x: e.clientX, y: e.clientY, timer: 0, held: false, ghost: null, hot: null };
     g.timer = setTimeout(() => {
       if (!g || g.ghost) return;

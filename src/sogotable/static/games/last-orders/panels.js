@@ -170,14 +170,22 @@ function stackItemHtml(vm, it, i, n, negated) {
     </div>`;
 }
 
+// The countdown ring. A seated human taps it to pause the table's clock (it
+// freezes for everyone) and taps again to resume; the server owns the pause.
 function ringHtml(vm) {
   const w = vm.reaction;
   if (!w) return "";
   const total = Math.max(1, Number(vm.game.options && vm.game.options.react_seconds) || 8) * 1000;
-  return `<div class="lo-ring-wrap" aria-hidden="true">
-      <svg class="lo-ring" viewBox="0 0 40 40"><circle class="lo-ring-bg" cx="20" cy="20" r="17"/><circle class="lo-ring-fg" cx="20" cy="20" r="17" pathLength="100" data-lo-ring="${Number(w.closes_at) || 0}" data-total="${total}"/></svg>
-      <span class="lo-ring-num" data-lo-count="${Number(w.closes_at) || 0}"></span>
-    </div>`;
+  const left = Math.max(0, Number(w.paused_left) || 0);
+  const paused = left > 0;
+  const label = paused ? UI.timerResume : UI.timerPause;
+  const tag = vm.canPause ? "button" : "div";
+  const attrs = vm.canPause ? ` type="button" data-lo-act="timer" aria-label="${vm.esc(label)}" title="${vm.esc(label)}"` : ` aria-hidden="true"`;
+  return `<${tag} class="lo-ring-wrap${paused ? " lo-paused" : ""}"${attrs}>
+      <svg class="lo-ring" viewBox="0 0 40 40"><circle class="lo-ring-bg" cx="20" cy="20" r="17"/><circle class="lo-ring-fg" cx="20" cy="20" r="17" pathLength="100" data-lo-ring="${Number(w.closes_at) || 0}" data-left="${left}" data-total="${total}"/></svg>
+      <span class="lo-ring-num" data-lo-count="${Number(w.closes_at) || 0}" data-left="${left}"></span>
+      ${vm.canPause ? `<span class="lo-ring-icon" aria-hidden="true">${paused ? "▶" : "⏸"}</span>` : ""}
+    </${tag}>`;
 }
 
 function potHtml(vm) {
@@ -330,6 +338,8 @@ function eventLine(vm, e) {
     case "event_flip": return TICKER.eventFlip(thingName(e.event));
     case "win": return e.mark ? TICKER.win(n(e.mark)) : "";
     case "skip": return TICKER.skip(n(e.mark));
+    case "pause": return TICKER.pause(n(e.mark));
+    case "resume": return TICKER.resume(n(e.mark));
     default: return "";
   }
 }

@@ -163,6 +163,8 @@ export const UI = {
   autoPassHint: "pass for me when I hold nothing that answers",
   stepTipsLabel: "Step tips",
   stepTipsHint: "explain each step of my turn as it starts",
+  timerPause: "Tap to pause the clock",
+  timerResume: "Paused. Tap to start the clock again",
   calloutsLabel: "Play callouts",
   calloutsHint: "show who just played what, with their portrait",
   voiceLabel: "Voices",
@@ -219,6 +221,8 @@ export const TICKER = {
   eventFlip: (name) => `Tonight: ${name}.`,
   win: (who) => `${who} is the last one standing!`,
   skip: (who) => `${who} is on auto-pilot.`,
+  pause: (who) => `${who} paused the clock.`,
+  resume: (who) => `${who} started the clock again.`,
 };
 
 // Lobby copy.
