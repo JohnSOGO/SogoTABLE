@@ -13,7 +13,7 @@ import { PACKS } from "./content.js";
 
 export const LO_DEFAULTS = Object.freeze({ react_seconds: 8, expansions: [], closing_time: true, random_characters: false, show_playable: true });
 const REACT_CHOICES = [5, 8, 12, 20];
-const EXPANSIONS = ["harbor", "frost", "masquerade", "clockwork", "rowdy"];
+const EXPANSIONS = ["harbor", "frost", "masquerade", "clockwork", "storm", "rowdy"];
 
 let lobbyKey = "";
 let lobbyStore = null;

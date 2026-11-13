@@ -53,6 +53,7 @@ night always ends (host can switch it off).
 | Frostmead Hall | 2 patrons + northern drinks |
 | Midnight Masquerade | 2 patrons + masquerade drinks |
 | Clockwork Cellar | 2 patrons + workshop drinks |
+| Storm Road | 2 patrons (Monsoon, tide-blooded war cleric; NotePick, goblin bard) + storm drinks |
 | Rowdy Nights | a tavern event deck: one event flips each table round |
 
 ## Host options
@@ -116,3 +117,13 @@ which punishes low-Grit patrons (Bim) more than mixed tables do. Turn order
 leaves the last seat about +3 points and the first about −3 at 4–6 seats; one
 Buzz of seat compensation overshoots and coins or an extra card do nothing, so
 it is left as is.
+
+**2026-11-13 Storm Road** (Monsoon and NotePick, judged on 60,000 games: bot levels 3,
+4 and mixed, all packs, 2–6 seats). Monsoon: drinks give her 1 less Buzz, −2 Grit,
+−2 coins; NotePick: discard and redraw up to 4. Edges: Monsoon −3.5 / +0.5 / +2.1
+(level 3 / 4 / mix, average −0.3), NotePick +3.2 / −5.4 / −0.4 (average −0.9), inside
+the spread of the other twelve. Tuning on the way: Monsoon with only −2 Grit was
++14 (water-blooded drink relief is strong because most outs are passing out), so she
+also starts 2 coins short; Healing Rain 2→1 and Crashing Wave 2→3; NotePick Drinking
+Song 2→1 and Cutting Lyric 1→2. NotePick swings with bot skill (strong against level 3,
+weak against level 4, which focuses the weakest seat), like Bim.

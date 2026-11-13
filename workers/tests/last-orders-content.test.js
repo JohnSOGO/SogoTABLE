@@ -11,7 +11,7 @@ const ITEM_KINDS = ["action", "drink", "gamble", "reaction"];
 const WHO = ["self", "target", "others", "all"];
 const TRAIT_KEYS = ["start_grit", "start_gold", "start_buzz", "hand_size", "drink_buzz_mod", "damage_bonus", "pot_bonus", "draw_bonus"];
 const MOD_KEYS = ["drink_buzz", "ante", "damage"];
-const EXPANSIONS = ["harbor", "frost", "masquerade", "clockwork"];
+const EXPANSIONS = ["harbor", "frost", "masquerade", "clockwork", "storm"];
 
 // op -> { fields: required field shape, n: "any" | "pos" | undefined }
 const OPS = {
@@ -73,7 +73,7 @@ function checkEffects(where, context, effects, problems) {
 }
 
 test("last-orders content: pack registry is base first and keyed by pack id", () => {
-  assert.deepEqual(PACK_IDS, ["base", "harbor", "frost", "masquerade", "clockwork", "rowdy"]);
+  assert.deepEqual(PACK_IDS, ["base", "harbor", "frost", "masquerade", "clockwork", "storm", "rowdy"]);
   for (const id of PACK_IDS) assert.equal(PACKS[id].id, id);
   assert.equal(PACKS.base.characters.length, 4);
   for (const id of EXPANSIONS) assert.equal(PACKS[id].characters.length, 2, `${id} has 2 characters`);

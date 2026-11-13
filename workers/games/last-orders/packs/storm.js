@@ -1,0 +1,65 @@
+// Last Orders — "storm" expansion (Storm Road) rules data (PLAN.md §2). Pure data, no imports.
+// Display text lives in src/sogotable/static/games/last-orders/content.js.
+
+const ANY = ["action", "drink", "gamble", "reaction"];
+
+export const STORM_PACK = {
+  id: "storm",
+  characters: [
+    {
+      id: "storm:monsoon",
+      pack: "storm",
+      trait: { drink_buzz_mod: -1, start_grit: -2, start_gold: -2 },
+      deck: [
+        { id: "storm:monsoon:thunder-maul", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -3 }] },
+        { id: "storm:monsoon:crashing-wave", kind: "action", copies: 3, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }] },
+        { id: "storm:monsoon:tidal-smite", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }, { op: "buzz", who: "target", n: 1 }] },
+        { id: "storm:monsoon:downpour", kind: "action", copies: 1, target: "none", effects: [{ op: "grit", who: "others", n: -1 }] },
+        { id: "storm:monsoon:healing-rain", kind: "action", copies: 1, target: "none", effects: [{ op: "grit", who: "self", n: 3 }] },
+        { id: "storm:monsoon:cleansing-tide", kind: "action", copies: 1, target: "none", effects: [{ op: "buzz", who: "self", n: -2 }] },
+        { id: "storm:monsoon:storm-tithe", kind: "action", copies: 1, target: "none", effects: [{ op: "collect", n: 1 }] },
+        { id: "storm:monsoon:rain-or-shine", kind: "action", copies: 3, target: "none", effects: [{ op: "gamble" }] },
+        { id: "storm:monsoon:shield-of-the-tide", kind: "reaction", copies: 2, target: "none", answers: ["action"], needs: "targeted", effects: [{ op: "negate" }] },
+        { id: "storm:monsoon:water-off-my-back", kind: "reaction", copies: 2, target: "none", answers: ["drink"], needs: "targeted", effects: [{ op: "negate" }] },
+        { id: "storm:monsoon:rolling-mist", kind: "reaction", copies: 2, target: "none", answers: ["action", "drink"], needs: "targeted", effects: [{ op: "soften", n: 2 }] },
+        { id: "storm:monsoon:storms-verdict", kind: "reaction", copies: 2, target: "none", answers: ANY, needs: "any", effects: [{ op: "negate" }] },
+        { id: "storm:monsoon:backwash", kind: "reaction", copies: 1, target: "none", answers: ["action"], needs: "targeted", effects: [{ op: "reflect" }] },
+        { id: "storm:monsoon:eye-of-the-storm", kind: "gamble", copies: 3, effects: [{ op: "take_lead" }] },
+        { id: "storm:monsoon:rising-waters", kind: "gamble", copies: 2, effects: [{ op: "raise", n: 1 }] },
+        { id: "storm:monsoon:squall-splash", kind: "spike", copies: 2, effects: [{ op: "buzz", who: "target", n: 2 }] },
+        { id: "storm:monsoon:lightning-in-a-bottle", kind: "spike", copies: 1, effects: [{ op: "buzz", who: "target", n: 1 }, { op: "grit", who: "target", n: -1 }] },
+      ],
+    },
+    {
+      id: "storm:notepick",
+      pack: "storm",
+      trait: { draw_bonus: 1 },
+      deck: [
+        { id: "storm:notepick:lute-to-the-head", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -3 }] },
+        { id: "storm:notepick:cutting-lyric", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }] },
+        { id: "storm:notepick:off-key-solo", kind: "action", copies: 2, target: "opponent", effects: [{ op: "grit", who: "target", n: -2 }, { op: "buzz", who: "target", n: 1 }] },
+        { id: "storm:notepick:drinking-song", kind: "action", copies: 1, target: "none", effects: [{ op: "buzz", who: "others", n: 1 }] },
+        { id: "storm:notepick:pass-the-lute-case", kind: "action", copies: 2, target: "none", effects: [{ op: "collect", n: 1 }] },
+        { id: "storm:notepick:encore", kind: "action", copies: 1, target: "none", effects: [{ op: "extra_action" }, { op: "draw", who: "self", n: 1 }] },
+        { id: "storm:notepick:rousing-ballad", kind: "action", copies: 1, target: "none", effects: [{ op: "grit", who: "self", n: 2 }, { op: "buzz", who: "self", n: -1 }] },
+        { id: "storm:notepick:name-that-tune", kind: "action", copies: 3, target: "none", effects: [{ op: "gamble" }] },
+        { id: "storm:notepick:drown-them-out", kind: "reaction", copies: 2, target: "none", answers: ["action"], needs: "targeted", effects: [{ op: "negate" }] },
+        { id: "storm:notepick:dodge-the-tomatoes", kind: "reaction", copies: 2, target: "none", answers: ["action", "drink"], needs: "targeted", effects: [{ op: "soften", n: 2 }] },
+        { id: "storm:notepick:not-my-verse", kind: "reaction", copies: 2, target: "opponent", answers: ["action"], needs: "targeted", effects: [{ op: "redirect" }] },
+        { id: "storm:notepick:sour-note", kind: "reaction", copies: 2, target: "none", answers: ["drink"], needs: "targeted", effects: [{ op: "negate" }] },
+        { id: "storm:notepick:hold-that-note", kind: "reaction", copies: 2, target: "none", answers: ANY, needs: "any", effects: [{ op: "negate" }] },
+        { id: "storm:notepick:lucky-pick", kind: "gamble", copies: 3, effects: [{ op: "take_lead" }] },
+        { id: "storm:notepick:crescendo", kind: "gamble", copies: 1, effects: [{ op: "raise", n: 1 }] },
+        { id: "storm:notepick:goblin-grog", kind: "spike", copies: 1, effects: [{ op: "buzz", who: "target", n: 2 }] },
+        { id: "storm:notepick:honey-for-the-throat", kind: "spike", copies: 2, effects: [{ op: "buzz", who: "target", n: 1 }] },
+      ],
+    },
+  ],
+  drinks: [
+    { id: "storm:drink:thunderhead-ale", copies: 2, effects: [{ op: "buzz", who: "target", n: 2 }] },
+    { id: "storm:drink:rain-barrel", copies: 1, effects: [{ op: "buzz", who: "target", n: -1 }, { op: "grit", who: "target", n: 1 }] },
+    { id: "storm:drink:chorus-round", copies: 1, house: true, effects: [{ op: "buzz", who: "target", n: 1 }] },
+    { id: "storm:drink:lightning-cider", copies: 1, chaser: true, effects: [{ op: "buzz", who: "target", n: 1 }] },
+  ],
+  events: [],
+};

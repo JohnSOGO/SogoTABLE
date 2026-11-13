@@ -30,7 +30,7 @@ const pic = (id) => new URL(`./img/${id.replace(/:/g, "-")}.webp`, import.meta.u
 // "pack:who": "card-a card-b ..." -> { "pack:who:card-a": url, ... }
 const picsOf = (groups) => Object.fromEntries(Object.entries(groups).flatMap(([prefix, names]) =>
   names.split(" ").map((n) => [`${prefix}:${n}`, pic(`${prefix}:${n}`)])));
-const CHARACTER_IDS = "base:gorrum base:tilly base:ansel base:zephyrine harbor:marrow harbor:nessa frost:hrolga frost:sable masquerade:verrin masquerade:bim clockwork:sprocket clockwork:brassbell";
+const CHARACTER_IDS = "base:gorrum base:tilly base:ansel base:zephyrine harbor:marrow harbor:nessa frost:hrolga frost:sable masquerade:verrin masquerade:bim clockwork:sprocket clockwork:brassbell storm:monsoon storm:notepick";
 const CARD_PICS = {
   "base:gorrum": "headbutt shoulder-barge bear-hug table-flip shake-down knuckle-crack arm-wrestle not-on-my-watch no-thanks-big-fella thick-skull bouncer-says-no toss-it-back lucky-knuckles slam-the-table make-it-a-double knuckle-salt",
   "base:tilly": "lift-a-purse quick-fingers pass-the-hat count-the-take shin-kick trip-wire dice-up-the-sleeve wasnt-me under-the-table oops-spilled-it slippery-as-soap lucky-thimble sneaky-peek double-or-nothing pinch-of-pepper mystery-drops",
@@ -44,6 +44,8 @@ const CARD_PICS = {
   "masquerade:bim": "pie-in-the-face juggling-jugs whoopee-cushion confetti-shower lily-pad-hop hat-trick leapfrog-bet wrong-pond boing spit-take punchline rubber-chicken jingle-the-bells swamp-fizz bubble-pop",
   "clockwork:sprocket": "spring-loaded-glove overclock blueprint-scribble boom-bottle coin-magnet gizmo-gamble pop-up-umbrella rocket-boots bounce-plate spanner-in-the-works rigged-roulette chain-reaction jackpot-o-matic rocket-fizz sparkplug-shot",
   "clockwork:brassbell": "piston-punch clang polish-the-glasses overtime-tips tip-jar-sweep coin-sorting-routine beverage-rejected reinforced-plating rustproof-lining servo-sidestep does-not-compute calculated-odds insert-coin motor-oil-twist steam-shot",
+  "storm:monsoon": "thunder-maul crashing-wave tidal-smite downpour healing-rain cleansing-tide storm-tithe rain-or-shine shield-of-the-tide water-off-my-back rolling-mist storms-verdict backwash eye-of-the-storm rising-waters squall-splash lightning-in-a-bottle",
+  "storm:notepick": "lute-to-the-head cutting-lyric off-key-solo drinking-song pass-the-lute-case encore rousing-ballad name-that-tune drown-them-out dodge-the-tomatoes not-my-verse sour-note hold-that-note lucky-pick crescendo goblin-grog honey-for-the-throat",
 };
 const DRINK_PICS = {
   "base:drink": "house-ale barrel-stout cinder-whiskey well-water warm-milk mystery-jug bubbly-mead barkeeps-special grannys-cordial sour-cider fancy-port lucky-penny-punch the-dare",
@@ -51,6 +53,7 @@ const DRINK_PICS = {
   "frost:drink": "frostmead glacier-melt yeti-nog avalanche",
   "masquerade:drink": "masked-punch midnight-tea bubbly-fountain mystery-flute",
   "clockwork:drink": "fizzbang-soda steam-cider coolant-cooler unstable-tonic",
+  "storm:drink": "thunderhead-ale rain-barrel chorus-round lightning-cider",
 };
 
 // VOICES (docs/voices.md): one MP3 per card id in ./voice/, named like the
