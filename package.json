@@ -28,6 +28,6 @@
     "eslint": "^9.39.5",
     "globals": "^17.14.0",
     "prettier": "^3.10.0",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.168.0"
   }
 }
